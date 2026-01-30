@@ -13,10 +13,10 @@ import com.hayden.multiagentidelib.model.nodes.InterruptContext
 import com.hayden.multiagentidelib.model.nodes.InterruptNode
 import com.hayden.multiagentidelib.model.nodes.Interruptible
 import com.hayden.multiagentidelib.model.nodes.ReviewNode
-import com.hayden.utilitymodule.acp.events.EventBus
-import com.hayden.utilitymodule.acp.events.Events
-import com.hayden.utilitymodule.permission.IPermissionGate
-import io.github.oshai.kotlinlogging.KotlinLogging
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
+import com.hayden.acp_cdc_ai.acp.events.EventBus
+import com.hayden.acp_cdc_ai.acp.events.Events
+import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Predicate
 
 @Service
 class PermissionGate(
@@ -53,6 +54,18 @@ class PermissionGate(
     private val pendingRequests = ConcurrentHashMap<String, IPermissionGate.PendingPermissionRequest>()
     private val pendingInterrupts = ConcurrentHashMap<String, PendingInterruptRequest>()
 
+    fun getInterruptPending(requestId: Predicate<PendingInterruptRequest>): PendingInterruptRequest? {
+        return pendingInterrupts.entries
+            .filter{ requestId.test(it.value) }
+            .map { it.value }
+            .firstOrNull()
+    }
+
+    fun isInterruptPending(requestId: Predicate<PendingInterruptRequest>): Boolean {
+        return pendingInterrupts.entries
+            .any{ requestId.test(it.value) }
+    }
+
     override fun publishRequest(
         requestId: String,
         originNodeId: String,
@@ -68,7 +81,7 @@ class PermissionGate(
         val now = Instant.now()
         val permissionNodeId = UUID.randomUUID().toString()
         val permissionNode = AskPermissionNode.builder()
-            .nodeId(permissionNodeId)
+            .nodeId(ArtifactKey(permissionNodeId).createChild().value)
             .title("Permission: " + (toolCall.title ?: "request"))
             .goal("Permission requested for tool call " + toolCall.toolCallId.value)
             .status(Events.NodeStatus.WAITING_INPUT)
@@ -267,13 +280,17 @@ class PermissionGate(
     }
 
     suspend fun awaitInterrupt(interruptId: String): InterruptResolution {
-        val pending = pendingInterrupts[interruptId] ?: return InterruptResolution(
+        val pending = pendingInterrupts[interruptId] ?: return invalidInterrupt(interruptId)
+        return pending.deferred.await()
+    }
+
+    fun invalidInterrupt(interruptId: String): InterruptResolution {
+        return InterruptResolution(
             interruptId = interruptId,
             originNodeId = interruptId,
             resolutionType = "cancelled",
             resolutionNotes = null
         )
-        return pending.deferred.await()
     }
 
     fun awaitInterruptBlocking(interruptId: String): InterruptResolution {
@@ -289,13 +306,13 @@ class PermissionGate(
         reviewResult: AgentModels.ReviewAgentResult? = null
     ): Boolean {
         val pending = pendingInterrupts.remove(interruptId) ?: return false
+
         val resolution = InterruptResolution(
             interruptId = interruptId,
             originNodeId = pending.originNodeId,
             resolutionType = resolutionType,
             resolutionNotes = resolutionNotes
         )
-        pending.deferred.complete(resolution)
 
         val interruptNode = graphRepository.findById(interruptId).orElse(null)
         when (interruptNode) {
@@ -375,6 +392,8 @@ class PermissionGate(
                 )
             }
         }
+
+        pending.deferred.complete(resolution)
         return true
     }
 

@@ -1,11 +1,9 @@
 package com.hayden.multiagentidelib.agent;
 
-import com.embabel.agent.core.AgentPlatform;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.hayden.commitdiffcontext.cdc_utils.SetFromHeader;
 import com.hayden.commitdiffcontext.mcp.ToolCarrier;
-import com.hayden.utilitymodule.acp.events.EventBus;
-import com.hayden.utilitymodule.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.ui.GuiEmissionResult;
 import com.hayden.multiagentidelib.model.ui.GuiEventPayload;
 import com.hayden.multiagentidelib.model.ui.UiDiffRequest;
@@ -21,7 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.hayden.utilitymodule.acp.AcpChatModel.MCP_SESSION_HEADER;
+import static com.hayden.acp_cdc_ai.acp.AcpChatModel.MCP_SESSION_HEADER;
 
 /**
  * Tool definitions for Embabel agents.

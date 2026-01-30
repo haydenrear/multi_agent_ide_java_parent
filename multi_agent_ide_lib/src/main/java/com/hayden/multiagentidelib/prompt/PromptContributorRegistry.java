@@ -26,7 +26,7 @@ public class PromptContributorRegistry {
                         (existing, replacement) -> existing
                 ));
         List<PromptContributor> filtered = new ArrayList<>(unique.values());
-        filtered.removeIf(contributor -> !contributor.isApplicable(context != null ? context.agentType() : null));
+        filtered.removeIf(contributor -> !contributor.isApplicable(context));
         filtered.sort(Comparator
                 .comparingInt(PromptContributor::priority)
                 .thenComparing(PromptContributor::name, String.CASE_INSENSITIVE_ORDER));

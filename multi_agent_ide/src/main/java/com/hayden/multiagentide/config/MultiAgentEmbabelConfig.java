@@ -7,10 +7,13 @@ import com.embabel.agent.core.AgentScope;
 import com.embabel.agent.spi.AgentProcessIdGenerator;
 import com.embabel.common.ai.model.Llm;
 import com.hayden.multiagentide.agent.AgentInterfaces;
-import com.hayden.utilitymodule.acp.config.AcpModelProperties;
-import com.hayden.utilitymodule.acp.config.McpProperties;
-import com.hayden.utilitymodule.acp.events.EventBus;
-import com.hayden.utilitymodule.acp.AcpChatModel;
+import com.hayden.multiagentide.agent.AgentQuestionAnswerFunction;
+import com.hayden.multiagentide.agent.AskUserQuestionTool;
+import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties;
+import com.hayden.acp_cdc_ai.acp.config.McpProperties;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.AcpChatModel;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -38,26 +41,39 @@ public class MultiAgentEmbabelConfig {
     @Value("${multi-agent-embabel.chat-model.provider:acp}")
     private String modelProvider;
 
+    @SneakyThrows
     @Bean
-    public ApplicationRunner deployAgents(List<Object> agents,
+    public ApplicationRunner deployAgents(List<AgentInterfaces> agents,
                                           AgentPlatform agentPlatform,
-                                          AgentMetadataReader agentMetadataReader,
-                                          AgentInterfaces.WorkflowAgent workflowAgent) {
-        for (Object agent : agents) {
-            if (!agent.getClass().isAnnotationPresent(com.embabel.agent.api.annotation.Agent.class)) {
-                continue;
-            }
-            deployAgent(agentMetadataReader.createAgentMetadata(agent), agentPlatform, agent.getClass().getName());
-
+                                          AgentMetadataReader agentMetadataReader) {
+        for (AgentInterfaces agent : agents) {
+            AgentScope agentMetadata = agentMetadataReader.createAgentMetadata(agent);
+            deployAgent(
+                    agentMetadata,
+                    agentPlatform,
+                    agent.getClass().getName());
         }
+
 
         return args -> {
         };
     }
 
+    @Bean
+    public AskUserQuestionTool askUserQuestionTool(AgentQuestionAnswerFunction agentQuestionAnswerFunction) {
+        return AskUserQuestionTool.builder()
+                .questionAnswerFunction(agentQuestionAnswerFunction)
+                .answersValidation(false)
+                .build();
+    }
+
     private static void deployAgent(AgentScope agentMetadataReader, AgentPlatform agentPlatform, String workflowAgent) {
         Optional.ofNullable(agentMetadataReader)
-                .ifPresentOrElse(agentPlatform::deploy, () -> log.error(
+                .ifPresentOrElse(s -> {
+                    log.info("Starting deployment of {}", s.getName());
+                    agentPlatform.deploy(s);
+                    log.info("Finished deployment of {}", s.getName());
+                }, () -> log.error(
                         "Error deploying {} - could not create agent metadata.",
                         workflowAgent
                 ));
@@ -108,7 +124,7 @@ public class MultiAgentEmbabelConfig {
 //                          process.getProcessContext().getAgentProcess().getLlmInvocations().getLast().getLlm();
                             var prev = EventBus.agentProcess.get();
                             try {
-                                EventBus.agentProcess.set(new EventBus.AgentProcessData(evt.getProcessId()));
+                                EventBus.agentProcess.set(new EventBus.AgentNodeKey(evt.getProcessId()));
                                 chatModel.call(new Prompt(new AssistantMessage(evt.getMessage().getContent())));
                             } finally {
                                 EventBus.agentProcess.set(prev);

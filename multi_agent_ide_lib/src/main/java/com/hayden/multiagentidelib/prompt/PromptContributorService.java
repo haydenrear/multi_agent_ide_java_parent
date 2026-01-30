@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 public class PromptContributorService {
     
     private final PromptContributorRegistry registry;
+
     private final List<PromptContributorFactory> factories;
     
     /**

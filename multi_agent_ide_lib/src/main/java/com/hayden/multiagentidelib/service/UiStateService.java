@@ -1,6 +1,6 @@
 package com.hayden.multiagentidelib.service;
 
-import com.hayden.utilitymodule.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.ui.UiDiffRequest;
 import com.hayden.multiagentidelib.model.ui.UiDiffResult;
 import org.springframework.stereotype.Service;
