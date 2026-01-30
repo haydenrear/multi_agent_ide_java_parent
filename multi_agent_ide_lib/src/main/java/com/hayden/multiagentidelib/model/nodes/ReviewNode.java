@@ -1,7 +1,7 @@
 package com.hayden.multiagentidelib.model.nodes;
 
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.utilitymodule.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import lombok.Builder;
 import java.time.Instant;
 import java.util.ArrayList;

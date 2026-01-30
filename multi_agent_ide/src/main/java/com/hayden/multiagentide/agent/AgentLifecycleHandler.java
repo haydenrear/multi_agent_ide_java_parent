@@ -2,8 +2,11 @@ package com.hayden.multiagentide.agent;
 
 import com.embabel.agent.api.event.*;
 import com.embabel.agent.core.*;
-import com.hayden.utilitymodule.acp.events.EventBus;
-import com.hayden.utilitymodule.acp.events.Events;
+import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
@@ -49,20 +52,34 @@ public class AgentLifecycleHandler {
         return new AgenticEventListener() {
             @Override
             public void onProcessEvent(@NonNull AgentProcessEvent event) {
+                EventBus.AgentNodeKey prev = null;
                 if (event instanceof LlmRequestEvent creation) {
-                    EventBus.agentProcess.set(new EventBus.AgentProcessData(creation.getProcessId()));
+                    prev = setAgentKey(creation);
                 }
                 if (event instanceof AgentProcessCreationEvent creation) {
-                    EventBus.agentProcess.set(new EventBus.AgentProcessData(creation.getProcessId()));
+                    prev = setAgentKey(creation);
                 }
                 if (event instanceof AgentProcessFinishedEvent) {
-                    EventBus.agentProcess.remove();
+                    if (prev == null)
+                        EventBus.agentProcess.remove();
+                    else
+                        EventBus.agentProcess.set(prev);
                 }
+            }
+
+            private static EventBus.AgentNodeKey setAgentKey(AbstractAgentProcessEvent creation) {
+                var prev = EventBus.agentProcess.get();
+                var ar = BlackboardHistory.getLastFromHistory(creation.getAgentProcess(), AgentModels.AgentRequest.class);
+
+                if (ar == null || ar.key() == null || ar.key().value() == null)
+                    EventBus.agentProcess.set(new EventBus.AgentNodeKey(creation.getProcessId()));
+
+                return prev;
             }
         };
     }
 
-    public <T> T runAgent(AgentInterfaces agentInterface, Object input, Class<T> outputClass, String nodeId) {
+    public <T> T runAgent(AgentInterfaces agentInterface, AgentModels.OrchestratorRequest input, Class<T> outputClass, String nodeId) {
         log.info("Starting agent {}: {}, {}", agentInterface.getClass().getSimpleName(), nodeId, input);
         Agent agent = resolveAgent(agentInterface.multiAgentAgentName());
         ProcessOptions processOptions = ProcessOptions.DEFAULT.withContextId(nodeId)
@@ -71,16 +88,12 @@ public class AgentLifecycleHandler {
         AgentProcess process = agentPlatform.runAgentFrom(
                 agent,
                 processOptions,
-                Map.of(IoBinding.DEFAULT_BINDING, input)
+                Map.of(IoBinding.DEFAULT_BINDING, input.withContextId(ArtifactKey.createRoot()))
         );
         var rot = process.run().resultOfType(outputClass);
         return rot;
     }
 
-    public void initializeOrchestrator(String repositoryUrl, String baseBranch,
-                                       String goal, String title) {
-        initializeOrchestrator(repositoryUrl, baseBranch, goal, title, null);
-    }
 
     /**
      * Initialize an orchestrator node with a goal.
@@ -88,7 +101,8 @@ public class AgentLifecycleHandler {
      */
     public void initializeOrchestrator(String repositoryUrl, String baseBranch,
                                        String goal, String title, String nodeId) {
-        String resolvedNodeId = nodeId != null ? nodeId : UUID.randomUUID().toString();
+        String resolvedNodeId = nodeId != null ? nodeId : ArtifactKey.createRoot().value();
+
         if (nodeExists(resolvedNodeId)) {
             log.info("Orchestrator node {} already exists; skipping initialization", resolvedNodeId);
             return;
@@ -166,11 +180,10 @@ public class AgentLifecycleHandler {
         graphRepository.save(orchestrator);
         worktreeRepository.save(mainWorktree);
 
-        // Emit events
-        this.orchestrator.emitNodeAddedEvent(orchestrator.nodeId(), orchestrator.title(),
-                orchestrator.nodeType(), orchestrator.parentNodeId());
         this.orchestrator.emitWorktreeCreatedEvent(mainWorktree.worktreeId(), resolvedNodeId,
                 mainWorktree.worktreePath().toString(), "main", null);
+        this.orchestrator.emitNodeAddedEvent(orchestrator.nodeId(), orchestrator.title(),
+                orchestrator.nodeType(), orchestrator.parentNodeId());
     }
 
     private boolean nodeExists(String nodeId) {

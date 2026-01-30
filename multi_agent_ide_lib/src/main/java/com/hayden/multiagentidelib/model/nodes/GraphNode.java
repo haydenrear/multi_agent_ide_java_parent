@@ -1,6 +1,6 @@
 package com.hayden.multiagentidelib.model.nodes;
 
-import com.hayden.utilitymodule.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 
 import java.time.Instant;
 import java.util.List;

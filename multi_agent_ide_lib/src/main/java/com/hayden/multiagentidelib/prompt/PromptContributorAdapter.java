@@ -2,6 +2,7 @@ package com.hayden.multiagentidelib.prompt;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.common.ai.prompt.PromptContributionLocation;
+import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -12,7 +13,8 @@ import org.jetbrains.annotations.Nullable;
  * with Embabel's native prompt contribution system via withPromptContributor().
  */
 public class PromptContributorAdapter implements com.embabel.agent.api.common.ContextualPromptElement {
-    
+
+    @Getter
     private final PromptContributor contributor;
     private final PromptContext promptContext;
     

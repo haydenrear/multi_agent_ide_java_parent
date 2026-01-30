@@ -1,8 +1,8 @@
 package com.hayden.multiagentide.service;
 
 import com.embabel.agent.api.common.OperationContext;
-import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentide.tool.ToolContext;
 
 import java.util.Map;
 
@@ -25,6 +25,7 @@ public interface LlmRunner {
      * @param templateName The name of the Jinja template (e.g., "workflow/orchestrator")
      * @param promptContext The prompt context (contains agent type and other metadata)
      * @param model The data model to render the template with
+     * @param toolContext The tool context for tool abstractions
      * @param responseClass The class type expected for the response
      * @param context The operation context containing the agent process and AI interface
      * @param <T> The type of the response object
@@ -34,6 +35,7 @@ public interface LlmRunner {
             String templateName,
             PromptContext promptContext,
             Map<String, Object> model,
+            ToolContext toolContext,
             Class<T> responseClass,
             OperationContext context
     );

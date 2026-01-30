@@ -1,6 +1,29 @@
 package com.hayden.multiagentidelib.agent;
 
-public interface AgentContext {
+import com.hayden.acp_cdc_ai.acp.events.Artifact;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+
+import java.util.List;
+
+public interface AgentContext extends Artifact.AgentModel {
+
+    ArtifactKey artifactKey();
+
+    @Override
+    default ArtifactKey key() {
+        return artifactKey();
+    }
+
+    @Override
+    default List<Artifact.AgentModel> children() {
+        return List.of();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    default <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> c) {
+        return (T) this;
+    }
 
     default String prettyPrint(AgentSerializationCtx serializationCtx) {
         return switch (serializationCtx) {
@@ -36,4 +59,5 @@ public interface AgentContext {
         record ResultsSerialization() implements AgentSerializationCtx {}
 
     }
+
 }
