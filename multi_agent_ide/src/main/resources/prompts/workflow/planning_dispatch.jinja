@@ -1,0 +1,15 @@
+Dispatch the planning workflow results to the next step.
+
+Goal: {{ goal }}
+Planning Results: {{ planningResults }}
+
+If you are uncertain or need confirmation, return an interruptRequest when:
+- Unsure how to distribute tickets among agents
+- Unsure which tickets require additional discovery context
+- Unsure whether to wait for missing planning results before consolidating
+
+{% include "workflow/_interrupt_guidance.jinja" %}
+
+Return a routing object with exactly one of:
+- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, agentAssignments, ticketDistribution, discoveryContextRouting, routingRationale }
+- planningCollectorRequest: { goal, planningResults }

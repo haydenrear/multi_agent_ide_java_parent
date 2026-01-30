@@ -1,0 +1,41 @@
+{
+  "name": "cdc-fe",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build  --turbopack",
+    "start": "next start",
+    "test": "vitest run",
+    "build:export": "npm run build && rm -rf /Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide/build/resources/main/static && mv /Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide/fe/out /Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide/build/resources/main/static",
+    "watch:export": "PATH=$PATH:/Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide/build/npm/npm-v10.2.4/bin:/Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide/build/nodejs/node-v20.11.0-darwin-arm64/bin:/Users/hayde/.cargo/bin:/Users/hayde/.sdkman/candidates/java/current/bin:/Users/hayde/.docker/bin:/usr/local/opt/sbt@0.13/bin:/opt/homebrew/opt/node@18/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/forge/bin:/Library/kube:/Library/leningen:/usr/local/anaconda3/bin:/Users/hayde/.cargo/bin:/Users/hayde/Documents/plantuml/run/start-puml:/Library/Frameworks/Python.framework/Versions/3.10/bin:/Users/hayde/.asdf:/Users/hayde/IdeaProjects/jextract/build/jextract/bin:/Users/hayde/bin:/Users/hayde/crypto_utils/EasyRSA-3.2.0:/Users/hayde/IdeaProjects/llm-term/target/debug:/Users/hayde/.local/bin:/Users/hayde/.cargo/bin:/Users/hayde/opt/anaconda3/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/maven/apache-maven-3.6.3/bin/:/Library/jdk16/jdk-16.jdk/Contents/Home:/Library/forge/bin:/Library/openshift/oc:/Library/openshift/kubectl:/Library/openshift:/Users/hayde/Documents/neovim/nvim-macos/bin:/opt/homebrew/bin npx chokidar 'pages/**/*' 'app/**/*' 'public/**/*' 'components/**/*' 'src/**' -c \"PATH=$PATH:/Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide/build/npm/npm-v10.2.4/bin:/Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide/build/nodejs/node-v20.11.0-darwin-arm64/bin:/Users/hayde/.cargo/bin:/Users/hayde/.sdkman/candidates/java/current/bin:/Users/hayde/.docker/bin:/usr/local/opt/sbt@0.13/bin:/opt/homebrew/opt/node@18/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/forge/bin:/Library/kube:/Library/leningen:/usr/local/anaconda3/bin:/Users/hayde/.cargo/bin:/Users/hayde/Documents/plantuml/run/start-puml:/Library/Frameworks/Python.framework/Versions/3.10/bin:/Users/hayde/.asdf:/Users/hayde/IdeaProjects/jextract/build/jextract/bin:/Users/hayde/bin:/Users/hayde/crypto_utils/EasyRSA-3.2.0:/Users/hayde/IdeaProjects/llm-term/target/debug:/Users/hayde/.local/bin:/Users/hayde/.cargo/bin:/Users/hayde/opt/anaconda3/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/maven/apache-maven-3.6.3/bin/:/Library/jdk16/jdk-16.jdk/Contents/Home:/Library/forge/bin:/Library/openshift/oc:/Library/openshift/kubectl:/Library/openshift:/Users/hayde/Documents/neovim/nvim-macos/bin:/opt/homebrew/bin npm run build:export\""
+  },
+  "dependencies": {
+    "@a2ui/lit": "^0.8.1",
+    "@ag-ui/core": "0.0.42",
+    "@copilotkit/react-core": "^1.50.1",
+    "@copilotkit/react-ui": "^1.50.1",
+    "@copilotkit/runtime": "^1.50.1",
+    "@lit-labs/signals": "^0.1.3",
+    "@lit/context": "^1.1.4",
+    "jsonwebtoken": "^9.0.2",
+    "lit": "^3.3.1",
+    "markdown-it": "^14.1.0",
+    "next": "15.5.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "signal-utils": "^0.21.1"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "chokidar-cli": "^3.0.0",
+    "jsdom": "^24.0.0",
+    "typescript": "^5",
+    "vitest": "^2.1.8"
+  }
+}

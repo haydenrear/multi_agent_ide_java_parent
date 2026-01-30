@@ -1,0 +1,21 @@
+Analyze the following goal and break it down into 3 work items:
+1. Architecture & Setup - Design foundational structure
+2. Implementation - Core functionality
+3. Testing & Validation - Tests and validation
+
+Goal: {{ goal }}
+
+Provide a structured plan with clear sections for each work item.
+
+If you are uncertain or need confirmation, return an interruptRequest when:
+- Unsure about architecture choices or design direction
+- Unsure how to split or prioritize tickets
+- Unsure about acceptance criteria or required test coverage
+- Unsure how discovery findings constrain planning decisions
+
+{% include "workflow/_interrupt_guidance.jinja" %}
+
+Return a routing object with exactly one of:
+- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, ticketDesign, architectureDecisions, proposedTickets, discoveryReferences }
+- agentResult: { schemaVersion, resultId, upstreamContextId, discoveryResultId, tickets, output }
+- interruptState: { request: { type, reason, contextForDecision, choices, confirmationItems, ticketDesign, architectureDecisions, proposedTickets, discoveryReferences } }

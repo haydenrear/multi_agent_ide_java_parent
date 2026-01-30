@@ -1,0 +1,193 @@
+package com.hayden.multiagentide.agent;
+
+import com.embabel.agent.api.event.*;
+import com.embabel.agent.core.*;
+import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentidelib.model.nodes.*;
+import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
+import com.hayden.multiagentide.repository.GraphRepository;
+import com.hayden.multiagentide.repository.WorktreeRepository;
+import com.hayden.multiagentide.service.WorktreeService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
+import org.springframework.stereotype.Component;
+
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.*;
+
+/**
+ * Handles agent lifecycle events for the multi-agent system.
+ * Manages node creation, updates, and removal in the computation graph
+ * when agents are invoked (including when invoked by other agents).
+ */
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class AgentLifecycleHandler {
+
+
+    private final ComputationGraphOrchestrator orchestrator;
+    private final GraphRepository graphRepository;
+    private final WorktreeRepository worktreeRepository;
+    private final WorktreeService worktreeService;
+    private final AgentPlatform agentPlatform;
+
+    public Agent resolveAgent(String agentName) {
+        List<Agent> agents = agentPlatform.agents();
+        return agents.stream()
+                .filter(agent -> agent.getName().equals(agentName))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Agent not found: " + agentName));
+    }
+
+    public static AgenticEventListener agentProcessIdListener() {
+        return new AgenticEventListener() {
+            @Override
+            public void onProcessEvent(@NonNull AgentProcessEvent event) {
+                EventBus.AgentNodeKey prev = null;
+                if (event instanceof LlmRequestEvent creation) {
+                    prev = setAgentKey(creation);
+                }
+                if (event instanceof AgentProcessCreationEvent creation) {
+                    prev = setAgentKey(creation);
+                }
+                if (event instanceof AgentProcessFinishedEvent) {
+                    if (prev == null)
+                        EventBus.agentProcess.remove();
+                    else
+                        EventBus.agentProcess.set(prev);
+                }
+            }
+
+            private static EventBus.AgentNodeKey setAgentKey(AbstractAgentProcessEvent creation) {
+                var prev = EventBus.agentProcess.get();
+                var ar = BlackboardHistory.getLastFromHistory(creation.getAgentProcess(), AgentModels.AgentRequest.class);
+
+                if (ar == null || ar.key() == null || ar.key().value() == null)
+                    EventBus.agentProcess.set(new EventBus.AgentNodeKey(creation.getProcessId()));
+
+                return prev;
+            }
+        };
+    }
+
+    public <T> T runAgent(AgentInterfaces agentInterface, AgentModels.OrchestratorRequest input, Class<T> outputClass, String nodeId) {
+        log.info("Starting agent {}: {}, {}", agentInterface.getClass().getSimpleName(), nodeId, input);
+        Agent agent = resolveAgent(agentInterface.multiAgentAgentName());
+        ProcessOptions processOptions = ProcessOptions.DEFAULT.withContextId(nodeId)
+                .withListener(agentProcessIdListener());
+
+        AgentProcess process = agentPlatform.runAgentFrom(
+                agent,
+                processOptions,
+                Map.of(IoBinding.DEFAULT_BINDING, input.withContextId(ArtifactKey.createRoot()))
+        );
+        var rot = process.run().resultOfType(outputClass);
+        return rot;
+    }
+
+
+    /**
+     * Initialize an orchestrator node with a goal.
+     * Creates main worktree, submodule worktrees, and base spec.
+     */
+    public void initializeOrchestrator(String repositoryUrl, String baseBranch,
+                                       String goal, String title, String nodeId) {
+        String resolvedNodeId = nodeId != null ? nodeId : ArtifactKey.createRoot().value();
+
+        if (nodeExists(resolvedNodeId)) {
+            log.info("Orchestrator node {} already exists; skipping initialization", resolvedNodeId);
+            return;
+        }
+
+        // Create main worktree
+        MainWorktreeContext mainWorktree = worktreeService.createMainWorktree(
+                repositoryUrl, baseBranch, resolvedNodeId);
+
+        // Create orchestrator node
+        OrchestratorNode orchestrator = new OrchestratorNode(
+                resolvedNodeId,
+                Optional.ofNullable(title).orElse("Orchestrator"),
+                goal,
+                Events.NodeStatus.READY,
+                null,
+                new ArrayList<>(),
+                new HashMap<>(),
+                Instant.now(),
+                Instant.now(),
+                repositoryUrl,
+                baseBranch,
+                mainWorktree.hasSubmodules(),
+                worktreeService.getSubmoduleNames(mainWorktree.worktreePath()),
+                mainWorktree.worktreeId(),
+                new ArrayList<>(),
+                null,
+                new ArrayList<>()
+        );
+
+        // Create submodule worktrees
+        if (mainWorktree.hasSubmodules()) {
+            List<String> submoduleWorktreeIds = new ArrayList<>();
+            for (String submoduleName : orchestrator.submoduleNames()) {
+                Path submodulePath = worktreeService.getSubmodulePath(
+                        mainWorktree.worktreePath(), submoduleName);
+                SubmoduleWorktreeContext subWorktree = worktreeService.createSubmoduleWorktree(
+                        submoduleName, submodulePath.toString(),
+                        mainWorktree.worktreeId(), mainWorktree.worktreePath(),
+                        resolvedNodeId
+                );
+                submoduleWorktreeIds.add(subWorktree.worktreeId());
+                worktreeRepository.save(subWorktree);
+
+                // Emit worktree created event
+                this.orchestrator.emitWorktreeCreatedEvent(subWorktree.worktreeId(), nodeId,
+                        subWorktree.worktreePath().toString(), "submodule", submoduleName);
+            }
+
+            // Update orchestrator with submodule worktree IDs
+            var submodule = new SubmoduleNode(
+                orchestrator.nodeId(),
+                orchestrator.title(),
+                orchestrator.goal(),
+                    orchestrator.status(),
+                    orchestrator.parentNodeId(),
+                    orchestrator.childNodeIds(),
+                    orchestrator.metadata(),
+                    orchestrator.createdAt(),
+                    orchestrator.lastUpdatedAt(),
+                    orchestrator.repositoryUrl(),
+                    orchestrator.baseBranch(),
+                    orchestrator.hasSubmodules(),
+                    orchestrator.submoduleNames(),
+                    orchestrator.mainWorktreeId(),
+                    submoduleWorktreeIds,
+                    orchestrator.orchestratorOutput()
+            );
+
+            orchestrator.submodules().add(submodule);
+        }
+
+
+        // Save to repositories
+        graphRepository.save(orchestrator);
+        worktreeRepository.save(mainWorktree);
+
+        this.orchestrator.emitWorktreeCreatedEvent(mainWorktree.worktreeId(), resolvedNodeId,
+                mainWorktree.worktreePath().toString(), "main", null);
+        this.orchestrator.emitNodeAddedEvent(orchestrator.nodeId(), orchestrator.title(),
+                orchestrator.nodeType(), orchestrator.parentNodeId());
+    }
+
+    private boolean nodeExists(String nodeId) {
+        return nodeId != null && orchestrator.getNode(nodeId).isPresent();
+    }
+
+}

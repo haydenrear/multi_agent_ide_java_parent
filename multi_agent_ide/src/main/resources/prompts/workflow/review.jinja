@@ -1,0 +1,28 @@
+Review the following content against these criteria:
+
+Content:
+{{ content }}
+
+Criteria: {{ criteria }}
+
+Return route: {{ returnRoute }}
+
+Provide evaluation with:
+- Overall assessment (APPROVED/NEEDS_REVISION)
+- Specific feedback on quality
+- Suggestions for improvement
+
+If you are uncertain or need confirmation, return an interruptRequest when:
+- Unsure whether the content meets the criteria
+- Unsure how strict the assessment should be for edge cases
+- Conflicting signals in the content require a decision
+- Unsure whether to recommend approval or revision
+
+{% include "workflow/_interrupt_guidance.jinja" %}
+
+Return a routing object with:
+- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, reviewCriteria, assessmentFindings, approvalRecommendation }
+- reviewResult: { schemaVersion, resultId, upstreamContextId, assessmentStatus, feedback, suggestions, contentLinks, output }
+- one return route matching the provided returnTo*Collector field:
+  orchestratorCollectorRequest | discoveryCollectorRequest | planningCollectorRequest |
+  ticketCollectorRequest | contextCollectorRequest

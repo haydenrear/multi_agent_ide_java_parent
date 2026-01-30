@@ -1,0 +1,29 @@
+Merge and consolidate the following ticket execution results:
+
+Goal: {{ goal }}
+Ticket Results: {{ ticketResults }}
+
+Produce a summary with:
+- Completed tickets
+- Failed tickets (with brief reasons)
+- Outstanding follow-ups
+
+If you are uncertain or need confirmation, return an interruptRequest when:
+- Unsure whether work is complete or requires follow-up tickets
+- Unsure about interpretation of test/verification results
+- Unsure about routing back to execution vs. finalize
+- Conflicting completion signals across tickets
+
+{% include "workflow/_interrupt_guidance.jinja" %}
+
+Return a routing object with exactly one of:
+- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, completionStatus, followUps, verificationResults }
+- collectorResult: { schemaVersion, resultId, inputs, mergeStrategy, conflictResolutions, aggregatedMetrics, consolidatedOutput, collectorDecision { decisionType, rationale, requestedPhase }, upstreamContextChain, metadata, completionStatus, followUps, ticketCuration }
+- ticketRequest: { goal, discoveryCuration, planningCuration }
+- orchestratorCollectorRequest: { goal, phase }
+- reviewRequest: { content, criteria, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
+- mergerRequest: { mergeContext, mergeSummary, conflictFiles, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
+
+Happy path guidance:
+- Normally return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "COMPLETE".
+- Do NOT route directly to orchestratorCollectorRequest unless explicitly branching; use collectorResult so the branch handler advances the workflow.

@@ -1,0 +1,1 @@
+./gradlew test -Pprofile=integration

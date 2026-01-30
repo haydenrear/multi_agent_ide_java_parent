@@ -1,0 +1,34 @@
+Merge and consolidate the following planning results from multiple agents:
+
+Goal: {{ goal }}
+Planning Results: {{ planningResults }}
+
+Create structured tickets with:
+- Ticket ID and title
+- Clear implementation tasks
+- Dependencies between tickets
+- Acceptance criteria
+- Estimated effort
+
+If you are uncertain or need confirmation, return an interruptRequest when:
+- Conflicting tickets or dependencies need resolution
+- Unsure how to merge overlapping ticket scopes
+- Unsure whether to split or combine tickets further
+- Unsure about advancing to execution vs. requesting more planning
+
+{% include "workflow/_interrupt_guidance.jinja" %}
+
+Return a routing object with exactly one of:
+- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, ticketConsolidation, dependencyResolution, consolidatedTickets, dependencyConflicts }
+- collectorResult: { schemaVersion, resultId, inputs, mergeStrategy, conflictResolutions, aggregatedMetrics, consolidatedOutput, collectorDecision { decisionType, rationale, requestedPhase }, upstreamContextChain, metadata, finalizedTickets, dependencyGraph, discoveryResultId, planningCuration }
+- orchestratorCollectorRequest: { goal, phase }
+- discoveryOrchestratorRequest: { goal }
+- planningRequest: { goal }
+- ticketOrchestratorRequest: { goal, discoveryCuration, planningCuration }
+- ticketState: { request: { goal, discoveryCuration, planningCuration } }
+- reviewRequest: { content, criteria, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
+- mergerRequest: { mergeContext, mergeSummary, conflictFiles, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
+
+Happy path guidance:
+- Normally return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "TICKETS".
+- Do NOT jump directly to ticketOrchestratorRequest unless explicitly looping/branching; use collectorResult so the branch handler advances the workflow.

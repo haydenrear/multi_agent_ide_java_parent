@@ -1,0 +1,16 @@
+multi-agent-embabel:
+  chat-model.provider: acp
+  acp:
+    transport: stdio
+    command: ${ACP_COMMAND:codex-acp}
+    args: ${ACP_ARGS:}
+    working-directory: ${ACP_WORKING_DIR:}
+    auth-method: chatgpt
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 1s
+acp.mcp:
+  http:
+    - name: deepwiki
+      url: https://mcp.deepwiki.com/mcp
+      headers:

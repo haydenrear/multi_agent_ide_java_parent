@@ -1,0 +1,23 @@
+Orchestrate ticket-based implementation for the following tickets:
+
+Goal: {{ goal }}
+
+Coordinate execution of each ticket:
+1. Determine ticket execution order and dependencies
+2. Create ticket work details for each ticket
+3. Prepare worktree context for ticket agents
+4. Monitor ticket completion and quality
+
+If you are uncertain or need confirmation, return an interruptRequest when:
+- Unsure about execution order or dependency constraints
+- Unsure whether tickets are ready for implementation
+- Unsure about scope changes or execution strategy
+- Unsure whether to route to collector vs. request more execution
+
+{% include "workflow/_interrupt_guidance.jinja" %}
+
+Return a routing object with exactly one of:
+- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, implementationScope, planningContextUsage, executionStrategy }
+- agentRequests: { requests: [ { ticketDetails, ticketDetailsFilePath, discoveryCuration, planningCuration } ] }
+- collectorRequest: { goal, ticketResults }
+- delegation fields: { schemaVersion, resultId, upstreamContextId, goal, delegationRationale, assignments, contextSelections, metadata }

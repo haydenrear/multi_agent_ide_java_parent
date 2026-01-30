@@ -1,0 +1,139 @@
+spring:
+  session:
+    enabled: false
+    schema-provided: false
+  autoconfigure:
+    exclude: [org.springframework.boot.autoconfigure.session.SessionAutoConfiguration]
+  web:
+    resources:
+      static-locations: "file:{{PROJ_DIR}}/fe/out"
+      chain:
+        cache: false
+      cache:
+        period: 0
+        cachecontrol:
+          no-store: true
+          must-revalidate: true
+  ai.vectorstore.type: none
+  dgs.graphql.enabled: false
+  application:
+    name: multi-agent-ide
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5105}/${POSTGRES_DATABASE:postgres}
+    hikari:
+      username: postgres
+      password: postgres
+      #jdbc-url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5105}/${POSTGRES_DATABASE:postgres}
+      driver-class-name: org.postgresql.Driver
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+    user: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  ai:
+    mcp:
+      server:
+        enabled: false
+        type: sync
+        stdio: false
+  docker:
+    compose:
+      file: file:{{PROJ_DIR}}/src/main/resources/docker/docker-compose.yml
+      enabled: true
+      skip:
+        in-tests: false
+      lifecycle-management: start_only
+      start:
+        skip: if_running
+      readiness:
+        wait: only_if_started
+
+server.port: 8080
+
+# LangChain4j configuration
+multi-agent-embabel:
+  chat-model:
+    provider: acp
+  acp:
+    transport: stdio
+    command: ${ACP_COMMAND:}
+    args: ${ACP_ARGS:}
+    working-directory: ${ACP_WORKING_DIR:}
+    endpoint: ${ACP_ENDPOINT:}
+    api-key: ${ACP_API_KEY:}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    #    org.springframework.web: DEBUG
+    com.hayden.multiagentide: DEBUG
+    com.embabel.agent.api.channel: INFO
+#    com.embabel.agent: DEBUG
+#    dev.langchain4j: DEBUG
+otel:
+  instrumentation:
+    spring-web:
+      enabled: false
+    spring-webmvc:
+      enabled: false
+    spring-webflux:
+      enabled: false
+    jdbc:
+      enabled: false
+    kafka:
+      enabled: false
+    mongo:
+      enabled: false
+  sdk:
+    disabled: true
+management:
+  tracing:
+    enabled: false
+  logging:
+    export:
+      enabled: false
+  otlp:
+    metrics:
+      export:
+        enabled: false
+    logging:
+      export:
+        enabled: false
+embabel:
+  agent:
+    platform:
+      scanning:
+        bean: false
+        annotation: false
+      migration:
+        scanning:
+          enabled: false
+  models:
+    default-llm: acp-chat-model
+
+# Artifact persistence configuration
+artifacts:
+  persistence:
+    enabled: ${ARTIFACTS_PERSISTENCE_ENABLED:true}
+    batch-size: ${ARTIFACTS_BATCH_SIZE:100}
+  templates:
+    load-on-startup: ${ARTIFACTS_TEMPLATES_LOAD:true}
+    source-paths:
+      - classpath:prompts/workflow/
+acp.mcp:
+  http:
+    - name: deepwiki
+      url: https://mcp.deepwiki.com/mcp
+      headers:
+    - name: hindsight
+      url: http://localhost:8888/mcp
+      headers:

@@ -1,0 +1,7 @@
+### GET request to example server
+WEBSOCKET ws://localhost:8080/ws/events
+
+###
+
+GET http://localhost:8081/sse
+Accept: text/event-stream

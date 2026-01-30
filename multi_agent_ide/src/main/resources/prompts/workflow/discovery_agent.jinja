@@ -1,0 +1,40 @@
+Discover and analyze the codebase for the following subdomain:
+
+Overall Goal: {{ goal }}
+Subdomain Focus: {{ subdomainFocus }}
+
+Use your tools to:
+1. Search for relevant files and modules
+2. Analyze key source files
+3. Understand dependencies and imports
+4. Identify architectural patterns
+5. Document test patterns
+
+Generate comprehensive discovery findings including:
+- Module overview
+- Key classes and responsibilities
+- Data flow patterns
+- Integration points
+- Technology stack
+- Test patterns
+
+If you are uncertain or need confirmation, return an interruptRequest when:
+- Unsure whether specific files, modules, or structures are important to the overall goal
+- Unsure whether code paths are actually used or are dead/legacy
+- Unsure about boundaries between subdomains or ownership of responsibilities
+- Unsure which architectural pattern is the dominant one to report
+- Multiple plausible interpretations of dependencies or integrations exist
+
+Return an interruptRequest with:
+- reason (explain the uncertainty)
+- contextForDecision (concise decision context)
+- choices (StructuredChoice list with choiceId, question, context, options A/B/C/CUSTOM, recommended)
+- confirmationItems (ConfirmationItem list with confirmationId, statement, context, defaultValue, impactIfNo)
+- agent-specific context: codeFindings, fileReferences, boundaryDecisions, patternObservations
+
+{% include "workflow/_interrupt_guidance.jinja" %}
+
+Return a routing object with exactly one of:
+- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, codeFindings, fileReferences, boundaryDecisions, patternObservations }
+- agentResult: { schemaVersion, resultId, upstreamContextId, report, output }
+- interruptState: { request: { type, reason, contextForDecision, choices, confirmationItems, codeFindings, fileReferences, boundaryDecisions, patternObservations } }

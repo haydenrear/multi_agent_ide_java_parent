@@ -1,0 +1,80 @@
+Coordinate the following multi-agent workflow:
+
+Goal: {{ goal }}
+Current phase: {{ phase }}
+
+## Routing Options
+
+You have three choices for routing:
+
+1. **orchestratorRequest** (Discovery Orchestrator) - Start or continue discovery work
+   - Use this when beginning a new workflow or when more codebase exploration is needed
+   - This kicks off the discovery phase to understand the codebase before planning
+
+2. **collectorRequest** (Orchestrator Collector) - Final consolidation
+   - Use this when ALL work is complete and you're ready to finalize
+   - Routing here means "there is nothing left to do" - the workflow is done
+   - Typically only reached after Discovery → Planning → Tickets phases complete
+
+3. **interruptRequest** - Pause for human input
+   - Use when you need clarification, approval, or the user requested a pause
+   - Examples: unclear goal, ambiguous phase changes, missing constraints, or needing approval to skip/stop phases
+
+## Happy Path
+
+The typical workflow progression is:
+```
+Orchestrator → Discovery Orchestrator → Discovery Agents → Discovery Collector
+                                                                    ↓
+                                                        [DiscoveryCollectorResult]
+            ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ←
+            ↓
+Planning Orchestrator → Planning Agents → Planning Collector
+                                                    ↓
+                                          [PlanningCollectorResult]
+            ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ←
+            ↓
+Ticket Orchestrator → Ticket Agents → Ticket Collector
+                                              ↓
+                                    [TicketCollectorResult]
+            ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ←
+            ↓
+Orchestrator Collector (COMPLETE)
+```
+
+## Collector Branching
+
+Each collector produces a result and then routes to one of several options:
+
+**Discovery Collector** → produces `DiscoveryCollectorResult` → branches to:
+- **Planning Orchestrator** (ADVANCE) - discovery complete, ready to plan
+- **Discovery Orchestrator** (ROUTE_BACK) - need more discovery work
+- **Orchestrator Collector** (STOP) - nothing more to do, finalize workflow
+
+**Planning Collector** → produces `PlanningCollectorResult` → branches to:
+- **Ticket Orchestrator** (ADVANCE) - planning complete, ready to execute tickets
+- **Planning Orchestrator** (ROUTE_BACK) - need more planning
+- **Orchestrator Collector** (STOP) - nothing more to do, finalize workflow
+
+**Ticket Collector** → produces `TicketCollectorResult` → branches to:
+- **Orchestrator Collector** (ADVANCE/STOP) - tickets complete, finalize workflow
+- **Ticket Orchestrator** (ROUTE_BACK) - need more ticket execution
+
+## Key Guidance
+
+- **Start with Discovery**: For a new workflow, route to `orchestratorRequest` (Discovery Orchestrator)
+- **Do NOT skip to Collector**: The `collectorRequest` is the final step, not the starting point
+- **Phase tracking**: The phase parameter reflects where you are (DISCOVERY, PLANNING, TICKETS, COMPLETE)
+
+If you are uncertain or need confirmation, return an interruptRequest when:
+- Unsure whether to advance, pause, or stop the workflow
+- Unsure the goal has shifted or needs re-scoping
+- Unsure which phase to enter next based on results
+- Conflicting signals from collectors require a decision
+
+{% include "workflow/_interrupt_guidance.jinja" %}
+
+Return a routing object with exactly one of:
+- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, phase, goal, workflowContext }
+- collectorRequest: { goal, phase }
+- orchestratorRequest: { goal }

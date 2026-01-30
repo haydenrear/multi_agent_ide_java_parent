@@ -1,0 +1,27 @@
+Coordinate the following multi-agent workflow:
+
+Goal: {{ goal }}
+
+Based on this information and files you find on the repository, or information about the ticket,
+decide how to divide up the discovery phase of the workflow.
+
+If you are uncertain or need confirmation, return an interruptRequest when:
+- Unsure how to partition subdomains or allocate discovery focus areas
+- Unsure which scope boundaries are in or out of goal
+- Unsure about prioritizing coverage goals or depth vs breadth
+- Unsure which discovery strategy best fits the goal constraints
+
+Return an interruptRequest with:
+- reason (explain the uncertainty)
+- contextForDecision (concise decision context)
+- choices (StructuredChoice list with choiceId, question, context, options A/B/C/CUSTOM, recommended)
+- confirmationItems (ConfirmationItem list with confirmationId, statement, context, defaultValue, impactIfNo)
+- agent-specific context: subdomainPartitioning, coverageGoals, discoveryStrategy, scope
+
+{% include "workflow/_interrupt_guidance.jinja" %}
+
+Return a routing object with exactly one of:
+- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, subdomainPartitioning, coverageGoals, discoveryStrategy, scope }
+- agentRequests: { requests: [ { goal, subdomainFocus } ] }
+- collectorRequest: { goal, discoveryResults }
+- delegation fields: { schemaVersion, resultId, upstreamContextId, goal, delegationRationale, assignments, contextSelections, metadata }
