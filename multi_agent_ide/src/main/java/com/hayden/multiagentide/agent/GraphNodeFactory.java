@@ -1,8 +1,6 @@
 package com.hayden.multiagentide.agent;
 
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
-import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.utilitymodule.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -15,17 +13,13 @@ import org.springframework.stereotype.Component;
 public class GraphNodeFactory {
 
     public String newNodeId() {
-        return ArtifactKey.createRoot().value();
+        return UUID.randomUUID().toString();
     }
 
-    private String resolveNodeId(String nodeId) {
-        return (nodeId == null || nodeId.isBlank()) ? newNodeId() : nodeId;
-    }
-
-    public CollectorNode orchestratorCollectorNode(OrchestratorNode orchestrator, String goal, ArtifactKey artifactKey) {
+    public CollectorNode orchestratorCollectorNode(OrchestratorNode orchestrator, String goal) {
         Instant now = Instant.now();
         return new CollectorNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 "Workflow Collector",
                 goal,
                 Events.NodeStatus.READY,
@@ -44,10 +38,10 @@ public class GraphNodeFactory {
         );
     }
 
-    public DiscoveryOrchestratorNode discoveryOrchestratorNode(String parentId, String goal, ArtifactKey artifactKey) {
+    public DiscoveryOrchestratorNode discoveryOrchestratorNode(String parentId, String goal) {
         Instant now = Instant.now();
         return new DiscoveryOrchestratorNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 "Discovery Orchestrator",
                 goal,
                 Events.NodeStatus.READY,
@@ -62,10 +56,10 @@ public class GraphNodeFactory {
         );
     }
 
-    public DiscoveryNode discoveryNode(String parentId, String goal, String title, AgentModels.DiscoveryAgentRequest enrichedRequest, ArtifactKey artifactKey) {
+    public DiscoveryNode discoveryNode(String parentId, String goal, String title) {
         Instant now = Instant.now();
         return new DiscoveryNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 title,
                 goal,
                 Events.NodeStatus.READY,
@@ -80,10 +74,10 @@ public class GraphNodeFactory {
         );
     }
 
-    public DiscoveryCollectorNode discoveryCollectorNode(String parentId, String goal, ArtifactKey artifactKey) {
+    public DiscoveryCollectorNode discoveryCollectorNode(String parentId, String goal) {
         Instant now = Instant.now();
         return new DiscoveryCollectorNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 "Discovery Collector",
                 goal,
                 Events.NodeStatus.READY,
@@ -101,12 +95,11 @@ public class GraphNodeFactory {
     public PlanningOrchestratorNode planningOrchestratorNode(
             String parentId,
             String goal,
-            Map<String, String> metadata,
-            ArtifactKey artifactKey
+            Map<String, String> metadata
     ) {
         Instant now = Instant.now();
         return new PlanningOrchestratorNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 "Planning Orchestrator",
                 goal,
                 Events.NodeStatus.READY,
@@ -126,12 +119,11 @@ public class GraphNodeFactory {
             String parentId,
             String goal,
             String title,
-            Map<String, String> metadata,
-            ArtifactKey artifactKey
+            Map<String, String> metadata
     ) {
         Instant now = Instant.now();
         return new PlanningNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 title,
                 goal,
                 Events.NodeStatus.READY,
@@ -147,10 +139,10 @@ public class GraphNodeFactory {
         );
     }
 
-    public PlanningCollectorNode planningCollectorNode(String parentId, String goal, ArtifactKey artifactKey) {
+    public PlanningCollectorNode planningCollectorNode(String parentId, String goal) {
         Instant now = Instant.now();
         return new PlanningCollectorNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 "Planning Collector",
                 goal,
                 Events.NodeStatus.READY,
@@ -170,12 +162,11 @@ public class GraphNodeFactory {
             String parentId,
             String goal,
             Map<String, String> metadata,
-            HasWorktree.WorkTree worktree,
-            ArtifactKey artifactKey
+            HasWorktree.WorkTree worktree
     ) {
         Instant now = Instant.now();
         return new TicketOrchestratorNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 "Ticket Orchestrator",
                 goal,
                 Events.NodeStatus.READY,
@@ -199,12 +190,11 @@ public class GraphNodeFactory {
             String title,
             String ticketDetails,
             Map<String, String> metadata,
-            HasWorktree.WorkTree worktree,
-            ArtifactKey artifactKey
+            HasWorktree.WorkTree worktree
     ) {
         Instant now = Instant.now();
         return new TicketNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 title,
                 ticketDetails,
                 Events.NodeStatus.READY,
@@ -223,10 +213,10 @@ public class GraphNodeFactory {
         );
     }
 
-    public TicketCollectorNode ticketCollectorNode(String parentId, String goal, ArtifactKey artifactKey) {
+    public TicketCollectorNode ticketCollectorNode(String parentId, String goal) {
         Instant now = Instant.now();
         return new TicketCollectorNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 "Ticket Collector",
                 goal,
                 Events.NodeStatus.READY,
@@ -241,10 +231,10 @@ public class GraphNodeFactory {
         );
     }
 
-    public ReviewNode reviewNode(String parentId, String goal, String reviewContent, String reviewerType, ArtifactKey artifactKey) {
+    public ReviewNode reviewNode(String parentId, String goal, String reviewContent, String reviewerType) {
         Instant now = Instant.now();
         return new ReviewNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 "Review",
                 goal,
                 Events.NodeStatus.READY,
@@ -263,10 +253,10 @@ public class GraphNodeFactory {
         );
     }
 
-    public MergeNode mergeNode(String parentId, String goal, String summary, Map<String, String> metadata, ArtifactKey artifactKey) {
+    public MergeNode mergeNode(String parentId, String goal, String summary, Map<String, String> metadata) {
         Instant now = Instant.now();
         return new MergeNode(
-                artifactKey != null ? artifactKey.value() : newNodeId(),
+                newNodeId(),
                 "Merge",
                 goal,
                 Events.NodeStatus.READY,

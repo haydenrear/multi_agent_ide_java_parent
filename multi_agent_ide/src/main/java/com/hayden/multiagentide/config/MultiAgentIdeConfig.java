@@ -1,8 +1,10 @@
 package com.hayden.multiagentide.config;
 
-import com.hayden.acp_cdc_ai.acp.AcpChatModel;
-import com.hayden.acp_cdc_ai.acp.events.AgUiSerdes;
-import com.hayden.acp_cdc_ai.acp.config.McpProperties;
+import com.hayden.utilitymodule.acp.AcpChatModel;
+import com.hayden.utilitymodule.acp.events.AgUiSerdes;
+import com.hayden.utilitymodule.acp.config.McpProperties;
+import com.hayden.multiagentidelib.model.acp.DefaultChatMemoryContext;
+import com.hayden.multiagentidelib.service.UiStateService;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 

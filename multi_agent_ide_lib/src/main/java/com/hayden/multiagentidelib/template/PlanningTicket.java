@@ -1,15 +1,13 @@
 package com.hayden.multiagentidelib.template;
 
 import com.hayden.multiagentidelib.agent.AgentContext;
-import com.hayden.acp_cdc_ai.acp.events.Artifact;
-import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.multiagentidelib.agent.ContextId;
 
 import java.util.List;
 
 public record PlanningTicket(
-        ArtifactKey artifactKey,
         String schemaVersion,
-        ArtifactKey resultId,
+        ContextId resultId,
         String ticketId,
         String title,
         String description,
@@ -21,11 +19,6 @@ public record PlanningTicket(
         int priority,
         List<MemoryReference> memoryReferences
 ) implements AgentContext {
-
-    @Override
-    public String computeHash(Artifact.HashContext hashContext) {
-        return hashContext.hash(prettyPrint());
-    }
 
     @Override
     public String prettyPrint() {
@@ -54,7 +47,7 @@ public record PlanningTicket(
     }
 
     public record DiscoveryLink(
-            ArtifactKey discoveryResultId,
+            ContextId discoveryResultId,
             String referenceId,
             String linkRationale
     ) {

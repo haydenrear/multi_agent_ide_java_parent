@@ -1,18 +1,3 @@
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 1s
-
-
-
-# Artifact persistence configuration for tests
-artifacts:
-  persistence:
-    enabled: true
-    batch-size: 100
-  templates:
-    load-on-startup: true
-    source-paths:
-      - classpath:prompts/workflow/
-acp.mcp:
-  http:
-    enabled: false

@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.repository;
 
-import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.utilitymodule.acp.events.Events;
 
 import java.util.List;
 

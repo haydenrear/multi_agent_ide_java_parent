@@ -2,7 +2,6 @@ package com.hayden.multiagentide.support;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentide.service.LlmRunner;
-import com.hayden.multiagentide.tool.ToolContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 
 import java.util.LinkedList;
@@ -76,7 +75,6 @@ public class QueuedLlmRunner implements LlmRunner {
             String templateName,
             PromptContext promptContext,
             Map<String, Object> model,
-            ToolContext toolContext,
             Class<T> responseClass,
             OperationContext context
     ) {

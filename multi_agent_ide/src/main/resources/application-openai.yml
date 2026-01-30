@@ -1,0 +1,35 @@
+multi-agent-embabel:
+  chat-model:
+    provider: acp
+  acp:
+    transport: stdio
+    command: {{PARENT_DIR}}/test-acp-client/build/install/kotlin-acp-openai-agent/bin/kotlin-acp-openai-agent
+    args: ${ACP_ARGS:}
+    working-directory: ${ACP_WORKING_DIR:}
+    env:
+      HOME: {{PROJ_DIR}}/configs
+      OPENAI_BASE_URL: http://localhost:11434
+      OPENAI_MODEL: qwen3-coder:30b
+      OPENAI_API_KEY: test
+      OPENAI_SYSTEM_PROMPT: >
+        You are a helpful ACP agent.
+        When asked to perform file or terminal operations, respond only with ACP directives in XML.
+        Use these formats (start tags must be at the beginning of a line):
+        - <fs.write path="/path"> then content lines, end with </fs.write>
+        - <fs.read path="/path" line="1" limit="10">/path</fs.read>
+        - <term.create>command [args...]</term.create>
+        - <term.wait>terminalId</term.wait>
+        - <term.output>terminalId</term.output>
+        - <term.release>terminalId</term.release>
+        - <term.kill>terminalId</term.kill>
+        Do not include extra commentary. Please use fs.read to read, fs.write to write instead of using
+        terminal commands.
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 1s
+
+acp.mcp:
+  http:
+    - name: deepwiki
+      url: https://mcp.deepwiki.com/mcp
+      headers:
