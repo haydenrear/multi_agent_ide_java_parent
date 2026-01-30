@@ -1,7 +1,7 @@
 package com.hayden.multiagentidelib.model.nodes;
 
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.utilitymodule.acp.events.Events;
 import lombok.Builder;
 
 import java.time.Instant;
@@ -31,12 +31,13 @@ public record SummaryNode(
         String summaryContent,
         int totalTasksCompleted,
         int totalTasksFailed,
+        AgentModels.SummaryAgentResult summaryResult,
         InterruptContext interruptibleContext
 ) implements GraphNode, Viewable<String>, Interruptible {
 
     public SummaryNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, List<String> summarizedNodeIds, String summaryContent, int totalTasksCompleted, int totalTasksFailed) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                summarizedNodeIds, summaryContent, totalTasksCompleted, totalTasksFailed, null);
+                summarizedNodeIds, summaryContent, totalTasksCompleted, totalTasksFailed, null, null);
     }
 
     public SummaryNode {
@@ -84,6 +85,13 @@ public record SummaryNode(
         newSummarized.add(nodeId);
         return toBuilder()
                 .summarizedNodeIds(newSummarized)
+                .lastUpdatedAt(Instant.now())
+                .build();
+    }
+
+    public SummaryNode withResult(AgentModels.SummaryAgentResult result) {
+        return toBuilder()
+                .summaryResult(result)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

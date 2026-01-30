@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.tool;
 
 import com.agentclientprotocol.model.McpServer;
-import com.hayden.acp_cdc_ai.acp.config.McpProperties;
+import com.hayden.utilitymodule.acp.config.McpProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

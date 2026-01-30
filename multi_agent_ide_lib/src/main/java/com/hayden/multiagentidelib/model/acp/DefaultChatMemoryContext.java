@@ -1,6 +1,5 @@
 package com.hayden.multiagentidelib.model.acp;
 
-import com.hayden.acp_cdc_ai.acp.ChatMemoryContext;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.stereotype.Component;
 
@@ -10,7 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
-public class DefaultChatMemoryContext implements ChatMemoryContext {
+public class DefaultChatMemoryContext implements com.hayden.utilitymodule.acp.ChatMemoryContext {
 
     private final Map<Object, List<Message>> messageStore = new ConcurrentHashMap<>();
 

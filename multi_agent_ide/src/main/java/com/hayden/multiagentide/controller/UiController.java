@@ -2,8 +2,8 @@ package com.hayden.multiagentide.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hayden.acp_cdc_ai.acp.events.EventBus;
-import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.utilitymodule.acp.events.EventBus;
+import com.hayden.utilitymodule.acp.events.Events;
 import com.hayden.multiagentidelib.model.ui.UiDiffResult;
 import com.hayden.multiagentidelib.service.UiStateService;
 import lombok.RequiredArgsConstructor;

@@ -107,9 +107,6 @@ public interface WorkflowAgentGraphNode {
         if (fieldType.getSimpleName().contains("MergerRequest")) {
             return "Request merge resolution";
         }
-        if (fieldType.getSimpleName().contains("ContextManagerRoutingRequest")) {
-            return "Request context reconstruction";
-        }
 
         // Default
         return "Route to " + fieldType.getSimpleName();
@@ -146,10 +143,7 @@ public interface WorkflowAgentGraphNode {
         // Review and Merger
         map.put(AgentModels.ReviewRequest.class, AgentModels.ReviewRouting.class);
         map.put(AgentModels.MergerRequest.class, AgentModels.MergerRouting.class);
-
-        // Context manager
-        map.put(AgentModels.ContextManagerRequest.class, AgentModels.ContextManagerResultRouting.class);
-
+        
         return map;
     }
 

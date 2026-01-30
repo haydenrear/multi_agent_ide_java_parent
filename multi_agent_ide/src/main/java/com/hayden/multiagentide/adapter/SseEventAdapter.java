@@ -1,8 +1,8 @@
 package com.hayden.multiagentide.adapter;
 
 import com.hayden.multiagentide.infrastructure.EventAdapter;
-import com.hayden.acp_cdc_ai.acp.events.AgUiSerdes;
-import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.utilitymodule.acp.events.AgUiSerdes;
+import com.hayden.utilitymodule.acp.events.Events;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

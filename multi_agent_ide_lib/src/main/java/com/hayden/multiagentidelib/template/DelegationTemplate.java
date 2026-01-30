@@ -1,17 +1,26 @@
 package com.hayden.multiagentidelib.template;
 
 import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.multiagentidelib.agent.ContextId;
 
+import java.util.List;
 import java.util.Map;
 
 public interface DelegationTemplate {
 
-    ArtifactKey contextId();
+    String schemaVersion();
+
+    ContextId resultId();
+
+    ContextId upstreamContextId();
 
     String goal();
 
     String delegationRationale();
+
+    List<AgentAssignment> assignments();
+
+    List<ContextSelection> contextSelections();
 
     Map<String, String> metadata();
 
@@ -26,7 +35,7 @@ public interface DelegationTemplate {
 
     record ContextSelection(
             String selectionId,
-            ArtifactKey sourceContextId,
+            ContextId sourceContextId,
             String selectedContent,
             String selectionRationale
     ) {

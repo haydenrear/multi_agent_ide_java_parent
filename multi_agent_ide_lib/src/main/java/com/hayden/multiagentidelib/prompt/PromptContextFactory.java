@@ -3,15 +3,17 @@ package com.hayden.multiagentidelib.prompt;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.multiagentidelib.agent.ContextId;
 import com.hayden.multiagentidelib.agent.PreviousContext;
 import com.hayden.multiagentidelib.agent.UpstreamContext;
-import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Factory for creating PromptContext instances by extracting upstream contexts
@@ -22,8 +24,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PromptContextFactory {
 
-
-    private final PromptContributorService promptContributor;
+    private final ContextIdService contextIdService;
 
     /**
      * Build a PromptContext by pattern matching on the input object to extract
@@ -36,162 +37,109 @@ public class PromptContextFactory {
      */
     public PromptContext build(
             AgentType agentType,
-            AgentModels.AgentRequest input,
-            BlackboardHistory blackboardHistory,
-            String templateName
+            Object input,
+            BlackboardHistory.History blackboardHistory
     ) {
-        return build(agentType, input, null, input, blackboardHistory, templateName);
-    }
-
-    /**
-     * Build a PromptContext by pattern matching on the request used for context
-     * extraction while also carrying previous/current requests explicitly.
-     */
-    public PromptContext build(
-            AgentType agentType,
-            AgentModels.AgentRequest contextRequest,
-            AgentModels.AgentRequest previousRequest,
-            AgentModels.AgentRequest currentRequest,
-            BlackboardHistory blackboardHistory,
-            String templateName
-    ) {
+        ContextId contextId = null;
         List<UpstreamContext> upstreamContexts = new ArrayList<>();
         PreviousContext previousContext = null;
+        AgentModels.AgentRequest request = input instanceof AgentModels.AgentRequest
+                ? (AgentModels.AgentRequest) input
+                : null;
 
-        switch (contextRequest) {
+        switch (input) {
             case AgentModels.OrchestratorRequest req -> {
+                contextId = resolve(req.contextId());
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 collectNonNull(upstreamContexts, req.planningCuration());
                 collectNonNull(upstreamContexts, req.ticketCuration());
                 previousContext = req.previousContext();
             }
             case AgentModels.OrchestratorCollectorRequest req -> {
+                contextId = resolve(req.contextId());
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 collectNonNull(upstreamContexts, req.planningCuration());
                 collectNonNull(upstreamContexts, req.ticketCuration());
                 previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryOrchestratorRequest req -> {
+                contextId = resolve(req.contextId());
                 // Discovery orchestrator is at the start - no upstream contexts
                 previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryAgentResults req -> {
+                contextId = resolve(req.contextId());
                 // Discovery agent has no upstream curation
                 previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryAgentRequest req -> {
+                contextId = resolve(req.contextId());
                 // Discovery agent has no upstream curation
                 previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryCollectorRequest req -> {
+                contextId = resolve(req.contextId());
                 // Discovery collector has no upstream curation
                 previousContext = req.previousContext();
             }
             case AgentModels.PlanningOrchestratorRequest req -> {
+                contextId = resolve(req.contextId());
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 previousContext = req.previousContext();
             }
             case AgentModels.PlanningAgentRequest req -> {
+                contextId = resolve(req.contextId());
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 previousContext = req.previousContext();
             }
             case AgentModels.PlanningCollectorRequest req -> {
+                contextId = resolve(req.contextId());
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 previousContext = req.previousContext();
             }
             case AgentModels.TicketOrchestratorRequest req -> {
+                contextId = resolve(req.contextId());
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 collectNonNull(upstreamContexts, req.planningCuration());
                 previousContext = req.previousContext();
             }
             case AgentModels.TicketAgentRequest req -> {
+                contextId = resolve(req.contextId());
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 collectNonNull(upstreamContexts, req.planningCuration());
                 previousContext = req.previousContext();
             }
             case AgentModels.TicketCollectorRequest req -> {
+                contextId = resolve(req.contextId());
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 collectNonNull(upstreamContexts, req.planningCuration());
                 previousContext = req.previousContext();
             }
             case AgentModels.ReviewRequest req -> {
+                contextId = resolve(req.contextId());
                 previousContext = req.previousContext();
             }
             case AgentModels.MergerRequest req -> {
+                contextId = resolve(req.contextId());
                 previousContext = req.previousContext();
             }
-            case AgentModels.ContextManagerRequest contextManagerRequest -> {
-                previousContext = contextManagerRequest.previousContext();
+            case null -> {
+                // null input - return context with empty upstream list
             }
-            case AgentModels.PlanningAgentResults planningAgentResults -> {
-                previousContext = planningAgentResults.previousContext();
-            }
-            case AgentModels.TicketAgentResults ticketAgentResults -> {
-                previousContext = ticketAgentResults.previousContext();
-            }
-            case AgentModels.ContextManagerRoutingRequest contextManagerRoutingRequest -> {
-            }
-            case AgentModels.DiscoveryAgentRequests discoveryAgentRequests -> {
-            }
-            case AgentModels.PlanningAgentRequests planningAgentRequests -> {
-            }
-            case AgentModels.TicketAgentRequests ticketAgentRequests -> {
-            }
-            case AgentModels.InterruptRequest interruptRequest -> {
-                switch(interruptRequest) {
-                    case AgentModels.InterruptRequest.ContextManagerInterruptRequest contextManagerInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.DiscoveryAgentDispatchInterruptRequest discoveryAgentDispatchInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest discoveryAgentInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.DiscoveryCollectorInterruptRequest discoveryCollectorInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest discoveryOrchestratorInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.MergerInterruptRequest mergerInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.OrchestratorCollectorInterruptRequest orchestratorCollectorInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.OrchestratorInterruptRequest orchestratorInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.PlanningAgentDispatchInterruptRequest planningAgentDispatchInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.PlanningAgentInterruptRequest planningAgentInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.PlanningCollectorInterruptRequest planningCollectorInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.PlanningOrchestratorInterruptRequest planningOrchestratorInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest questionAnswerInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.ReviewInterruptRequest reviewInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.TicketAgentDispatchInterruptRequest ticketAgentDispatchInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.TicketAgentInterruptRequest ticketAgentInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.TicketCollectorInterruptRequest ticketCollectorInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.TicketOrchestratorInterruptRequest ticketOrchestratorInterruptRequest -> {
-                    }
-                }
+            default -> {
+                // Unknown input type - return context with empty upstream list
             }
         }
 
-        var pc = new PromptContext(
+        return new PromptContext(
                 agentType,
-                resolve(contextRequest != null ? contextRequest.artifactKey() : null),
+                contextId,
                 upstreamContexts,
                 previousContext,
                 blackboardHistory,
-                previousRequest,
-                currentRequest,
-                Map.of(),
-                templateName
+                request,
+                Map.of()
         );
-
-        return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
     }
 
     /**
@@ -200,25 +148,20 @@ public class PromptContextFactory {
      */
     public PromptContext build(
             AgentType agentType,
-            ArtifactKey contextId,
+            ContextId contextId,
             List<UpstreamContext> upstreamContexts,
             PreviousContext previousContext,
-            BlackboardHistory blackboardHistory,
-            String templateName
+            BlackboardHistory.History blackboardHistory
     ) {
-        var pc = new PromptContext(
+        return new PromptContext(
                 agentType,
                 resolve(contextId),
                 upstreamContexts != null ? upstreamContexts : List.of(),
                 previousContext,
                 blackboardHistory,
                 null,
-                null,
-                Map.of(),
-                templateName
+                Map.of()
         );
-
-        return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
     }
 
     /**
@@ -227,32 +170,27 @@ public class PromptContextFactory {
      */
     public PromptContext build(
             AgentType agentType,
-            ArtifactKey contextId,
+            ContextId contextId,
             UpstreamContext upstreamContext,
             PreviousContext previousContext,
-            BlackboardHistory blackboardHistory,
-            String templateName
+            BlackboardHistory.History blackboardHistory
     ) {
         List<UpstreamContext> contexts = upstreamContext != null 
                 ? List.of(upstreamContext) 
                 : List.of();
-        var pc = new PromptContext(
+        return new PromptContext(
                 agentType,
                 resolve(contextId),
                 contexts,
                 previousContext,
                 blackboardHistory,
                 null,
-                null,
-                Map.of(),
-                templateName
+                Map.of()
         );
-
-        return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
     }
 
-    private ArtifactKey resolve(ArtifactKey contextId) {
-        return contextId;
+    private ContextId resolve(ContextId contextId) {
+        return contextIdService.generate(contextId.workflowRunId(), contextId.agentType());
     }
 
     private void collectNonNull(List<UpstreamContext> list, UpstreamContext context) {

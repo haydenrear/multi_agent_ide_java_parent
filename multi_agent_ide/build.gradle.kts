@@ -4,10 +4,7 @@ plugins {
     id("com.hayden.kotlin")
     id("com.github.node-gradle.node")
     id("com.hayden.mcp")
-    id("com.hayden.ai")
     id("com.hayden.paths")
-    id("com.hayden.jpa-persistence")
-    id("com.hayden.docker-compose")
 }
 
 group = "com.hayden"
@@ -25,10 +22,7 @@ dependencies {
     implementation("org.jspecify:jspecify:1.0.0")
     implementation(project(":commit-diff-context"))
     implementation(project(":commit-diff-model"))
-    implementation(project(":multi_agent_ide_java_parent:multi_agent_ide_lib"))
-    implementation(project(":persistence"))
-    implementation(project(":jpa-persistence"))
-    implementation(project(":multi_agent_ide_java_parent:acp-cdc-ai"))
+    implementation(project(":multi_agent_ide_lib"))
     implementation("org.springframework.boot:spring-boot-starter-security")
 }
 
@@ -61,7 +55,7 @@ if (buildReact) {
         finalizedBy("buildFrontend")
     }
 
-    //Build the Next.js frontend
+//Build the Next.js frontend
     tasks.register<com.github.gradle.node.npm.task.NpmTask>("buildFrontend") {
         description = "Build Next.js frontend application"
         workingDir.set(file("${project.projectDir}/fe"))
@@ -130,13 +124,5 @@ tasks.compileJava {
     dependsOn("processYmlFiles")
 }
 tasks.test {
-    if (project.findProperty("profile") == "integration") {
-        include("**/integration/**")
-    } else if (project.findProperty("profile") == "acp-integration") {
-        include("**/acp_tests/**")
-    } else {
-        exclude("**/acp_tests/**", "**/integration/**")
-    }
-
     dependsOn("processYmlFiles")
 }

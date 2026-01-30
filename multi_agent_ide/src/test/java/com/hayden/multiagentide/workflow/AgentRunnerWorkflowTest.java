@@ -5,11 +5,9 @@ import static org.mockito.Mockito.when;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.agent.WorkflowGraphState;
+import com.hayden.multiagentide.agent.WorkflowGraphState;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
-import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.utilitymodule.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
@@ -60,7 +58,14 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
 
         workflowGraphService.completeReview(
                 reviewNode,
-                AgentModels.ReviewRouting.builder().reviewResult(new AgentModels.ReviewAgentResult("approved")).build()
+                new AgentModels.ReviewRouting(
+                        null,
+                        new AgentModels.ReviewAgentResult("approved"),
+                        null,
+                        null,
+                        null,
+                        null
+                )
         );
 
         WorkflowGraphState state = new WorkflowGraphState(
@@ -75,10 +80,8 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
                 reviewNode.nodeId(),
                 null
         );
-
-        var bh = new BlackboardHistory(new BlackboardHistory.History(), "node", state);
         OperationContext context = Mockito.mock(OperationContext.class);
-        when(context.last(BlackboardHistory.class)).thenReturn(bh);
+        when(context.last(WorkflowGraphState.class)).thenReturn(state);
         workflowGraphService.startMerge(
                 context,
                 new AgentModels.MergerRequest(
@@ -116,8 +119,14 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
 
         workflowGraphService.completeReview(
                 reviewNode,
-                AgentModels.ReviewRouting.builder().reviewResult(new AgentModels.ReviewAgentResult("human review needed"))
-                        .build()
+                new AgentModels.ReviewRouting(
+                        null,
+                        new AgentModels.ReviewAgentResult("human review needed"),
+                        null,
+                        null,
+                        null,
+                        null
+                )
         );
 
         GraphNode updatedReview = graphRepository.findById(reviewNode.nodeId()).orElseThrow();
@@ -168,13 +177,17 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
 
         workflowGraphService.completeMerge(
                 mergeNode,
-                AgentModels.MergerRouting.builder().interruptRequest(
-                        new AgentModels.InterruptRequest.MergerInterruptRequest(
-                                ArtifactKey.createRoot(),
+                new AgentModels.MergerRouting(
+                        new AgentModels.MergerInterruptRequest(
                                 Events.InterruptType.HUMAN_REVIEW,
                                 "conflicts"
-                        )
-                ).build(),
+                        ),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                ),
                 "conflicts"
         );
 

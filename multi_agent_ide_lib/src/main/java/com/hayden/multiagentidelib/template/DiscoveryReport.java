@@ -1,18 +1,16 @@
 package com.hayden.multiagentidelib.template;
 
 import com.hayden.multiagentidelib.agent.AgentContext;
-import com.hayden.acp_cdc_ai.acp.events.Artifact;
-import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.multiagentidelib.agent.ContextId;
 
 import java.util.List;
 import java.util.Map;
 
 //TODO: add report type, specific to a particular thing, such as architecture, etc.
 public record DiscoveryReport(
-        ArtifactKey artifactKey,
         String schemaVersion,
-        ArtifactKey resultId,
-        ArtifactKey upstreamContextId,
+        ContextId resultId,
+        ContextId upstreamContextId,
         List<FileReference> fileReferences,
         List<CrossLink> crossLinks,
         List<SemanticTag> semanticTags,
@@ -24,11 +22,6 @@ public record DiscoveryReport(
         Map<String, Double> relevanceScores,
         List<MemoryReference> memoryReferences
 ) implements AgentContext {
-
-    @Override
-    public String computeHash(Artifact.HashContext hashContext) {
-        return hashContext.hash(prettyPrint());
-    }
 
     @Override
     public String prettyPrint() {

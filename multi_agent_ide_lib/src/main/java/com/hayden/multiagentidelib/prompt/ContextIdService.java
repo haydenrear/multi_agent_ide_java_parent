@@ -1,26 +1,33 @@
 package com.hayden.multiagentidelib.prompt;
 
 import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.acp_cdc_ai.acp.events.Artifact;
-import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.multiagentidelib.agent.ContextId;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class ContextIdService {
 
-    public ArtifactKey generate(String workflowRunId, AgentType agentType, Artifact.AgentModel parent) {
-        if (workflowRunId != null && ArtifactKey.isValid(workflowRunId)) {
-            return new ArtifactKey(workflowRunId).createChild();
+    private final Map<String, AtomicInteger> sequenceCounters = new ConcurrentHashMap<>();
+
+    public ContextId generate(String workflowRunId, AgentType agentType) {
+        String normalized = normalizeWorkflowRunId(workflowRunId);
+        String agentKey = agentType != null ? agentType.name() : "UNKNOWN";
+        String key = normalized + "/" + agentKey;
+        int sequence = sequenceCounters
+                .computeIfAbsent(key, k -> new AtomicInteger(0))
+                .incrementAndGet();
+        return new ContextId(normalized, agentType, sequence, Instant.now());
+    }
+
+    private String normalizeWorkflowRunId(String workflowRunId) {
+        if (workflowRunId == null || workflowRunId.isBlank()) {
+            return "wf-unknown";
         }
-
-        if (parent == null)
-            return ArtifactKey.createRoot();
-
-        return parent.key().createChild();
+        return workflowRunId.startsWith("wf-") ? workflowRunId : "wf-" + workflowRunId;
     }
-
-    public ArtifactKey generate(String workflowRunId, AgentType agentType) {
-        return ArtifactKey.createRoot();
-    }
-
 }

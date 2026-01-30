@@ -1,47 +1,90 @@
 package com.hayden.multiagentidelib.prompt;
 
-import com.hayden.acp_cdc_ai.acp.events.Artifact;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
-import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Assembles prompts from a base prompt and contributions from registered contributors.
- * 
- * Supports listeners for observability and artifact emission.
- */
-@Component
-@RequiredArgsConstructor
 public class PromptAssembly {
 
     private final PromptContributorRegistry registry;
-    private final List<PromptContributionListener> listeners;
 
-
-    /**
-     * Adds a listener for prompt contribution events.
-     */
-    public void addListener(PromptContributionListener listener) {
-        if (listener != null) {
-            listeners.add(listener);
-        }
+    public PromptAssembly(PromptContributorRegistry registry) {
+        this.registry = registry;
     }
 
-    private void notifyContribution(
-            PromptContext context,
-            PromptContributor promptContributor
-    ) {
-        for (PromptContributionListener listener : listeners) {
-            try {
-                listener.onContribution(
-                        context,
-                        promptContributor);
-            } catch (Exception e) {
-                // Don't let listener exceptions break assembly
-            }
+    public String assemble(String basePrompt, PromptContext context) {
+        String prompt = basePrompt == null ? "" : basePrompt;
+        if (registry == null) {
+            return prompt;
         }
+        List<PromptContributor> contributors = getContributors(context);
+        if (contributors.isEmpty()) {
+            return prompt;
+        }
+        StringBuilder assembled = new StringBuilder(prompt);
+        assembled.append("\n\n--- Tool Prompt Contributions ---\n");
+        for (PromptContributor contributor : contributors) {
+            if (contributor == null) {
+                continue;
+            }
+            String contribution = null;
+            try {
+                contribution = contributor.contribute(context);
+            } catch (RuntimeException ignored) {
+                continue;
+            }
+            if (contribution == null || contribution.isBlank()) {
+                continue;
+            }
+            assembled.append("\n[")
+                    .append(contributor.name())
+                    .append("]\n")
+                    .append(contribution.trim())
+                    .append("\n");
+        }
+        assembled.append("--- End Tool Prompt Contributions ---");
+        return assembled.toString();
+    }
+
+    public List<PromptContributor> getContributors(PromptContext context) {
+        return registry.getContributors(context);
     }
     
+    /**
+     * Assemble just the prompt contributions without the base prompt.
+     * This is useful for injecting contributions into Jinja templates.
+     * 
+     * @param context The prompt context
+     * @return The assembled contributions as a string, or empty string if no contributions
+     */
+    public String assembleContributions(PromptContext context) {
+        if (registry == null) {
+            return "";
+        }
+        List<PromptContributor> contributors = getContributors(context);
+        if (contributors.isEmpty()) {
+            return "";
+        }
+        StringBuilder assembled = new StringBuilder();
+        assembled.append("--- Tool Prompt Contributions ---\n");
+        for (PromptContributor contributor : contributors) {
+            if (contributor == null) {
+                continue;
+            }
+            String contribution = null;
+            try {
+                contribution = contributor.contribute(context);
+            } catch (RuntimeException ignored) {
+                continue;
+            }
+            if (contribution == null || contribution.isBlank()) {
+                continue;
+            }
+            assembled.append("\n[")
+                    .append(contributor.name())
+                    .append("]\n")
+                    .append(contribution.trim())
+                    .append("\n");
+        }
+        assembled.append("--- End Tool Prompt Contributions ---");
+        return assembled.toString();
+    }
 }
