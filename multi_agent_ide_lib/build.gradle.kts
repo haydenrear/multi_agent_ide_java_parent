@@ -23,6 +23,8 @@ dependencies {
     implementation(project(":acp-cdc-ai"))
 }
 
+
+
 tasks.bootJar {
     enabled = false
 }
