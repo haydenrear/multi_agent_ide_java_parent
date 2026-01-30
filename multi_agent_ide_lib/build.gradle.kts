@@ -16,11 +16,11 @@ tasks.register("prepareKotlinBuildScriptModel") {}
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-websocket")
-    implementation(project(":utilitymodule"))
+    implementation(project(":multi_agent_ide_java_parent:utilitymodule"))
+    implementation(project(":multi_agent_ide_java_parent:acp-cdc-ai"))
     implementation(project(":commit-diff-context"))
     implementation(project(":commit-diff-model"))
     implementation("org.springframework.boot:spring-boot-starter-security")
-    implementation(project(":acp-cdc-ai"))
 }
 
 

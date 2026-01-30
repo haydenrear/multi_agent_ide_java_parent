@@ -16,7 +16,8 @@ description = "multi-agent-ide"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-websocket")
-    implementation(project(":utilitymodule"))
+    implementation(project(":multi_agent_ide_java_parent:utilitymodule"))
+    implementation(project(":multi_agent_ide_java_parent:acp-cdc-ai"))
     implementation("com.agentclientprotocol:acp:0.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.9.0")
     implementation("com.ag-ui.community:kotlin-core-jvm:0.2.4")
@@ -28,7 +29,6 @@ dependencies {
     implementation(project(":multi_agent_ide_java_parent:multi_agent_ide_lib"))
     implementation(project(":persistence"))
     implementation(project(":jpa-persistence"))
-    implementation(project(":multi_agent_ide_java_parent:acp-cdc-ai"))
     implementation("org.springframework.boot:spring-boot-starter-security")
 }
 

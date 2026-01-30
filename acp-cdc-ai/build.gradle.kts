@@ -18,5 +18,5 @@ version = "0.0.1-SNAPSHOT"
 description = "acp-cdc-ai"
 
 dependencies {
-    implementation(project(":utilitymodule"))
+    implementation(project(":multi_agent_ide_java_parent:utilitymodule"))
 }
