@@ -118,6 +118,7 @@ public class SpecialJsonSchemaGenerator {
     List<SchemaFilter> schemaFilters = new ArrayList<>();
 
 
+
     /**
      * Generate a JSON Schema for a method's input parameters.
      */

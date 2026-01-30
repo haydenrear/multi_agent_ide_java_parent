@@ -51,6 +51,10 @@ public class SignatureUtil {
         }
     }
 
+    public static @NotNull String hashToString(String toHash) throws NoSuchAlgorithmException {
+        return hashToString(toHash, retrieveDigest()) ;
+    }
+
     public static @NotNull String hashToString(String toHash, MessageDigest digest) {
         return hashToString(toHash.getBytes(StandardCharsets.UTF_8), digest);
     }
@@ -82,8 +86,24 @@ public class SignatureUtil {
                 });
     }
 
+    public static MessageDigest retrieveDigest() throws NoSuchAlgorithmException {
+
+        Result<String, SignatureErr> stringSignatureErrResult = retrieveDigestAlgorithm();
+
+        if (stringSignatureErrResult.isErr()) {
+            return MessageDigest.getInstance("MD5");
+        }
+
+        return MessageDigest.getInstance(stringSignatureErrResult.r().get());
+
+    }
+
+    public static Result<String, SignatureErr> retrieveDigestAlgorithm() {
+        return retrieveDigestAlgorithm(null) ;
+    }
+
     @NotNull
-    private static Result<String, SignatureErr> retrieveDigestAlgorithm(@Nullable String algorithm) {
+    public static Result<String, SignatureErr> retrieveDigestAlgorithm(@Nullable String algorithm) {
         Set<String> messageDigestAlgorithms = Security.getAlgorithms(MessageDigest.class.getSimpleName());
         Optional<String> retrieveDigestAlgorithm = messageDigestAlgorithms
                 .stream().filter(a -> a.equals(algorithm))

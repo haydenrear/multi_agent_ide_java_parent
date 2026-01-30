@@ -87,7 +87,8 @@ public class StreamUtil {
     public static <T> Stream<T> toStream(T[] t) {
         return Optional.ofNullable(t)
                 .stream()
-                .flatMap(Arrays::stream);
+                .flatMap(Arrays::stream)
+                .filter(Objects::nonNull);
     }
 
     public static <T> Stream<T> toStream(Collection<T> t) {
