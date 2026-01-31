@@ -446,7 +446,8 @@ public sealed interface Artifact
             List<Artifact> children,
             String skillName,
             String skillDescription,
-            String hash
+            String hash,
+            String activationText
     ) implements Templated {
 
         @Override

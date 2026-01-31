@@ -5,7 +5,6 @@ import com.embabel.agent.api.tool.Tool;
 import com.google.common.collect.Lists;
 import com.hayden.multiagentide.artifacts.ArtifactService;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
-import com.hayden.multiagentide.artifacts.PromptContributionArtifactListener;
 import com.hayden.multiagentide.tool.ToolAbstraction;
 import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
 import com.hayden.multiagentidelib.prompt.PromptContext;
@@ -45,8 +44,6 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
 
     private final ExecutionScopeService executionScopeService;
 
-    private final PromptContributionArtifactListener promptContributionArtifactListener;
-    
     private final ArtifactService artifactService;
 
     @Override
@@ -88,7 +85,6 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
         Optional<Artifact> existingArtifact = artifactService.decorateDuplicate(hash, artifactKey);
 
         if (existingArtifact.isPresent()) {
-            @SuppressWarnings("unchecked")
             Artifact existing = existingArtifact.get();
             
             log.debug("Reusing existing artifact with hash: {} and type: {}",
@@ -249,7 +245,7 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
                 .flatMap(ta -> extractToolDescriptions(ta).stream())
                 .map(td -> buildToolPrompt(td, parentKey.createChild(), llmCallContext.promptContext()))
                 .collect(Collectors.toCollection(ArrayList::new));
-        artifacts.addAll(toolArtifacts);
+
 
         // Build skill prompt artifacts
         List<Artifact> skillArtifacts = llmCallContext.tcc().tools()
@@ -257,6 +253,8 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
                 .flatMap(ta -> extractSkillDescriptions(ta).stream())
                 .map(sd -> buildSkillPrompt(sd, parentKey.createChild(), llmCallContext.promptContext()))
                 .collect(Collectors.toCollection(ArrayList::new));
+
+        artifacts.addAll(toolArtifacts);
         artifacts.addAll(skillArtifacts);
 
         return artifacts;
@@ -353,7 +351,7 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
     /**
      * Internal record for holding extracted skill description data.
      */
-    private record SkillDescription(String name, String description) {}
+    private record SkillDescription(String name, String description, String activationText) {}
 
     /**
      * Extracts skill descriptions from a ToolAbstraction.
@@ -365,10 +363,14 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
                 var skillDecorator = skillReference.loadedSkills();
                 if (skillDecorator != null && skillDecorator.getSkill() != null) {
                     var skills = skillDecorator.getSkill();
-                    yield List.of(new SkillDescription(
-                            skills.getName(),
-                            skills.getDescription()
-                    ));
+                    yield skills.getSkills()
+                            .stream()
+                            .map(ls -> new SkillDescription(
+                                    ls.getName(),
+                                    ls.getDescription(),
+                                    ls.getActivationText()
+                            ))
+                            .toList();
                 }
                 yield List.of();
             }
@@ -437,6 +439,7 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
                         .artifactKey(artifactKey)
                         .skillName(skillDescription.name())
                         .skillDescription(fullDescription)
+                        .activationText(skillDescription.activationText())
                         .hash(hash)
                         .metadata(Map.of(
                                 "skillName", skillDescription.name() != null ? skillDescription.name() : ""
@@ -455,7 +458,10 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
         StringBuilder sb = new StringBuilder();
         sb.append("Skill: ").append(skillDescription.name()).append("\n");
         if (skillDescription.description() != null && !skillDescription.description().isEmpty()) {
-            sb.append("Description: ").append(skillDescription.description()).append("\n");
+            sb.append("Description:\n").append(skillDescription.description()).append("\n");
+        }
+        if (skillDescription.activationText() != null && !skillDescription.activationText().isEmpty()) {
+            sb.append("Activation Text:\n").append(skillDescription.activationText()).append("\n");
         }
         return sb.toString();
     }
