@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,8 +49,7 @@ public class PromptContributorService {
     }
 
     private @NonNull List<ContextualPromptElement> retrievePromptContributors(PromptContext promptContext) {
-        List<PromptContributor> contributors = new java.util.ArrayList<>();
-        contributors.addAll(registry.getContributors(promptContext));
+        List<PromptContributor> contributors = new java.util.ArrayList<>(registry.getContributors(promptContext));
         if (factories != null && !factories.isEmpty()) {
             for (PromptContributorFactory factory : factories) {
                 if (factory == null) {
@@ -62,9 +62,9 @@ public class PromptContributorService {
             }
         }
 
-        contributors.sort(java.util.Comparator
-                .comparingInt(PromptContributor::priority)
-                .thenComparing(PromptContributor::name, String.CASE_INSENSITIVE_ORDER));
+        contributors.sort(
+                Comparator.comparingInt(PromptContributor::priority)
+                        .thenComparing(PromptContributor::name, String.CASE_INSENSITIVE_ORDER));
 
         return contributors.stream()
                 .map(contributor -> new PromptContributorAdapter(contributor, promptContext))
