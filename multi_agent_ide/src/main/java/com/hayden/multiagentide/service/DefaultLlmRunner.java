@@ -7,6 +7,7 @@ import com.embabel.agent.api.common.ToolObject;
 import com.hayden.multiagentide.agent.AskUserQuestionToolAdapter;
 import com.hayden.multiagentide.agent.decorator.LlmCallDecorator;
 import com.hayden.multiagentide.artifacts.ArtifactEmissionService;
+import com.hayden.multiagentide.skills.SkillFinder;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributorService;
 import com.hayden.multiagentide.tool.ToolAbstraction;
@@ -108,6 +109,9 @@ public class DefaultLlmRunner implements LlmRunner {
                         updated.withToolGroup(value.requirement());
                 case ToolAbstraction.ToolGroupStrings value ->
                         updated.withToolGroups(value.toolGroups());
+                case ToolAbstraction.SkillReference skillReference ->
+//                      we're not using the tool, we do a custom prompt contributor
+                        updated;
             };
         }
         return updated;

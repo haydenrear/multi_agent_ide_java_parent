@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.agent.decorator;
 
 import com.embabel.agent.api.common.nested.TemplateOperations;
+import com.embabel.agent.api.tool.Tool;
 import com.google.common.collect.Lists;
 import com.hayden.multiagentide.artifacts.ArtifactService;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,7 +76,7 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
      * @return The artifact (either retrieved or newly created)
      */
     private Artifact getOrCreateArtifact(
-            java.util.function.Supplier<Artifact> artifactBuilder,
+            Supplier<Artifact> artifactBuilder,
             String hash,
             ArtifactKey artifactKey
     ) {
@@ -239,11 +241,25 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
             return new ArrayList<>();
         }
 
-        return llmCallContext.tcc().tools()
+        List<Artifact> artifacts = new ArrayList<>();
+
+        // Build tool prompt artifacts
+        List<Artifact> toolArtifacts = llmCallContext.tcc().tools()
                 .stream()
                 .flatMap(ta -> extractToolDescriptions(ta).stream())
                 .map(td -> buildToolPrompt(td, parentKey.createChild(), llmCallContext.promptContext()))
                 .collect(Collectors.toCollection(ArrayList::new));
+        artifacts.addAll(toolArtifacts);
+
+        // Build skill prompt artifacts
+        List<Artifact> skillArtifacts = llmCallContext.tcc().tools()
+                .stream()
+                .flatMap(ta -> extractSkillDescriptions(ta).stream())
+                .map(sd -> buildSkillPrompt(sd, parentKey.createChild(), llmCallContext.promptContext()))
+                .collect(Collectors.toCollection(ArrayList::new));
+        artifacts.addAll(skillArtifacts);
+
+        return artifacts;
     }
     
     /**
@@ -285,7 +301,7 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
                 // ToolObject contains objects with @LlmTool annotated methods
                 // We extract tools using Tool.safelyFromInstance
                 var tools = eto.toolObject().getObjects().stream()
-                        .flatMap(obj -> com.embabel.agent.api.tool.Tool.safelyFromInstance(obj).stream())
+                        .flatMap(obj -> Tool.safelyFromInstance(obj).stream())
                         .toList();
                 yield tools.stream()
                         .map(t -> {
@@ -323,6 +339,9 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
                         tgs.toolGroups());
                 yield List.of();
             }
+            case ToolAbstraction.SkillReference skillReference -> {
+                yield List.of();
+            }
         };
     }
     
@@ -330,6 +349,32 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
      * Internal record for holding extracted tool description data.
      */
     private record ToolDescription(String name, String description, String inputSchema) {}
+
+    /**
+     * Internal record for holding extracted skill description data.
+     */
+    private record SkillDescription(String name, String description) {}
+
+    /**
+     * Extracts skill descriptions from a ToolAbstraction.
+     * Only handles SkillReference type, returns empty list for other types.
+     */
+    private List<SkillDescription> extractSkillDescriptions(ToolAbstraction toolAbstraction) {
+        return switch (toolAbstraction) {
+            case ToolAbstraction.SkillReference skillReference -> {
+                var skillDecorator = skillReference.loadedSkills();
+                if (skillDecorator != null && skillDecorator.getSkill() != null) {
+                    var skills = skillDecorator.getSkill();
+                    yield List.of(new SkillDescription(
+                            skills.getName(),
+                            skills.getDescription()
+                    ));
+                }
+                yield List.of();
+            }
+            default -> List.of();
+        };
+    }
     
     /**
      * Creates a single tool prompt artifact with hash checking.
@@ -371,6 +416,46 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
         }
         if (toolDescription.inputSchema() != null && !toolDescription.inputSchema().isEmpty()) {
             sb.append("Input Schema: ").append(toolDescription.inputSchema()).append("\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Creates a single skill prompt artifact with hash checking.
+     */
+    private Artifact buildSkillPrompt(
+            SkillDescription skillDescription,
+            ArtifactKey artifactKey,
+            PromptContext promptContext
+    ) {
+        // Build the full skill description text for hashing
+        String fullDescription = buildSkillDescriptionText(skillDescription);
+        String hash = promptContext.hashContext().hash(fullDescription);
+
+        return getOrCreateArtifact(
+                () -> Artifact.SkillPrompt.builder()
+                        .artifactKey(artifactKey)
+                        .skillName(skillDescription.name())
+                        .skillDescription(fullDescription)
+                        .hash(hash)
+                        .metadata(Map.of(
+                                "skillName", skillDescription.name() != null ? skillDescription.name() : ""
+                        ))
+                        .children(new ArrayList<>())
+                        .build(),
+                hash,
+                artifactKey
+        );
+    }
+
+    /**
+     * Builds a complete skill description text including name and description.
+     */
+    private String buildSkillDescriptionText(SkillDescription skillDescription) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Skill: ").append(skillDescription.name()).append("\n");
+        if (skillDescription.description() != null && !skillDescription.description().isEmpty()) {
+            sb.append("Description: ").append(skillDescription.description()).append("\n");
         }
         return sb.toString();
     }

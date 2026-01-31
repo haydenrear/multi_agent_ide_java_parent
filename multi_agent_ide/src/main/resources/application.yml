@@ -137,3 +137,15 @@ acp.mcp:
     - name: hindsight
       url: http://localhost:8888/mcp
       headers:
+
+skills:
+  local-skills:
+    ContextManagerRequest:
+#      - skill-path: {{PARENT_DIR}}/skills/java_gradle
+#      - skill-path: {{PARENT_DIR}}/skills/docker
+#      - skill-path: {{PARENT_DIR}}/skills/test_graph
+#      - skill-path: {{PARENT_DIR}}/skills/cli_os_env
+    OrchestratorRequest:
+#      - skill-path: {{PARENT_DIR}}/skills/java_gradle
+#      - skill-path: {{PARENT_DIR}}/skills/spec_driven_development
+#      - skill-path: {{PARENT_DIR}}/skills/cli_os_env

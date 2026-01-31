@@ -30,6 +30,7 @@ dependencies {
     implementation(project(":persistence"))
     implementation(project(":jpa-persistence"))
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("com.embabel.agent:embabel-agent-skills:0.3.2")
 }
 
 tasks.bootJar {

@@ -46,7 +46,10 @@ class ArtifactEventListenerTest {
     
     @Mock
     private ArtifactTreeBuilder treeBuilder;
-    
+
+    @Mock
+    private EventArtifactMapper eventArtifactMapper;
+
     @Captor
     private ArgumentCaptor<EventListener> listenerCaptor;
     
@@ -60,7 +63,7 @@ class ArtifactEventListenerTest {
     
     @BeforeEach
     void setUp() {
-        listener = new ArtifactEventListener(treeBuilder);
+        listener = new ArtifactEventListener(treeBuilder, eventArtifactMapper);
         eventBus.subscribe(listener);
 
         // Set properties via reflection since @Value won't work in unit tests

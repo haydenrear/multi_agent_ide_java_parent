@@ -26,6 +26,7 @@ public interface ArtifactMixin {
         @JsonSubTypes.Type(value = Artifact.PromptArgsArtifact.class, name = "PromptArgs"),
         @JsonSubTypes.Type(value = Artifact.ToolCallArtifact.class, name = "ToolCall"),
         @JsonSubTypes.Type(value = Artifact.ToolPrompt.class, name = "ToolPrompt"),
+        @JsonSubTypes.Type(value = Artifact.SkillPrompt.class, name = "SkillPrompt"),
         @JsonSubTypes.Type(value = Artifact.OutcomeEvidenceArtifact.class, name = "OutcomeEvidence"),
         @JsonSubTypes.Type(value = Artifact.EventArtifact.class, name = "EventArtifact"),
         @JsonSubTypes.Type(value = Artifact.AgentModelArtifact.class, name = "AgentModel"),

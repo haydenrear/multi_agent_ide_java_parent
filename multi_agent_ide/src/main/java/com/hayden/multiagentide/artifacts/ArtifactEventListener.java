@@ -4,6 +4,7 @@ import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.events.MessageStreamArtifact;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ArtifactEventListener implements EventListener {
     
     private final ArtifactTreeBuilder treeBuilder;
+    private final EventArtifactMapper eventArtifactMapper;
 
     @Value("${artifacts.persistence.enabled:true}")
     private boolean persistenceEnabled;
@@ -47,10 +49,10 @@ public class ArtifactEventListener implements EventListener {
 
         switch(event) {
             case Events.ArtifactEvent artifactEvent -> handleArtifactEvent(artifactEvent);
-            case Events.NodeStreamDeltaEvent delta -> {}
-            case Events.NodeThoughtDeltaEvent delta -> {}
-            case Events.UserMessageChunkEvent delta -> {}
-            case Events.PlanUpdateEvent delta -> {}
+            case Events.NodeStreamDeltaEvent delta -> handleStreamEvent(delta);
+            case Events.NodeThoughtDeltaEvent delta -> handleStreamEvent(delta);
+            case Events.UserMessageChunkEvent delta -> handleStreamEvent(delta);
+            case Events.PlanUpdateEvent delta -> handlePlanUpdateEvent(delta);
             default -> log.warn("Found event not subscribed to: {}", event);
         }
     }
@@ -127,6 +129,91 @@ public class ArtifactEventListener implements EventListener {
         } catch (Exception e) {
             log.error("Failed to handle artifact event: {}", event, e);
         }
+    }
+    
+    /**
+     * Handles stream delta events (NodeStreamDelta, NodeThoughtDelta, UserMessageChunk).
+     * Converts them to MessageStreamArtifact and adds to the tree.
+     */
+    private void handleStreamEvent(Events.GraphEvent event) {
+        try {
+            String nodeId = event.nodeId();
+            String executionKey = findExecutionKeyByNodeId(nodeId);
+            if (executionKey == null) {
+                log.debug("No active execution found for stream event nodeId: {}", nodeId);
+                return;
+            }
+            
+            // Create parent key based on execution and node
+            ArtifactKey parentKey = new ArtifactKey(executionKey + "/" + nodeId);
+            
+            // Map to MessageStreamArtifact
+            MessageStreamArtifact streamArtifact = eventArtifactMapper.mapToStreamArtifact(event, parentKey);
+            
+            boolean added = treeBuilder.addArtifact(executionKey, streamArtifact);
+            if (added) {
+                log.debug("Added stream artifact: {} (type: {})", 
+                        streamArtifact.artifactKey().value(), streamArtifact.streamType());
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to handle stream event: {}", event, e);
+        }
+    }
+    
+    /**
+     * Handles plan update events.
+     * Converts them to EventArtifact and adds to the tree.
+     */
+    private void handlePlanUpdateEvent(Events.PlanUpdateEvent event) {
+        try {
+            String nodeId = event.nodeId();
+            String executionKey = findExecutionKeyByNodeId(nodeId);
+            if (executionKey == null) {
+                log.debug("No active execution found for plan update event nodeId: {}", nodeId);
+                return;
+            }
+            
+            // Create parent key based on execution and node
+            ArtifactKey parentKey = new ArtifactKey(executionKey + "/" + nodeId);
+            
+            // Map to EventArtifact (generic event capture)
+            Artifact.EventArtifact eventArtifact = eventArtifactMapper.mapToEventArtifact(event, parentKey);
+            
+            boolean added = treeBuilder.addArtifact(executionKey, eventArtifact);
+            if (added) {
+                log.debug("Added plan update artifact: {} (type: {})", 
+                        eventArtifact.artifactKey().value(), eventArtifact.eventType());
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to handle plan update event: {}", event, e);
+        }
+    }
+    
+    /**
+     * Finds execution key by searching for a nodeId match in active executions.
+     * Stream events don't carry the execution key directly, so we need to find it.
+     */
+    private String findExecutionKeyByNodeId(String nodeId) {
+        if (nodeId == null || nodeId.isBlank()) {
+            return null;
+        }
+        
+        // First check if nodeId itself contains the execution key prefix
+        for (String executionKey : activeExecutions.values()) {
+            if (nodeId.startsWith(executionKey)) {
+                return executionKey;
+            }
+        }
+        
+        // If only one execution is active, use that
+        if (activeExecutions.size() == 1) {
+            return activeExecutions.values().iterator().next();
+        }
+        
+        // Otherwise we can't determine which execution this belongs to
+        return null;
     }
     
     private void handleExecutionComplete(Events.GoalCompletedEvent event) {

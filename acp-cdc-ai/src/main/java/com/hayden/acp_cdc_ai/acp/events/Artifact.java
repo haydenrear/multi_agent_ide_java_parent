@@ -438,6 +438,43 @@ public sealed interface Artifact
         }
     }
 
+    @Builder(toBuilder = true)
+    @With
+    record SkillPrompt(
+            ArtifactKey artifactKey,
+            Map<String, String> metadata,
+            List<Artifact> children,
+            String skillName,
+            String skillDescription,
+            String hash
+    ) implements Templated {
+
+        @Override
+        public String templateStaticId() {
+            return skillName;
+        }
+
+        @Override
+        public String templateText() {
+            return skillDescription;
+        }
+
+        @Override
+        public String artifactType() {
+            return SkillPrompt.class.getSimpleName();
+        }
+
+        @Override
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
+        }
+
+        @Override
+        public ArtifactKey templateArtifactKey() {
+            return artifactKey;
+        }
+    }
+
     // ========== Tools ==========
     
     /**

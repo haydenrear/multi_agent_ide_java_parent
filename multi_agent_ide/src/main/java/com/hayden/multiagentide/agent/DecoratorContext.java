@@ -13,10 +13,11 @@ public record DecoratorContext(
         String actionName,
         String methodName,
         Artifact.AgentModel lastRequest,
+        Artifact.AgentModel agentRequest,
         Artifact.HashContext hashContext
 ) {
 
-    public DecoratorContext(OperationContext operationContext, String agentName, String actionName, String methodName, Artifact.AgentModel lastRequest) {
-        this(operationContext, agentName, actionName, methodName, lastRequest, Artifact.HashContext.defaultHashContext());
+    public DecoratorContext(OperationContext operationContext, String agentName, String actionName, String methodName, Artifact.AgentModel lastRequest, Artifact.AgentModel agentRequest) {
+        this(operationContext, agentName, actionName, methodName, lastRequest, agentRequest, Artifact.HashContext.defaultHashContext());
     }
 }

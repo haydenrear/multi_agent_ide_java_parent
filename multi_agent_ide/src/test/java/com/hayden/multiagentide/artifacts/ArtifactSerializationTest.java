@@ -392,6 +392,32 @@ class ArtifactSerializationTest {
             assertThat(result.toolCallName()).isEqualTo("searchCodebase");
             assertThat(result.toolDescription()).contains("Search the codebase");
         }
+        
+        @Test
+        @DisplayName("SkillPrompt serializes correctly")
+        void skillPromptRoundTrip() {
+            ArtifactKey skillPromptKey = rootKey.createChild();
+            
+            Artifact.SkillPrompt skillPrompt = Artifact.SkillPrompt.builder()
+                    .artifactKey(skillPromptKey)
+                    .skillName("codeReview")
+                    .skillDescription("Review code changes and provide feedback on quality and best practices")
+                    .hash("skill-prompt-hash")
+                    .metadata(Map.of("category", "review"))
+                    .children(new ArrayList<>())
+                    .build();
+            
+            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
+            artifactTreeBuilder.addArtifact(executionKey, skillPrompt);
+            artifactTreeBuilder.persistExecution(executionKey);
+            
+            Optional<ArtifactEntity> entity = artifactRepository.findByArtifactKey(skillPromptKey.value());
+            Optional<Artifact> deserialized = artifactService.deserializeArtifact(entity.get());
+            
+            Artifact.SkillPrompt result = (Artifact.SkillPrompt) deserialized.get();
+            assertThat(result.skillName()).isEqualTo("codeReview");
+            assertThat(result.skillDescription()).contains("Review code changes");
+        }
     }
     
     // ========== AgentModel Serialization Tests ==========

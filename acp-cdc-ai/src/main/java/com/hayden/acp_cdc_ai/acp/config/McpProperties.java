@@ -37,7 +37,10 @@ public class McpProperties {
             return;
         }
         collected = MapFunctions.CollectMap(
-                Stream.concat(stdio.stream(), http.stream())
+                Stream.concat(
+                            StreamUtil.toStream(stdio),
+                            StreamUtil.toStream(http)
+                        )
                         .map(m -> Map.entry(m.getName(), m)));
     }
 

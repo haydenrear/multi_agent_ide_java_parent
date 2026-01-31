@@ -4,24 +4,21 @@ import com.embabel.agent.api.common.ToolObject;
 import com.embabel.agent.api.tool.Tool;
 import com.embabel.agent.core.ToolGroup;
 import com.embabel.agent.core.ToolGroupRequirement;
+import com.embabel.agent.skills.Skills;
+import com.embabel.agent.skills.support.LoadedSkill;
 import com.hayden.commitdiffcontext.mcp.ToolCarrier;
+import com.hayden.multiagentide.skills.SkillDecorator;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 /**
  * Sealed wrapper for tool abstractions across frameworks.
  */
-public sealed interface ToolAbstraction permits
-        ToolAbstraction.SpringToolCallback,
-        ToolAbstraction.SpringToolCallbackProvider,
-        ToolAbstraction.EmbabelTool,
-        ToolAbstraction.EmbabelToolObject,
-        ToolAbstraction.EmbabelToolGroup,
-        ToolAbstraction.EmbabelToolGroupRequirement,
-        ToolAbstraction.ToolGroupStrings {
+public sealed interface ToolAbstraction permits ToolAbstraction.EmbabelTool, ToolAbstraction.EmbabelToolGroup, ToolAbstraction.EmbabelToolGroupRequirement, ToolAbstraction.EmbabelToolObject, ToolAbstraction.SkillReference, ToolAbstraction.SpringToolCallback, ToolAbstraction.SpringToolCallbackProvider, ToolAbstraction.ToolGroupStrings {
 
     record SpringToolCallback(ToolCallback toolCallback) implements ToolAbstraction {
         public SpringToolCallback {
@@ -63,6 +60,10 @@ public sealed interface ToolAbstraction permits
         public ToolGroupStrings {
             Objects.requireNonNull(toolGroups, "toolGroups");
         }
+    }
+
+    record SkillReference(
+            SkillDecorator loadedSkills) implements ToolAbstraction {
     }
 
     static ToolAbstraction fromToolCarrier(ToolCarrier toolCarrier) {

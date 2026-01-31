@@ -185,6 +185,9 @@ public interface AgentInterfaces {
         @Autowired(required = false)
         private List<PromptContextDecorator> promptContextDecorators = new ArrayList<>();
 
+        @Autowired(required = false)
+        private List<ToolContextDecorator> toolContextDecorators = new ArrayList<>();
+
         @Override
         public String multiAgentAgentName() {
             return WORKFLOW_AGENT_NAME;
@@ -234,7 +237,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
                     promptContext,
                     Map.of("reason", loopSummary),
-                    ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools)),
+                    buildToolContext(
+                            AgentType.CONTEXT_MANAGER,
+                            request,
+                            lastRequest,
+                            request,
+                            context,
+                            ACTION_CONTEXT_MANAGER_STUCK,
+                            METHOD_HANDLE_STUCK,
+                            TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
+                            ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools))
+                    ),
                     AgentModels.ContextManagerResultRouting.class,
                     context
             );
@@ -304,7 +317,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
                     promptContext,
                     Map.of("reason", loopSummary),
-                    ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools)),
+                    buildToolContext(
+                            AgentType.CONTEXT_MANAGER,
+                            request,
+                            lastRequest,
+                            request,
+                            context,
+                            ACTION_CONTEXT_MANAGER,
+                            METHOD_CONTEXT_MANAGER,
+                            TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
+                            ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools))
+                    ),
                     AgentModels.ContextManagerResultRouting.class,
                     context
             );
@@ -361,7 +384,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_ORCHESTRATOR,
                     promptContext,
                     model,
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.ORCHESTRATOR,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_ORCHESTRATOR,
+                            METHOD_COORDINATE_WORKFLOW,
+                            TEMPLATE_WORKFLOW_ORCHESTRATOR,
+                            ToolContext.empty()
+                    ),
                     AgentModels.OrchestratorRouting.class,
                     context
             );
@@ -429,7 +462,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_CONTEXT_MANAGER_INTERRUPT,
                     promptContext,
                     Map.of("reason", reason),
-                    ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools)),
+                    buildToolContext(
+                            AgentType.CONTEXT_MANAGER,
+                            lastRequest,
+                            lastRequest,
+                            request,
+                            context,
+                            ACTION_CONTEXT_MANAGER_INTERRUPT,
+                            METHOD_HANDLE_CONTEXT_MANAGER_INTERRUPT,
+                            TEMPLATE_WORKFLOW_CONTEXT_MANAGER_INTERRUPT,
+                            ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools))
+                    ),
                     AgentModels.ContextManagerResultRouting.class
             );
 
@@ -585,7 +628,31 @@ public interface AgentInterfaces {
                     multiAgentAgentName(),
                     actionName,
                     methodName,
-                    previousRequest
+                    previousRequest,
+                    currentRequest
+            );
+        }
+
+        private ToolContext buildToolContext(
+                AgentType agentType,
+                AgentModels.AgentRequest contextRequest,
+                AgentModels.AgentRequest previousRequest,
+                AgentModels.AgentRequest currentRequest,
+                OperationContext context,
+                String actionName,
+                String methodName,
+                String templateName,
+                ToolContext toolContext
+        ) {
+            return AgentInterfaces.decorateToolContext(
+                    toolContext,
+                    currentRequest,
+                    previousRequest,
+                    context,
+                    toolContextDecorators,
+                    multiAgentAgentName(),
+                    actionName,
+                    methodName
             );
         }
 
@@ -665,7 +732,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_ORCHESTRATOR_COLLECTOR,
                     promptContext,
                     model,
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.ORCHESTRATOR_COLLECTOR,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_ORCHESTRATOR_COLLECTOR,
+                            METHOD_CONSOLIDATE_WORKFLOW_OUTPUTS,
+                            TEMPLATE_WORKFLOW_ORCHESTRATOR_COLLECTOR,
+                            ToolContext.empty()
+                    ),
                     AgentModels.OrchestratorCollectorRouting.class,
                     context
             );
@@ -720,7 +797,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_DISCOVERY_COLLECTOR,
                     promptContext,
                     Map.of("goal", Optional.ofNullable(input.goal()).orElse(""), "discoveryResults", Optional.ofNullable(input.discoveryResults()).orElse("")),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.DISCOVERY_COLLECTOR,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_DISCOVERY_COLLECTOR,
+                            METHOD_CONSOLIDATE_DISCOVERY_FINDINGS,
+                            TEMPLATE_WORKFLOW_DISCOVERY_COLLECTOR,
+                            ToolContext.empty()
+                    ),
                     AgentModels.DiscoveryCollectorRouting.class,
                     context
             );
@@ -775,7 +862,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_PLANNING_COLLECTOR,
                     promptContext,
                     Map.of("goal", Optional.ofNullable(input.goal()).orElse(""), "planningResults", Optional.ofNullable(input.planningResults()).orElse("")),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.PLANNING_COLLECTOR,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_PLANNING_COLLECTOR,
+                            METHOD_CONSOLIDATE_PLANS_INTO_TICKETS,
+                            TEMPLATE_WORKFLOW_PLANNING_COLLECTOR,
+                            ToolContext.empty()
+                    ),
                     AgentModels.PlanningCollectorRouting.class,
                     context
             );
@@ -830,7 +927,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_TICKET_COLLECTOR,
                     promptContext,
                     Map.of("goal", Optional.ofNullable(input.goal()).orElse(""), "ticketResults", input.ticketResults()),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.TICKET_COLLECTOR,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_TICKET_COLLECTOR,
+                            METHOD_CONSOLIDATE_TICKET_RESULTS,
+                            TEMPLATE_WORKFLOW_TICKET_COLLECTOR,
+                            ToolContext.empty()
+                    ),
                     AgentModels.TicketCollectorRouting.class,
                     context
             );
@@ -942,7 +1049,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_DISCOVERY_ORCHESTRATOR,
                     promptContext,
                     Map.of("goal", input.goal()),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.DISCOVERY_ORCHESTRATOR,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_DISCOVERY_ORCHESTRATOR,
+                            METHOD_KICK_OFF_ANY_NUMBER_OF_AGENTS_FOR_CODE_SEARCH,
+                            TEMPLATE_WORKFLOW_DISCOVERY_ORCHESTRATOR,
+                            ToolContext.empty()
+                    ),
                     AgentModels.DiscoveryOrchestratorRouting.class,
                     context
             );
@@ -1029,7 +1146,17 @@ public interface AgentInterfaces {
                             "discoveryResults",
                             d.prettyPrint(new AgentContext.AgentSerializationCtx.ResultsSerialization())
                     ),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.DISCOVERY_AGENT_DISPATCH,
+                            d,
+                            lastRequest,
+                            d,
+                            context,
+                            ACTION_DISCOVERY_DISPATCH,
+                            METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
+                            TEMPLATE_WORKFLOW_DISCOVERY_DISPATCH,
+                            ToolContext.empty()
+                    ),
                     AgentModels.DiscoveryAgentDispatchRouting.class,
                     context
             );
@@ -1142,7 +1269,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_PLANNING_ORCHESTRATOR,
                     promptContext,
                     Map.of("goal", input.goal()),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.PLANNING_ORCHESTRATOR,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_PLANNING_ORCHESTRATOR,
+                            METHOD_DECOMPOSE_PLAN_AND_CREATE_WORK_ITEMS,
+                            TEMPLATE_WORKFLOW_PLANNING_ORCHESTRATOR,
+                            ToolContext.empty()
+                    ),
                     AgentModels.PlanningOrchestratorRouting.class,
                     context
             );
@@ -1244,7 +1381,17 @@ public interface AgentInterfaces {
                             "planningResults",
                             planningAgentResults.prettyPrint(new AgentContext.AgentSerializationCtx.ResultsSerialization())
                     ),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.PLANNING_AGENT_DISPATCH,
+                            planningAgentResults,
+                            lastRequest,
+                            planningAgentResults,
+                            context,
+                            ACTION_PLANNING_DISPATCH,
+                            METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
+                            TEMPLATE_WORKFLOW_PLANNING_DISPATCH,
+                            ToolContext.empty()
+                    ),
                     AgentModels.PlanningAgentDispatchRouting.class,
                     context
             );
@@ -1395,7 +1542,17 @@ public interface AgentInterfaces {
                     Map.of(
                             "goal", input.goal()
                     ),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.TICKET_ORCHESTRATOR,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_TICKET_ORCHESTRATOR,
+                            METHOD_ORCHESTRATE_TICKET_EXECUTION,
+                            TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR,
+                            ToolContext.empty()
+                    ),
                     AgentModels.TicketOrchestratorRouting.class,
                     context
             );
@@ -1488,7 +1645,17 @@ public interface AgentInterfaces {
                             "ticketResults",
                             ticketAgentResults.prettyPrint(new AgentContext.AgentSerializationCtx.ResultsSerialization())
                     ),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.TICKET_AGENT_DISPATCH,
+                            ticketAgentResults,
+                            lastRequest,
+                            ticketAgentResults,
+                            context,
+                            ACTION_TICKET_DISPATCH,
+                            METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
+                            TEMPLATE_WORKFLOW_TICKET_DISPATCH,
+                            ToolContext.empty()
+                    ),
                     AgentModels.TicketAgentDispatchRouting.class,
                     context
             );
@@ -1615,7 +1782,17 @@ public interface AgentInterfaces {
                             "conflictFiles", input.conflictFiles(),
                             "returnRoute", returnRoute
                     ),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.MERGER_AGENT,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_MERGER_AGENT,
+                            METHOD_PERFORM_MERGE,
+                            TEMPLATE_WORKFLOW_MERGER,
+                            ToolContext.empty()
+                    ),
                     AgentModels.MergerRouting.class,
                     context
             );
@@ -1679,7 +1856,17 @@ public interface AgentInterfaces {
                             "criteria", input.criteria(),
                             "returnRoute", returnRoute
                     ),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.REVIEW_AGENT,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_REVIEW_AGENT,
+                            METHOD_PERFORM_REVIEW,
+                            TEMPLATE_WORKFLOW_REVIEW,
+                            ToolContext.empty()
+                    ),
                     AgentModels.ReviewRouting.class,
                     context
             );
@@ -1779,6 +1966,7 @@ public interface AgentInterfaces {
                 );
             }
             blackboardHistoryService.registerAndHideInput(context, METHOD_HANDLE_TICKET_COLLECTOR_BRANCH, request);
+
             // Get upstream curations from context for routing back
             AgentModels.TicketOrchestratorRequest lastTicketOrchestratorRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
@@ -2204,6 +2392,32 @@ public interface AgentInterfaces {
         @Autowired(required = false)
         private List<PromptContextDecorator> promptContextDecorators;
 
+        @Autowired(required = false)
+        private List<ToolContextDecorator> toolContextDecorators;
+
+        private ToolContext buildToolContext(
+                AgentType agentType,
+                AgentModels.AgentRequest contextRequest,
+                AgentModels.AgentRequest previousRequest,
+                AgentModels.AgentRequest currentRequest,
+                OperationContext context,
+                String actionName,
+                String methodName,
+                String templateName,
+                ToolContext toolContext
+        ) {
+            return AgentInterfaces.decorateToolContext(
+                    toolContext,
+                    currentRequest,
+                    previousRequest,
+                    context,
+                    toolContextDecorators,
+                    multiAgentAgentName(),
+                    actionName,
+                    methodName
+            );
+        }
+
         @Override
         public String multiAgentAgentName() {
             return WORKFLOW_TICKET_DISPATCH_SUBAGENT;
@@ -2235,7 +2449,8 @@ public interface AgentInterfaces {
                     multiAgentAgentName(),
                     actionName,
                     methodName,
-                    previousRequest
+                    previousRequest,
+                    currentRequest
             );
         }
 
@@ -2361,7 +2576,17 @@ public interface AgentInterfaces {
                             "ticketDetails", input.ticketDetails() != null ? input.ticketDetails() : "",
                             "ticketDetailsFilePath", input.ticketDetailsFilePath() != null ? input.ticketDetailsFilePath() : ""
                     ),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.TICKET_AGENT,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_TICKET_AGENT,
+                            METHOD_RUN_TICKET_AGENT,
+                            TEMPLATE_WORKFLOW_TICKET_AGENT,
+                            ToolContext.empty()
+                    ),
                     AgentModels.TicketAgentRouting.class,
                     context
             );
@@ -2402,6 +2627,32 @@ public interface AgentInterfaces {
         @Autowired(required = false)
         private List<PromptContextDecorator> promptContextDecorators;
 
+        @Autowired(required = false)
+        private List<ToolContextDecorator> toolContextDecorators;
+
+        private ToolContext buildToolContext(
+                AgentType agentType,
+                AgentModels.AgentRequest contextRequest,
+                AgentModels.AgentRequest previousRequest,
+                AgentModels.AgentRequest currentRequest,
+                OperationContext context,
+                String actionName,
+                String methodName,
+                String templateName,
+                ToolContext toolContext
+        ) {
+            return AgentInterfaces.decorateToolContext(
+                    toolContext,
+                    currentRequest,
+                    previousRequest,
+                    context,
+                    toolContextDecorators,
+                    multiAgentAgentName(),
+                    actionName,
+                    methodName
+            );
+        }
+
         @Override
         public String multiAgentAgentName() {
             return WORKFLOW_PLANNING_DISPATCH_SUBAGENT;
@@ -2433,7 +2684,8 @@ public interface AgentInterfaces {
                     multiAgentAgentName(),
                     actionName,
                     methodName,
-                    previousRequest
+                    previousRequest,
+                    currentRequest
             );
         }
 
@@ -2553,7 +2805,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_PLANNING_AGENT,
                     promptContext,
                     Map.of("goal", input.goal()),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.PLANNING_AGENT,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_PLANNING_AGENT,
+                            METHOD_RUN_PLANNING_AGENT,
+                            TEMPLATE_WORKFLOW_PLANNING_AGENT,
+                            ToolContext.empty()
+                    ),
                     AgentModels.PlanningAgentRouting.class,
                     context
             );
@@ -2593,6 +2855,32 @@ public interface AgentInterfaces {
         @Autowired(required = false)
         private List<PromptContextDecorator> promptContextDecorators;
 
+        @Autowired(required = false)
+        private List<ToolContextDecorator> toolContextDecorators;
+
+        private ToolContext buildToolContext(
+                AgentType agentType,
+                AgentModels.AgentRequest contextRequest,
+                AgentModels.AgentRequest previousRequest,
+                AgentModels.AgentRequest currentRequest,
+                OperationContext context,
+                String actionName,
+                String methodName,
+                String templateName,
+                ToolContext toolContext
+        ) {
+            return AgentInterfaces.decorateToolContext(
+                    toolContext,
+                    currentRequest,
+                    previousRequest,
+                    context,
+                    toolContextDecorators,
+                    multiAgentAgentName(),
+                    actionName,
+                    methodName
+            );
+        }
+
         @Override
         public String multiAgentAgentName() {
             return WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT;
@@ -2624,7 +2912,8 @@ public interface AgentInterfaces {
                     multiAgentAgentName(),
                     actionName,
                     methodName,
-                    previousRequest
+                    previousRequest,
+                    currentRequest
             );
         }
 
@@ -2739,7 +3028,17 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
                     promptContext,
                     Map.of("goal", input.goal(), "subdomainFocus", input.subdomainFocus()),
-                    ToolContext.empty(),
+                    buildToolContext(
+                            AgentType.DISCOVERY_AGENT,
+                            input,
+                            lastRequest,
+                            input,
+                            context,
+                            ACTION_DISCOVERY_AGENT,
+                            METHOD_RUN_DISCOVERY_AGENT,
+                            TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
+                            ToolContext.empty()
+                    ),
                     AgentModels.DiscoveryAgentRouting.class,
                     context
             );
@@ -2763,13 +3062,14 @@ public interface AgentInterfaces {
             String agentName,
             String actionName,
             String methodName,
-            Artifact.AgentModel lastRequest
+            Artifact.AgentModel lastRequest,
+            Artifact.AgentModel agentRequest
     ) {
         if (promptContext == null || decorators == null || decorators.isEmpty()) {
             return promptContext;
         }
         DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest
+                context, agentName, actionName, methodName, lastRequest, agentRequest
         );
         List<? extends PromptContextDecorator> sortedDecorators = decorators.stream()
                 .filter(d -> d != null)
@@ -2814,7 +3114,7 @@ public interface AgentInterfaces {
             return routing;
         }
         DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest
+                context, agentName, actionName, methodName, lastRequest, null
         );
         T decorated = routing;
         // Sort decorators by order (lower values first)
@@ -2841,7 +3141,7 @@ public interface AgentInterfaces {
             return result;
         }
         DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest
+                context, agentName, actionName, methodName, lastRequest, result
         );
         List<? extends ResultDecorator> sortedDecorators = decorators.stream()
                 .filter(d -> d != null)
@@ -2868,6 +3168,31 @@ public interface AgentInterfaces {
         return decorateRouting(routing, context, decorators, AGENT_NAME_NONE, ACTION_NONE, METHOD_NONE, lastRequest);
     }
 
+    static ToolContext decorateToolContext(ToolContext toolContext,
+                                           AgentModels.AgentRequest enrichedRequest,
+                                           AgentModels.AgentRequest lastRequest,
+                                           OperationContext context,
+                                           List<ToolContextDecorator> decorators,
+                                           String agentName,
+                                           String actionName,
+                                           String methodName) {
+
+        if (toolContext == null)
+            toolContext = ToolContext.of();
+        if (decorators == null || decorators.isEmpty()) {
+            return toolContext;
+        }
+        DecoratorContext decoratorContext = new DecoratorContext(
+                context, agentName, actionName, methodName, lastRequest, enrichedRequest);
+
+        for (var d : decorators) {
+            toolContext = d.decorate(toolContext, decoratorContext);
+        }
+
+        return toolContext;
+
+    }
+
     static <T extends AgentModels.AgentResult> T decorateFinalResult(
             T finalResult,
             AgentModels.AgentRequest enrichedRequest,
@@ -2882,7 +3207,7 @@ public interface AgentInterfaces {
             return finalResult;
         }
         DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest);
+                context, agentName, actionName, methodName, lastRequest, enrichedRequest);
         FinalResultDecorator.FinalResultDecoratorContext finalResultDecoratorContext
                 = new FinalResultDecorator.FinalResultDecoratorContext(enrichedRequest, decoratorContext);
         // Sort decorators by order (lower values first)
@@ -2910,7 +3235,7 @@ public interface AgentInterfaces {
             return request;
         }
         DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest
+                context, agentName, actionName, methodName, lastRequest, request
         );
         // Sort decorators by order (lower values first)
         List<? extends RequestDecorator> sortedDecorators = decorators.stream()
