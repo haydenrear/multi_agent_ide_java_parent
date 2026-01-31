@@ -1,9 +1,7 @@
 package com.hayden.multiagentide.tool;
 
 import com.embabel.agent.api.common.ToolObject;
-import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -14,8 +12,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 @Slf4j
 @Component
@@ -23,7 +19,7 @@ public class EmbabelToolObjectRegistry implements EmbabelToolObjectProvider {
 
     Map<String, LazyToolObjectRegistration> toolObjectMap = new ConcurrentHashMap<>();
 
-    public interface ToolRegistration {
+    interface ToolRegistration {
 
         Optional<List<ToolObject>> computeToolObject(LazyToolObjectRegistration toolObjectRegistration);
 

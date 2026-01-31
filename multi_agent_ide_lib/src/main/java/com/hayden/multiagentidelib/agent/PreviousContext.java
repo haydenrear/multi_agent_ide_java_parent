@@ -1,9 +1,13 @@
 package com.hayden.multiagentidelib.agent;
 
 import com.hayden.multiagentidelib.template.DiscoveryReport;
+import com.hayden.acp_cdc_ai.acp.events.Artifact;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.Builder;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 public sealed interface PreviousContext extends AgentContext permits
        PreviousContext.OrchestratorPreviousContext,
@@ -20,7 +24,7 @@ public sealed interface PreviousContext extends AgentContext permits
        PreviousContext.ReviewPreviousContext,
        PreviousContext.MergerPreviousContext {
 
-    ContextId previousContextId();
+    ArtifactKey previousContextId();
 
     String serializedOutput();
 
@@ -114,12 +118,15 @@ public sealed interface PreviousContext extends AgentContext permits
         if (upstreamContext == null) {
             return;
         }
+
         String value = switch (upstreamContext) {
             case UpstreamContext.DiscoveryCollectorContext discovery -> discovery.prettyPrint();
             case UpstreamContext.PlanningCollectorContext planning -> planning.prettyPrint();
             case UpstreamContext.TicketCollectorContext ticket -> ticket.prettyPrint();
-            default -> throw new RuntimeException("Found undesired!");
+            default -> throw new RuntimeException("Found undesired upstream context - %s!"
+                    .formatted(upstreamContext.getClass().getSimpleName()));
         };
+
         appendSection(builder, label, value);
     }
 
@@ -150,9 +157,26 @@ public sealed interface PreviousContext extends AgentContext permits
         return instant != null ? instant.toString() : "";
     }
 
+    private static <T extends Artifact.AgentModel> T firstChildOfType(
+            List<Artifact.AgentModel> children,
+            Class<T> type,
+            T fallback
+    ) {
+        if (children == null || children.isEmpty()) {
+            return fallback;
+        }
+        for (Artifact.AgentModel child : children) {
+            if (type.isInstance(child)) {
+                return type.cast(child);
+            }
+        }
+        return fallback;
+    }
+
     @Builder
     record OrchestratorPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -162,11 +186,59 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.PlanningCollectorContext previousPlanningCuration,
             UpstreamContext.TicketCollectorContext previousTicketCuration
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousDiscoveryCuration != null) {
+                children.add(previousDiscoveryCuration);
+            }
+            if (previousPlanningCuration != null) {
+                children.add(previousPlanningCuration);
+            }
+            if (previousTicketCuration != null) {
+                children.add(previousTicketCuration);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            UpstreamContext.DiscoveryCollectorContext updatedDiscovery =
+                    firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, previousDiscoveryCuration);
+            UpstreamContext.PlanningCollectorContext updatedPlanning =
+                    firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, previousPlanningCuration);
+            UpstreamContext.TicketCollectorContext updatedTicket =
+                    firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
+            return (T) new OrchestratorPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedDiscovery,
+                    updatedPlanning,
+                    updatedTicket
+            );
+        }
+
+        @Override
+        public ArtifactKey key() {
+            return artifactKey;
+        }
     }
 
     @Builder
     record OrchestratorCollectorPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -176,11 +248,54 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.PlanningCollectorContext previousPlanningCuration,
             UpstreamContext.TicketCollectorContext previousTicketCuration
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousDiscoveryCuration != null) {
+                children.add(previousDiscoveryCuration);
+            }
+            if (previousPlanningCuration != null) {
+                children.add(previousPlanningCuration);
+            }
+            if (previousTicketCuration != null) {
+                children.add(previousTicketCuration);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            UpstreamContext.DiscoveryCollectorContext updatedDiscovery =
+                    firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, previousDiscoveryCuration);
+            UpstreamContext.PlanningCollectorContext updatedPlanning =
+                    firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, previousPlanningCuration);
+            UpstreamContext.TicketCollectorContext updatedTicket =
+                    firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
+            return (T) new OrchestratorCollectorPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedDiscovery,
+                    updatedPlanning,
+                    updatedTicket
+            );
+        }
     }
 
     @Builder
     record DiscoveryOrchestratorPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -190,11 +305,54 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.PlanningCollectorContext previousPlanningCuration,
             UpstreamContext.TicketCollectorContext previousTicketCuration
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousDiscoveryCuration != null) {
+                children.add(previousDiscoveryCuration);
+            }
+            if (previousPlanningCuration != null) {
+                children.add(previousPlanningCuration);
+            }
+            if (previousTicketCuration != null) {
+                children.add(previousTicketCuration);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            UpstreamContext.DiscoveryCollectorContext updatedDiscovery =
+                    firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, previousDiscoveryCuration);
+            UpstreamContext.PlanningCollectorContext updatedPlanning =
+                    firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, previousPlanningCuration);
+            UpstreamContext.TicketCollectorContext updatedTicket =
+                    firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
+            return (T) new DiscoveryOrchestratorPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedDiscovery,
+                    updatedPlanning,
+                    updatedTicket
+            );
+        }
     }
 
     @Builder
     record PlanningOrchestratorPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -203,11 +361,48 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.DiscoveryCollectorContext previousDiscoveryCuration,
             UpstreamContext.PlanningCollectorContext previousPlanningCuration
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousDiscoveryCuration != null) {
+                children.add(previousDiscoveryCuration);
+            }
+            if (previousPlanningCuration != null) {
+                children.add(previousPlanningCuration);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            UpstreamContext.DiscoveryCollectorContext updatedDiscovery =
+                    firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, previousDiscoveryCuration);
+            UpstreamContext.PlanningCollectorContext updatedPlanning =
+                    firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, previousPlanningCuration);
+            return (T) new PlanningOrchestratorPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedDiscovery,
+                    updatedPlanning
+            );
+        }
     }
 
     @Builder
     record TicketOrchestratorPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -217,11 +412,54 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.PlanningCollectorContext previousPlanningCuration,
             UpstreamContext.TicketCollectorContext previousTicketCuration
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousDiscoveryCuration != null) {
+                children.add(previousDiscoveryCuration);
+            }
+            if (previousPlanningCuration != null) {
+                children.add(previousPlanningCuration);
+            }
+            if (previousTicketCuration != null) {
+                children.add(previousTicketCuration);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            UpstreamContext.DiscoveryCollectorContext updatedDiscovery =
+                    firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, previousDiscoveryCuration);
+            UpstreamContext.PlanningCollectorContext updatedPlanning =
+                    firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, previousPlanningCuration);
+            UpstreamContext.TicketCollectorContext updatedTicket =
+                    firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
+            return (T) new TicketOrchestratorPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedDiscovery,
+                    updatedPlanning,
+                    updatedTicket
+            );
+        }
     }
 
     @Builder
     record DiscoveryAgentPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -229,11 +467,42 @@ public sealed interface PreviousContext extends AgentContext permits
             Instant previousAttemptAt,
             DiscoveryReport previousDiscoveryResult
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousDiscoveryResult != null) {
+                children.add(previousDiscoveryResult);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            DiscoveryReport updatedDiscovery =
+                    firstChildOfType(children, DiscoveryReport.class, previousDiscoveryResult);
+            return (T) new DiscoveryAgentPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedDiscovery
+            );
+        }
     }
 
     @Builder
     record PlanningAgentPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -241,11 +510,42 @@ public sealed interface PreviousContext extends AgentContext permits
             Instant previousAttemptAt,
             AgentModels.PlanningAgentResult previousPlanningResult
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousPlanningResult != null) {
+                children.add(previousPlanningResult);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            AgentModels.PlanningAgentResult updatedResult =
+                    firstChildOfType(children, AgentModels.PlanningAgentResult.class, previousPlanningResult);
+            return (T) new PlanningAgentPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedResult
+            );
+        }
     }
 
     @Builder
     record TicketAgentPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -253,11 +553,42 @@ public sealed interface PreviousContext extends AgentContext permits
             Instant previousAttemptAt,
             AgentModels.TicketAgentResult previousTicketResult
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousTicketResult != null) {
+                children.add(previousTicketResult);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            AgentModels.TicketAgentResult updatedResult =
+                    firstChildOfType(children, AgentModels.TicketAgentResult.class, previousTicketResult);
+            return (T) new TicketAgentPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedResult
+            );
+        }
     }
 
     @Builder
     record DiscoveryCollectorPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -266,11 +597,48 @@ public sealed interface PreviousContext extends AgentContext permits
             AgentModels.DiscoveryCollectorResult previousDiscoveryResult,
             UpstreamContext.DiscoveryCollectorContext previousDiscoveryCuration
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousDiscoveryResult != null) {
+                children.add(previousDiscoveryResult);
+            }
+            if (previousDiscoveryCuration != null) {
+                children.add(previousDiscoveryCuration);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            AgentModels.DiscoveryCollectorResult updatedResult =
+                    firstChildOfType(children, AgentModels.DiscoveryCollectorResult.class, previousDiscoveryResult);
+            UpstreamContext.DiscoveryCollectorContext updatedCuration =
+                    firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, previousDiscoveryCuration);
+            return (T) new DiscoveryCollectorPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedResult,
+                    updatedCuration
+            );
+        }
     }
 
     @Builder
     record PlanningCollectorPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -279,11 +647,48 @@ public sealed interface PreviousContext extends AgentContext permits
             AgentModels.PlanningCollectorResult previousPlanningResult,
             UpstreamContext.PlanningCollectorContext previousPlanningCuration
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousPlanningResult != null) {
+                children.add(previousPlanningResult);
+            }
+            if (previousPlanningCuration != null) {
+                children.add(previousPlanningCuration);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            AgentModels.PlanningCollectorResult updatedResult =
+                    firstChildOfType(children, AgentModels.PlanningCollectorResult.class, previousPlanningResult);
+            UpstreamContext.PlanningCollectorContext updatedCuration =
+                    firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, previousPlanningCuration);
+            return (T) new PlanningCollectorPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedResult,
+                    updatedCuration
+            );
+        }
     }
 
     @Builder
     record TicketCollectorPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -292,11 +697,48 @@ public sealed interface PreviousContext extends AgentContext permits
             AgentModels.TicketCollectorResult previousTicketResult,
             UpstreamContext.TicketCollectorContext previousTicketCuration
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousTicketResult != null) {
+                children.add(previousTicketResult);
+            }
+            if (previousTicketCuration != null) {
+                children.add(previousTicketCuration);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            AgentModels.TicketCollectorResult updatedResult =
+                    firstChildOfType(children, AgentModels.TicketCollectorResult.class, previousTicketResult);
+            UpstreamContext.TicketCollectorContext updatedCuration =
+                    firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
+            return (T) new TicketCollectorPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedResult,
+                    updatedCuration
+            );
+        }
     }
 
     @Builder
     record ReviewPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -304,11 +746,42 @@ public sealed interface PreviousContext extends AgentContext permits
             Instant previousAttemptAt,
             AgentModels.ReviewAgentResult previousReviewEvaluation
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousReviewEvaluation != null) {
+                children.add(previousReviewEvaluation);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            AgentModels.ReviewAgentResult updatedResult =
+                    firstChildOfType(children, AgentModels.ReviewAgentResult.class, previousReviewEvaluation);
+            return (T) new ReviewPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedResult
+            );
+        }
     }
 
     @Builder
     record MergerPreviousContext(
-            ContextId previousContextId,
+            ArtifactKey artifactKey,
+            ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
             String errorStackTrace,
@@ -316,5 +789,35 @@ public sealed interface PreviousContext extends AgentContext permits
             Instant previousAttemptAt,
             AgentModels.MergerAgentResult previousMergerValidation
     ) implements PreviousContext {
+        @Override
+        public String computeHash(Artifact.HashContext hashContext) {
+            String payload = serializedOutput == null ? "" : serializedOutput;
+            return hashContext.hash(payload);
+        }
+
+        @Override
+        public List<Artifact.AgentModel> children() {
+            List<Artifact.AgentModel> children = new ArrayList<>();
+            if (previousMergerValidation != null) {
+                children.add(previousMergerValidation);
+            }
+            return List.copyOf(children);
+        }
+
+        @Override
+        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
+            AgentModels.MergerAgentResult updatedResult =
+                    firstChildOfType(children, AgentModels.MergerAgentResult.class, previousMergerValidation);
+            return (T) new MergerPreviousContext(
+                    artifactKey,
+                    previousContextId,
+                    serializedOutput,
+                    errorMessage,
+                    errorStackTrace,
+                    attemptNumber,
+                    previousAttemptAt,
+                    updatedResult
+            );
+        }
     }
 }

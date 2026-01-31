@@ -11,6 +11,12 @@ public class AgentControlController {
 
     private final AgentControlService agentControlService;
 
+    public record ControlActionRequest(String message) {
+    }
+
+    public record ControlActionResponse(String actionId, String status) {
+    }
+
     @PostMapping("/{nodeId}/pause")
     public ControlActionResponse pause(
             @PathVariable String nodeId,
@@ -73,9 +79,4 @@ public class AgentControlController {
         return new ControlActionResponse(actionId, "queued");
     }
 
-    public record ControlActionRequest(String message) {
-    }
-
-    public record ControlActionResponse(String actionId, String status) {
-    }
 }

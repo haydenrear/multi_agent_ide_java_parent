@@ -2,9 +2,9 @@ package com.hayden.multiagentide.service;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentide.gate.PermissionGate;
+import com.hayden.multiagentide.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.utilitymodule.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
 import com.hayden.multiagentidelib.model.nodes.InterruptContext;
 import com.hayden.multiagentidelib.model.nodes.InterruptNode;
@@ -14,7 +14,11 @@ import com.hayden.multiagentidelib.model.nodes.ReviewNode;
 import java.util.Map;
 import java.util.Objects;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -23,6 +27,7 @@ public class InterruptService {
 
     private static final String REVIEW_CRITERIA =
             "Review for correctness and completeness. Reply with approved if correct, otherwise explain issues.";
+    public static final String INTERRUPT_ID_NOT_FOUND = "interrupt_id_not_found";
 
     private final PermissionGate permissionGate;
     private final LlmRunner llmRunner;
@@ -47,10 +52,11 @@ public class InterruptService {
             String templateName,
             PromptContext promptContext,
             Map<String, Object> templateModel,
+            ToolContext toolContext,
             Class<T> routingClass
     ) {
         return switch (request.type()) {
-            case HUMAN_REVIEW, AGENT_REVIEW -> {
+            case HUMAN_REVIEW, AGENT_REVIEW, PAUSE -> {
                 String feedback = resolveInterruptFeedback(context, request, originNode, promptContext);
                 
                 Map<String, Object> modelWithFeedback = new java.util.HashMap<>(templateModel);
@@ -60,39 +66,62 @@ public class InterruptService {
                         templateName,
                         promptContext,
                         modelWithFeedback,
+                        toolContext,
                         routingClass,
                         context
                 );
             }
-            default -> llmRunner.runWithTemplate(
+            case BRANCH, STOP, PRUNE -> llmRunner.runWithTemplate(
                     templateName,
                     promptContext,
                     templateModel,
+                    toolContext,
                     routingClass,
                     context
             );
         };
     }
 
-
-
-    private String resolveInterruptFeedback(
+    public <T> T handleInterrupt(
             OperationContext context,
             AgentModels.InterruptRequest request,
             GraphNode originNode,
-            PromptContext promptContext
+            String templateName,
+            PromptContext promptContext,
+            Map<String, Object> templateModel,
+            Class<T> routingClass
     ) {
-        InterruptContext interruptContext = resolveInterruptContext(originNode);
-        String reviewContent = firstNonBlank(
-                request != null ? request.reason() : null,
-                interruptContext != null ? interruptContext.resultPayload() : null
+        return handleInterrupt(
+                context,
+                request,
+                originNode,
+                templateName,
+                promptContext,
+                templateModel,
+                ToolContext.empty(),
+                routingClass
         );
-        String interruptId = firstNonBlank(
-                interruptContext != null ? interruptContext.interruptNodeId() : null,
-                originNode != null ? originNode.nodeId() : null
-        );
+    }
+
+    public PermissionGate.InterruptResolution awaitHumanReview(
+            AgentModels.InterruptRequest request,
+            @Nullable GraphNode originNodeId
+    ) {
+        return resolveInterruptHumanAgent(request, originNodeId);
+    }
+
+    private PermissionGate.InterruptResolution resolveInterruptHumanAgent(
+            @jakarta.annotation.Nullable AgentModels.InterruptRequest request,
+            @jakarta.annotation.Nullable GraphNode originNode
+    ) {
+        if (request == null)
+            return permissionGate.invalidInterrupt(INTERRUPT_ID_NOT_FOUND);
+
+        InterruptData result = getInterruptData(request, originNode);
+        var interruptId = result.interruptId;
+        var reviewContent = result.reviewContent;
         if (interruptId.isBlank()) {
-            return reviewContent;
+            return permissionGate.invalidInterrupt(INTERRUPT_ID_NOT_FOUND);
         }
         permissionGate.publishInterrupt(
                 interruptId,
@@ -100,19 +129,67 @@ public class InterruptService {
                 request.type(),
                 reviewContent
         );
-        if (request.type() == Events.InterruptType.HUMAN_REVIEW) {
-            PermissionGate.InterruptResolution resolution =
-                    permissionGate.awaitInterruptBlocking(interruptId);
-            String feedback = resolution != null ? resolution.getResolutionNotes() : null;
-            return firstNonBlank(feedback, reviewContent);
-        }
-        AgentModels.ReviewAgentResult reviewResult =
-                runInterruptAgentReview(context, promptContext, reviewContent);
-        String feedback = reviewResult != null ? reviewResult.output() : "";
-        permissionGate.resolveInterrupt(interruptId, "agent-review", feedback, reviewResult);
-        return feedback;
+        PermissionGate.InterruptResolution resolution =
+                permissionGate.awaitInterruptBlocking(interruptId);
+        return resolution;
     }
-    
+
+    private String resolveInterruptFeedback(
+            OperationContext context,
+            @jakarta.annotation.Nullable AgentModels.InterruptRequest request,
+            @jakarta.annotation.Nullable GraphNode originNode,
+            PromptContext promptContext
+    ) {
+        InterruptData result = getInterruptData(request, originNode);
+        if (request == null || request.type() == null) {
+            var resolution = permissionGate.invalidInterrupt(result.interruptId());
+            String feedback = resolution.getResolutionNotes();
+            return firstNonBlank(feedback, result.reviewContent());
+        }
+        return switch(request.type()) {
+            case HUMAN_REVIEW, PAUSE -> {
+                PermissionGate.InterruptResolution resolution =
+                        resolveInterruptHumanAgent(request, originNode);
+                String feedback = resolution != null ? resolution.getResolutionNotes() : null;
+                yield firstNonBlank(feedback, result.reviewContent());
+            }
+            case AGENT_REVIEW, STOP, BRANCH, PRUNE -> {
+                if (result.interruptId().isBlank()) {
+                    yield result.reviewContent();
+                }
+                permissionGate.publishInterrupt(
+                        result.interruptId(),
+                        originNode != null ? originNode.nodeId() : result.interruptId(),
+                        request.type(),
+                        result.reviewContent()
+                );
+                AgentModels.ReviewAgentResult reviewResult =
+                        runInterruptAgentReview(context, promptContext, result.reviewContent());
+                String feedback = reviewResult != null ? reviewResult.output() : "";
+                permissionGate.resolveInterrupt(result.interruptId(), "agent-review", feedback, reviewResult);
+                yield  feedback;
+            }
+        };
+    }
+
+    private @NonNull InterruptData getInterruptData(@jakarta.annotation.Nullable AgentModels.InterruptRequest request,
+                                                    @jakarta.annotation.Nullable GraphNode originNode) {
+        InterruptContext interruptContext = resolveInterruptContext(originNode);
+        String reviewContent = firstNonBlank(
+                request != null ? request.reason() : null,
+                interruptContext != null ? interruptContext.resultPayload() : null
+        );
+        String interruptId = firstNonBlank(
+                interruptContext != null ? interruptContext.interruptNodeId() : null,
+                originNode != null ? originNode.nodeId() : null,
+                INTERRUPT_ID_NOT_FOUND
+        );
+        InterruptData result = new InterruptData(reviewContent, interruptId);
+        return result;
+    }
+
+    private record InterruptData(String reviewContent, String interruptId) {
+    }
 
 
     private AgentModels.ReviewAgentResult runInterruptAgentReview(
@@ -128,6 +205,7 @@ public class InterruptService {
                         "criteria", REVIEW_CRITERIA,
                         "returnRoute", "interrupt"
                 ),
+                ToolContext.empty(),
                 AgentModels.ReviewRouting.class,
                 context
         );

@@ -4,7 +4,10 @@ plugins {
     id("com.hayden.kotlin")
     id("com.github.node-gradle.node")
     id("com.hayden.mcp")
+    id("com.hayden.ai")
     id("com.hayden.paths")
+    id("com.hayden.jpa-persistence")
+    id("com.hayden.docker-compose")
 }
 
 group = "com.hayden"
@@ -13,7 +16,8 @@ description = "multi-agent-ide"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-websocket")
-    implementation(project(":utilitymodule"))
+    implementation(project(":multi_agent_ide_java_parent:utilitymodule"))
+    implementation(project(":multi_agent_ide_java_parent:acp-cdc-ai"))
     implementation("com.agentclientprotocol:acp:0.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.9.0")
     implementation("com.ag-ui.community:kotlin-core-jvm:0.2.4")
@@ -22,8 +26,11 @@ dependencies {
     implementation("org.jspecify:jspecify:1.0.0")
     implementation(project(":commit-diff-context"))
     implementation(project(":commit-diff-model"))
-    implementation(project(":multi_agent_ide_lib"))
+    implementation(project(":multi_agent_ide_java_parent:multi_agent_ide_lib"))
+    implementation(project(":persistence"))
+    implementation(project(":jpa-persistence"))
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("com.embabel.agent:embabel-agent-skills:0.3.2")
 }
 
 tasks.bootJar {
@@ -55,7 +62,7 @@ if (buildReact) {
         finalizedBy("buildFrontend")
     }
 
-//Build the Next.js frontend
+    //Build the Next.js frontend
     tasks.register<com.github.gradle.node.npm.task.NpmTask>("buildFrontend") {
         description = "Build Next.js frontend application"
         workingDir.set(file("${project.projectDir}/fe"))
@@ -124,5 +131,13 @@ tasks.compileJava {
     dependsOn("processYmlFiles")
 }
 tasks.test {
+    if (project.findProperty("profile") == "integration") {
+        include("**/integration/**")
+    } else if (project.findProperty("profile") == "acp-integration") {
+        include("**/acp_tests/**")
+    } else {
+        exclude("**/acp_tests/**", "**/integration/**")
+    }
+
     dependsOn("processYmlFiles")
 }

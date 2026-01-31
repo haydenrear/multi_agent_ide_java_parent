@@ -1,0 +1,23 @@
+multi-agent-embabel:
+  chat-model:
+    provider: acp
+  acp:
+    transport: stdio
+    command: goose acp
+    args: ${ACP_ARGS:}
+    working-directory: ${ACP_WORKING_DIR:}
+    envs:
+      HOME: {{PROJ_DIR}}/configs
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 1s
+
+acp.mcp:
+  http:
+    - name: deepwiki
+      url: https://mcp.deepwiki.com/mcp
+      headers:
+    - name: hindsight
+      url: http://localhost:8888/mcp
+      headers:

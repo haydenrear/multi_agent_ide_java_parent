@@ -2,19 +2,21 @@ package com.hayden.multiagentide.infrastructure;
 
 import com.embabel.agent.api.channel.MessageOutputChannelEvent;
 import com.embabel.agent.api.channel.OutputChannel;
+import com.embabel.agent.core.AgentPlatform;
+import com.embabel.agent.core.AgentProcess;
 import com.embabel.chat.UserMessage;
 import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.AgentLifecycleHandler;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.prompt.ContextIdService;
-import com.hayden.utilitymodule.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
 import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
 import java.util.List;
 import javax.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 
 /**
@@ -27,7 +29,7 @@ public class AgentRunner {
 
     private final AgentLifecycleHandler agentLifecycleHandler;
     private final OutputChannel llmOutputChannel;
-    private final ContextIdService contextIdService;
+    private final AgentPlatform agentPlatform;
 
     public record AgentDispatchArgs(
             GraphNode self,
@@ -48,29 +50,51 @@ public class AgentRunner {
     public void runOnAgent(AgentDispatchArgs d) {
         switch (d.agentEvent) {
             case Events.AddMessageEvent addMessageEvent -> addMessageToAgent(d, addMessageEvent);
-            case Events.NodeAddedEvent ignored -> maybeRunWorkflow(d.self);
-            default -> {
-            }
+            case Events.NodeAddedEvent added -> maybeRunWorkflow(added, d.self);
+            default -> {}
         }
     }
 
-    private void maybeRunWorkflow(GraphNode node) {
-        if (!(node instanceof OrchestratorNode orchestratorNode)) {
+    private void maybeRunWorkflow(@NotNull Events.NodeAddedEvent addedEvent,
+                                  GraphNode node) {
+        if (!(node instanceof OrchestratorNode orchestratorNode))
             return;
-        }
-        if (orchestratorNode.status() != Events.NodeStatus.READY) {
+        if (orchestratorNode.status() != Events.NodeStatus.READY)
             return;
-        }
         try {
-            var contextId = contextIdService.generate("wf-" + orchestratorNode.nodeId(), AgentType.ORCHESTRATOR);
+            ArtifactKey contextId = null;
+            AgentProcess agentProcess = agentPlatform.getAgentProcess(orchestratorNode.nodeId());
+            if (agentProcess == null) {
+                contextId = new ArtifactKey(orchestratorNode.nodeId());
+            } else {
+                if (agentProcess.getStatus() == null) {
+                    throw new RuntimeException("This should never happen - because of kotlin nullity guarantees!");
+                }
+
+                switch(agentProcess.getStatus()) {
+                    case PAUSED, STUCK, NOT_STARTED, COMPLETED, WAITING ->
+                            contextId = new ArtifactKey(orchestratorNode.nodeId());
+                    case RUNNING -> {
+                        log.warn("Received a request to run an orchestrator node that was already in running status. " +
+                                 "Would/will be ignored");
+                        return;
+                    }
+                    case KILLED, TERMINATED, FAILED ->
+                            throw new RuntimeException("Attempted to run orchestrator with ID that already existed and was in incompatible state: %s."
+                                    .formatted(agentProcess.getStatus()));
+                }
+            }
+
             agentLifecycleHandler.runAgent(
                     AgentInterfaces.ORCHESTRATOR_AGENT,
                     new AgentModels.OrchestratorRequest(contextId, orchestratorNode.goal(), "ORCHESTRATOR_ONBOARDING"),
                     AgentModels.OrchestratorCollectorResult.class,
-                    orchestratorNode.nodeId()
-            );
+                    orchestratorNode.nodeId());
+
+
         } catch (Exception e) {
             log.error("Failed to start workflow agent for orchestrator {}", orchestratorNode.nodeId(), e);
+            throw e;
         }
     }
 }

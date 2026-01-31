@@ -2,6 +2,8 @@ package com.hayden.multiagentide.controller;
 
 import com.hayden.multiagentide.agent.AgentLifecycleHandler;
 import java.util.UUID;
+
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,9 +30,8 @@ public class OrchestrationController {
             throw new IllegalArgumentException("repositoryUrl is required");
         }
 
-        String nodeId = (request.nodeId() == null || request.nodeId().isBlank())
-                ? UUID.randomUUID().toString()
-                : request.nodeId();
+        String nodeId = ArtifactKey.createRoot().value();
+
         String baseBranch = (request.baseBranch() == null || request.baseBranch().isBlank())
                 ? "main"
                 : request.baseBranch();
@@ -50,8 +51,7 @@ public class OrchestrationController {
             String goal,
             String repositoryUrl,
             String baseBranch,
-            String title,
-            String nodeId
+            String title
     ) {}
 
     public record StartGoalResponse(String nodeId) {}

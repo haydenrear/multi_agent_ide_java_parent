@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.infrastructure;
 
-import com.hayden.utilitymodule.acp.events.EventListener;
-import com.hayden.utilitymodule.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.events.EventListener;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import java.util.Optional;
@@ -124,7 +124,15 @@ public class AgentEventListener implements EventListener {
             }
             case Events.PermissionResolvedEvent permissionResolvedEvent -> {
             }
-            default -> {
+            case Events.ActionCompletedEvent actionCompletedEvent -> {
+            }
+            case Events.ActionStartedEvent actionStartedEvent -> {
+            }
+            case Events.ArtifactEvent artifactEvent -> {
+            }
+            case Events.NodeErrorEvent nodeErrorEvent -> {
+            }
+            case Events.ResolveInterruptEvent resolveInterruptEvent -> {
             }
         }
     }
@@ -159,7 +167,9 @@ public class AgentEventListener implements EventListener {
         log.info("Node completed: {} ({}), triggering next phase", node.title(), nodeId);
 
         try {
-            agentRunner.runOnAgent(new AgentRunner.AgentDispatchArgs(node, orchestrator.getNode(node.parentNodeId()).orElse(null), orchestrator.getChildNodes(node.nodeId()), event));
+            agentRunner.runOnAgent(new AgentRunner.AgentDispatchArgs(node,
+                    orchestrator.getNode(node.parentNodeId()).orElse(null),
+                    orchestrator.getChildNodes(node.nodeId()), event));
         } catch (Exception e) {
             log.error("Failed to execute agent for node: {} ({}) during dispatch",
                     node.title(), nodeId, e);

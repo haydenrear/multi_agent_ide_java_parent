@@ -20,7 +20,7 @@ public enum AgentType {
     TICKET_COLLECTOR,
     REVIEW_AGENT,
     MERGER_AGENT,
-    CONTEXT_ORCHESTRATOR;
+    CONTEXT_MANAGER;
 
     public String wireValue() {
         return name().toLowerCase(Locale.ROOT).replace('_', '-');

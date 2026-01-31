@@ -7,6 +7,7 @@ import com.hayden.commitdiffcontext.cdc_config.SkipSetFromSessionHeader;
 import com.hayden.commitdiffcontext.cdc_utils.SetFromHeader;
 import com.hayden.commitdiffcontext.mcp.ToolCarrier;
 import com.hayden.commitdiffmodel.config.DisableGraphQl;
+import com.hayden.persistence.config.JpaConfig;
 import com.hayden.utilitymodule.mcp.ctx.McpRequestContext;
 import com.hayden.utilitymodule.schema.DelegatingSchemaReplacer;
 import com.hayden.utilitymodule.schema.SpecialJsonSchemaGenerator;
@@ -32,10 +33,7 @@ import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
-import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.*;
@@ -56,12 +54,8 @@ import java.util.stream.Collectors;
 
 @Configuration
 @Import({DelegatingSchemaReplacer.class, SpecialJsonSchemaGenerator.class, SpecialMethodToolCallbackProviderFactory.class, SkipInSchemaFilter.class,
-         DisableGraphQl.class, SkipMcpToolContextFilter.class, SkipSetFromSessionHeader.class})
+         DisableGraphQl.class, SkipMcpToolContextFilter.class, SkipSetFromSessionHeader.class, JpaConfig.class})
 @Slf4j
-@EnableAutoConfiguration(exclude = {
-        DataSourceAutoConfiguration.class,
-        HibernateJpaAutoConfiguration.class
-})
 @EnableConfigurationProperties({McpServerProperties.class, McpServerChangeNotificationProperties.class})
 public class SpringMcpConfig {
 

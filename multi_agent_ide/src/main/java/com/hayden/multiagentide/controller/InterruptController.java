@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.controller;
 
-import com.hayden.utilitymodule.acp.events.EventBus;
-import com.hayden.utilitymodule.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.service.AgentControlService;
 import com.hayden.multiagentide.gate.PermissionGate;
 import java.time.Instant;

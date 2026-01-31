@@ -15,12 +15,13 @@ import com.agentclientprotocol.model.ToolKind
 import com.agentclientprotocol.model.AvailableCommand
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.Transport
-import com.hayden.utilitymodule.acp.AcpSessionManager
-import com.hayden.utilitymodule.acp.AcpStreamWindowBuffer
-import com.hayden.utilitymodule.acp.parseGenerationsFromAcpEvent
-import com.hayden.utilitymodule.acp.events.EventBus
-import com.hayden.utilitymodule.acp.events.EventListener
-import com.hayden.utilitymodule.acp.events.Events
+import com.hayden.acp_cdc_ai.acp.AcpSessionManager
+import com.hayden.acp_cdc_ai.acp.AcpStreamWindowBuffer
+import com.hayden.acp_cdc_ai.acp.parseGenerationsFromAcpEvent
+import com.hayden.acp_cdc_ai.acp.events.EventBus
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
+import com.hayden.acp_cdc_ai.acp.events.EventListener
+import com.hayden.acp_cdc_ai.acp.events.Events
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -37,7 +38,7 @@ class AcpStreamWindowBufferTest {
         val bus = RecordingEventBus()
         val buffer = AcpStreamWindowBuffer(bus)
 
-        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.MESSAGE, ContentBlock.Text("Hello"))
+        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.MESSAGE, ContentBlock.Text("Hello"),ArtifactKey.createRoot())
         val flushed = buffer.flushOtherWindows("node-1", AcpStreamWindowBuffer.StreamWindowType.THOUGHT)
 
         assertEquals(1, flushed.size)
@@ -113,8 +114,8 @@ class AcpStreamWindowBufferTest {
         val bus = RecordingEventBus()
         val buffer = AcpStreamWindowBuffer(bus)
 
-        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.MESSAGE, "Hel")
-        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.MESSAGE, "lo")
+        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.MESSAGE, "Hel",ArtifactKey.createRoot())
+        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.MESSAGE, "lo",ArtifactKey.createRoot())
         val flushed = buffer.flushWindows("node-1")
 
         assertEquals(1, flushed.size)
@@ -127,8 +128,8 @@ class AcpStreamWindowBufferTest {
         val bus = RecordingEventBus()
         val buffer = AcpStreamWindowBuffer(bus)
 
-        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.THOUGHT, "think")
-        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.THOUGHT, "ing")
+        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.THOUGHT, "think",ArtifactKey.createRoot())
+        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.THOUGHT, "ing",ArtifactKey.createRoot())
         buffer.flushWindows("node-1")
 
         val thoughtEvents = bus.events.filterIsInstance<Events.NodeThoughtDeltaEvent>()
@@ -156,7 +157,7 @@ class AcpStreamWindowBufferTest {
             null
         )
 
-        buffer.appendEventWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.TOOL_CALL, toolEvent)
+        buffer.appendEventWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.TOOL_CALL, toolEvent,ArtifactKey.createRoot())
         buffer.flushWindows("node-1")
 
         assertTrue(bus.events.contains(toolEvent))
@@ -167,8 +168,8 @@ class AcpStreamWindowBufferTest {
         val bus = RecordingEventBus()
         val buffer = AcpStreamWindowBuffer(bus)
 
-        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.THOUGHT, "Thinking...")
-        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.USER_MESSAGE, "User says hi")
+        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.THOUGHT, "Thinking...",ArtifactKey.createRoot())
+        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.USER_MESSAGE, "User says hi",ArtifactKey.createRoot())
         buffer.flushWindows("node-1")
 
         assertTrue(bus.events.any { it is Events.NodeThoughtDeltaEvent })
@@ -254,8 +255,8 @@ class AcpStreamWindowBufferTest {
             "analysis"
         )
 
-        buffer.appendEventWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.PLAN, planEvent)
-        buffer.appendEventWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.CURRENT_MODE, modeEvent)
+        buffer.appendEventWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.PLAN, planEvent,ArtifactKey.createRoot())
+        buffer.appendEventWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.CURRENT_MODE, modeEvent,ArtifactKey.createRoot())
         buffer.flushWindows("node-1")
 
         assertTrue(bus.events.contains(planEvent))
@@ -267,8 +268,8 @@ class AcpStreamWindowBufferTest {
         val bus = RecordingEventBus()
         val buffer = AcpStreamWindowBuffer(bus)
 
-        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.MESSAGE, "hi")
-        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.THOUGHT, "think")
+        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.MESSAGE, "hi",ArtifactKey.createRoot())
+        buffer.appendStreamWindow("node-1", AcpStreamWindowBuffer.StreamWindowType.THOUGHT, "think",ArtifactKey.createRoot())
         val flushed = buffer.flushOtherWindows("node-1", AcpStreamWindowBuffer.StreamWindowType.MESSAGE)
 
         assertEquals(0, flushed.size)
@@ -286,7 +287,7 @@ class AcpStreamWindowBufferTest {
         val protocol = mock(Protocol::class.java)
         val client = mock(Client::class.java)
         val session = mock(ClientSession::class.java)
-        return manager.AcpSessionContext(scope, transport, protocol, client, session)
+        return manager.AcpSessionContext(scope, transport, protocol, client, session, messageParent = ArtifactKey.createRoot())
     }
 
     private class RecordingEventBus : EventBus {

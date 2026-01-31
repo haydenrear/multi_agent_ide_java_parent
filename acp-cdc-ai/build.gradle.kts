@@ -17,6 +17,14 @@ group = "com.hayden"
 version = "0.0.1-SNAPSHOT"
 description = "acp-cdc-ai"
 
+var utilLib = ""
+
+if (project.parent?.name?.contains("multi_agent_ide_java_parent") ?: false) {
+    utilLib = ":multi_agent_ide_java_parent"
+} else {
+    utilLib = ""
+}
+
 dependencies {
-    implementation(project(":utilitymodule"))
+    implementation(project("${utilLib}:utilitymodule"))
 }
