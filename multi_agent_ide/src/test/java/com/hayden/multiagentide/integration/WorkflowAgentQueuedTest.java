@@ -25,11 +25,14 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
+import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -39,6 +42,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -83,6 +87,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
     @Autowired
     private WorktreeRepository worktreeRepository;
 
+
     @MockitoBean
     private WorktreeService worktreeService;
 
@@ -125,6 +130,9 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
     @MockitoSpyBean
     private ComputationGraphOrchestrator computationGraphOrchestrator;
 
+    @TempDir
+    Path path;
+
     @TestConfiguration
     static class TestConfig {
         @Bean
@@ -166,6 +174,16 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         doThrow(new RuntimeException("worktree disabled"))
                 .when(worktreeService)
                 .branchSubmoduleWorktree(any(), any(), any());
+
+        Mockito.when(worktreeService.attachWorktreesToDiscoveryRequests(any(AgentModels.DiscoveryAgentRequests.class), anyString()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        Mockito.when(worktreeService.attachWorktreesToPlanningRequests(any(AgentModels.PlanningAgentRequests.class), anyString()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        Mockito.when(worktreeService.attachWorktreesToTicketRequests(any(AgentModels.TicketAgentRequests.class), anyString()))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        artifactRepository.deleteAll();
+        artifactRepository.flush();
     }
 
     @Nested
@@ -810,6 +828,13 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
     private ArtifactKey seedOrchestrator() {
         var c = ArtifactKey.createRoot();
         graphRepository.save(createMockOrchestratorNode(c.value()));
+        worktreeRepository.save(MainWorktreeContext.builder()
+                        .worktreeId("wt")
+                        .repositoryUrl("git@github.com:haydenrear/multi_agent_ide_java_parent.git")
+                        .parentWorktreeId("wt")
+                        .worktreePath(path)
+                        .submoduleWorktreeIds(new ArrayList<>())
+                .build());
         return c;
     }
 

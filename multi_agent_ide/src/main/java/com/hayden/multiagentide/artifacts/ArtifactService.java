@@ -49,6 +49,10 @@ public class ArtifactService {
                         .entrySet()
                         .stream()
                         .flatMap(e -> {
+//                            TODO: if we find many, then, we need to
+//                                      1. plit into db ref, artifact or template
+//                                      2. save the original once
+//                              this will only happen first time and when process makes multiple.
                             if (e.getValue().size() > 1) {
                                 log.error("Found multiple artifacts that had same content hash: {}.", e.getValue());
                             }

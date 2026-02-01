@@ -1,5 +1,7 @@
 package com.hayden.multiagentidelib.model.worktree;
 
+import lombok.Builder;
+
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -10,6 +12,7 @@ import java.util.Map;
 /**
  * Worktree for the main repository.
  */
+@Builder(toBuilder = true)
 public record MainWorktreeContext(
         String worktreeId,
         Path worktreePath,
