@@ -4,9 +4,8 @@ multi-agent-embabel:
   acp:
     transport: stdio
     command: goose acp
-    args: ${ACP_ARGS:}
     working-directory: ${ACP_WORKING_DIR:}
-    envs:
+    env:
       HOME: {{PROJ_DIR}}/configs
 
 spring:

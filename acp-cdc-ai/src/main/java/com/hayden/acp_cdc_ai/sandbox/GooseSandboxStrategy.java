@@ -3,11 +3,41 @@ package com.hayden.acp_cdc_ai.sandbox;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
+import static com.hayden.acp_cdc_ai.sandbox.SandboxArgUtils.*;
+
+/**
+ * Sandbox translation strategy for Goose (via goose acp).
+ *
+ * <p>Goose handles sandboxing differently from Claude Code and Codex:</p>
+ * <ul>
+ *   <li>Working directory is set via session {@code cwd} parameter (handled by ACP protocol)</li>
+ *   <li>Working directory can also be set via {@code -w} or {@code --working_dir} CLI arg</li>
+ *   <li>No CLI arguments for sandbox configuration - uses environment variables instead</li>
+ *   <li>Permission modes controlled via {@code GOOSE_MODE} environment variable</li>
+ * </ul>
+ *
+ * <p>Environment variables:</p>
+ * <ul>
+ *   <li>{@code GOOSE_MODE} - Permission mode: auto, approve, smart_approve, chat</li>
+ *   <li>{@code GOOSE_PROVIDER} - Override the provider</li>
+ *   <li>{@code GOOSE_MODEL} - Override the model</li>
+ *   <li>{@code GOOSE_ALLOWLIST} - URL to YAML file specifying allowed MCP commands</li>
+ * </ul>
+ *
+ * <p>Note: Goose does not support CLI arguments like {@code --sandbox} or {@code --add-dir}.
+ * Directory sandboxing is handled via {@code .gooseignore} files or Filesystem MCP extension.</p>
+ *
+ * @see <a href="https://block.github.io/goose/docs/guides/acp-clients/">Goose ACP Clients</a>
+ * @see <a href="https://block.github.io/goose/docs/guides/goose-cli-commands">Goose CLI Commands</a>
+ */
 @Component
 public class GooseSandboxStrategy implements SandboxTranslationStrategy {
 
@@ -17,30 +47,31 @@ public class GooseSandboxStrategy implements SandboxTranslationStrategy {
     }
 
     @Override
-    public SandboxTranslation translate(RequestContext context) {
+    public SandboxTranslation translate(RequestContext context, List<String> acpArgs) {
         if (context == null || context.mainWorktreePath() == null) {
             return SandboxTranslation.empty();
         }
-        String mainPath = context.mainWorktreePath().toString();
-        String submodules = joinPaths(context.submoduleWorktreePaths());
-        Map<String, String> env = submodules.isBlank()
-                ? Map.of("GOOSE_WORKTREE_ROOT", mainPath)
-                : Map.of(
-                        "GOOSE_WORKTREE_ROOT", mainPath,
-                        "GOOSE_SUBMODULE_ROOTS", submodules
-                );
-        List<String> args = submodules.isBlank()
-                ? List.of("--worktree-root", mainPath)
-                : List.of("--worktree-root", mainPath, "--submodule-roots", submodules);
-        return new SandboxTranslation(env, args);
-    }
 
-    private String joinPaths(List<Path> paths) {
-        if (paths == null || paths.isEmpty()) {
-            return "";
+        String mainPath = context.mainWorktreePath().toString();
+
+        Map<String, String> env = new HashMap<>();
+        List<String> args = new ArrayList<>();
+
+        // Set permission mode to auto for automated workflows
+        // Options: auto (no approval), approve (ask for all), smart_approve (ask for risky), chat (no tools)
+        env.put("GOOSE_MODE", "auto");
+
+        // Set working directory if not already specified and path exists
+        Path mainPathObj = Paths.get(mainPath);
+        if (Files.exists(mainPathObj) && !hasFlag(acpArgs, "-w", "--working_dir")) {
+            args.add("-w");
+            args.add(mainPath);
         }
-        return paths.stream()
-                .map(Path::toString)
-                .collect(Collectors.joining(","));
+
+        // Goose doesn't have CLI sandbox arguments like --add-dir or --sandbox
+        // Working directory is handled via session cwd parameter
+        // Directory restrictions would need .gooseignore files or Filesystem MCP extension
+
+        return new SandboxTranslation(env, args, mainPath);
     }
 }

@@ -68,7 +68,6 @@ import kotlin.io.path.readText
 import kotlin.io.path.writeText
 import kotlin.text.StringBuilder
 import kotlin.text.equals
-import kotlin.text.ifBlank
 import kotlin.text.isNotEmpty
 import kotlin.text.isNullOrBlank
 import kotlin.text.trim
@@ -238,12 +237,7 @@ class AcpChatModel(
             throw IllegalStateException("ACP command is not configured")
         }
 
-        val args = parseArgs(properties.args)
-
-        if (args.isNotEmpty()) {
-            throw RuntimeException("ACP args are not parsed for individual acp providers. They are not parsed at all yet. Add your arg in the command! --codex-args and stuff like that. TODO:" + args)
-        }
-        val sandboxTranslation = resolveSandboxTranslation(memoryId)
+        val sandboxTranslation = resolveSandboxTranslation(memoryId, properties.args)
         val process = command + sandboxTranslation.args.toTypedArray()
         val workingDirectory = properties.workingDirectory
 
@@ -327,7 +321,11 @@ class AcpChatModel(
                     McpServer.Http("agent-tools", "http://localhost:8080/mcp", toolHeaders)
                 ))
 
-            val cwd = workingDirectory.ifBlank { System.getProperty("user.dir") }
+            // Use sandbox translation working directory if available, otherwise fall back to properties or system default
+            val cwd = sandboxTranslation.workingDirectory
+                .or { workingDirectory }
+                .or { System.getProperty("user.dir") }!!
+
             val sessionParams = SessionCreationParameters(cwd, mcpSyncServers.toList())
 
             val session=  client.newSession(sessionParams)
@@ -358,17 +356,17 @@ class AcpChatModel(
         return tokens.filter { it.isNotEmpty() }
     }
 
-    private fun resolveSandboxTranslation(memoryId: Any?): SandboxTranslation {
+    private fun resolveSandboxTranslation(memoryId: Any?, args: String?): SandboxTranslation {
         val sessionId = memoryId?.toString() ?: return SandboxTranslation.empty()
         val context = requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
         val providerKey = resolveProviderKey()
         val direct = sandboxTranslationRegistry.find(providerKey).orElse(null)
         if (direct != null) {
-            return direct.translate(context)
+            return direct.translate(context, parseArgs(args))
         }
         val fallbackKey = providerKey.substringBefore("-")
         val fallback = sandboxTranslationRegistry.find(fallbackKey).orElse(null)
-        return fallback?.translate(context) ?: SandboxTranslation.empty()
+        return fallback?.translate(context, parseArgs(args)) ?: SandboxTranslation.empty()
     }
 
     private fun resolveProviderKey(): String {
@@ -376,7 +374,10 @@ class AcpChatModel(
         if (commandValue.isBlank()) {
             return ""
         }
-        return commandValue.split(Regex("\\s+")).firstOrNull()?.lowercase() ?: ""
+        return commandValue
+            .split(Regex("\\s+"))
+            .firstOrNull()
+            ?.lowercase() ?: ""
     }
 
     private fun formatPromptMessages(messages: Prompt): String {
