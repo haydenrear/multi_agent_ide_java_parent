@@ -198,6 +198,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
             return null;
         }
 
-        return requestEnrichment.enrich(request, context);
+        return request;
     }
 }

@@ -82,7 +82,7 @@ public interface AgentModels {
             MergerRequest,
             ReviewRequest
     {
-        @JsonIgnore
+
         ArtifactKey contextId();
 
         WorktreeSandboxContext worktreeContext();

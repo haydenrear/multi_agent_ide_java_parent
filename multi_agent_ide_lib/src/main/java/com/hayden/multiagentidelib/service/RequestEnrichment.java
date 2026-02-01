@@ -51,7 +51,8 @@ public class RequestEnrichment {
             log.error("Found input without key.");
 
         Artifact.AgentModel parent = findParentForInput(input, history);
-        return enrich(input, context, parent);
+        T enrich = enrich(input, context, parent);
+        return enrich;
     }
 
     public <T> T enrich(T input, OperationContext context, Artifact.AgentModel parent) {
@@ -333,53 +334,84 @@ public class RequestEnrichment {
 
     private <T extends AgentModels.AgentResult> T enrichAgentResult(T input, OperationContext context, Artifact.AgentModel parent) {
         AgentModels.AgentResult res = switch (input) {
-            case AgentModels.DiscoveryAgentResult discoveryAgentResult -> {
-                yield withEnrichedChildren(input, input.children(), context);
+            case AgentModels.DiscoveryAgentResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.DISCOVERY_AGENT, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
             }
-            case AgentModels.PlanningOrchestratorResult planningOrchestratorResult -> {
-                yield withEnrichedChildren(input, input.children(), context);
+            case AgentModels.PlanningOrchestratorResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.PLANNING_ORCHESTRATOR, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
             }
-            case AgentModels.DiscoveryOrchestratorResult discoveryOrchestratorResult -> {
-                yield withEnrichedChildren(input, input.children(), context);
+            case AgentModels.DiscoveryOrchestratorResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.DISCOVERY_ORCHESTRATOR, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
             }
-            case AgentModels.MergerAgentResult mergerAgentResult -> {
-                yield withEnrichedChildren(input, input.children(), context);
+            case AgentModels.MergerAgentResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.MERGER_AGENT, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
             }
-            case AgentModels.OrchestratorAgentResult orchestratorAgentResult -> {
-                yield withEnrichedChildren(input, input.children(), context);
+            case AgentModels.OrchestratorAgentResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.ORCHESTRATOR, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
             }
-            case AgentModels.PlanningAgentResult planningAgentResult -> {
-                yield withEnrichedChildren(input, input.children(), context);
+            case AgentModels.PlanningAgentResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.PLANNING_AGENT, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
             }
-            case AgentModels.ReviewAgentResult reviewAgentResult -> {
-                yield withEnrichedChildren(input, input.children(), context);
+            case AgentModels.ReviewAgentResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.REVIEW_AGENT, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
             }
-            case AgentModels.TicketAgentResult ticketAgentResult -> {
-                yield withEnrichedChildren(input, input.children(), context);
+            case AgentModels.TicketAgentResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.TICKET_AGENT, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
             }
-            case AgentModels.TicketOrchestratorResult collectorResult -> {
-                yield withEnrichedChildren(input, input.children(), context);
+            case AgentModels.TicketOrchestratorResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.TICKET_ORCHESTRATOR, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
             }
             case AgentModels.TicketCollectorResult collectorResult -> {
                 collectorResult = collectorResult.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.TICKET_COLLECTOR, parent))
                         .collectorDecision(wrapCollectorDecision(collectorResult.collectorDecision()))
                         .build();
                 yield withEnrichedChildren(collectorResult, collectorResult.children(), context);
             }
             case AgentModels.DiscoveryCollectorResult collectorResult -> {
                 collectorResult = collectorResult.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.DISCOVERY_COLLECTOR, parent))
                         .collectorDecision(wrapCollectorDecision(collectorResult.collectorDecision()))
                         .build();
                 yield withEnrichedChildren(collectorResult, collectorResult.children(), context);
             }
             case AgentModels.OrchestratorCollectorResult collectorResult -> {
                 collectorResult = collectorResult.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.ORCHESTRATOR_COLLECTOR, parent))
                         .collectorDecision(wrapCollectorDecision(collectorResult.collectorDecision()))
                         .build();
                 yield withEnrichedChildren(collectorResult, collectorResult.children(), context);
             }
             case AgentModels.PlanningCollectorResult collectorResult -> {
                 collectorResult = collectorResult.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.PLANNING_COLLECTOR, parent))
                         .collectorDecision(wrapCollectorDecision(collectorResult.collectorDecision()))
                         .build();
                 yield withEnrichedChildren(collectorResult, collectorResult.children(), context);

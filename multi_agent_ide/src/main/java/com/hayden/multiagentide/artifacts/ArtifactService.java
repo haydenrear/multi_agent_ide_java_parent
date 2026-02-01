@@ -11,7 +11,6 @@ import com.hayden.utilitymodule.stream.StreamUtil;
 import jakarta.persistence.PersistenceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.net.nntp.Article;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,40 +40,62 @@ public class ArtifactService {
 
     @Transactional
     public void doPersist(String executionKey, ArtifactNode root) {
-        var saved = artifactRepository.saveAll(
-                root.collectAll()
-                        .stream()
+        var allArtifacts = root.collectAll();
+        
+        // Group by content hash to find duplicates
+        var groupedByHash = allArtifacts.stream()
+                .filter(a -> a.contentHash().isPresent())
+                .collect(Collectors.groupingBy(a -> a.contentHash().orElse(UUID.randomUUID().toString())));
+
+        var refsToSave = new ArrayList<Artifact>();
+        
+        for (var entry : groupedByHash.entrySet()) {
+            var contentHash = entry.getKey();
+            var artifacts = entry.getValue();
+            if (artifacts.isEmpty()) continue;
+            
+            // Check if this hash already exists in the DB
+            var existingOpt = artifactRepository.findByContentHash(contentHash);
+            
+            if (existingOpt.isPresent()) {
+                // Original already in DB - decorateDuplicate all of them
+                for (var artifact : artifacts) {
+                    decorateDuplicate(contentHash, artifact.artifactKey())
+                            .ifPresent(refsToSave::add);
+                }
+            } else {
+                // Save the first as the original (no refs yet)
+                var original = artifacts.getFirst();
+                artifactRepository.save(toEntity(executionKey, original));
+                
+                // decorateDuplicate the rest
+                for (int i = 1; i < artifacts.size(); i++) {
+                    var duplicate = artifacts.get(i);
+                    decorateDuplicate(contentHash, duplicate.artifactKey())
+                            .ifPresent(refsToSave::add);
+                }
+            }
+        }
+        
+        // Save all refs
+        var savedRefs = artifactRepository.saveAll(
+                refsToSave.stream()
                         .map(a -> toEntity(executionKey, a))
-                        .collect(Collectors.groupingBy(ArtifactEntity::getContentHash))
-                        .entrySet()
-                        .stream()
-                        .flatMap(e -> {
-//                            TODO: if we find many, then, we need to
-//                                      1. plit into db ref, artifact or template
-//                                      2. save the original once
-//                              this will only happen first time and when process makes multiple.
-                            if (e.getValue().size() > 1) {
-                                log.error("Found multiple artifacts that had same content hash: {}.", e.getValue());
-                            }
-
-                            return e.getValue().stream().findAny().stream();
-                        })
                         .toList());
-
-        for (var s : saved) {
-//            artifact must already exist in repository - is self-ref so better to manage self
-            if (s.getReferencedArtifactKey() != null) {
-                artifactRepository.findByArtifactKey(s.getReferencedArtifactKey())
+        
+        // Update the original artifacts with their ref keys
+        for (var refEntity : savedRefs) {
+            if (refEntity.getReferencedArtifactKey() != null) {
+                artifactRepository.findByArtifactKey(refEntity.getReferencedArtifactKey())
                         .ifPresentOrElse(ae -> {
                             try {
-                                ae.addRef(s.getReferencedArtifactKey());
+                                ae.addRef(refEntity.getArtifactKey());
                                 artifactRepository.save(ae);
-                            } catch (
-                                    PersistenceException p) {
+                            } catch (PersistenceException p) {
                                 log.error("Error adding referenced artifact key {}.", ae.getArtifactKey(), p);
                             }
                         }, () -> {
-                            log.error("Could not find referenced artifact key {}.", s.getReferencedArtifactKey());
+                            log.error("Could not find referenced artifact key {}.", refEntity.getReferencedArtifactKey());
                         });
             }
         }
@@ -113,7 +134,38 @@ public class ArtifactService {
         try {
             // Deserialize using the artifact type as a hint
             Artifact artifact = objectMapper.readValue(entity.getContentJson(), Artifact.class);
-            log.debug("Successfully deserialized artifact: {} of type: {}", 
+
+            artifact = switch(artifact) {
+                case Artifact.TemplateDbRef t ->
+                        this.artifactRepository.findByContentHash(t.hash())
+                                .flatMap(this::deserializeArtifact)
+                                .map(ae -> {
+                                    if (ae instanceof Templated templated)
+                                        return t.toBuilder()
+                                                .ref(templated)
+                                                .build();
+
+                                    log.error("Found artifact incompateible with templated {}.", t);
+
+                                    return t;
+                                })
+                                .orElseGet(() -> {
+                                    log.error("Could not find referenced artifact in repository!");
+                                    return t;
+                                });
+                case Artifact.ArtifactDbRef t ->
+                        this.artifactRepository.findByContentHash(t.hash())
+                                .flatMap(this::deserializeArtifact)
+                                .map(ae -> t.toBuilder()
+                                        .ref(ae)
+                                        .build())
+                                .orElseGet(() -> {
+                                    log.error("Could not find referenced artifact in repository!");
+                                    return t;
+                                });
+                default -> artifact;
+            };
+            log.debug("Successfully deserialized artifact: {} of type: {}",
                     entity.getArtifactKey(), entity.getArtifactType());
             return Optional.of(artifact);
         } catch (JsonProcessingException e) {
@@ -136,7 +188,7 @@ public class ArtifactService {
         return artifactRepository.save(entity);
     }
 
-    private ArtifactEntity toEntity(String executionKey, Artifact artifact) {
+    ArtifactEntity toEntity(String executionKey, Artifact artifact) {
         ArtifactKey key = artifact.artifactKey();
 
         String contentJson;
@@ -172,7 +224,7 @@ public class ArtifactService {
                 .childIds(
                         StreamUtil.toStream(artifact.children()).flatMap(a -> Stream.ofNullable(a.artifactKey()))
                                 .flatMap(ak -> StreamUtil.toStream(ak.value()))
-                                .toList())
+                                .collect(Collectors.toCollection(ArrayList::new)))
                 .build();
     }
 

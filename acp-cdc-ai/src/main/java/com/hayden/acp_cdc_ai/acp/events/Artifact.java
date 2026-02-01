@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.hayden.utilitymodule.schema.SpecialJsonSchemaGenerator;
 import lombok.Builder;
 import lombok.With;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.*;
@@ -169,6 +170,7 @@ public sealed interface Artifact
 
     @Builder(toBuilder = true)
     @With
+    @Slf4j
     record TemplateDbRef(
             ArtifactKey templateArtifactKey,
             String templateStaticId,
@@ -180,11 +182,15 @@ public sealed interface Artifact
             String artifactType
     ) implements Templated {
 
-//        This is the part that's deduped.
+//      This is the part that's deduped.
         @Override
         @JsonIgnore
         public String templateText() {
-            return ref.templateText();
+            return Optional.ofNullable(ref).map(t -> t.templateText())
+                    .orElseGet(() -> {
+
+                        return null;
+                    });
         }
 
         @Override

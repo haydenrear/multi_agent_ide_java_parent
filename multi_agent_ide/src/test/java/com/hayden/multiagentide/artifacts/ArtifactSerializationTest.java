@@ -9,6 +9,7 @@ import com.hayden.multiagentidelib.agent.UpstreamContext;
 import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,7 +74,19 @@ class ArtifactSerializationTest {
     @Nested
     @DisplayName("Core Artifact Serialization")
     class CoreArtifactSerialization {
-        
+        @SneakyThrows
+        @Test
+        @DisplayName("ExecutionArtifact serializes and deserializes correctly")
+        void planningAgentRequestRoundTrip() {
+            var pa = AgentModels.PlanningAgentRequest.builder()
+                    .contextId(ArtifactKey.createRoot())
+                    .build();
+            var p = objectMapper.writeValueAsString(pa);
+            var pas = objectMapper.readValue(p, AgentModels.PlanningAgentRequest.class);
+
+            assertThat(pas.contextId()).isNotNull();
+        }
+
         @Test
         @DisplayName("ExecutionArtifact serializes and deserializes correctly")
         void executionArtifactRoundTrip() {
