@@ -4,9 +4,11 @@ multi-agent-embabel:
   acp:
     transport: stdio
     command: goose acp
+    args: ${ACP_ARGS:}
     working-directory: ${ACP_WORKING_DIR:}
-    env:
-      HOME: {{PROJ_DIR}}/configs
+#    will throw an error if your on mac for some security ring
+#    env:
+#      HOME: {{PROJ_DIR}}/configs
 
 spring:
   lifecycle:

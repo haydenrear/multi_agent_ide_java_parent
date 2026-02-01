@@ -1,6 +1,10 @@
 package com.hayden.acp_cdc_ai.sandbox;
 
 import com.hayden.acp_cdc_ai.repository.RequestContext;
+import com.hayden.utilitymodule.config.EnvConfigProps;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
@@ -63,14 +67,6 @@ public class GooseSandboxStrategy implements SandboxTranslationStrategy {
 
         // Set working directory if not already specified and path exists
         Path mainPathObj = Paths.get(mainPath);
-        if (Files.exists(mainPathObj) && !hasFlag(acpArgs, "-w", "--working_dir")) {
-            args.add("-w");
-            args.add(mainPath);
-        }
-
-        // Goose doesn't have CLI sandbox arguments like --add-dir or --sandbox
-        // Working directory is handled via session cwd parameter
-        // Directory restrictions would need .gooseignore files or Filesystem MCP extension
 
         return new SandboxTranslation(env, args, mainPath);
     }

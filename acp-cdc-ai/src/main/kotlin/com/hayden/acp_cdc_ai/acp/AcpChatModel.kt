@@ -46,6 +46,7 @@ import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import java.io.File
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -187,10 +188,12 @@ class AcpChatModel(
 
        this.properties.envCopy()
            ?.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
+
         extraEnv.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
 
         val process = pb
             .start()
+
         val stdin = process.outputStream.asSink().buffered()
         val stdout = process.inputStream.asSource().buffered()
         return AcpSerializerTransport(
@@ -218,7 +221,7 @@ class AcpChatModel(
     }
 
     private fun getOrCreateSession(memoryId: Any?, chatRequest: Prompt?): AcpSessionManager.AcpSessionContext {
-        val m = memoryId ?: "unknown"
+        val m = memoryId ?: ArtifactKey.createRoot().value
         return sessionManager.sessionContexts.computeIfAbsent(m) {
             runBlocking { createSessionContext(it, chatRequest) }
         }
@@ -241,9 +244,12 @@ class AcpChatModel(
         val process = command + sandboxTranslation.args.toTypedArray()
         val workingDirectory = properties.workingDirectory
 
+        val joinedEnv = sandboxTranslation.env.toMutableMap()
+        joinedEnv.putAll(properties.envCopy())
+
         return try {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-            val transport = createProcessStdioTransport(scope, process, sandboxTranslation.env)
+            val transport = createProcessStdioTransport(scope, process, joinedEnv)
             val protocol = Protocol(scope, transport)
             val client = Client(protocol)
 
@@ -316,15 +322,14 @@ class AcpChatModel(
                 toolHeaders.add(HttpHeader(MCP_SESSION_HEADER, memoryId.toString()))
             }
 
-            mcpSyncServers.addAll(
-                mutableListOf(
-                    McpServer.Http("agent-tools", "http://localhost:8080/mcp", toolHeaders)
-                ))
+            // Only add the local MCP server if it's available
+
+            if (this.mcpProperties.didEnableSelf()) {
+                mcpSyncServers.add(McpServer.Http("agent-tools", "http://localhost:8080/mcp", toolHeaders))
+            }
 
             // Use sandbox translation working directory if available, otherwise fall back to properties or system default
-            val cwd = sandboxTranslation.workingDirectory
-                .or { workingDirectory }
-                .or { System.getProperty("user.dir") }!!
+            val cwd = (workingDirectory ?: "").ifBlank { System.getProperty("user.dir") }
 
             val sessionParams = SessionCreationParameters(cwd, mcpSyncServers.toList())
 
@@ -344,7 +349,7 @@ class AcpChatModel(
         }
     }
 
-    private fun parseArgs(args: String?): List<String> {
+    fun parseArgs(args: String?): List<String> {
         if (args.isNullOrBlank()) {
             return emptyList()
         }
@@ -356,7 +361,7 @@ class AcpChatModel(
         return tokens.filter { it.isNotEmpty() }
     }
 
-    private fun resolveSandboxTranslation(memoryId: Any?, args: String?): SandboxTranslation {
+    fun resolveSandboxTranslation(memoryId: Any?, args: String?): SandboxTranslation {
         val sessionId = memoryId?.toString() ?: return SandboxTranslation.empty()
         val context = requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
         val providerKey = resolveProviderKey()
@@ -369,15 +374,20 @@ class AcpChatModel(
         return fallback?.translate(context, parseArgs(args)) ?: SandboxTranslation.empty()
     }
 
-    private fun resolveProviderKey(): String {
+    fun resolveProviderKey(): String {
         val commandValue = properties.command?.trim().orEmpty()
         if (commandValue.isBlank()) {
             return ""
         }
-        return commandValue
+        val executableAcp = commandValue
             .split(Regex("\\s+"))
             .firstOrNull()
             ?.lowercase() ?: ""
+
+        return if (executableAcp.isEmpty())
+            executableAcp
+        else
+            Path.of(executableAcp).fileName.toString()
     }
 
     private fun formatPromptMessages(messages: Prompt): String {

@@ -480,18 +480,7 @@ public class RequestEnrichment {
             case AgentModels.InterruptRequest.ReviewInterruptRequest r ->
                     r.toBuilder().contextId(resolveContextId(context, AgentType.REVIEW_AGENT, parent)).build();
             case AgentModels.InterruptRequest.MergerInterruptRequest r ->
-                    new AgentModels.InterruptRequest.MergerInterruptRequest(
-                            resolveContextId(context, AgentType.MERGER_AGENT, parent),
-                            r.worktreeContext(),
-                            r.type(),
-                            r.reason(),
-                            r.choices(),
-                            r.confirmationItems(),
-                            r.contextForDecision(),
-                            r.conflictFiles(),
-                            r.resolutionStrategies(),
-                            r.mergeApproach()
-                    );
+                    r.toBuilder().contextId(resolveContextId(context, AgentType.MERGER_AGENT, parent)).build();
             case AgentModels.InterruptRequest.ContextManagerInterruptRequest r ->
                     r.toBuilder().contextId(resolveContextId(context, AgentType.CONTEXT_MANAGER, parent)).build();
             case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest r ->

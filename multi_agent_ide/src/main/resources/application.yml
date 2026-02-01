@@ -65,6 +65,7 @@ multi-agent-embabel:
   acp:
     transport: stdio
     command: ${ACP_COMMAND:codex-acp}
+    args: ${ACP_ARGS:}
     working-directory: ${ACP_WORKING_DIR:}
     endpoint: ${ACP_ENDPOINT:}
     api-key: ${ACP_API_KEY:}

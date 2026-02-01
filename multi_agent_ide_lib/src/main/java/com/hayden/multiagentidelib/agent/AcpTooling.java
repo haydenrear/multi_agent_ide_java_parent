@@ -21,7 +21,7 @@ import org.springframework.util.StringUtils;
 import static com.hayden.acp_cdc_ai.acp.AcpChatModel.MCP_SESSION_HEADER;
 
 @Component
-@Profile("goose")
+@Profile({"goose", "acp"})
 @RequiredArgsConstructor
 public class AcpTooling implements ToolCarrier {
 

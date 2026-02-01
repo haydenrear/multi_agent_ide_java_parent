@@ -9,17 +9,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.hayden.acp_cdc_ai.sandbox.SandboxArgUtils.*;
-
 /**
  * Sandbox translation strategy for OpenAI Codex CLI (via codex-acp).
  * 
- * <p>Codex CLI options used:</p>
+ * <p>Codex-acp uses configuration overrides with the {@code -c 'key=value'} format:</p>
  * <ul>
- *   <li>{@code --cd, -C <path>} - Set the working directory for the agent</li>
- *   <li>{@code --sandbox, -s <policy>} - Set sandbox policy (read-only, workspace-write, danger-full-access)</li>
- *   <li>{@code --add-dir <path>} - Grant write permissions to additional directories</li>
- *   <li>{@code --full-auto} - Convenience preset for workspace-write sandbox with on-request approvals</li>
+ *   <li>{@code -c 'cd=<path>'} - Set the working directory for the agent</li>
+ *   <li>{@code -c 'sandbox=<policy>'} - Set sandbox policy (read-only, workspace-write, danger-full-access)</li>
+ *   <li>{@code -c 'add-dir=<path>'} - Grant write permissions to additional directories</li>
  * </ul>
  * 
  * <p>Environment variables:</p>
@@ -28,7 +25,7 @@ import static com.hayden.acp_cdc_ai.sandbox.SandboxArgUtils.*;
  *   <li>{@code CODEX_API_KEY} - Alternative Codex API key for authentication</li>
  * </ul>
  * 
- * <p>Working directory is set via session {@code cwd} parameter and {@code --cd} argument.</p>
+ * <p>Working directory is set via session {@code cwd} parameter and {@code -c 'cd=...'} argument.</p>
  * 
  * @see <a href="https://developers.openai.com/codex/cli/reference/">Codex CLI Reference</a>
  * @see <a href="https://github.com/zed-industries/codex-acp">codex-acp</a>
@@ -54,28 +51,66 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
         List<String> args = new ArrayList<>();
 
         // Set the working directory for the agent if not already specified
-        if (!hasFlag(acpArgs, "--cd", "-C")) {
-            args.add("--cd");
-            args.add(mainPath);
+        if (!hasConfigValue(acpArgs, "cd")) {
+            args.add("-c");
+            args.add("cd=" + mainPath);
         }
         
         // Set sandbox policy to workspace-write if not already specified
-        if (!hasFlag(acpArgs, "--sandbox", "-s")) {
-            args.add("--sandbox");
-            args.add("workspace-write");
+        if (!hasConfigValue(acpArgs, "sandbox")) {
+            args.add("-c");
+            args.add("sandbox=workspace-write");
         }
         
         // Add each submodule worktree as an additional writable directory
         if (submodulePaths != null && !submodulePaths.isEmpty()) {
             for (Path submodulePath : submodulePaths) {
                 String submodulePathStr = submodulePath.toString();
-                if (!hasFlagValuePair(acpArgs, submodulePathStr, "--add-dir")) {
-                    args.add("--add-dir");
-                    args.add(submodulePathStr);
+                if (!hasConfigValuePair(acpArgs, "add-dir", submodulePathStr)) {
+                    args.add("-c");
+                    args.add("add-dir=" + submodulePathStr);
                 }
             }
         }
         
         return new SandboxTranslation(env, args, mainPath);
+    }
+
+    /**
+     * Checks if a config key is already specified in the args using -c 'key=...' format.
+     */
+    private boolean hasConfigValue(List<String> args, String key) {
+        if (args == null || args.isEmpty()) {
+            return false;
+        }
+        String prefix = key + "=";
+        for (int i = 0; i < args.size(); i++) {
+            if ("-c".equals(args.get(i)) && i + 1 < args.size()) {
+                String configValue = args.get(i + 1);
+                if (configValue.startsWith(prefix)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks if a specific config key=value pair is already specified in the args.
+     */
+    private boolean hasConfigValuePair(List<String> args, String key, String value) {
+        if (args == null || args.isEmpty()) {
+            return false;
+        }
+        String expectedConfig = key + "=" + value;
+        for (int i = 0; i < args.size(); i++) {
+            if ("-c".equals(args.get(i)) && i + 1 < args.size()) {
+                String configValue = args.get(i + 1);
+                if (expectedConfig.equals(configValue)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

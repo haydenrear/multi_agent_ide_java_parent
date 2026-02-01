@@ -3,6 +3,7 @@ multi-agent-embabel:
   acp:
     transport: stdio
     command: ${ACP_COMMAND:codex-acp}
+    args: ${ACP_ARGS:}
     working-directory: ${ACP_WORKING_DIR:}
     auth-method: chatgpt
 spring:

@@ -6,6 +6,8 @@ import com.hayden.utilitymodule.stream.StreamUtil;
 import io.micrometer.common.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -27,6 +29,14 @@ public class McpProperties {
     Map<String, McpServer> collected = new HashMap<>();
 
     boolean enabled = true;
+
+    @Setter
+    @Getter
+    boolean enableSelf = true;
+
+    public boolean didEnableSelf() {
+        return enableSelf;
+    }
 
     @PostConstruct
     public void after() {

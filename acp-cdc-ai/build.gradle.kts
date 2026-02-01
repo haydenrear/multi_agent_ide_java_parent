@@ -11,6 +11,7 @@ plugins {
     id("com.hayden.git")
     id("com.hayden.mcp")
     id("com.hayden.java-conventions")
+    id("com.hayden.paths")
 }
 
 group = "com.hayden"
@@ -27,4 +28,19 @@ if (project.parent?.name?.contains("multi_agent_ide_java_parent") ?: false) {
 
 dependencies {
     implementation(project("${utilLib}:utilitymodule"))
+}
+
+tasks.test {
+    if (project.findProperty("profile") == "integration") {
+        // Only run integration tests (AcpChatModelIntegrationTest in acp package)
+        include("**/acp/AcpChatModelIntegrationTest*")
+    } else {
+        // Exclude integration tests from normal test runs
+        exclude("**/acp/AcpChatModelIntegrationTest*")
+    }
+    dependsOn("processYmlFiles")
+}
+
+tasks.compileJava {
+    dependsOn("processYmlFiles")
 }
