@@ -140,11 +140,14 @@ class AcpChatModelCodexIntegrationTest {
                 .ifPresentOrElse(agentPlatform::deploy, () -> log.error("Error deploying {} - could not create agent metadata.", agentInterface));
     }
 
-//    @Test
+    @Test
     void testCreateGoal() {
-        orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
-                "hello!", "/Users/hayde/IdeaProjects/multi_agent_ide_parent/libs-resolver",
-                "main", "hello"));
+        var s = orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
+                "Please add centralization of artifacts pulled by any of the LibsDownloader into centralized repository.",
+                "/Users/hayde/IdeaProjects/multi_agent_ide_parent/libs-resolver",
+                "main", "Artifact Centralization"));
+
+        log.info("Performed");
     }
 
     @Test

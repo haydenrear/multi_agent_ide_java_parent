@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.service;
 
+import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.MergeResult;
@@ -22,6 +23,19 @@ public interface WorktreeService {
      * @return the created main worktree context
      */
     MainWorktreeContext createMainWorktree(String repositoryUrl, String baseBranch, String nodeId);
+
+    AgentModels.DiscoveryAgentRequests attachWorktreesToDiscoveryRequests(
+            AgentModels.DiscoveryAgentRequests input,
+            String nodeId
+    );
+    AgentModels.PlanningAgentRequests attachWorktreesToPlanningRequests(
+            AgentModels.PlanningAgentRequests input,
+            String nodeId
+    );
+    AgentModels.TicketAgentRequests attachWorktreesToTicketRequests(
+            AgentModels.TicketAgentRequests input,
+            String nodeId
+    );
 
     /**
      * Create a worktree for a git submodule.

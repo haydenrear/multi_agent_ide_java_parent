@@ -552,27 +552,39 @@ public class WorkflowGraphService {
         String ticketBranchName = "ticket-" + index + "-" + shortId(parent.nodeId());
         String branchedWorktreeId = parent.mainWorktreeId();
         List<HasWorktree.WorkTree> submoduleWorktrees = parent.submoduleWorktreeIds();
-        try {
-            MainWorktreeContext branched = worktreeService.branchWorktree(
-                    parent.mainWorktreeId(),
-                    ticketBranchName,
-                    parent.nodeId()
-            );
-            branchedWorktreeId = branched.worktreeId();
-            submoduleWorktrees = parent.submoduleWorktreeIds()
+        if (request != null && request.worktreeContext() != null && request.worktreeContext().mainWorktree() != null) {
+            branchedWorktreeId = request.worktreeContext().mainWorktree().worktreeId();
+            submoduleWorktrees = request.worktreeContext().submoduleWorktrees()
                     .stream()
-                    .map(id -> new HasWorktree.WorkTree(
-                            worktreeService.branchSubmoduleWorktree(
-                                    id.worktreeId(),
-                                    ticketBranchName,
-                                    parent.nodeId()
-                            ).worktreeId(),
-                            id.worktreeId(),
+                    .map(submodule -> new HasWorktree.WorkTree(
+                            submodule.worktreeId(),
+                            submodule.parentWorktreeId(),
                             new ArrayList<>()
                     ))
                     .toList();
-        } catch (Exception e) {
-            branchedWorktreeId = parent.mainWorktreeId();
+        } else {
+            try {
+                MainWorktreeContext branched = worktreeService.branchWorktree(
+                        parent.mainWorktreeId(),
+                        ticketBranchName,
+                        parent.nodeId()
+                );
+                branchedWorktreeId = branched.worktreeId();
+                submoduleWorktrees = parent.submoduleWorktreeIds()
+                        .stream()
+                        .map(id -> new HasWorktree.WorkTree(
+                                worktreeService.branchSubmoduleWorktree(
+                                        id.worktreeId(),
+                                        ticketBranchName,
+                                        parent.nodeId()
+                                ).worktreeId(),
+                                id.worktreeId(),
+                                new ArrayList<>()
+                        ))
+                        .toList();
+            } catch (Exception e) {
+                branchedWorktreeId = parent.mainWorktreeId();
+            }
         }
         Map<String, String> metadata = new ConcurrentHashMap<>();
         metadata.put(META_DISCOVERY_CONTEXT, parent.metadata().getOrDefault(META_DISCOVERY_CONTEXT, ""));

@@ -73,6 +73,8 @@ public class AgentLifecycleHandler {
 
                 if (ar == null || ar.key() == null || ar.key().value() == null)
                     EventBus.agentProcess.set(new EventBus.AgentNodeKey(creation.getProcessId()));
+                else
+                    EventBus.agentProcess.set(new EventBus.AgentNodeKey(ar.key().value()));
 
                 return prev;
             }
@@ -88,7 +90,7 @@ public class AgentLifecycleHandler {
         AgentProcess process = agentPlatform.runAgentFrom(
                 agent,
                 processOptions,
-                Map.of(IoBinding.DEFAULT_BINDING, input.withContextId(ArtifactKey.createRoot()))
+                Map.of(IoBinding.DEFAULT_BINDING, input.withContextId(new ArtifactKey(nodeId)))
         );
         var rot = process.run().resultOfType(outputClass);
         return rot;

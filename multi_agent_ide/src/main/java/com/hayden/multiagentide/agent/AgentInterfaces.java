@@ -149,7 +149,7 @@ public interface AgentInterfaces {
 
     String multiAgentAgentName();
 
-    String WORKFLOW_AGENT_NAME = "WorkflowAgent";
+    String WORKFLOW_AGENT_NAME = WorkflowAgent.class.getName();
 
     AgentInterfaces WORKFLOW_AGENT = () -> WORKFLOW_AGENT_NAME;
     AgentInterfaces ORCHESTRATOR_AGENT = WORKFLOW_AGENT;
@@ -202,7 +202,7 @@ public interface AgentInterfaces {
                     .orElse("No history available");
 
             AgentModels.AgentRequest lastRequest = findLastRequest(
-                            history,
+                    history,
                     a -> !(a instanceof AgentModels.InterruptRequest)
                             && !(a instanceof AgentModels.ContextManagerRequest)
                             && !(a instanceof AgentModels.ContextManagerRoutingRequest));
@@ -515,8 +515,8 @@ public interface AgentInterfaces {
             AgentModels.ContextManagerRequest contextManagerRequest = AgentModels.ContextManagerRequest.builder()
                     .reason(request != null ? request.reason() : "%s routed to context manager, but did not provide reason.".formatted(Optional.ofNullable(lastRequest).map(a -> a.getClass().getName()).orElse("Unknown agent")))
                     .type(Optional.ofNullable(request)
-                    .flatMap(r -> Optional.ofNullable(r.type()))
-                    .orElse(AgentModels.ContextManagerRequestType.INTROSPECT_AGENT_CONTEXT))
+                            .flatMap(r -> Optional.ofNullable(r.type()))
+                            .orElse(AgentModels.ContextManagerRequestType.INTROSPECT_AGENT_CONTEXT))
                     .build()
                     .addRequest(lastRequest);
 
@@ -557,8 +557,10 @@ public interface AgentInterfaces {
                         continue;
                     }
                     Object input = switch (entry) {
-                        case BlackboardHistory.DefaultEntry defaultEntry -> defaultEntry.input();
-                        case BlackboardHistory.MessageEntry ignored -> null;
+                        case BlackboardHistory.DefaultEntry defaultEntry ->
+                                defaultEntry.input();
+                        case BlackboardHistory.MessageEntry ignored ->
+                                null;
                     };
                     if (input instanceof AgentModels.AgentRequest agentRequest && r.test(agentRequest)) {
                         return agentRequest;
@@ -1319,6 +1321,7 @@ public interface AgentInterfaces {
                     METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
                     lastRequest
             );
+
             String goal = resolvePlanningGoal(context, input);
 
             var planningDispatchAgent = context.agentPlatform().agents()
@@ -1592,6 +1595,7 @@ public interface AgentInterfaces {
                     METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
                     lastRequest
             );
+
             String goal = resolveTicketGoal(context, input);
 
             List<AgentModels.TicketAgentResult> ticketResults = new ArrayList<>();
@@ -1977,7 +1981,7 @@ public interface AgentInterfaces {
                     ? lastTicketOrchestratorRequest.planningCuration()
                     : null;
 
-            AgentModels.TicketCollectorRouting routing = switch(request.collectorDecision().decisionType()) {
+            AgentModels.TicketCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
                 case ROUTE_BACK -> {
                     AgentModels.TicketOrchestratorRequest ticketRequest = AgentModels.TicketOrchestratorRequest.builder()
                             .goal(request.consolidatedOutput())
@@ -2044,7 +2048,7 @@ public interface AgentInterfaces {
                 );
             }
             blackboardHistoryService.registerAndHideInput(context, METHOD_HANDLE_DISCOVERY_COLLECTOR_BRANCH, request);
-            AgentModels.DiscoveryCollectorRouting routing = switch(request.collectorDecision().decisionType()) {
+            AgentModels.DiscoveryCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
                 case ROUTE_BACK -> {
                     AgentModels.DiscoveryOrchestratorRequest discoveryRequest = AgentModels.DiscoveryOrchestratorRequest.builder()
                             .goal(request.consolidatedOutput())
@@ -2102,7 +2106,7 @@ public interface AgentInterfaces {
                 );
             }
             blackboardHistoryService.registerAndHideInput(context, METHOD_HANDLE_ORCHESTRATOR_COLLECTOR_BRANCH, request);
-            AgentModels.OrchestratorCollectorRouting routing = switch(request.collectorDecision().decisionType()) {
+            AgentModels.OrchestratorCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
                 case ROUTE_BACK -> {
                     AgentModels.OrchestratorRequest orchestratorRequest = AgentModels.OrchestratorRequest.builder()
                             .goal(request.consolidatedOutput())
@@ -2126,8 +2130,8 @@ public interface AgentInterfaces {
                     AgentModels.OrchestratorCollectorResult collectorResult
                             = new AgentModels.OrchestratorCollectorResult(request.consolidatedOutput(), request.collectorDecision());
                     yield AgentModels.OrchestratorCollectorRouting.builder()
-                        .collectorResult(collectorResult)
-                        .build();
+                            .collectorResult(collectorResult)
+                            .build();
                 }
             };
             return AgentInterfaces.decorateRouting(
@@ -2164,7 +2168,7 @@ public interface AgentInterfaces {
                     ? lastPlanningOrchestratorRequest.discoveryCuration()
                     : null;
 
-            AgentModels.PlanningCollectorRouting routing = switch(request.collectorDecision().decisionType()) {
+            AgentModels.PlanningCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
                 case ROUTE_BACK -> {
                     // Pass discovery curation back when routing back
                     AgentModels.PlanningOrchestratorRequest planningRequest = AgentModels.PlanningOrchestratorRequest.builder()
@@ -2608,7 +2612,7 @@ public interface AgentInterfaces {
             description = "Runs planning agent request in a subprocess"
     )
     @RequiredArgsConstructor
-    class PlanningDispatchSubagent implements AgentInterfaces{
+    class PlanningDispatchSubagent implements AgentInterfaces {
 
         private final EventBus eventBus;
         private final PromptContextFactory promptContextFactory;
@@ -2837,7 +2841,7 @@ public interface AgentInterfaces {
             description = "Runs discovery agent request in a subprocess"
     )
     @RequiredArgsConstructor
-    class DiscoveryDispatchSubagent implements AgentInterfaces{
+    class DiscoveryDispatchSubagent implements AgentInterfaces {
 
         private final EventBus eventBus;
         private final PromptContextFactory promptContextFactory;
@@ -3053,6 +3057,7 @@ public interface AgentInterfaces {
                     lastRequest
             );
         }
+
     }
 
     static PromptContext decoratePromptContext(
@@ -3269,6 +3274,6 @@ public interface AgentInterfaces {
             return "ticketCollectorRequest(goal=" + ticketCollector.goal() + ")";
         }
         return RETURN_ROUTE_NONE;
-        }
+    }
 
 }

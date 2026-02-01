@@ -1,7 +1,10 @@
 package com.hayden.multiagentide.service;
 
+import com.embabel.agent.api.common.ActionContext;
+import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
 import com.hayden.multiagentide.repository.WorktreeRepository;
@@ -340,6 +343,93 @@ public class GitWorktreeService implements WorktreeService {
         }
     }
 
+    public AgentModels.DiscoveryAgentRequests attachWorktreesToDiscoveryRequests(
+            AgentModels.DiscoveryAgentRequests input,
+            String nodeId
+    ) {
+        if (input == null || input.requests() == null || input.requests().isEmpty()) {
+            return input;
+        }
+        WorktreeSandboxContext parentContext = input.worktreeContext();
+        if (parentContext == null || parentContext.mainWorktree() == null) {
+            return input;
+        }
+        List<AgentModels.DiscoveryAgentRequest> updated = new ArrayList<>();
+        int index = 0;
+        for (AgentModels.DiscoveryAgentRequest request : input.requests()) {
+            if (request == null) {
+                continue;
+            }
+            index++;
+            String branchName = "discovery-" + index + "-" + shortId(nodeId);
+            WorktreeSandboxContext child = branchSandboxContext(parentContext, branchName, nodeId);
+            updated.add(child != null ? request.toBuilder().worktreeContext(child).build() : request);
+        }
+        return input.toBuilder().requests(updated).build();
+    }
+
+    public AgentModels.PlanningAgentRequests attachWorktreesToPlanningRequests(
+            AgentModels.PlanningAgentRequests input,
+            String nodeId
+    ) {
+        if (input == null || input.requests() == null || input.requests().isEmpty()) {
+            return input;
+        }
+        WorktreeSandboxContext parentContext = input.worktreeContext();
+        if (parentContext == null || parentContext.mainWorktree() == null) {
+            return input;
+        }
+        List<AgentModels.PlanningAgentRequest> updated = new ArrayList<>();
+        int index = 0;
+        for (AgentModels.PlanningAgentRequest request : input.requests()) {
+            if (request == null) {
+                continue;
+            }
+            index++;
+            String branchName = "planning-" + index + "-" + shortId(nodeId);
+            WorktreeSandboxContext child = branchSandboxContext(parentContext, branchName, nodeId);
+            updated.add(child != null ? request.toBuilder().worktreeContext(child).build() : request);
+        }
+        return input.toBuilder().requests(updated).build();
+    }
+
+    public AgentModels.TicketAgentRequests attachWorktreesToTicketRequests(
+            AgentModels.TicketAgentRequests input,
+            String nodeId
+    ) {
+        if (input == null || input.requests() == null || input.requests().isEmpty()) {
+            return input;
+        }
+        WorktreeSandboxContext parentContext = input.worktreeContext();
+        if (parentContext == null || parentContext.mainWorktree() == null) {
+            return input;
+        }
+        List<AgentModels.TicketAgentRequest> updated = new ArrayList<>();
+        int index = 0;
+        for (AgentModels.TicketAgentRequest request : input.requests()) {
+            if (request == null) {
+                continue;
+            }
+            index++;
+            String branchName = "ticket-" + index + "-" + shortId(nodeId);
+            WorktreeSandboxContext child = branchSandboxContext(parentContext, branchName, nodeId);
+            updated.add(child != null ? request.toBuilder().worktreeContext(child).build() : request);
+        }
+        return input.toBuilder().requests(updated).build();
+    }
+
+    public String resolveNodeId(ActionContext context) {
+        if (context == null || context.getProcessContext() == null) {
+            return "unknown";
+        }
+        var options = context.getProcessContext().getProcessOptions();
+        if (options == null) {
+            return "unknown";
+        }
+        String contextId = options.getContextIdString();
+        return contextId != null ? contextId : "unknown";
+    }
+
     @Override
     public void discardWorktree(String worktreeId) {
         Optional<WorktreeContext> wt = worktreeRepository.findById(worktreeId);
@@ -443,6 +533,43 @@ public class GitWorktreeService implements WorktreeService {
     }
 
     // ======== PRIVATE HELPERS ========
+
+    private WorktreeSandboxContext branchSandboxContext(
+            WorktreeSandboxContext parentContext,
+            String branchName,
+            String nodeId
+    ) {
+        try {
+            MainWorktreeContext main = branchWorktree(
+                    parentContext.mainWorktree().worktreeId(),
+                    branchName,
+                    nodeId
+            );
+            List<SubmoduleWorktreeContext> submodules = new ArrayList<>();
+            if (parentContext.submoduleWorktrees() != null) {
+                for (SubmoduleWorktreeContext submodule : parentContext.submoduleWorktrees()) {
+                    if (submodule == null) {
+                        continue;
+                    }
+                    submodules.add(branchSubmoduleWorktree(
+                            submodule.worktreeId(),
+                            branchName,
+                            nodeId
+                    ));
+                }
+            }
+            return new WorktreeSandboxContext(main, submodules);
+        } catch (Exception ex) {
+            return parentContext;
+        }
+    }
+
+    private static String shortId(String id) {
+        if (id == null) {
+            return "";
+        }
+        return id.length() <= 8 ? id : id.substring(0, 8);
+    }
 
     private boolean hasSubmodulesInternal(Path repositoryPath) {
         return Files.exists(repositoryPath.resolve(".gitmodules"));

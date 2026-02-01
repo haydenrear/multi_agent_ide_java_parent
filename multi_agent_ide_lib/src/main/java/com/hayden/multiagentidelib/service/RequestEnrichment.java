@@ -450,6 +450,7 @@ public class RequestEnrichment {
             case AgentModels.InterruptRequest.MergerInterruptRequest r ->
                     new AgentModels.InterruptRequest.MergerInterruptRequest(
                             resolveContextId(context, AgentType.MERGER_AGENT, parent),
+                            r.worktreeContext(),
                             r.type(),
                             r.reason(),
                             r.choices(),

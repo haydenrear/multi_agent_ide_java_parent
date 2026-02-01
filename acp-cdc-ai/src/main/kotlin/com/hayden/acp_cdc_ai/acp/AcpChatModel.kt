@@ -14,6 +14,9 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus
 import com.hayden.utilitymodule.nullable.mapNullable
 import com.hayden.utilitymodule.nullable.or
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
+import com.hayden.acp_cdc_ai.repository.RequestContextRepository
+import com.hayden.acp_cdc_ai.sandbox.SandboxTranslation
+import com.hayden.acp_cdc_ai.sandbox.SandboxTranslationRegistry
 import io.modelcontextprotocol.server.IdeMcpAsyncServer.TOOL_ALLOWLIST_HEADER
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -80,7 +83,9 @@ class AcpChatModel(
     private val chatMemoryContext: ChatMemoryContext?,
     private val sessionManager: AcpSessionManager,
     private val mcpProperties: McpProperties,
-    private val permissionGate: IPermissionGate
+    private val permissionGate: IPermissionGate,
+    private val requestContextRepository: RequestContextRepository,
+    private val sandboxTranslationRegistry: SandboxTranslationRegistry
 ) : ChatModel, StreamingChatModel {
 
     private val log: Logger = LoggerFactory.getLogger(AcpChatModel::class.java)
@@ -171,8 +176,11 @@ class AcpChatModel(
         .generations(generations.toMutableList())
         .build()
 
-    fun createProcessStdioTransport(coroutineScope: CoroutineScope,
-                                    command: Array<String>): Transport {
+    fun createProcessStdioTransport(
+        coroutineScope: CoroutineScope,
+        command: Array<String>,
+        extraEnv: Map<String, String>
+    ): Transport {
         val pb = ProcessBuilder(*command)
             .redirectInput(ProcessBuilder.Redirect.PIPE)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
@@ -180,6 +188,7 @@ class AcpChatModel(
 
        this.properties.envCopy()
            ?.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
+        extraEnv.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
 
         val process = pb
             .start()
@@ -234,12 +243,13 @@ class AcpChatModel(
         if (args.isNotEmpty()) {
             throw RuntimeException("ACP args are not parsed for individual acp providers. They are not parsed at all yet. Add your arg in the command! --codex-args and stuff like that. TODO:" + args)
         }
-        val process = command
+        val sandboxTranslation = resolveSandboxTranslation(memoryId)
+        val process = command + sandboxTranslation.args.toTypedArray()
         val workingDirectory = properties.workingDirectory
 
         return try {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-            val transport = createProcessStdioTransport(scope, process)
+            val transport = createProcessStdioTransport(scope, process, sandboxTranslation.env)
             val protocol = Protocol(scope, transport)
             val client = Client(protocol)
 
@@ -346,6 +356,27 @@ class AcpChatModel(
             tokens.add(tokenizer.nextToken())
         }
         return tokens.filter { it.isNotEmpty() }
+    }
+
+    private fun resolveSandboxTranslation(memoryId: Any?): SandboxTranslation {
+        val sessionId = memoryId?.toString() ?: return SandboxTranslation.empty()
+        val context = requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
+        val providerKey = resolveProviderKey()
+        val direct = sandboxTranslationRegistry.find(providerKey).orElse(null)
+        if (direct != null) {
+            return direct.translate(context)
+        }
+        val fallbackKey = providerKey.substringBefore("-")
+        val fallback = sandboxTranslationRegistry.find(fallbackKey).orElse(null)
+        return fallback?.translate(context) ?: SandboxTranslation.empty()
+    }
+
+    private fun resolveProviderKey(): String {
+        val commandValue = properties.command?.trim().orEmpty()
+        if (commandValue.isBlank()) {
+            return ""
+        }
+        return commandValue.split(Regex("\\s+")).firstOrNull()?.lowercase() ?: ""
     }
 
     private fun formatPromptMessages(messages: Prompt): String {

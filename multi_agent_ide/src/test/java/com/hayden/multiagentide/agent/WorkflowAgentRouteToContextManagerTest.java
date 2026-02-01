@@ -2,6 +2,7 @@ package com.hayden.multiagentide.agent;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentProcess;
+import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.service.InterruptService;
 import com.hayden.multiagentide.service.LlmRunner;
 import com.hayden.multiagentidelib.agent.*;
