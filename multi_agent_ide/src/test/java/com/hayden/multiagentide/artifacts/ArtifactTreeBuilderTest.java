@@ -317,7 +317,7 @@ class ArtifactTreeBuilderTest {
             
             assertThat(childEntity.getParentKey()).isEqualTo(rootKey.value());
             assertThat(childEntity.getExecutionKey()).isEqualTo(executionKey);
-            assertThat(childEntity.getArtifactType()).isEqualTo("RenderedPrompt");
+            assertThat(childEntity.getArtifactType()).isEqualTo(Artifact.RenderedPromptArtifact.class.getSimpleName());
             assertThat(childEntity.getContentHash()).isEqualTo("content-hash-123");
             assertThat(childEntity.getDepth()).isEqualTo(2);
             assertThat(childEntity.getShared()).isFalse();
@@ -524,8 +524,8 @@ class ArtifactTreeBuilderTest {
             assertThat(artifacts.stream()
                     .map(Artifact::artifactType)
                     .toList())
-                    .containsExactlyInAnyOrder("Execution", "AgentModelArtifact", "RenderedPrompt",
-                            "PromptTemplateVersion", "ToolCall");
+                    .containsExactlyInAnyOrder(Artifact.ExecutionArtifact.class.getSimpleName(), Artifact.AgentModelArtifact.class.getSimpleName(), Artifact.RenderedPromptArtifact.class.getSimpleName(),
+                            PromptTemplateVersion.class.getSimpleName(), Artifact.ToolCallArtifact.class.getSimpleName());
         }
     }
     

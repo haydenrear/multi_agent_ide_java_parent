@@ -50,11 +50,15 @@ public sealed interface Artifact
             Artifact.RenderedPromptArtifact,
             Artifact.ToolCallArtifact,
             MessageStreamArtifact,
-            RefArtifact,
             Artifact.ArtifactDbRef,
             Templated {
 
     String SCHEMA = "schema";
+
+    @JsonIgnore
+    default String artifactType() {
+        return this.getClass().getSimpleName();
+    }
 
     default List<Artifact> collectRecursiveChildren() {
         var l = new ArrayList<>(this.children());
@@ -70,12 +74,6 @@ public sealed interface Artifact
      * Hierarchical, time-sortable identifier.
      */
     ArtifactKey artifactKey();
-    
-    /**
-     * Type discriminator for serialization.
-     */
-    @JsonIgnore
-    String artifactType();
     
     /**
      * SHA-256 hash of content bytes (if applicable).
@@ -106,6 +104,7 @@ public sealed interface Artifact
         }
 
         @Override
+        @JsonIgnore
         public String artifactType() {
             return agentModel().artifactType();
         }
@@ -190,11 +189,8 @@ public sealed interface Artifact
         @Override
         @JsonIgnore
         public String templateText() {
-            return Optional.ofNullable(ref).map(t -> t.templateText())
-                    .orElseGet(() -> {
-
-                        return null;
-                    });
+            return Optional.ofNullable(ref).map(Templated::templateText)
+                    .orElseGet(() -> null);
         }
 
         @Override
@@ -242,12 +238,6 @@ public sealed interface Artifact
         }
 
         @Override
-        @JsonIgnore
-        public String artifactType() {
-            return SCHEMA;
-        }
-
-        @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
@@ -275,11 +265,7 @@ public sealed interface Artifact
             List<Artifact> children,
             String hash
     ) implements Artifact {
-        
-        @Override
-        public String artifactType() {
-            return "Execution";
-        }
+
         
         @Override
         public Optional<String> contentHash() {
@@ -308,11 +294,7 @@ public sealed interface Artifact
             Map<String, String> metadata,
             List<Artifact> children
     ) implements Artifact {
-        
-        @Override
-        public String artifactType() {
-            return "ExecutionConfig";
-        }
+
         
         @Override
         public Optional<String> contentHash() {
@@ -335,11 +317,7 @@ public sealed interface Artifact
             List<Artifact> children,
             String promptName
     ) implements Artifact {
-        
-        @Override
-        public String artifactType() {
-            return "RenderedPrompt";
-        }
+
         
         @Override
         public Optional<String> contentHash() {
@@ -359,11 +337,7 @@ public sealed interface Artifact
             Map<String, String> metadata,
             List<Artifact> children
     ) implements Artifact {
-        
-        @Override
-        public String artifactType() {
-            return "PromptArgs";
-        }
+
         
         @Override
         public Optional<String> contentHash() {
@@ -388,11 +362,6 @@ public sealed interface Artifact
             List<Artifact> children
     ) implements Templated {
         
-        @Override
-        public String artifactType() {
-            return "PromptContribution";
-        }
-
         @Override
         @JsonIgnore
         public String templateStaticId() {
@@ -433,11 +402,6 @@ public sealed interface Artifact
         }
 
         @Override
-        public String artifactType() {
-            return ToolPrompt.class.getSimpleName();
-        }
-
-        @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
@@ -470,10 +434,6 @@ public sealed interface Artifact
             return skillDescription;
         }
 
-        @Override
-        public String artifactType() {
-            return SkillPrompt.class.getSimpleName();
-        }
 
         @Override
         public Optional<String> contentHash() {
@@ -513,10 +473,6 @@ public sealed interface Artifact
                     .build();
         }
 
-        @Override
-        public String artifactType() {
-            return "ToolCall";
-        }
         
         @Override
         public Optional<String> contentHash() {
@@ -541,11 +497,7 @@ public sealed interface Artifact
             List<Artifact> children
     ) implements Artifact {
         
-        @Override
-        public String artifactType() {
-            return "OutcomeEvidence";
-        }
-        
+
         @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
@@ -570,11 +522,7 @@ public sealed interface Artifact
             List<Artifact> children
     ) implements Artifact {
         
-        @Override
-        public String artifactType() {
-            return "EventArtifact";
-        }
-        
+
         @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);

@@ -101,11 +101,6 @@ public record PromptTemplateVersion(
     }
 
     @Override
-    public String artifactType() {
-        return "PromptTemplateVersion";
-    }
-
-    @Override
     public Optional<String> contentHash() {
         return Optional.ofNullable(hash);
     }

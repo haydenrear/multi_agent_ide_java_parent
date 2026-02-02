@@ -23,6 +23,11 @@ public non-sealed interface Templated extends Artifact {
      * This ID remains stable across versions - only the content hash changes.
      */
     String templateStaticId();
+
+    @JsonIgnore
+    default String artifactType() {
+        return this.getClass().getSimpleName();
+    }
     
     /**
      * The static template text (no runtime substitutions).

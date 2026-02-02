@@ -9,6 +9,7 @@ import com.hayden.multiagentidelib.agent.UpstreamContext;
 import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.MessageStreamArtifact;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -310,6 +311,118 @@ class ArtifactSerializationTest {
             assertThat(result.eventType()).isEqualTo("AgentStarted");
             assertThat(result.payloadJson()).containsEntry("agentId", "agent-001");
         }
+        
+        @Test
+        @DisplayName("PromptArgsArtifact serializes correctly")
+        void promptArgsArtifactRoundTrip() {
+            ArtifactKey argsKey = rootKey.createChild();
+            
+            Map<String, Object> args = new HashMap<>();
+            args.put("task", "Implement authentication");
+            args.put("context", Map.of("files", List.of("auth.java", "login.java")));
+            args.put("maxTokens", 4096);
+            
+            Artifact.PromptArgsArtifact promptArgs = Artifact.PromptArgsArtifact.builder()
+                    .artifactKey(argsKey)
+                    .args(args)
+                    .hash("args-hash-123")
+                    .metadata(Map.of("promptName", "system-prompt"))
+                    .children(new ArrayList<>())
+                    .build();
+            
+            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
+            artifactTreeBuilder.addArtifact(executionKey, promptArgs);
+            artifactTreeBuilder.persistExecution(executionKey);
+            
+            Optional<ArtifactEntity> entity = artifactRepository.findByArtifactKey(argsKey.value());
+            assertThat(entity).isPresent();
+            
+            Optional<Artifact> deserialized = artifactService.deserializeArtifact(entity.get());
+            assertThat(deserialized).isPresent();
+            assertThat(deserialized.get()).isInstanceOf(Artifact.PromptArgsArtifact.class);
+            
+            Artifact.PromptArgsArtifact result = (Artifact.PromptArgsArtifact) deserialized.get();
+            assertThat(result.args()).containsEntry("task", "Implement authentication");
+            assertThat(result.args()).containsEntry("maxTokens", 4096);
+            assertThat(result.contentHash()).contains("args-hash-123");
+        }
+        
+        @Test
+        @DisplayName("MessageStreamArtifact serializes correctly")
+        void messageStreamArtifactRoundTrip() {
+            ArtifactKey streamKey = rootKey.createChild();
+            
+            MessageStreamArtifact streamArtifact = MessageStreamArtifact.builder()
+                    .artifactKey(streamKey)
+                    .streamType(MessageStreamArtifact.StreamType.NODE_STREAM_DELTA)
+                    .nodeId("node-001")
+                    .eventTimestamp(Instant.now())
+                    .payloadJson(Map.of("delta", "Hello ", "index", 0))
+                    .hash("stream-hash")
+                    .metadata(Map.of("model", "claude-3"))
+                    .children(new ArrayList<>())
+                    .build();
+            
+            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
+            artifactTreeBuilder.addArtifact(executionKey, streamArtifact);
+            artifactTreeBuilder.persistExecution(executionKey);
+            
+            Optional<ArtifactEntity> entity = artifactRepository.findByArtifactKey(streamKey.value());
+            assertThat(entity).isPresent();
+            
+            Optional<Artifact> deserialized = artifactService.deserializeArtifact(entity.get());
+            assertThat(deserialized).isPresent();
+            assertThat(deserialized.get()).isInstanceOf(MessageStreamArtifact.class);
+            
+            MessageStreamArtifact result = (MessageStreamArtifact) deserialized.get();
+            assertThat(result.streamType()).isEqualTo(MessageStreamArtifact.StreamType.NODE_STREAM_DELTA);
+            assertThat(result.nodeId()).isEqualTo("node-001");
+            assertThat(result.payloadJson()).containsEntry("delta", "Hello ");
+        }
+        
+        @Test
+        @DisplayName("ArtifactDbRef serializes correctly")
+        void artifactDbRefRoundTrip() {
+            // First, create and persist the original artifact that will be referenced
+            ArtifactKey originalKey = rootKey.createChild();
+            String sharedHash = "shared-hash-for-ref";
+            
+            Artifact.ToolCallArtifact originalToolCall = Artifact.ToolCallArtifact.builder()
+                    .artifactKey(originalKey)
+                    .toolCallId("original-call")
+                    .toolName("testTool")
+                    .inputJson("{}")
+                    .inputHash(sharedHash)
+                    .metadata(Map.of("refType", "ToolCall"))
+                    .children(new ArrayList<>())
+                    .build();
+            
+            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
+            artifactTreeBuilder.addArtifact(executionKey, originalToolCall);
+            artifactTreeBuilder.persistExecution(executionKey);
+            
+            // Now create the ArtifactDbRef that references the original
+            ArtifactKey refKey = rootKey.createChild();
+            Artifact.ArtifactDbRef dbRef = Artifact.ArtifactDbRef.builder()
+                    .artifactKey(refKey)
+                    .hash(UUID.randomUUID().toString())
+                    .ref(originalToolCall)
+                    .children(new ArrayList<>())
+                    .metadata(Map.of("refType", "ToolCall"))
+                    .artifactType("ArtifactDbRef")
+                    .build();
+            
+            ArtifactEntity refEntity = artifactService.toEntity(executionKey, dbRef);
+            artifactRepository.save(refEntity);
+            
+            Optional<Artifact> deserialized = artifactService.deserializeArtifact(refEntity);
+            assertThat(deserialized).isPresent();
+            assertThat(deserialized.get()).isInstanceOf(Artifact.ArtifactDbRef.class);
+            
+            Artifact.ArtifactDbRef result = (Artifact.ArtifactDbRef) deserialized.get();
+            assertThat(result.ref()).isNotNull();
+            assertThat(result.ref()).isInstanceOf(Artifact.ToolCallArtifact.class);
+        }
     }
     
     // ========== Templated Artifact Tests ==========
@@ -430,6 +543,95 @@ class ArtifactSerializationTest {
             Artifact.SkillPrompt result = (Artifact.SkillPrompt) deserialized.get();
             assertThat(result.skillName()).isEqualTo("codeReview");
             assertThat(result.skillDescription()).contains("Review code changes");
+        }
+        
+        @Test
+        @DisplayName("TemplateDbRef serializes correctly")
+        void templateDbRefRoundTrip() {
+            // First, create and persist the original template that will be referenced
+            ArtifactKey originalTemplateKey = rootKey.createChild();
+            String sharedHash = "shared-template-hash";
+            
+            PromptTemplateVersion originalTemplate = new PromptTemplateVersion(
+                    "tpl.agent.discovery.system",
+                    "You are a discovery agent.",
+                    sharedHash,
+                    originalTemplateKey,
+                    Instant.now(),
+                    new ArrayList<>()
+            );
+            
+            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
+            artifactTreeBuilder.addArtifact(executionKey, originalTemplate);
+            artifactTreeBuilder.persistExecution(executionKey);
+            
+            // Now create the TemplateDbRef that references the original
+            ArtifactKey templateRefKey = rootKey.createChild();
+            Artifact.TemplateDbRef templateDbRef = Artifact.TemplateDbRef.builder()
+                    .templateArtifactKey(templateRefKey)
+                    .templateStaticId("tpl.agent.discovery.system")
+                    .hash(UUID.randomUUID().toString())
+                    .ref(originalTemplate)
+                    .children(new ArrayList<>())
+                    .metadata(Map.of("version", "1.0"))
+                    .artifactType("TemplateDbRef")
+                    .build();
+            
+            ArtifactEntity refEntity = artifactService.toEntity(executionKey, templateDbRef);
+            artifactRepository.save(refEntity);
+            
+            Optional<Artifact> deserialized = artifactService.deserializeArtifact(refEntity);
+            assertThat(deserialized).isPresent();
+            assertThat(deserialized.get()).isInstanceOf(Artifact.TemplateDbRef.class);
+            
+            Artifact.TemplateDbRef result = (Artifact.TemplateDbRef) deserialized.get();
+            assertThat(result.templateStaticId()).isEqualTo("tpl.agent.discovery.system");
+            assertThat(result.ref()).isNotNull();
+            assertThat(result.ref().templateText()).isEqualTo("You are a discovery agent.");
+        }
+        
+        @Test
+        @DisplayName("SchemaArtifact serializes correctly")
+        void schemaArtifactRoundTrip() {
+            ArtifactKey schemaKey = rootKey.createChild();
+            
+            String jsonSchema = """
+                    {
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "type": "object",
+                      "properties": {
+                        "goal": { "type": "string" },
+                        "phase": { "type": "string" }
+                      },
+                      "required": ["goal"]
+                    }
+                    """;
+            
+            Artifact.SchemaArtifact schemaArtifact = Artifact.SchemaArtifact.builder()
+                    .templateArtifactKey(schemaKey)
+                    .templateStaticId("schema.orchestrator.request")
+                    .hash("schema-hash-xyz")
+                    .templateText(null)
+                    .metadata(Map.of("schemaVersion", "2020-12"))
+                    .schema(jsonSchema)
+                    .build();
+            
+            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
+            artifactTreeBuilder.addArtifact(executionKey, schemaArtifact);
+            artifactTreeBuilder.persistExecution(executionKey);
+            
+            Optional<ArtifactEntity> entity = artifactRepository.findByArtifactKey(schemaKey.value());
+            assertThat(entity).isPresent();
+            
+            Optional<Artifact> deserialized = artifactService.deserializeArtifact(entity.get());
+            assertThat(deserialized).isPresent();
+            assertThat(deserialized.get()).isInstanceOf(Artifact.SchemaArtifact.class);
+            
+            Artifact.SchemaArtifact result = (Artifact.SchemaArtifact) deserialized.get();
+            assertThat(result.templateStaticId()).isEqualTo("schema.orchestrator.request");
+            assertThat(result.schema()).contains("\"type\": \"object\"");
+            assertThat(result.contentHash()).contains("schema-hash-xyz");
+            assertThat(result.artifactType()).isEqualTo(Artifact.SchemaArtifact.class.getSimpleName());
         }
     }
     
@@ -1009,9 +1211,182 @@ class ArtifactSerializationTest {
         }
     }
     
+    // ========== ArtifactService Deserialization Tests ==========
+    
+    @Nested
+    @DisplayName("ArtifactService deserializeArtifact")
+    class ArtifactServiceDeserializationTests {
+        
+        @Test
+        @DisplayName("deserializeArtifact returns empty for null entity")
+        void deserializeArtifactReturnsEmptyForNullEntity() {
+            Optional<Artifact> result = artifactService.deserializeArtifact(null);
+            assertThat(result).isEmpty();
+        }
+        
+        @Test
+        @DisplayName("deserializeArtifact returns empty for entity with null contentJson")
+        void deserializeArtifactReturnsEmptyForNullContentJson() {
+            ArtifactEntity entity = ArtifactEntity.builder()
+                    .artifactKey(rootKey.value())
+                    .artifactType("Execution")
+                    .contentJson(null)
+                    .build();
+            
+            Optional<Artifact> result = artifactService.deserializeArtifact(entity);
+            assertThat(result).isEmpty();
+        }
+        
+        @Test
+        @DisplayName("deserializeArtifact resolves TemplateDbRef to referenced template")
+        void deserializeArtifactResolvesTemplateDbRef() {
+            // First, persist the original template
+            ArtifactKey originalTemplateKey = rootKey.createChild();
+            String sharedHash = "shared-template-hash-" + UUID.randomUUID();
+            
+            PromptTemplateVersion originalTemplate = new PromptTemplateVersion(
+                    "tpl.agent.system",
+                    "You are a helpful AI assistant.",
+                    sharedHash,
+                    originalTemplateKey,
+                    Instant.now(),
+                    new ArrayList<>()
+            );
+            
+            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
+            artifactTreeBuilder.addArtifact(executionKey, originalTemplate);
+            artifactTreeBuilder.persistExecution(executionKey);
+            
+            // Now create and persist a TemplateDbRef that references the original
+            // Use a new execution to avoid constraint issues
+            ArtifactKey newRootKey = ArtifactKey.createRoot();
+            String newExecutionKey = newRootKey.value();
+            ArtifactKey refKey = newRootKey.createChild();
+            
+            Artifact.TemplateDbRef templateRef = Artifact.TemplateDbRef.builder()
+                    .templateArtifactKey(refKey)
+                    .templateStaticId("tpl.agent.system")
+                    .hash(UUID.randomUUID().toString()) // Unique hash for the ref itself
+                    .ref(originalTemplate)
+                    .children(new ArrayList<>())
+                    .metadata(new HashMap<>())
+                    .artifactType("TemplateDbRef")
+                    .build();
+            
+            // Persist the new execution root first
+            artifactTreeBuilder.addArtifact(newExecutionKey, createExecutionArtifact(newRootKey));
+            artifactTreeBuilder.persistExecution(newExecutionKey);
+            
+            ArtifactEntity refEntity = artifactService.toEntity(newExecutionKey, templateRef);
+            artifactRepository.save(refEntity);
+            
+            // Deserialize the ref - it should resolve to the original template
+            Optional<Artifact> deserialized = artifactService.deserializeArtifact(refEntity);
+            
+            assertThat(deserialized).isPresent();
+            assertThat(deserialized.get()).isInstanceOf(Artifact.TemplateDbRef.class);
+            
+            Artifact.TemplateDbRef result = (Artifact.TemplateDbRef) deserialized.get();
+            assertThat(result.ref()).isNotNull();
+            assertThat(result.ref().templateText()).isEqualTo("You are a helpful AI assistant.");
+            assertThat(result.templateStaticId()).isEqualTo("tpl.agent.system");
+        }
+        
+        @Test
+        @DisplayName("deserializeArtifact resolves ArtifactDbRef to referenced artifact")
+        void deserializeArtifactResolvesArtifactDbRef() {
+            // First, persist the original artifact
+            ArtifactKey originalKey = rootKey.createChild();
+            String sharedHash = "shared-artifact-hash-" + UUID.randomUUID();
+            
+            Artifact.ToolCallArtifact originalToolCall = Artifact.ToolCallArtifact.builder()
+                    .artifactKey(originalKey)
+                    .toolCallId("original-call")
+                    .toolName("readFile")
+                    .inputJson("{\"path\": \"/test.txt\"}")
+                    .inputHash(sharedHash)
+                    .outputJson("{\"content\": \"test\"}")
+                    .outputHash("output-hash")
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+            
+            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
+            artifactTreeBuilder.addArtifact(executionKey, originalToolCall);
+            artifactTreeBuilder.persistExecution(executionKey);
+            
+            // Now create and persist an ArtifactDbRef that references the original
+            // Use a new execution to avoid constraint issues
+            ArtifactKey newRootKey = ArtifactKey.createRoot();
+            String newExecutionKey = newRootKey.value();
+            ArtifactKey refKey = newRootKey.createChild();
+            
+            Artifact.ArtifactDbRef artifactRef = Artifact.ArtifactDbRef.builder()
+                    .artifactKey(refKey)
+                    .hash(UUID.randomUUID().toString()) // Unique hash for the ref itself
+                    .ref(originalToolCall)
+                    .children(new ArrayList<>())
+                    .metadata(new HashMap<>())
+                    .artifactType("ArtifactDbRef")
+                    .build();
+            
+            // Persist the new execution root first
+            artifactTreeBuilder.addArtifact(newExecutionKey, createExecutionArtifact(newRootKey));
+            artifactTreeBuilder.persistExecution(newExecutionKey);
+            
+            ArtifactEntity refEntity = artifactService.toEntity(newExecutionKey, artifactRef);
+            artifactRepository.save(refEntity);
+            
+            // Deserialize the ref - it should resolve to the original artifact
+            Optional<Artifact> deserialized = artifactService.deserializeArtifact(refEntity);
+            
+            assertThat(deserialized).isPresent();
+            assertThat(deserialized.get()).isInstanceOf(Artifact.ArtifactDbRef.class);
+            
+            Artifact.ArtifactDbRef result = (Artifact.ArtifactDbRef) deserialized.get();
+            assertThat(result.ref()).isNotNull();
+            assertThat(result.ref()).isInstanceOf(Artifact.ToolCallArtifact.class);
+            
+            Artifact.ToolCallArtifact resolvedToolCall = (Artifact.ToolCallArtifact) result.ref();
+            assertThat(resolvedToolCall.toolName()).isEqualTo("readFile");
+            assertThat(resolvedToolCall.toolCallId()).isEqualTo("original-call");
+        }
+
+        @Test
+        @DisplayName("deserializeArtifact returns regular artifact without ref resolution")
+        void deserializeArtifactReturnsRegularArtifact() {
+            ArtifactKey promptKey = rootKey.createChild();
+            
+            Artifact.RenderedPromptArtifact prompt = Artifact.RenderedPromptArtifact.builder()
+                    .artifactKey(promptKey)
+                    .renderedText("Regular prompt text")
+                    .promptName("regular-prompt")
+                    .hash("regular-hash")
+                    .metadata(Map.of("type", "system"))
+                    .children(new ArrayList<>())
+                    .build();
+            
+            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
+            artifactTreeBuilder.addArtifact(executionKey, prompt);
+            artifactTreeBuilder.persistExecution(executionKey);
+            
+            Optional<ArtifactEntity> entity = artifactRepository.findByArtifactKey(promptKey.value());
+            Optional<Artifact> deserialized = artifactService.deserializeArtifact(entity.get());
+            
+            assertThat(deserialized).isPresent();
+            assertThat(deserialized.get()).isInstanceOf(Artifact.RenderedPromptArtifact.class);
+            
+            Artifact.RenderedPromptArtifact result = (Artifact.RenderedPromptArtifact) deserialized.get();
+            assertThat(result.renderedText()).isEqualTo("Regular prompt text");
+        }
+    }
+    
+    // ========== ArtifactService doPersist Tests ==========
+    
+
     // ========== Helper Methods ==========
     
-    private Artifact.ExecutionArtifact createExecutionArtifact(ArtifactKey key) {
+    static Artifact.ExecutionArtifact createExecutionArtifact(ArtifactKey key) {
         return Artifact.ExecutionArtifact.builder()
                 .hash(UUID.randomUUID().toString())
                 .artifactKey(key)

@@ -42,10 +42,6 @@ public interface PromptContributor {
         return text == null ? Optional.empty() : Optional.of(ArtifactHashing.hashText(text));
     }
 
-    default String artifactType() {
-        return "PromptContributionTemplate";
-    }
-
     default Map<String, String> metadata() {
         return Map.of();
     }

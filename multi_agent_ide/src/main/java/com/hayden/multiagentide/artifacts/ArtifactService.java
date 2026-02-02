@@ -74,7 +74,8 @@ public class ArtifactService {
             } else {
                 // Save the first as the original (no refs yet)
                 var original = artifacts.getFirst();
-                artifactRepository.save(toEntity(executionKey, original));
+                ArtifactEntity entity = toEntity(executionKey, original);
+                artifactRepository.save(entity);
                 
                 // decorateDuplicate the rest
                 for (int i = 1; i < artifacts.size(); i++) {
@@ -145,12 +146,13 @@ public class ArtifactService {
 
             artifact = switch(artifact) {
                 case Artifact.TemplateDbRef t ->
-                        this.artifactRepository.findByContentHash(t.hash())
+                        this.artifactRepository.findByArtifactKey(entity.getReferencedArtifactKey())
                                 .flatMap(this::deserializeArtifact)
                                 .map(ae -> {
                                     if (ae instanceof Templated templated)
                                         return t.toBuilder()
                                                 .ref(templated)
+                                                .artifactType(Artifact.TemplateDbRef.class.getSimpleName())
                                                 .build();
 
                                     log.error("Found artifact incompateible with templated {}.", t);
@@ -162,10 +164,11 @@ public class ArtifactService {
                                     return t;
                                 });
                 case Artifact.ArtifactDbRef t ->
-                        this.artifactRepository.findByContentHash(t.hash())
+                        this.artifactRepository.findByArtifactKey(entity.getReferencedArtifactKey())
                                 .flatMap(this::deserializeArtifact)
                                 .map(ae -> t.toBuilder()
                                         .ref(ae)
+                                        .artifactType(Artifact.ArtifactDbRef.class.getSimpleName())
                                         .build())
                                 .orElseGet(() -> {
                                     log.error("Could not find referenced artifact in repository!");
@@ -213,6 +216,13 @@ public class ArtifactService {
 
         var tDb = artifact instanceof Artifact.TemplateDbRef temp ? temp : null;
         var aDb = artifact instanceof Artifact.ArtifactDbRef temp ? temp : null;
+
+        if (tDb != null && tDb.ref() == null) {
+            throw new IllegalArgumentException("Ref was null for TemplateDbRef provided.");
+        }
+        if (aDb != null && aDb.ref() == null) {
+            throw new IllegalArgumentException("Ref was null for ArtifactDbRef provided.");
+        }
 
         return ArtifactEntity.builder()
                 .artifactKey(key.value())

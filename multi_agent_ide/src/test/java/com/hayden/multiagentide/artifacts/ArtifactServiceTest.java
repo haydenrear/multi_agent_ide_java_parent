@@ -5,6 +5,7 @@ import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
+import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.*;
 
+import static com.hayden.multiagentide.artifacts.ArtifactSerializationTest.createExecutionArtifact;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -77,7 +79,7 @@ class ArtifactServiceTest {
         // Then
         assertThat(entity.getArtifactKey()).isEqualTo(artifactKey.value());
         assertThat(entity.getExecutionKey()).isEqualTo(executionKey);
-        assertThat(entity.getArtifactType()).isEqualTo("Execution");
+        assertThat(entity.getArtifactType()).isEqualTo(Artifact.ExecutionArtifact.class.getSimpleName());
         assertThat(entity.getContentHash()).isEqualTo(hash);
         assertThat(entity.getDepth()).isEqualTo(artifactKey.depth());
         assertThat(entity.getShared()).isFalse();
@@ -137,7 +139,7 @@ class ArtifactServiceTest {
 
         // Then
         assertThat(entity.getTemplateStaticId()).isEqualTo("test-contributor");
-        assertThat(entity.getArtifactType()).isEqualTo("PromptContribution");
+        assertThat(entity.getArtifactType()).isEqualTo(Artifact.PromptContributionTemplate.class.getSimpleName());
     }
 
     @Test
@@ -664,5 +666,279 @@ class ArtifactServiceTest {
         assertThat(result.contributorName()).isEqualTo("system-prompt");
         assertThat(result.templateText()).isEqualTo("You are a helpful assistant.");
         assertThat(result.priority()).isEqualTo(100);
+    }
+
+    @Nested
+    @DisplayName("ArtifactService doPersist")
+    class ArtifactServiceDoPersistTests {
+
+        private ArtifactKey rootKey;
+        private String executionKey;
+
+        @BeforeEach
+        void setUpDoPersistTests() {
+            rootKey = ArtifactKey.createRoot();
+            executionKey = rootKey.value();
+        }
+
+        @Test
+        @DisplayName("doPersist saves artifact with unique hash")
+        void doPersistSavesArtifactWithUniqueHash() {
+            String uniqueHash = "unique-hash-for-test";
+
+            // Create root artifact node
+            ArtifactNode rootNode = ArtifactNode.createRoot(createExecutionArtifact(rootKey));
+
+            // Create an artifact with a unique hash
+            ArtifactKey key1 = rootKey.createChild();
+            Artifact.RenderedPromptArtifact artifact1 = Artifact.RenderedPromptArtifact.builder()
+                    .artifactKey(key1)
+                    .renderedText("Unique content")
+                    .promptName("prompt1")
+                    .hash(uniqueHash)
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+
+            rootNode.addArtifact(artifact1);
+
+            // Persist
+            artifactService.doPersist(executionKey, rootNode);
+
+            // The artifact should be saved
+            Optional<ArtifactEntity> entity1 = artifactRepository.findByArtifactKey(key1.value());
+            assertThat(entity1).isPresent();
+
+            // The original has the uniqueHash as contentHash
+            Optional<ArtifactEntity> originalEntity = artifactRepository.findByContentHash(uniqueHash);
+            assertThat(originalEntity).isPresent();
+
+            // Check that we have exactly 2 artifacts (root + artifact)
+            assertThat(artifactRepository.count()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("doPersist generates hash for artifacts without hash")
+        void doPersistGeneratesHashForArtifactsWithoutHash() {
+            // Create root artifact node
+            ArtifactNode rootNode = ArtifactNode.createRoot(createExecutionArtifact(rootKey));
+
+            // Create artifact without hash (null or blank)
+            ArtifactKey key1 = rootKey.createChild();
+            Artifact.RenderedPromptArtifact artifactWithoutHash = Artifact.RenderedPromptArtifact.builder()
+                    .artifactKey(key1)
+                    .renderedText("Content without hash")
+                    .promptName("no-hash-prompt")
+                    .hash(null) // No hash
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+
+            ArtifactKey key2 = rootKey.createChild();
+            Artifact.RenderedPromptArtifact artifactWithBlankHash = Artifact.RenderedPromptArtifact.builder()
+                    .artifactKey(key2)
+                    .renderedText("Content with blank hash")
+                    .promptName("blank-hash-prompt")
+                    .hash("") // Blank hash
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+
+            rootNode.addArtifact(artifactWithoutHash);
+            rootNode.addArtifact(artifactWithBlankHash);
+
+            // Persist
+            artifactService.doPersist(executionKey, rootNode);
+
+            // Both artifacts should be saved with generated hashes
+            Optional<ArtifactEntity> entity1 = artifactRepository.findByArtifactKey(key1.value());
+            Optional<ArtifactEntity> entity2 = artifactRepository.findByArtifactKey(key2.value());
+
+            assertThat(entity1).isPresent();
+            assertThat(entity2).isPresent();
+
+            // Both should have non-null, non-blank content hashes (UUID format)
+            assertThat(entity1.get().getContentHash()).isNotNull().isNotBlank();
+            assertThat(entity2.get().getContentHash()).isNotNull().isNotBlank();
+
+            // The generated hashes should be different (UUID uniqueness)
+            assertThat(entity1.get().getContentHash()).isNotEqualTo(entity2.get().getContentHash());
+        }
+
+        @Test
+        @DisplayName("doPersist saves unique artifacts without creating refs")
+        void doPersistSavesUniqueArtifactsWithoutRefs() {
+            // Create root artifact node
+            ArtifactNode rootNode = ArtifactNode.createRoot(createExecutionArtifact(rootKey));
+
+            // Create artifacts with different hashes
+            ArtifactKey key1 = rootKey.createChild();
+            Artifact.RenderedPromptArtifact artifact1 = Artifact.RenderedPromptArtifact.builder()
+                    .artifactKey(key1)
+                    .renderedText("Unique content 1")
+                    .promptName("unique-prompt-1")
+                    .hash("unique-hash-1")
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+
+            ArtifactKey key2 = rootKey.createChild();
+            Artifact.ToolCallArtifact artifact2 = Artifact.ToolCallArtifact.builder()
+                    .artifactKey(key2)
+                    .toolCallId("call-1")
+                    .toolName("tool1")
+                    .inputJson("{}")
+                    .inputHash("unique-hash-2") // Different hash
+                    .outputJson("{}")
+                    .outputHash("output-hash")
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+
+            ArtifactKey key3 = rootKey.createChild();
+            Artifact.EventArtifact artifact3 = Artifact.EventArtifact.builder()
+                    .artifactKey(key3)
+                    .eventId("event-1")
+                    .eventTimestamp(Instant.now())
+                    .eventType("TestEvent")
+                    .payloadJson(new HashMap<>())
+                    .hash("unique-hash-3") // Different hash
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+
+            rootNode.addArtifact(artifact1);
+            rootNode.addArtifact(artifact2);
+            rootNode.addArtifact(artifact3);
+
+            // Persist
+            artifactService.doPersist(executionKey, rootNode);
+
+            // All artifacts should be saved as originals (not refs)
+            Optional<ArtifactEntity> entity1 = artifactRepository.findByArtifactKey(key1.value());
+            Optional<ArtifactEntity> entity2 = artifactRepository.findByArtifactKey(key2.value());
+            Optional<ArtifactEntity> entity3 = artifactRepository.findByArtifactKey(key3.value());
+
+            assertThat(entity1).isPresent();
+            assertThat(entity2).isPresent();
+            assertThat(entity3).isPresent();
+
+            // Check artifact types are preserved (not converted to refs)
+            assertThat(entity1.get().getArtifactType()).isEqualTo(Artifact.RenderedPromptArtifact.class.getSimpleName());
+            assertThat(entity2.get().getArtifactType()).isEqualTo(Artifact.ToolCallArtifact.class.getSimpleName());
+            assertThat(entity3.get().getArtifactType()).isEqualTo(Artifact.EventArtifact.class.getSimpleName());
+
+            // Total count should be 4 (root + 3 unique artifacts)
+            assertThat(artifactRepository.count()).isEqualTo(4);
+        }
+
+        @Test
+        @DisplayName("doPersist creates TemplateDbRef for duplicate Templated artifacts")
+        void doPersistCreatesTemplateDbRefForDuplicateTemplates() {
+            String sharedHash = "shared-template-hash";
+
+            // Create root artifact node
+            ArtifactNode rootNode = ArtifactNode.createRoot(createExecutionArtifact(rootKey));
+
+            // Create two template artifacts with the same hash
+            ArtifactKey key1 = rootKey.createChild();
+            PromptTemplateVersion template1 = new PromptTemplateVersion(
+                    "tpl.shared.template",
+                    "Shared template content",
+                    sharedHash,
+                    key1,
+                    Instant.now(),
+                    new ArrayList<>()
+            );
+
+            ArtifactKey key2 = key1.createChild();
+            PromptTemplateVersion template2 = new PromptTemplateVersion(
+                    "tpl.shared.template",
+                    "Shared template content",
+                    sharedHash, // Same hash
+                    key2,
+                    Instant.now(),
+                    new ArrayList<>()
+            );
+
+            var f = rootNode.addArtifact(template1);
+            var s = rootNode.addArtifact(template2);
+
+            // Persist
+            artifactService.doPersist(executionKey, rootNode);
+
+            // Verify original template was saved
+            Optional<ArtifactEntity> originalEntity = artifactRepository.findByContentHash(sharedHash);
+            assertThat(originalEntity).isPresent();
+            assertThat(originalEntity.get().getArtifactType()).isEqualTo("PromptTemplateVersion");
+
+            // The second should be saved as TemplateDbRef
+            // Find the entity that is NOT the original
+            List<ArtifactEntity> allEntities = artifactRepository.findAll();
+            Optional<ArtifactEntity> refEntity = allEntities.stream()
+                    .filter(e -> artifactService.deserializeArtifact(e)
+                            .get().artifactType().equals("TemplateDbRef"))
+                    .findFirst();
+
+            assertThat(allEntities.size()).isEqualTo(3);
+
+            assertThat(refEntity).isPresent();
+            assertThat(refEntity.get().getTemplateStaticId()).isEqualTo("tpl.shared.template");
+        }
+
+        @Test
+        @DisplayName("doPersist handles existing duplicate in database")
+        void doPersistHandlesExistingDuplicateInDatabase() {
+            String sharedHash = "pre-existing-hash";
+
+            // First, persist an artifact with a specific hash
+            ArtifactKey existingKey = rootKey.createChild();
+            Artifact.RenderedPromptArtifact existingArtifact = Artifact.RenderedPromptArtifact.builder()
+                    .artifactKey(existingKey)
+                    .renderedText("Pre-existing content")
+                    .promptName("existing-prompt")
+                    .hash(sharedHash)
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+
+            ArtifactNode firstRootNode = ArtifactNode.createRoot(createExecutionArtifact(rootKey));
+            firstRootNode.addArtifact(existingArtifact);
+            artifactService.doPersist(executionKey, firstRootNode);
+
+            // Verify it was saved
+            assertThat(artifactRepository.findByContentHash(sharedHash)).isPresent();
+            long countAfterFirst = artifactRepository.count();
+
+            // Now create a new execution with an artifact that has the same hash
+            ArtifactKey newRootKey = ArtifactKey.createRoot();
+            String newExecutionKey = newRootKey.value();
+
+            ArtifactKey newKey = newRootKey.createChild();
+            Artifact.RenderedPromptArtifact newArtifact = Artifact.RenderedPromptArtifact.builder()
+                    .artifactKey(newKey)
+                    .renderedText("Pre-existing content") // Same content
+                    .promptName("new-prompt")
+                    .hash(sharedHash) // Same hash
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+
+            ArtifactNode secondRootNode = ArtifactNode.createRoot(createExecutionArtifact(newRootKey));
+            secondRootNode.addArtifact(newArtifact);
+            artifactService.doPersist(newExecutionKey, secondRootNode);
+
+            // The new artifact should be saved as a ref since the hash already exists
+            Optional<ArtifactEntity> newEntity = artifactRepository.findByArtifactKey(newKey.value());
+            assertThat(newEntity).isPresent();
+            var d = artifactService.deserializeArtifact(newEntity.get());
+            assertThat(d.get().artifactType()).isEqualTo(Artifact.ArtifactDbRef.class.getSimpleName());
+            assertThat(newEntity.get().getArtifactType()).isEqualTo(Artifact.RenderedPromptArtifact.class.getSimpleName());
+
+            // The original should still exist unchanged
+            Optional<ArtifactEntity> originalEntity = artifactRepository.findByContentHash(sharedHash);
+            assertThat(originalEntity).isPresent();
+            assertThat(originalEntity.get().getArtifactType()).isEqualTo(Artifact.RenderedPromptArtifact.class.getSimpleName());
+        }
     }
 }

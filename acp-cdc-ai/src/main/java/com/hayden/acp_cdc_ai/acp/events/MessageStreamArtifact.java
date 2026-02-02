@@ -34,11 +34,7 @@ public record MessageStreamArtifact(
         USER_MESSAGE_CHUNK,
         ADD_MESSAGE
     }
-    
-    @Override
-    public String artifactType() {
-        return "MessageStream";
-    }
+
     
     @Override
     public Optional<String> contentHash() {
