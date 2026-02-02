@@ -2,12 +2,11 @@ package com.hayden.multiagentidelib.model.worktree;
 
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import com.hayden.acp_cdc_ai.sandbox.SandboxContext;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import com.hayden.utilitymodule.io.FileUtils;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,7 +18,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("WorktreeSandbox")
 class WorktreeSandboxTest {
 
-    @TempDir
     Path tempDir;
 
     private Path mainWorktree;
@@ -28,6 +26,11 @@ class WorktreeSandboxTest {
 
     @BeforeEach
     void setUp() throws IOException {
+
+        tempDir = new File("").toPath().resolve("tmp");
+
+        tempDir.toFile().mkdirs();
+
         mainWorktree = tempDir.resolve("main-project");
         submodule1 = tempDir.resolve("submodule1");
         submodule2 = tempDir.resolve("submodule2");
@@ -43,19 +46,14 @@ class WorktreeSandboxTest {
         Files.writeString(mainWorktree.resolve("src/main/java/App.java"), "class App {}");
     }
 
+    @AfterEach
+    public void deleteAll() {
+        FileUtils.deleteFilesRecursive(tempDir);
+    }
+
     @Nested
     @DisplayName("validatePath")
     class ValidatePathTests {
-
-        @Test
-        void should() {
-            WorktreeSandbox sandbox = createSandbox(Paths.get("/Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide_java_parent/multi_agent_ide"));
-
-            SandboxValidationResult result = sandbox.validatePath(Paths.get("/Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide_java_parent/multi_agent_ide/log.log").toString());
-
-            assertThat(result.allowed()).isTrue();
-            assertThat(result.normalizedPath()).isEqualTo(mainWorktree.toAbsolutePath().normalize().toString());
-        }
 
         @Test
         @DisplayName("should allow the root directory itself")

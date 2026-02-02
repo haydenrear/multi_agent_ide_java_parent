@@ -31,7 +31,7 @@ dependencies {
 }
 
 tasks.test {
-    if (project.findProperty("profile") == "integration") {
+    if (project.findProperty("profile") == "acp-integration") {
         // Only run integration tests (AcpChatModelIntegrationTest in acp package)
         include("**/acp/AcpChatModelIntegrationTest*")
     } else {

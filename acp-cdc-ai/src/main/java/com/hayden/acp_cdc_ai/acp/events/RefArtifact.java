@@ -31,7 +31,12 @@ public record RefArtifact(
     public static final String DEPENDS_ON = "depends-on";
     public static final String REFERENCES = "references";
     public static final String DERIVED_FROM = "derived-from";
-    
+
+    @Override
+    public Artifact withHash(String hash) {
+        return this;
+    }
+
     @Override
     public String artifactType() {
         return "RefArtifact";

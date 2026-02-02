@@ -63,6 +63,9 @@ public sealed interface Artifact
         return l;
     }
 
+
+    Artifact withHash(String hash);
+
     /**
      * Hierarchical, time-sortable identifier.
      */
@@ -91,6 +94,7 @@ public sealed interface Artifact
     List<Artifact> children();
 
     @Builder
+    @With
     record AgentModelArtifact(List<Artifact> children,
                               AgentModel agentModel,
                               Map<String, String> metadata,
@@ -501,7 +505,14 @@ public sealed interface Artifact
             Map<String, String> metadata,
             List<Artifact> children
     ) implements Artifact {
-        
+
+        @Override
+        public Artifact withHash(String hash) {
+            return this.toBuilder()
+                    .inputHash(hash)
+                    .build();
+        }
+
         @Override
         public String artifactType() {
             return "ToolCall";

@@ -43,7 +43,7 @@ class BlackboardHistoryTest {
 
         assertThat(listener).isNotNull();
         verify(eventBus).subscribe(listener);
-        verify(agentProcess).addObject(any(BlackboardHistory.History.class));
+        verify(agentProcess).addObject(any(BlackboardHistory.class));
         verify(agentProcess).addObject(listener);
     }
 
@@ -91,24 +91,29 @@ class BlackboardHistoryTest {
 
         ArgumentCaptor<Object> addObjectCaptor = ArgumentCaptor.forClass(Object.class);
         verify(agentProcess, org.mockito.Mockito.atLeastOnce()).addObject(addObjectCaptor.capture());
-        BlackboardHistory.History history = addObjectCaptor.getAllValues().stream()
-                .filter(value -> value instanceof BlackboardHistory.History)
-                .map(value -> (BlackboardHistory.History) value)
+        BlackboardHistory bh = addObjectCaptor.getAllValues().stream()
+                .filter(value -> value instanceof BlackboardHistory)
+                .map(value -> (BlackboardHistory) value)
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(history.entries()).hasSize(2);
-        BlackboardHistory.Entry first = history.entries().get(0);
-        BlackboardHistory.Entry second = history.entries().get(1);
-        BlackboardHistory.MessageEntry messageEntry = first instanceof BlackboardHistory.MessageEntry
-                ? (BlackboardHistory.MessageEntry) first
-                : (BlackboardHistory.MessageEntry) second;
-        BlackboardHistory.DefaultEntry defaultEntry = first instanceof BlackboardHistory.DefaultEntry
-                ? (BlackboardHistory.DefaultEntry) first
-                : (BlackboardHistory.DefaultEntry) second;
+        bh.fromHistory(history -> {
+            assertThat(history.entries()).hasSize(2);
+            BlackboardHistory.Entry first = history.entries().get(0);
+            BlackboardHistory.Entry second = history.entries().get(1);
+            BlackboardHistory.MessageEntry messageEntry = first instanceof BlackboardHistory.MessageEntry
+                    ? (BlackboardHistory.MessageEntry) first
+                    : (BlackboardHistory.MessageEntry) second;
+            BlackboardHistory.DefaultEntry defaultEntry = first instanceof BlackboardHistory.DefaultEntry
+                    ? (BlackboardHistory.DefaultEntry) first
+                    : (BlackboardHistory.DefaultEntry) second;
 
-        assertThat(messageEntry.actionName()).isEqualTo("node:node-2::messages");
-        assertThat(messageEntry.events()).hasSize(2);
-        assertThat(defaultEntry.actionName()).isEqualTo("node:node-2::NODE_ADDED");
+            assertThat(messageEntry.actionName()).isEqualTo("node:node-2::messages");
+            assertThat(messageEntry.events()).hasSize(2);
+            assertThat(defaultEntry.actionName()).isEqualTo("node:node-2::NODE_ADDED");
+            return true;
+        });
+
+
     }
 }

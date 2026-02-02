@@ -3,6 +3,7 @@ package com.hayden.multiagentidelib.agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.support.InMemoryBlackboard;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class ContextManagerToolsTest {
     @DisplayName("listHistory returns message entry id and listMessageEvents pages events")
     void listHistoryAndMessagePaging() {
         InMemoryBlackboard blackboard = new InMemoryBlackboard();
-        BlackboardHistory.History history = buildHistory();
+        BlackboardHistory history = buildHistory();
         blackboard.addObject(history);
 
         AgentProcess agentProcess = mock(AgentProcess.class);
@@ -67,7 +68,7 @@ class ContextManagerToolsTest {
     @DisplayName("searchHistory can scope to message entry id")
     void searchHistoryScopedToMessageEntry() {
         InMemoryBlackboard blackboard = new InMemoryBlackboard();
-        BlackboardHistory.History history = buildHistory();
+        BlackboardHistory history = buildHistory();
         blackboard.addObject(history);
 
         AgentProcess agentProcess = mock(AgentProcess.class);
@@ -109,7 +110,7 @@ class ContextManagerToolsTest {
         assertThat(listing.error()).isEqualTo(ContextManagerTools.SESSION_ID_MISSING_MESSAGE);
     }
 
-    private BlackboardHistory.History buildHistory() {
+    private BlackboardHistory buildHistory() {
         List<BlackboardHistory.Entry> entries = new ArrayList<>();
         entries.add(new BlackboardHistory.DefaultEntry(
                 Instant.now(),
@@ -139,6 +140,7 @@ class ContextManagerToolsTest {
                 "node:node-1::messages",
                 new ArrayList<>(List.of(eventOne, eventTwo))
         ));
-        return new BlackboardHistory.History(entries);
+        String value = ArtifactKey.createRoot().value();
+        return new BlackboardHistory(new BlackboardHistory.History(entries), value, WorkflowGraphState.initial(value));
     }
 }

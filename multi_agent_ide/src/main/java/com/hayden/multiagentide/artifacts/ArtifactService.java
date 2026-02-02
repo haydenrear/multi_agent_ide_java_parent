@@ -2,12 +2,14 @@ package com.hayden.multiagentide.artifacts;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Templated;
 import com.hayden.utilitymodule.stream.StreamUtil;
+import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.PersistenceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,8 +46,13 @@ public class ArtifactService {
         
         // Group by content hash to find duplicates
         var groupedByHash = allArtifacts.stream()
-                .filter(a -> a.contentHash().isPresent())
-                .collect(Collectors.groupingBy(a -> a.contentHash().orElse(UUID.randomUUID().toString())));
+                .map(a -> {
+                    if (a.contentHash().isPresent() && StringUtils.isNotBlank(a.contentHash().get()))
+                        return a;
+
+                    return a.withHash(UUID.randomUUID().toString());
+                })
+                .collect(Collectors.groupingBy(a -> a.contentHash().orElseThrow()));
 
         var refsToSave = new ArrayList<Artifact>();
         
@@ -53,6 +60,7 @@ public class ArtifactService {
             var contentHash = entry.getKey();
             var artifacts = entry.getValue();
             if (artifacts.isEmpty()) continue;
+
             
             // Check if this hash already exists in the DB
             var existingOpt = artifactRepository.findByContentHash(contentHash);

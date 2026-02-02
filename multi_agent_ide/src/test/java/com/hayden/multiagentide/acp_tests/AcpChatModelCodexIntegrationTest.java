@@ -186,8 +186,10 @@ class AcpChatModelCodexIntegrationTest {
 //        log.info("");
 
         try {
-            new File("log.log").delete();
-            new File("multi_agent_ide/log.log").delete();
+            File logFile = new File("log.log");
+            logFile.delete();
+            File parentLogFile = new File("multi_agent_ide/log.log");
+            parentLogFile.delete();
             String nodeId = ArtifactKey.createRoot().value();
             
             // Register RequestContext so sandbox translation can set working directory
@@ -221,7 +223,10 @@ class AcpChatModelCodexIntegrationTest {
 
             log.info("{}", res);
 
-            assertThat(new File("log.log").exists() || new File("multi_agent_ide/log.log").exists()).isTrue();
+            assertThat(logFile.exists() || parentLogFile.exists()).isTrue();
+
+            logFile.delete();
+            parentLogFile.delete();
 
         } catch (Exception e) {
             log.error("Error - will not fail test for codex-acp - but failed", e);

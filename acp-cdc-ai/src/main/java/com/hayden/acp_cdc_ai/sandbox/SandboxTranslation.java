@@ -15,7 +15,8 @@ public record SandboxTranslation(
         List<String> args,
         String workingDirectory
 ) {
-    
+
+
     /**
      * Constructor for backward compatibility without workingDirectory.
      */

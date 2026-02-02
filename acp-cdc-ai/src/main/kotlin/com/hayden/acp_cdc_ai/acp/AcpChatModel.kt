@@ -329,7 +329,17 @@ class AcpChatModel(
             }
 
             // Use sandbox translation working directory if available, otherwise fall back to properties or system default
-            val cwd = (workingDirectory ?: "").ifBlank { System.getProperty("user.dir") }
+            var cwd = workingDirectoryOrNull(sandboxTranslation)
+                .or {
+                    if (workingDirectory == null || workingDirectory.isBlank())
+                        null
+                    else
+                        workingDirectory
+                }
+                .or {  System.getProperty("user.dir") }!!
+
+            if (cwd.isBlank())
+                cwd = System.getProperty("user.dir")
 
             val sessionParams = SessionCreationParameters(cwd, mcpSyncServers.toList())
 
@@ -347,6 +357,15 @@ class AcpChatModel(
         } catch (ex: Exception) {
             throw IllegalStateException("Failed to initialize ACP session", ex)
         }
+    }
+
+    private fun workingDirectoryOrNull(sandboxTranslation: SandboxTranslation): String? {
+        return if (sandboxTranslation.workingDirectory() == null)
+            null
+        else if (sandboxTranslation.workingDirectory().isBlank())
+            null
+        else
+            sandboxTranslation.workingDirectory
     }
 
     fun parseArgs(args: String?): List<String> {

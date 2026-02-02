@@ -520,7 +520,8 @@ class WeAreHerePromptContributorTest {
             // Ticket Collector branches
             assertThat(output).contains("orchestratorCollectorRequest (ADVANCE_PHASE)");
             assertThat(output).contains("ticketRequest (ROUTE_BACK)");
-            assertThat(output).contains("reviewRequest/mergerRequest");
+            assertThat(output).contains("reviewRequest");
+            assertThat(output).contains("mergerRequest");
         }
     }
 
