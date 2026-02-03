@@ -3,6 +3,7 @@ package com.hayden.multiagentide.integration;
 import com.embabel.agent.api.common.PlannerType;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.ProcessOptions;
+import com.hayden.commitdiffcontext.git.res.Git;
 import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentide.artifacts.ArtifactEventListener;
@@ -14,6 +15,7 @@ import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
+import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.service.LlmRunner;
 import com.hayden.multiagentide.service.WorktreeService;
 import com.hayden.multiagentide.support.AgentTestBase;
@@ -24,9 +26,11 @@ import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,7 +94,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
 
     @MockitoBean
-    private WorktreeService worktreeService;
+    private GitWorktreeService worktreeService;
 
     @Autowired
     private TestEventListener testEventListener;
@@ -182,6 +186,12 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                 .thenAnswer(inv -> inv.getArgument(0));
         Mockito.when(worktreeService.attachWorktreesToTicketRequests(any(AgentModels.TicketAgentRequests.class), anyString()))
                 .thenAnswer(inv -> inv.getArgument(0));
+        Mockito.when(worktreeService.mergeChildToTrunk(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
+                        .thenAnswer(inv -> MergeDescriptor.builder().build());
+        Mockito.when(worktreeService.mergeTrunkToChild(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
+                .thenAnswer(inv -> MergeDescriptor.builder().build());
+        Mockito.when(worktreeService.finalMergeToSourceDescriptor(anyString()))
+                .thenAnswer(inv -> MergeDescriptor.builder().build());
 
         artifactRepository.deleteAll();
         artifactRepository.flush();

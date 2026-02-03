@@ -2,6 +2,9 @@ package com.hayden.multiagentide.service;
 
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.MergeResult;
+import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
+import com.hayden.multiagentidelib.model.merge.MergeDirection;
+import com.hayden.multiagentidelib.model.merge.SubmoduleMergeResult;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
@@ -1121,6 +1124,116 @@ public class GitWorktreeService implements WorktreeService {
                 message,
                 result.mergedAt()
         );
+    }
+
+    @Override
+    public MergeDescriptor mergeTrunkToChild(WorktreeSandboxContext trunk, WorktreeSandboxContext child) {
+        try {
+            MergeResult result = mergeWorktrees(
+                    trunk.mainWorktree().worktreeId(),
+                    child.mainWorktree().worktreeId()
+            );
+            result = ensureMergeConflictsCaptured(result);
+            return toMergeDescriptor(result, MergeDirection.TRUNK_TO_CHILD);
+        } catch (Exception e) {
+            log.error("Trunk-to-child merge failed", e);
+            return MergeDescriptor.builder()
+                    .mergeDirection(MergeDirection.TRUNK_TO_CHILD)
+                    .successful(false)
+                    .errorMessage("Trunk-to-child merge failed: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    @Override
+    public MergeDescriptor mergeChildToTrunk(WorktreeSandboxContext child, WorktreeSandboxContext trunk) {
+        try {
+            MergeResult result = mergeWorktrees(
+                    child.mainWorktree().worktreeId(),
+                    trunk.mainWorktree().worktreeId()
+            );
+            result = ensureMergeConflictsCaptured(result);
+
+            if (result.successful() && child.submoduleWorktrees() != null) {
+                for (SubmoduleWorktreeContext sub : child.submoduleWorktrees()) {
+                    try {
+                        updateSubmodulePointer(
+                                trunk.mainWorktree().worktreeId(),
+                                sub.submoduleName()
+                        );
+                    } catch (Exception e) {
+                        log.warn("Failed to update submodule pointer for {}: {}", sub.submoduleName(), e.getMessage());
+                    }
+                }
+            }
+
+            return toMergeDescriptor(result, MergeDirection.CHILD_TO_TRUNK);
+        } catch (Exception e) {
+            log.error("Child-to-trunk merge failed", e);
+            return MergeDescriptor.builder()
+                    .mergeDirection(MergeDirection.CHILD_TO_TRUNK)
+                    .successful(false)
+                    .errorMessage("Child-to-trunk merge failed: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    @Override
+    public MergeDescriptor finalMergeToSourceDescriptor(String mainWorktreeId) {
+        try {
+            MergeResult result = finalMergeToSource(mainWorktreeId);
+
+            Optional<WorktreeContext> mainWt = worktreeRepository.findById(mainWorktreeId);
+            if (mainWt.isPresent() && mainWt.get() instanceof MainWorktreeContext mainContext) {
+                result = ensureMergeConflictsCaptured(result, mainContext);
+            } else {
+                result = ensureMergeConflictsCaptured(result);
+            }
+
+            return toMergeDescriptor(result, MergeDirection.WORKTREE_TO_SOURCE);
+        } catch (Exception e) {
+            log.error("Final merge to source descriptor failed", e);
+            return MergeDescriptor.builder()
+                    .mergeDirection(MergeDirection.WORKTREE_TO_SOURCE)
+                    .successful(false)
+                    .errorMessage("Final merge to source failed: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    private MergeDescriptor toMergeDescriptor(MergeResult result, MergeDirection direction) {
+        List<String> conflictFiles = result.conflicts() != null
+                ? result.conflicts().stream()
+                    .map(MergeResult.MergeConflict::filePath)
+                    .filter(Objects::nonNull)
+                    .toList()
+                : List.of();
+
+        // Group conflicts by submodule path to build SubmoduleMergeResults
+        Map<String, List<MergeResult.MergeConflict>> bySubmodule = result.conflicts() != null
+                ? result.conflicts().stream()
+                    .filter(c -> c.submodulePath() != null && !c.submodulePath().isBlank())
+                    .collect(Collectors.groupingBy(MergeResult.MergeConflict::submodulePath))
+                : Map.of();
+
+        List<SubmoduleMergeResult> submoduleResults = bySubmodule.entrySet().stream()
+                .map(entry -> new SubmoduleMergeResult(
+                        entry.getKey(),
+                        result.childWorktreePath(),
+                        result.parentWorktreePath(),
+                        result,
+                        false
+                ))
+                .toList();
+
+        return MergeDescriptor.builder()
+                .mergeDirection(direction)
+                .successful(result.successful())
+                .conflictFiles(conflictFiles)
+                .submoduleMergeResults(submoduleResults)
+                .mainWorktreeMergeResult(result)
+                .errorMessage(result.successful() ? null : result.mergeMessage())
+                .build();
     }
 
     public boolean parentContainsChildHead(String childWorktreeId, String parentWorktreeId) {

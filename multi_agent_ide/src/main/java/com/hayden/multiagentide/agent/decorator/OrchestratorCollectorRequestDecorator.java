@@ -4,21 +4,12 @@ import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.merge.MergeDirection;
-import com.hayden.multiagentidelib.model.merge.SubmoduleMergeResult;
 import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 /**
  * Request decorator that merges the orchestrator's derived branches back into the
@@ -58,16 +49,10 @@ public class OrchestratorCollectorRequestDecorator implements RequestDecorator {
             String mainWorktreeId = orchestratorNode.mainWorktreeId();
 
             log.info("Executing final merge to source for worktree: {}", mainWorktreeId);
-            MergeResult mergeResult = gitWorktreeService.finalMergeToSource(mainWorktreeId);
-            mergeResult = gitWorktreeService.ensureMergeConflictsCaptured(
-                    mergeResult,
-                    orchestratorNode.worktreeContext()
-            );
-
-            MergeDescriptor descriptor = buildMergeDescriptor(mergeResult, orchestratorNode);
+            MergeDescriptor descriptor = gitWorktreeService.finalMergeToSourceDescriptor(mainWorktreeId);
 
             if (descriptor.successful()) {
-                log.info("Final merge to source successful. Commit: {}", mergeResult.mergeCommitHash());
+                log.info("Final merge to source successful.");
             } else {
                 log.error("Final merge to source failed: {}. Conflicts: {}",
                         descriptor.errorMessage(), descriptor.conflictFiles());
@@ -86,45 +71,5 @@ public class OrchestratorCollectorRequestDecorator implements RequestDecorator {
                             .build())
                     .build();
         }
-    }
-
-    private MergeDescriptor buildMergeDescriptor(MergeResult mergeResult, OrchestratorNode orchestratorNode) {
-        List<SubmoduleMergeResult> submoduleMergeResults = new ArrayList<>();
-        MainWorktreeContext mainWorktree = orchestratorNode.worktreeContext();
-
-        if (mainWorktree != null && mainWorktree.submoduleWorktrees() != null) {
-            for (SubmoduleWorktreeContext sub : mainWorktree.submoduleWorktrees()) {
-                submoduleMergeResults.add(new SubmoduleMergeResult(
-                        sub.submoduleName(),
-                        normalizePath(sub.worktreePath()),
-                        null,
-                        null,
-                        false
-                ));
-            }
-        }
-
-        List<String> conflictFiles = mergeResult.conflicts() != null
-                ? mergeResult.conflicts().stream()
-                    .map(MergeResult.MergeConflict::filePath)
-                    .filter(Objects::nonNull)
-                    .toList()
-                : List.of();
-
-        return MergeDescriptor.builder()
-                .mergeDirection(MergeDirection.WORKTREE_TO_SOURCE)
-                .successful(mergeResult.successful())
-                .conflictFiles(conflictFiles)
-                .submoduleMergeResults(submoduleMergeResults)
-                .mainWorktreeMergeResult(mergeResult)
-                .errorMessage(mergeResult.successful() ? null : mergeResult.mergeMessage())
-                .build();
-    }
-
-    private String normalizePath(Path path) {
-        if (path == null) {
-            return null;
-        }
-        return path.toAbsolutePath().normalize().toString();
     }
 }

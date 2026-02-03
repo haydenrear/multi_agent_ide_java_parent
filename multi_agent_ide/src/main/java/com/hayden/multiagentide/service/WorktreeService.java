@@ -3,7 +3,9 @@ package com.hayden.multiagentide.service;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.model.MergeResult;
+import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import java.util.List;
 import java.util.Optional;
 
@@ -127,5 +129,35 @@ public interface WorktreeService {
      * @return updated merge result with conflicts populated if needed
      */
     MergeResult ensureMergeConflictsCaptured(MergeResult result, MainWorktreeContext mainWorktree);
+
+    /**
+     * Merge trunk worktree into child worktree and return a MergeDescriptor.
+     * Uses the internal merge plan which handles submodules leaves-first
+     * and continues merging non-conflicting siblings.
+     *
+     * @param trunk the trunk (parent) sandbox context
+     * @param child the child sandbox context
+     * @return MergeDescriptor with TRUNK_TO_CHILD direction
+     */
+    MergeDescriptor mergeTrunkToChild(WorktreeSandboxContext trunk, WorktreeSandboxContext child);
+
+    /**
+     * Merge child worktree into trunk worktree and return a MergeDescriptor.
+     * Also updates submodule pointers in trunk on success.
+     *
+     * @param child the child sandbox context
+     * @param trunk the trunk (parent) sandbox context
+     * @return MergeDescriptor with CHILD_TO_TRUNK direction
+     */
+    MergeDescriptor mergeChildToTrunk(WorktreeSandboxContext child, WorktreeSandboxContext trunk);
+
+    /**
+     * Final merge of worktree derived branches back into the source repository.
+     * Calls finalMergeToSource internally and translates to MergeDescriptor.
+     *
+     * @param mainWorktreeId the orchestrator's main worktree ID
+     * @return MergeDescriptor with WORKTREE_TO_SOURCE direction
+     */
+    MergeDescriptor finalMergeToSourceDescriptor(String mainWorktreeId);
 
 }

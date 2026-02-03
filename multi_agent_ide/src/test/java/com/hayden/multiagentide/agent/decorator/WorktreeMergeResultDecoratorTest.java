@@ -6,7 +6,6 @@ import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.merge.MergeDirection;
-import com.hayden.multiagentidelib.model.merge.SubmoduleMergeResult;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,9 +24,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.inOrder;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class WorktreeMergeResultDecoratorTest {
@@ -41,17 +39,6 @@ class WorktreeMergeResultDecoratorTest {
     @BeforeEach
     void setUp() {
         decorator = new WorktreeMergeResultDecorator(gitWorktreeService);
-        lenient().when(gitWorktreeService.ensureMergeConflictsCaptured(
-                org.mockito.ArgumentMatchers.any(MergeResult.class)
-        )).thenAnswer(invocation -> invocation.getArgument(0));
-        lenient().when(gitWorktreeService.detectMergeConflicts(
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString()
-        )).thenReturn(List.of());
-        lenient().when(gitWorktreeService.parentContainsChildHead(
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString()
-        )).thenReturn(true);
     }
 
     @Test
@@ -72,12 +59,14 @@ class WorktreeMergeResultDecoratorTest {
                 )
         );
 
-        when(gitWorktreeService.mergeWorktrees("trunk-sub-1", "child-sub-1"))
-                .thenReturn(successMerge("trunk-sub-1", "child-sub-1"));
-        when(gitWorktreeService.mergeWorktrees("trunk-sub-2", "child-sub-2"))
-                .thenReturn(successMerge("trunk-sub-2", "child-sub-2"));
-        when(gitWorktreeService.mergeWorktrees("trunk-main", "child-main"))
-                .thenReturn(successMerge("trunk-main", "child-main"));
+        MergeDescriptor successDescriptor = MergeDescriptor.builder()
+                .mergeDirection(MergeDirection.TRUNK_TO_CHILD)
+                .successful(true)
+                .mainWorktreeMergeResult(successMerge("trunk-main", "child-main"))
+                .build();
+
+        when(gitWorktreeService.mergeTrunkToChild(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
+                .thenReturn(successDescriptor);
 
         ArtifactKey contextId = ArtifactKey.createRoot();
         AgentModels.TicketAgentResult result = AgentModels.TicketAgentResult.builder()
@@ -102,16 +91,9 @@ class WorktreeMergeResultDecoratorTest {
         assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.TRUNK_TO_CHILD);
         assertThat(descriptor.successful()).isTrue();
         assertThat(descriptor.conflictFiles()).isEmpty();
-        assertThat(descriptor.submoduleMergeResults()).hasSize(2);
-        assertThat(descriptor.submoduleMergeResults())
-                .allMatch(SubmoduleMergeResult::successful)
-                .allMatch(r -> !r.pointerUpdated());
         assertThat(descriptor.mainWorktreeMergeResult()).isNotNull();
 
-        InOrder order = inOrder(gitWorktreeService);
-        order.verify(gitWorktreeService).mergeWorktrees("trunk-sub-1", "child-sub-1");
-        order.verify(gitWorktreeService).mergeWorktrees("trunk-sub-2", "child-sub-2");
-        order.verify(gitWorktreeService).mergeWorktrees("trunk-main", "child-main");
+        verify(gitWorktreeService).mergeTrunkToChild(trunk, child);
     }
 
     @Test
@@ -120,8 +102,14 @@ class WorktreeMergeResultDecoratorTest {
         WorktreeSandboxContext trunk = sandboxContext(mainContext("trunk-main", "/tmp/trunk"), List.of());
         WorktreeSandboxContext child = sandboxContext(mainContext("child-main", "/tmp/child"), List.of());
 
-        when(gitWorktreeService.mergeWorktrees("trunk-main", "child-main"))
-                .thenReturn(successMerge("trunk-main", "child-main"));
+        MergeDescriptor successDescriptor = MergeDescriptor.builder()
+                .mergeDirection(MergeDirection.TRUNK_TO_CHILD)
+                .successful(true)
+                .mainWorktreeMergeResult(successMerge("trunk-main", "child-main"))
+                .build();
+
+        when(gitWorktreeService.mergeTrunkToChild(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
+                .thenReturn(successDescriptor);
 
         ArtifactKey contextId = ArtifactKey.createRoot();
         AgentModels.PlanningAgentResult result = AgentModels.PlanningAgentResult.builder()
@@ -143,6 +131,8 @@ class WorktreeMergeResultDecoratorTest {
         assertThat(decorated.mergeDescriptor()).isNotNull();
         assertThat(decorated.mergeDescriptor().mergeDirection()).isEqualTo(MergeDirection.TRUNK_TO_CHILD);
         assertThat(decorated.mergeDescriptor().successful()).isTrue();
+
+        verify(gitWorktreeService).mergeTrunkToChild(trunk, child);
     }
 
     @Test
@@ -151,8 +141,14 @@ class WorktreeMergeResultDecoratorTest {
         WorktreeSandboxContext trunk = sandboxContext(mainContext("trunk-main", "/tmp/trunk"), List.of());
         WorktreeSandboxContext child = sandboxContext(mainContext("child-main", "/tmp/child"), List.of());
 
-        when(gitWorktreeService.mergeWorktrees("trunk-main", "child-main"))
-                .thenReturn(successMerge("trunk-main", "child-main"));
+        MergeDescriptor successDescriptor = MergeDescriptor.builder()
+                .mergeDirection(MergeDirection.TRUNK_TO_CHILD)
+                .successful(true)
+                .mainWorktreeMergeResult(successMerge("trunk-main", "child-main"))
+                .build();
+
+        when(gitWorktreeService.mergeTrunkToChild(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
+                .thenReturn(successDescriptor);
 
         ArtifactKey contextId = ArtifactKey.createRoot();
         AgentModels.DiscoveryAgentResult result = AgentModels.DiscoveryAgentResult.builder()
@@ -174,6 +170,8 @@ class WorktreeMergeResultDecoratorTest {
         assertThat(decorated.mergeDescriptor()).isNotNull();
         assertThat(decorated.mergeDescriptor().mergeDirection()).isEqualTo(MergeDirection.TRUNK_TO_CHILD);
         assertThat(decorated.mergeDescriptor().successful()).isTrue();
+
+        verify(gitWorktreeService).mergeTrunkToChild(trunk, child);
     }
 
     private MergeResult successMerge(String childId, String parentId) {

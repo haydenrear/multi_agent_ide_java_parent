@@ -3,19 +3,11 @@ package com.hayden.multiagentide.agent.decorator;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
-import com.hayden.multiagentidelib.model.merge.MergeDirection;
-import com.hayden.multiagentidelib.model.merge.SubmoduleMergeResult;
-import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Decorator that performs trunk → child merge when a dispatched agent completes.
@@ -61,94 +53,12 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
             return result;
         }
 
-        MergeDescriptor descriptor = performTrunkToChildMerge(trunkContext, childContext);
+        MergeDescriptor descriptor = gitWorktreeService.mergeTrunkToChild(trunkContext, childContext);
         
         return addMergeDescriptor(result, descriptor);
     }
 
-    /**
-     * Performs the trunk → child merge operation.
-     * Merges submodules first, then main worktree.
-     */
-    private MergeDescriptor performTrunkToChildMerge(
-            WorktreeSandboxContext trunk,
-            WorktreeSandboxContext child) {
-        
-        List<SubmoduleMergeResult> submoduleResults = new ArrayList<>();
-        List<String> allConflicts = new ArrayList<>();
-        boolean allSuccessful = true;
-        String errorMessage = null;
-
-        // Merge submodules first (trunk → child)
-        if (child.submoduleWorktrees() != null) {
-            for (SubmoduleWorktreeContext childSubmodule : child.submoduleWorktrees()) {
-                SubmoduleWorktreeContext trunkSubmodule = findMatchingSubmodule(trunk, childSubmodule.submoduleName());
-                if (trunkSubmodule != null) {
-                    try {
-                        MergeResult result = gitWorktreeService.mergeWorktrees(
-                                trunkSubmodule.worktreeId(),
-                                childSubmodule.worktreeId()
-                        );
-                        result = gitWorktreeService.ensureMergeConflictsCaptured(result);
-                        submoduleResults.add(new SubmoduleMergeResult(
-                                childSubmodule.submoduleName(),
-                                normalizePath(trunkSubmodule.worktreePath()),
-                                normalizePath(childSubmodule.worktreePath()),
-                                result,
-                                false  // pointer update not applicable for trunk→child
-                        ));
-                        if (!result.successful()) {
-                            allSuccessful = false;
-                            allConflicts.addAll(result.conflicts().stream()
-                                    .map(MergeResult.MergeConflict::filePath)
-                                    .toList());
-                        }
-                    } catch (Exception e) {
-                        log.warn("Failed to merge submodule {}: {}", childSubmodule.submoduleName(), e.getMessage());
-                        allSuccessful = false;
-                        errorMessage = "Submodule merge failed: " + e.getMessage();
-                    }
-                }
-            }
-        }
-
-        // Merge main worktree (trunk → child)
-        MergeResult mainResult = null;
-        if (allSuccessful) {
-            try {
-                mainResult = gitWorktreeService.mergeWorktrees(
-                        trunk.mainWorktree().worktreeId(),
-                        child.mainWorktree().worktreeId()
-                );
-                mainResult = gitWorktreeService.ensureMergeConflictsCaptured(mainResult);
-                if (!mainResult.successful()) {
-                    allSuccessful = false;
-                    allConflicts.addAll(mainResult.conflicts().stream()
-                            .map(MergeResult.MergeConflict::filePath)
-                            .toList());
-                }
-            } catch (Exception e) {
-                log.warn("Failed to merge main worktree: {}", e.getMessage());
-                allSuccessful = false;
-                errorMessage = "Main worktree merge failed: " + e.getMessage();
-            }
-        }
-
-        return MergeDescriptor.builder()
-                .mergeDirection(MergeDirection.TRUNK_TO_CHILD)
-                .successful(allSuccessful)
-                .conflictFiles(allConflicts)
-                .submoduleMergeResults(submoduleResults)
-                .mainWorktreeMergeResult(mainResult)
-                .errorMessage(allSuccessful ? null : (errorMessage != null ? errorMessage : "Merge conflicts detected"))
-                .build();
-    }
-
-    /**
-     * Resolves the child worktree context from the result or decorator context.
-     */
     private WorktreeSandboxContext resolveChildWorktreeContext(AgentModels.AgentResult result, DecoratorContext context) {
-        // Try to get from the agentRequest in context (the request that produced this result)
         if (context.agentRequest() instanceof AgentModels.AgentRequest request) {
             WorktreeSandboxContext worktreeContext = request.worktreeContext();
             if (worktreeContext != null) {
@@ -158,33 +68,13 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
         return null;
     }
 
-    /**
-     * Resolves the trunk (parent) worktree context from the last request.
-     */
     private WorktreeSandboxContext resolveTrunkWorktreeContext(DecoratorContext context) {
-        // The trunk context comes from the dispatch agent's request (the parent)
         if (context.lastRequest() instanceof AgentModels.AgentRequest lastRequest) {
             return lastRequest.worktreeContext();
         }
         return null;
     }
 
-    /**
-     * Finds a matching submodule in the trunk context by name.
-     */
-    private SubmoduleWorktreeContext findMatchingSubmodule(WorktreeSandboxContext trunk, String submoduleName) {
-        if (trunk.submoduleWorktrees() == null || submoduleName == null) {
-            return null;
-        }
-        return trunk.submoduleWorktrees().stream()
-                .filter(sub -> submoduleName.equals(sub.submoduleName()))
-                .findFirst()
-                .orElse(null);
-    }
-
-    /**
-     * Adds the merge descriptor to the appropriate result type.
-     */
     @SuppressWarnings("unchecked")
     private <T extends AgentModels.AgentResult> T addMergeDescriptor(T result, MergeDescriptor descriptor) {
         return switch (result) {
@@ -193,12 +83,5 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
             case AgentModels.DiscoveryAgentResult r -> (T) r.toBuilder().mergeDescriptor(descriptor).build();
             default -> result;
         };
-    }
-
-    private String normalizePath(Path path) {
-        if (path == null) {
-            return null;
-        }
-        return path.toAbsolutePath().normalize().toString();
     }
 }

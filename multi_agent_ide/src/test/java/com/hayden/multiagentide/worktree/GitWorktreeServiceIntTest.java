@@ -6,8 +6,11 @@ import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentidelib.model.MergeResult;
+import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
+import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
@@ -790,6 +793,612 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(validated.conflicts().stream()
                 .map(MergeResult.MergeConflict::filePath)
                 .toList()).contains(worktreeSub.submoduleName());
+    }
+
+    // ========================================================================
+    // MergeDescriptor integration tests for mergeTrunkToChild
+    // ========================================================================
+
+    @Test
+    @DisplayName("mergeTrunkToChild succeeds with multiple submodules including pointer updates")
+    void mergeTrunkToChildMultipleSubmodulesSuccess() throws Exception {
+        Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
+        Path subB = createRepoWithFile("sub-b", "b.txt", "base", "init sub-b");
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, subA, "libs/sub-a");
+        addSubmodule(mainRepo, subB, "libs/sub-b");
+        initSubmodules(mainRepo);
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        SubmoduleWorktreeContext trunkSubA = findSubmodule(trunk, "libs/sub-a");
+        SubmoduleWorktreeContext trunkSubB = findSubmodule(trunk, "libs/sub-b");
+
+        configureUser(trunkSubA.worktreePath());
+        commitFile(trunkSubA.worktreePath(), "a.txt", "trunk change a", "trunk sub-a");
+        configureUser(trunkSubB.worktreePath());
+        commitFile(trunkSubB.worktreePath(), "b.txt", "trunk change b", "trunk sub-b");
+        configureUser(trunk.worktreePath());
+        commitFile(trunk.worktreePath(), "README.md", "trunk main change", "trunk main");
+
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeTrunkToChild(trunkCtx, childCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.TRUNK_TO_CHILD);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+        assertThat(descriptor.errorMessage()).isNull();
+        assertThat(descriptor.mainWorktreeMergeResult()).isNotNull();
+        assertThat(descriptor.mainWorktreeMergeResult().successful()).isTrue();
+
+        SubmoduleWorktreeContext childSubA = findSubmodule(child, "libs/sub-a");
+        SubmoduleWorktreeContext childSubB = findSubmodule(child, "libs/sub-b");
+        assertThat(Files.readString(childSubA.worktreePath().resolve("a.txt"))).contains("trunk change a");
+        assertThat(Files.readString(childSubB.worktreePath().resolve("b.txt"))).contains("trunk change b");
+        assertThat(Files.readString(child.worktreePath().resolve("README.md"))).contains("trunk main change");
+    }
+
+    @Test
+    @DisplayName("mergeTrunkToChild succeeds with nested submodules")
+    void mergeTrunkToChildNestedSubmodulesSuccess() throws Exception {
+        Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
+        Path submoduleA = createRepoWithFile("submodule-a", "a.txt", "base", "init submodule a");
+        addSubmodule(submoduleA, submoduleB, "libs/sub-b");
+        initSubmodules(submoduleA);
+
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, submoduleA, "libs/sub-a");
+        initSubmodules(mainRepo);
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        SubmoduleWorktreeContext trunkSubA = findSubmodule(trunk, "libs/sub-a");
+        Path trunkSubB = trunkSubA.worktreePath().resolve("libs/sub-b");
+
+        configureUser(trunkSubB);
+        commitFile(trunkSubB, "b.txt", "trunk nested change", "trunk nested commit");
+        configureUser(trunkSubA.worktreePath());
+        runGit(trunkSubA.worktreePath(), "git", "add", "libs/sub-b");
+        runGit(trunkSubA.worktreePath(), "git", "commit", "-m", "update nested submodule");
+        configureUser(trunk.worktreePath());
+        commitFile(trunk.worktreePath(), "README.md", "trunk main change", "trunk main commit");
+
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeTrunkToChild(trunkCtx, childCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.TRUNK_TO_CHILD);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+
+        SubmoduleWorktreeContext childSubA = findSubmodule(child, "libs/sub-a");
+        Path childSubB = childSubA.worktreePath().resolve("libs/sub-b");
+        assertThat(Files.readString(childSubB.resolve("b.txt"))).contains("trunk nested change");
+        assertThat(Files.readString(child.worktreePath().resolve("README.md"))).contains("trunk main change");
+    }
+
+    // ========================================================================
+    // MergeDescriptor integration tests for mergeChildToTrunk
+    // ========================================================================
+
+    @Test
+    @DisplayName("mergeChildToTrunk succeeds with multiple submodules including pointer updates")
+    void mergeChildToTrunkMultipleSubmodulesSuccess() throws Exception {
+        Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
+        Path subB = createRepoWithFile("sub-b", "b.txt", "base", "init sub-b");
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, subA, "libs/sub-a");
+        addSubmodule(mainRepo, subB, "libs/sub-b");
+        initSubmodules(mainRepo);
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        SubmoduleWorktreeContext childSubA = findSubmodule(child, "libs/sub-a");
+        SubmoduleWorktreeContext childSubB = findSubmodule(child, "libs/sub-b");
+
+        configureUser(childSubA.worktreePath());
+        commitFile(childSubA.worktreePath(), "a.txt", "child change a", "child sub-a");
+        configureUser(childSubB.worktreePath());
+        commitFile(childSubB.worktreePath(), "b.txt", "child change b", "child sub-b");
+        configureUser(child.worktreePath());
+        commitFile(child.worktreePath(), "README.md", "child main change", "child main");
+
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeChildToTrunk(childCtx, trunkCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.CHILD_TO_TRUNK);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+        assertThat(descriptor.errorMessage()).isNull();
+        assertThat(descriptor.mainWorktreeMergeResult()).isNotNull();
+        assertThat(descriptor.mainWorktreeMergeResult().successful()).isTrue();
+
+        SubmoduleWorktreeContext trunkSubA = findSubmodule(trunk, "libs/sub-a");
+        SubmoduleWorktreeContext trunkSubB = findSubmodule(trunk, "libs/sub-b");
+        assertThat(Files.readString(trunkSubA.worktreePath().resolve("a.txt"))).contains("child change a");
+        assertThat(Files.readString(trunkSubB.worktreePath().resolve("b.txt"))).contains("child change b");
+        assertThat(Files.readString(trunk.worktreePath().resolve("README.md"))).contains("child main change");
+    }
+
+    @Test
+    @DisplayName("mergeChildToTrunk succeeds with nested submodules")
+    void mergeChildToTrunkNestedSubmodulesSuccess() throws Exception {
+        Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
+        Path submoduleA = createRepoWithFile("submodule-a", "a.txt", "base", "init submodule a");
+        addSubmodule(submoduleA, submoduleB, "libs/sub-b");
+        initSubmodules(submoduleA);
+
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, submoduleA, "libs/sub-a");
+        initSubmodules(mainRepo);
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        SubmoduleWorktreeContext childSubA = findSubmodule(child, "libs/sub-a");
+        Path childSubB = childSubA.worktreePath().resolve("libs/sub-b");
+
+        configureUser(childSubB);
+        commitFile(childSubB, "b.txt", "child nested change", "child nested commit");
+        configureUser(childSubA.worktreePath());
+        runGit(childSubA.worktreePath(), "git", "add", "libs/sub-b");
+        runGit(childSubA.worktreePath(), "git", "commit", "-m", "update nested submodule");
+        configureUser(child.worktreePath());
+        commitFile(child.worktreePath(), "README.md", "child main change", "child main commit");
+
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeChildToTrunk(childCtx, trunkCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.CHILD_TO_TRUNK);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+
+        SubmoduleWorktreeContext trunkSubA = findSubmodule(trunk, "libs/sub-a");
+        Path trunkSubB = trunkSubA.worktreePath().resolve("libs/sub-b");
+        assertThat(Files.readString(trunkSubB.resolve("b.txt"))).contains("child nested change");
+        assertThat(Files.readString(trunk.worktreePath().resolve("README.md"))).contains("child main change");
+    }
+
+    @Test
+    @DisplayName("mergeChildToTrunk reports conflict for one sibling, other sibling still merged - flat case")
+    void mergeChildToTrunkSiblingConflictFlat() throws Exception {
+        Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
+        Path subB = createRepoWithFile("sub-b", "b.txt", "base", "init sub-b");
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, subA, "libs/sub-a");
+        addSubmodule(mainRepo, subB, "libs/sub-b");
+        initSubmodules(mainRepo);
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        SubmoduleWorktreeContext trunkSubA = findSubmodule(trunk, "libs/sub-a");
+        SubmoduleWorktreeContext childSubA = findSubmodule(child, "libs/sub-a");
+        SubmoduleWorktreeContext childSubB = findSubmodule(child, "libs/sub-b");
+        SubmoduleWorktreeContext trunkSubB = findSubmodule(trunk, "libs/sub-b");
+
+        // Create conflict on sub-a
+        configureUser(trunkSubA.worktreePath());
+        commitFile(trunkSubA.worktreePath(), "a.txt", "trunk change", "trunk sub-a");
+        configureUser(childSubA.worktreePath());
+        commitFile(childSubA.worktreePath(), "a.txt", "child change", "child sub-a");
+
+        // Non-conflicting change on sub-b
+        configureUser(childSubB.worktreePath());
+        commitFile(childSubB.worktreePath(), "b.txt", "child change b", "child sub-b");
+
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeChildToTrunk(childCtx, trunkCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.CHILD_TO_TRUNK);
+        assertThat(descriptor.successful()).isFalse();
+        assertThat(descriptor.conflictFiles()).isNotEmpty();
+        // sub-a should be in conflict identifiers
+        assertThat(descriptor.mainWorktreeMergeResult().conflicts().stream()
+                .map(MergeResult.MergeConflict::submodulePath)
+                .toList()).contains("libs_sub-a");
+
+        // sub-b should still have been merged (sibling continuation)
+        assertThat(Files.readString(trunkSubB.worktreePath().resolve("b.txt"))).contains("child change b");
+        assertClean(trunkSubB.worktreePath());
+    }
+
+    @Test
+    @DisplayName("mergeChildToTrunk reports conflict for one sibling in nested case - deep failure blocks parent")
+    void mergeChildToTrunkNestedDeepConflictBlocksParent() throws Exception {
+        Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
+        Path submoduleA = createRepoWithFile("submodule-a", "a.txt", "base", "init submodule a");
+        addSubmodule(submoduleA, submoduleB, "libs/sub-b");
+        initSubmodules(submoduleA);
+
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, submoduleA, "libs/sub-a");
+        initSubmodules(mainRepo);
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        SubmoduleWorktreeContext trunkSubA = findSubmodule(trunk, "libs/sub-a");
+        SubmoduleWorktreeContext childSubA = findSubmodule(child, "libs/sub-a");
+        Path trunkSubB = trunkSubA.worktreePath().resolve("libs/sub-b");
+        Path childSubB = childSubA.worktreePath().resolve("libs/sub-b");
+
+        // Create deep conflict in sub-b (nested inside sub-a)
+        configureUser(trunkSubB);
+        commitFile(trunkSubB, "b.txt", "trunk nested change", "trunk nested commit");
+        configureUser(trunkSubA.worktreePath());
+        runGit(trunkSubA.worktreePath(), "git", "add", "libs/sub-b");
+        runGit(trunkSubA.worktreePath(), "git", "commit", "-m", "update nested pointer trunk");
+
+        configureUser(childSubB);
+        commitFile(childSubB, "b.txt", "child nested change", "child nested commit");
+        configureUser(childSubA.worktreePath());
+        runGit(childSubA.worktreePath(), "git", "add", "libs/sub-b");
+        runGit(childSubA.worktreePath(), "git", "commit", "-m", "update nested pointer child");
+
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeChildToTrunk(childCtx, trunkCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.CHILD_TO_TRUNK);
+        assertThat(descriptor.successful()).isFalse();
+        assertThat(descriptor.conflictFiles()).isNotEmpty();
+        // Deep conflict should be identified with full nested path from root
+        assertThat(descriptor.mainWorktreeMergeResult().conflicts().stream()
+                .map(MergeResult.MergeConflict::submodulePath)
+                .toList()).contains("libs_sub-a_libs_sub-b");
+    }
+
+    @Test
+    @DisplayName("mergeChildToTrunk nested shallow conflict - sibling submodule with own submodule commits pointer")
+    void mergeChildToTrunkNestedShallowConflictSiblingCommitsPointer() throws Exception {
+        // Structure: main -> libs/sub-a (has nested libs/sub-b), libs/sub-c (flat sibling)
+        Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
+        Path submoduleA = createRepoWithFile("submodule-a", "a.txt", "base", "init submodule a");
+        addSubmodule(submoduleA, submoduleB, "libs/sub-b");
+        initSubmodules(submoduleA);
+        Path submoduleC = createRepoWithFile("submodule-c", "c.txt", "base", "init submodule c");
+
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, submoduleA, "libs/sub-a");
+        addSubmodule(mainRepo, submoduleC, "libs/sub-c");
+        initSubmodules(mainRepo);
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        SubmoduleWorktreeContext trunkSubA = findSubmodule(trunk, "libs/sub-a");
+        SubmoduleWorktreeContext childSubA = findSubmodule(child, "libs/sub-a");
+        SubmoduleWorktreeContext childSubC = findSubmodule(child, "libs/sub-c");
+        SubmoduleWorktreeContext trunkSubC = findSubmodule(trunk, "libs/sub-c");
+
+        // Create conflict at sub-a level (shallow)
+        configureUser(trunkSubA.worktreePath());
+        commitFile(trunkSubA.worktreePath(), "a.txt", "trunk change a", "trunk sub-a");
+        configureUser(childSubA.worktreePath());
+        commitFile(childSubA.worktreePath(), "a.txt", "child change a", "child sub-a");
+
+        // Non-conflicting change on sub-c
+        configureUser(childSubC.worktreePath());
+        commitFile(childSubC.worktreePath(), "c.txt", "child change c", "child sub-c");
+
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeChildToTrunk(childCtx, trunkCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.successful()).isFalse();
+        assertThat(descriptor.conflictFiles()).isNotEmpty();
+
+        // sub-c (the sibling) should still have been merged
+        assertThat(Files.readString(trunkSubC.worktreePath().resolve("c.txt"))).contains("child change c");
+        assertClean(trunkSubC.worktreePath());
+    }
+
+    @Test
+    @DisplayName("mergeChildToTrunk reports all conflicts when all submodules fail")
+    void mergeChildToTrunkAllSubmodulesFail() throws Exception {
+        Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
+        Path subB = createRepoWithFile("sub-b", "b.txt", "base", "init sub-b");
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, subA, "libs/sub-a");
+        addSubmodule(mainRepo, subB, "libs/sub-b");
+        initSubmodules(mainRepo);
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        SubmoduleWorktreeContext trunkSubA = findSubmodule(trunk, "libs/sub-a");
+        SubmoduleWorktreeContext trunkSubB = findSubmodule(trunk, "libs/sub-b");
+        SubmoduleWorktreeContext childSubA = findSubmodule(child, "libs/sub-a");
+        SubmoduleWorktreeContext childSubB = findSubmodule(child, "libs/sub-b");
+
+        // Create conflicts on both submodules
+        configureUser(trunkSubA.worktreePath());
+        commitFile(trunkSubA.worktreePath(), "a.txt", "trunk change a", "trunk sub-a");
+        configureUser(childSubA.worktreePath());
+        commitFile(childSubA.worktreePath(), "a.txt", "child change a", "child sub-a");
+
+        configureUser(trunkSubB.worktreePath());
+        commitFile(trunkSubB.worktreePath(), "b.txt", "trunk change b", "trunk sub-b");
+        configureUser(childSubB.worktreePath());
+        commitFile(childSubB.worktreePath(), "b.txt", "child change b", "child sub-b");
+
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeChildToTrunk(childCtx, trunkCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.CHILD_TO_TRUNK);
+        assertThat(descriptor.successful()).isFalse();
+        assertThat(descriptor.conflictFiles()).isNotEmpty();
+        // Both submodules should have conflicts recorded
+        List<String> conflictSubmodules = descriptor.mainWorktreeMergeResult().conflicts().stream()
+                .map(MergeResult.MergeConflict::submodulePath)
+                .filter(s -> s != null)
+                .toList();
+        assertThat(conflictSubmodules).contains("libs_sub-a");
+        assertThat(conflictSubmodules).contains("libs_sub-b");
+    }
+
+    @Test
+    @DisplayName("mergeChildToTrunk returns success when no changes (same commit)")
+    void mergeChildToTrunkNoChangesSameCommit() throws Exception {
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        // No changes made — both at same commit
+
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeChildToTrunk(childCtx, trunkCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.CHILD_TO_TRUNK);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("mergeChildToTrunk returns success when no changes with submodules (same commits)")
+    void mergeChildToTrunkNoChangesWithSubmodulesSameCommit() throws Exception {
+        Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, subA, "libs/sub-a");
+        initSubmodules(mainRepo);
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        // No changes made — both at same commit including submodule pointers
+
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeChildToTrunk(childCtx, trunkCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.CHILD_TO_TRUNK);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("mergeTrunkToChild returns success when no changes (same commit)")
+    void mergeTrunkToChildNoChangesSameCommit() throws Exception {
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-1", "node-child");
+
+        WorktreeSandboxContext trunkCtx = buildSandboxContext(trunk);
+        WorktreeSandboxContext childCtx = buildSandboxContext(child);
+
+        MergeDescriptor descriptor = gitWorktreeService.mergeTrunkToChild(trunkCtx, childCtx);
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.TRUNK_TO_CHILD);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+    }
+
+    // ========================================================================
+    // MergeDescriptor integration tests for finalMergeToSourceDescriptor
+    // ========================================================================
+
+    @Test
+    @DisplayName("finalMergeToSourceDescriptor succeeds with multiple submodules")
+    void finalMergeToSourceDescriptorMultipleSubmodulesSuccess() throws Exception {
+        Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
+        Path subB = createRepoWithFile("sub-b", "b.txt", "base", "init sub-b");
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, subA, "libs/sub-a");
+        addSubmodule(mainRepo, subB, "libs/sub-b");
+        initSubmodules(mainRepo);
+
+        String derivedBranch = "main-derived-descriptor";
+        MainWorktreeContext worktree = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", derivedBranch, "node-final");
+
+        SubmoduleWorktreeContext worktreeSubA = findSubmodule(worktree, "libs/sub-a");
+        SubmoduleWorktreeContext worktreeSubB = findSubmodule(worktree, "libs/sub-b");
+
+        configureUser(worktreeSubA.worktreePath());
+        commitFile(worktreeSubA.worktreePath(), "a.txt", "agent change a", "agent sub-a");
+        configureUser(worktreeSubB.worktreePath());
+        commitFile(worktreeSubB.worktreePath(), "b.txt", "agent change b", "agent sub-b");
+        configureUser(worktree.worktreePath());
+        runGit(worktree.worktreePath(), "git", "add", "libs/sub-a");
+        runGit(worktree.worktreePath(), "git", "add", "libs/sub-b");
+        runGit(worktree.worktreePath(), "git", "commit", "-m", "update submodule pointers");
+        commitFile(worktree.worktreePath(), "README.md", "agent main change", "agent main");
+
+        MergeDescriptor descriptor = gitWorktreeService.finalMergeToSourceDescriptor(worktree.worktreeId());
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.WORKTREE_TO_SOURCE);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+        assertThat(descriptor.errorMessage()).isNull();
+        assertThat(descriptor.mainWorktreeMergeResult()).isNotNull();
+
+        Path sourceSubA = mainRepo.resolve("libs/sub-a");
+        Path sourceSubB = mainRepo.resolve("libs/sub-b");
+        assertThat(Files.readString(sourceSubA.resolve("a.txt"))).contains("agent change a");
+        assertThat(Files.readString(sourceSubB.resolve("b.txt"))).contains("agent change b");
+        assertThat(Files.readString(mainRepo.resolve("README.md"))).contains("agent main change");
+    }
+
+    @Test
+    @DisplayName("finalMergeToSourceDescriptor succeeds with nested submodules")
+    void finalMergeToSourceDescriptorNestedSuccess() throws Exception {
+        Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
+        Path submoduleA = createRepoWithFile("submodule-a", "a.txt", "base", "init submodule a");
+        addSubmodule(submoduleA, submoduleB, "libs/sub-b");
+        initSubmodules(submoduleA);
+
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, submoduleA, "libs/sub-a");
+        initSubmodules(mainRepo);
+
+        String derivedBranch = "main-derived-nested-desc";
+        MainWorktreeContext worktree = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", derivedBranch, "node-final-nested");
+        SubmoduleWorktreeContext worktreeSubA = findSubmodule(worktree, "libs/sub-a");
+        Path worktreeSubB = worktreeSubA.worktreePath().resolve("libs/sub-b");
+
+        configureUser(worktreeSubB);
+        commitFile(worktreeSubB, "b.txt", "nested change", "nested commit");
+        configureUser(worktreeSubA.worktreePath());
+        runGit(worktreeSubA.worktreePath(), "git", "add", "libs/sub-b");
+        runGit(worktreeSubA.worktreePath(), "git", "commit", "-m", "update nested submodule");
+        configureUser(worktree.worktreePath());
+        runGit(worktree.worktreePath(), "git", "add", "libs/sub-a");
+        runGit(worktree.worktreePath(), "git", "commit", "-m", "update submodule pointer");
+
+        MergeDescriptor descriptor = gitWorktreeService.finalMergeToSourceDescriptor(worktree.worktreeId());
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.WORKTREE_TO_SOURCE);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+
+        Path sourceSubB = mainRepo.resolve("libs/sub-a").resolve("libs/sub-b");
+        assertThat(Files.readString(sourceSubB.resolve("b.txt"))).contains("nested change");
+    }
+
+    @Test
+    @DisplayName("finalMergeToSourceDescriptor reports conflict with correct submodule path in descriptor")
+    void finalMergeToSourceDescriptorConflictSubmodulePath() throws Exception {
+        Path subRepo = createRepoWithFile("submodule-repo", "lib.txt", "base", "init submodule");
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+        addSubmodule(mainRepo, subRepo, "libs/submodule-lib");
+        initSubmodules(mainRepo);
+
+        String derivedBranch = "main-derived-conflict-desc";
+        MainWorktreeContext worktree = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", derivedBranch, "node-conflict");
+        SubmoduleWorktreeContext worktreeSub = createSubmoduleWorktreeFromMain(worktree);
+
+        // Diverge source
+        Path sourceSubPath = mainRepo.resolve("libs/submodule-lib");
+        configureUser(sourceSubPath);
+        commitFile(sourceSubPath, "lib.txt", "source change", "source sub edit");
+        configureUser(mainRepo);
+        runGit(mainRepo, "git", "add", "libs/submodule-lib");
+        runGit(mainRepo, "git", "commit", "-m", "update submodule pointer (source)");
+
+        // Diverge worktree
+        configureUser(worktreeSub.worktreePath());
+        commitFile(worktreeSub.worktreePath(), "lib.txt", "worktree change", "worktree sub edit");
+        configureUser(worktree.worktreePath());
+        runGit(worktree.worktreePath(), "git", "add", worktreeSub.submoduleName());
+        runGit(worktree.worktreePath(), "git", "commit", "-m", "update submodule pointer (worktree)");
+
+        MergeDescriptor descriptor = gitWorktreeService.finalMergeToSourceDescriptor(worktree.worktreeId());
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.WORKTREE_TO_SOURCE);
+        assertThat(descriptor.successful()).isFalse();
+        assertThat(descriptor.conflictFiles()).isNotEmpty();
+        assertThat(descriptor.mainWorktreeMergeResult()).isNotNull();
+        assertThat(descriptor.mainWorktreeMergeResult().conflicts().stream()
+                .map(MergeResult.MergeConflict::submodulePath)
+                .toList()).contains("libs_submodule-lib");
+    }
+
+    @Test
+    @DisplayName("finalMergeToSourceDescriptor returns success when no changes")
+    void finalMergeToSourceDescriptorNoChanges() throws Exception {
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+
+        String derivedBranch = "main-derived-noop";
+        MainWorktreeContext worktree = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", derivedBranch, "node-noop");
+
+        // No changes made
+
+        MergeDescriptor descriptor = gitWorktreeService.finalMergeToSourceDescriptor(worktree.worktreeId());
+
+        assertThat(descriptor).isNotNull();
+        assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.WORKTREE_TO_SOURCE);
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.conflictFiles()).isEmpty();
+    }
+
+    // ========================================================================
+    // Helper to build WorktreeSandboxContext from MainWorktreeContext
+    // ========================================================================
+
+    private WorktreeSandboxContext buildSandboxContext(MainWorktreeContext main) {
+        List<SubmoduleWorktreeContext> submodules = gitWorktreeService.getSubmoduleWorktrees(main.worktreeId());
+        return new WorktreeSandboxContext(main, submodules);
     }
 
     private SubmoduleWorktreeContext createSubmoduleWorktreeFromMain(MainWorktreeContext mainWorktree) {
