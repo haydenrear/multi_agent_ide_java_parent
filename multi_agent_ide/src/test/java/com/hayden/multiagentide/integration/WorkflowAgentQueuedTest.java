@@ -26,6 +26,7 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -827,18 +828,20 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
     private ArtifactKey seedOrchestrator() {
         var c = ArtifactKey.createRoot();
-        graphRepository.save(createMockOrchestratorNode(c.value()));
-        worktreeRepository.save(MainWorktreeContext.builder()
-                        .worktreeId("wt")
-                        .repositoryUrl("git@github.com:haydenrear/multi_agent_ide_java_parent.git")
-                        .parentWorktreeId("wt")
-                        .worktreePath(path)
-                        .submoduleWorktreeIds(new ArrayList<>())
-                .build());
+        MainWorktreeContext mainWorktree = MainWorktreeContext.builder()
+                .worktreeId("wt")
+                .repositoryUrl("git@github.com:haydenrear/multi_agent_ide_java_parent.git")
+                .parentWorktreeId("wt")
+                .worktreePath(path)
+                .status(WorktreeContext.WorktreeStatus.ACTIVE)
+                .submoduleWorktrees(new ArrayList<>())
+                .build();
+        graphRepository.save(createMockOrchestratorNode(c.value(), mainWorktree));
+        worktreeRepository.save(mainWorktree);
         return c;
     }
 
-    private OrchestratorNode createMockOrchestratorNode(String nodeId) {
+    private OrchestratorNode createMockOrchestratorNode(String nodeId, MainWorktreeContext mainWorktree) {
         return OrchestratorNode.builder()
                 .nodeId(nodeId)
                 .title("Orch")
@@ -846,10 +849,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                 .status(Events.NodeStatus.RUNNING)
                 .metadata(new HashMap<>())
                 .createdAt(Instant.now())
-                .repositoryUrl("repo-url")
-                .baseBranch("main")
-                .mainWorktreeId("wt")
-                .submoduleWorktreeIds(new ArrayList<>())
+                .worktreeContext(mainWorktree)
                 .build();
     }
 

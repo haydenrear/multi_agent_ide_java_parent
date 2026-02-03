@@ -32,6 +32,10 @@ public record SubmoduleWorktreeContext(
         if (metadata == null) metadata = new HashMap<>();
     }
 
+    public String derivedBranch() {
+        return baseBranch;
+    }
+
     /**
      * Create updated version with new status.
      */

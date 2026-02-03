@@ -134,6 +134,7 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
             childWorktreeId,
             worktreePath,
             "main",
+            "main-0",
             WorktreeContext.WorktreeStatus.ACTIVE,
             parentWorktreeId,
             "node-1",

@@ -4,11 +4,13 @@ import com.hayden.utilitymodule.result.ManyResult;
 import com.hayden.utilitymodule.result.Result;
 import com.hayden.utilitymodule.result.ok.ClosableOk;
 import com.hayden.utilitymodule.result.res_many.IManyResultItem;
+import com.hayden.utilitymodule.result.res_many.StreamResultItem;
 import com.hayden.utilitymodule.result.res_single.ISingleResultItem;
 import com.hayden.utilitymodule.result.res_support.one.ResultTy;
 import jakarta.annotation.Nullable;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.NotImplementedException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -29,17 +31,23 @@ import java.util.stream.Stream;
  */
 @Slf4j
 @Builder
-public record ClosableResult<R extends AutoCloseable>(Optional<R> r, @Nullable Exception caught, @Nullable Callable<Void> onClose, AtomicBoolean closed)
+//DO NOT USE
+public record ClosableResult<R extends AutoCloseable>(Optional<R> r, @Nullable Exception caught, @Nullable Callable<Void> onClose, @Nullable Function<R, Void> d, AtomicBoolean closed)
         implements ISingleResultItem<R> {
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     public ClosableResult(Optional<R> r) {
-        this(r, null, null, new AtomicBoolean(false));
+        this(r, null, null, null, new AtomicBoolean(false));
     }
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     public ClosableResult(Optional<R> r, Callable<Void> onClose) {
-        this(r, null, onClose, new AtomicBoolean(false));
+        this(r, null, onClose, null, new AtomicBoolean(false));
+    }
+
+    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+    public ClosableResult(Optional<R> r, Function<@org.jspecify.annotations.Nullable R, Void> onClose) {
+        this(r, null, null, onClose, new AtomicBoolean(false));
     }
 
     @Override
@@ -62,10 +70,14 @@ public record ClosableResult<R extends AutoCloseable>(Optional<R> r, @Nullable E
     @Override
     public Flux<R> flux() {
         // TODO: should this fail?
-        log.warn("Calling close after terminate on flux for result AutoClosable.");
-        return r.map(Flux::just)
-                .orElse(Flux.empty())
-                .doAfterTerminate(this::doClose);
+        throw new NotImplementedException();
+//        log.warn("Calling close after terminate on flux for result AutoClosable.");
+//        return r.map(s -> {
+//
+//                    return Flux.using(() -> s, f -> Flux.just(f));
+//                })
+//                .orElse(Flux.empty())
+//                .doAfterTerminate(this::doClose);
     }
 
     @Override
@@ -174,9 +186,10 @@ public record ClosableResult<R extends AutoCloseable>(Optional<R> r, @Nullable E
         return from(r.map(m -> {
             var toApply = toMap.apply(m);
             if (isSameClosable(m, toApply)) {
-                doClose();
+                return toApply;
             }
 
+            doClose();
             return toApply;
         }));
     }

@@ -70,12 +70,12 @@ public class WorktreeContextRequestDecorator implements RequestDecorator {
             return request;
         }
         return switch (request) {
-            case AgentModels.TicketAgentRequests r ->
-                    worktreeService.attachWorktreesToTicketRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.artifactKey().value());
             case AgentModels.DiscoveryAgentRequests r ->
                     worktreeService.attachWorktreesToDiscoveryRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.artifactKey().value());
             case AgentModels.PlanningAgentRequests r ->
                     worktreeService.attachWorktreesToPlanningRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.artifactKey().value());
+            case AgentModels.TicketAgentRequests r ->
+                    worktreeService.attachWorktreesToTicketRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.artifactKey().value());
             case AgentModels.OrchestratorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.OrchestratorCollectorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.DiscoveryOrchestratorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
@@ -140,8 +140,7 @@ public class WorktreeContextRequestDecorator implements RequestDecorator {
 
         if (node instanceof OrchestratorNode orchestratorNode) {
             mainWorktreeId = orchestratorNode.mainWorktreeId();
-            submoduleIds = orchestratorNode.submoduleWorktreeIds();
-            return buildSandboxContext(mainWorktreeId, submoduleIds);
+            return buildSandboxContextFrom(mainWorktreeId, orchestratorNode.submoduleWorktrees());
         } else if (node instanceof HasWorktree hasWorktree && hasWorktree.worktree() != null) {
             mainWorktreeId = hasWorktree.worktree().worktreeId();
             if (hasWorktree.worktree().submoduleWorktrees() != null) {
@@ -153,6 +152,21 @@ public class WorktreeContextRequestDecorator implements RequestDecorator {
         }
 
         return null;
+    }
+
+    private WorktreeSandboxContext buildSandboxContextFrom(String mainWorktreeId, List<SubmoduleWorktreeContext> submodules) {
+        if (mainWorktreeId == null || mainWorktreeId.isBlank()) {
+            return null;
+        }
+        MainWorktreeContext mainContext = worktreeRepository.findById(mainWorktreeId)
+                .filter(MainWorktreeContext.class::isInstance)
+                .map(MainWorktreeContext.class::cast)
+                .orElse(null);
+        if (mainContext == null) {
+            return null;
+        }
+        List<SubmoduleWorktreeContext> resolved = submodules != null ? submodules : List.of();
+        return new WorktreeSandboxContext(mainContext, resolved);
     }
 
     private WorktreeSandboxContext buildSandboxContext(String mainWorktreeId, List<String> submoduleIds) {

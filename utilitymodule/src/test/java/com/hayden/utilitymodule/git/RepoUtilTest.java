@@ -1,14 +1,17 @@
 package com.hayden.utilitymodule.git;
 
-import org.assertj.core.util.Files;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class RepoUtilTest {
 
     @Test
-    void initGit() {
-        var newTemp = Files.newTemporaryFolder().toPath();
+    void initGit() throws IOException {
+        var newTemp = Files.createTempDirectory("repo-util");
         RepoUtil.initGit(newTemp.resolve(".git"))
                 .doOnClosable(git -> {
                     try {
@@ -91,7 +94,88 @@ class RepoUtilTest {
     void getGitRepo() {
         var repo = RepoUtil.getGitRepo();
         assertThat(repo.toFile().exists()).isTrue();
-        Assertions.assertThrows(RuntimeException.class, () -> RepoUtil.getGitRepo(Files.newTemporaryFolder()));
+        Assertions.assertThrows(RuntimeException.class, () -> RepoUtil.getGitRepo(Files.createTempDirectory("no-repo").toFile()));
 
+    }
+
+    @Test
+    void updateSubmodulesRecursivelyHandlesNestedSubmodules() throws Exception {
+        Path submoduleB = Files.createTempDirectory("submodule-b");
+        initRepo(submoduleB);
+        commitFile(submoduleB, "b.txt");
+
+        Path submoduleA = Files.createTempDirectory("submodule-a");
+        initRepo(submoduleA);
+        commitFile(submoduleA, "a.txt");
+        addSubmodule(submoduleA, submoduleB, "libs/sub-b");
+
+        Path mainRepo = Files.createTempDirectory("main-repo");
+        initRepo(mainRepo);
+        commitFile(mainRepo, "README.md");
+        addSubmodule(mainRepo, submoduleA, "libs/sub-a");
+
+        var result = RepoUtil.updateSubmodulesRecursively(mainRepo);
+        assertThat(result.isOk()).isTrue();
+        List<String> updated = result.r().get();
+        assertThat(updated).contains("libs/sub-a", "libs/sub-a/libs/sub-b");
+        assertThat(mainRepo.resolve("libs/sub-a")).exists();
+        assertThat(mainRepo.resolve("libs/sub-a/libs/sub-b")).exists();
+
+        Path cloneRepo = Files.createTempDirectory("main-repo-clone");
+        runGit(cloneRepo.getParent(), "git", "clone", mainRepo.toString(), cloneRepo.toString());
+
+        var cloneResult = RepoUtil.updateSubmodulesRecursively(cloneRepo);
+        assertThat(cloneResult.isOk()).isTrue();
+        List<String> cloneUpdated = cloneResult.r().get();
+        assertThat(cloneUpdated).contains("libs/sub-a", "libs/sub-a/libs/sub-b");
+        assertThat(cloneRepo.resolve("libs/sub-a")).exists();
+        assertThat(cloneRepo.resolve("libs/sub-a/libs/sub-b")).exists();
+    }
+
+    private static void initRepo(Path repoDir) throws Exception {
+        runGit(repoDir, "git", "init", "-b", "main");
+        runGit(repoDir, "git", "config", "user.email", "test@example.com");
+        runGit(repoDir, "git", "config", "user.name", "Test User");
+    }
+
+    private static void commitFile(Path repoDir, String fileName) throws Exception {
+        Path file = repoDir.resolve(fileName);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "content");
+        commitAll(repoDir, "commit " + fileName);
+    }
+
+    private static void commitAll(Path repoDir, String message) throws Exception {
+        runGit(repoDir, "git", "add", "-A");
+        runGit(repoDir, "git", "commit", "-m", message);
+    }
+
+    private static void addSubmodule(Path mainRepo, Path subRepo, String submodulePath) throws Exception {
+        runGit(mainRepo, "git", "-c", "protocol.file.allow=always",
+                "submodule", "add", subRepo.toString(), submodulePath);
+        commitAll(mainRepo, "add submodule");
+    }
+
+    private static void runGit(Path repoDir, String... command) throws Exception {
+        gitOutput(repoDir, command);
+    }
+
+    private static String gitOutput(Path repoDir, String... command) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.directory(repoDir.toFile());
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+        }
+        int exit = process.waitFor();
+        if (exit != 0) {
+            throw new IllegalStateException("Git command failed: " + String.join(" ", command) + "\n" + output);
+        }
+        return output.toString();
     }
 }

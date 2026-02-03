@@ -21,9 +21,14 @@ public sealed interface WorktreeContext
     Path worktreePath();
 
     /**
-     * The git branch this worktree is on.
+     * The git branch this worktree is based on.
      */
     String baseBranch();
+
+    /**
+     * The git branch this worktree is on.
+     */
+    String derivedBranch();
 
     /**
      * Current status of the worktree.

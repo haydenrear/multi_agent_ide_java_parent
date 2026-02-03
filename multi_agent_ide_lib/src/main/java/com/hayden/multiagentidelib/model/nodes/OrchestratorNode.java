@@ -1,14 +1,17 @@
 package com.hayden.multiagentidelib.model.nodes;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.Builder;
+import org.springframework.util.CollectionUtils;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Root node in the computation graph that orchestrates the overall goal.
@@ -25,37 +28,23 @@ public record OrchestratorNode(
         Map<String, String> metadata,
         Instant createdAt,
         Instant lastUpdatedAt,
-        String repositoryUrl,
-        String baseBranch,
-        boolean hasSubmodules,
-        List<String> submoduleNames,
-        String mainWorktreeId,
-        List<String> submoduleWorktreeIds,
+        MainWorktreeContext worktreeContext,
         String orchestratorOutput,
-        List<SubmoduleNode> submodules,
         AgentModels.OrchestratorAgentResult orchestratorResult,
         InterruptContext interruptibleContext
 ) implements GraphNode, Viewable<String>, Orchestrator, Interruptible {
 
-    public OrchestratorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String repositoryUrl, String baseBranch, boolean hasSubmodules, List<String> submoduleNames, String mainWorktreeId, List<String> submoduleWorktreeIds, String orchestratorOutput) {
-        this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                repositoryUrl, baseBranch, hasSubmodules, submoduleNames, mainWorktreeId, submoduleWorktreeIds, orchestratorOutput,
-                new ArrayList<>(), null, null);
-    }
-
-    public OrchestratorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String repositoryUrl, String baseBranch, boolean hasSubmodules, List<String> submoduleNames, String mainWorktreeId, List<String> submoduleWorktreeIds, String orchestratorOutput, List<SubmoduleNode> submodules) {
-        this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                repositoryUrl, baseBranch, hasSubmodules, submoduleNames, mainWorktreeId, submoduleWorktreeIds, orchestratorOutput,
-                submodules, null, null);
-    }
-
     public OrchestratorNode {
         if (nodeId == null || nodeId.isEmpty()) throw new IllegalArgumentException("nodeId required");
-        if (repositoryUrl == null || repositoryUrl.isEmpty()) throw new IllegalArgumentException("repositoryUrl required");
+        if (worktreeContext.repositoryUrl() == null || worktreeContext.repositoryUrl().isEmpty()) throw new IllegalArgumentException("repositoryUrl required");
         if (childNodeIds == null) childNodeIds = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
-        if (submoduleNames == null) submoduleNames = new ArrayList<>();
-        if (submoduleWorktreeIds == null) submoduleWorktreeIds = new ArrayList<>();
+    }
+
+    public boolean hasSubmodules() {
+        return Optional.ofNullable(worktreeContext)
+                .map(mwc -> !CollectionUtils.isEmpty(mwc.submoduleWorktrees()))
+                .orElse(false);
     }
 
     @Override
@@ -112,5 +101,22 @@ public record OrchestratorNode(
                 .interruptibleContext(context)
                 .lastUpdatedAt(Instant.now())
                 .build();
+    }
+
+    @JsonIgnore
+    public String mainWorktreeId() {
+        return this.worktreeContext.worktreeId();
+    }
+
+    @JsonIgnore
+    public List<SubmoduleWorktreeContext> submoduleWorktrees() {
+        return this.worktreeContext.submoduleWorktrees();
+    }
+
+    @JsonIgnore
+    public List<String> submoduleWorktreeIds() {
+        return StreamUtil.toStream(submoduleWorktrees())
+                .map(SubmoduleWorktreeContext::worktreeId)
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 }

@@ -3,11 +3,14 @@ package com.hayden.utilitymodule.result;
 import com.hayden.utilitymodule.result.agg.AggregateError;
 import com.hayden.utilitymodule.result.error.SingleError;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -16,6 +19,7 @@ import static com.hayden.utilitymodule.result.ResultTestModel.singleMessage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
+@Slf4j
 public class ResultTest {
 
     @Test
@@ -156,6 +160,98 @@ public class ResultTest {
         assertThat(ClosableResult.hasOpenResources()).isFalse();
         assertEquals(1, g.get());
         assertEquals(0, f.get());
+        assertEquals(1, h.get());
+
+        File file = new File("hello");
+        file.createNewFile();
+        file.deleteOnExit();
+        f.set(0);
+        h.set(0);
+        Result.<FileInputStream, SingleError>tryFrom(
+                        () -> {
+                            return new FileInputStream(file);
+                        },
+                        () -> {
+                            f.getAndIncrement();
+                            return null;
+                        })
+                .map(fos -> {
+                    h.getAndIncrement();
+                    return "hello";
+                })
+                .ifPresent(s -> {
+                    log.info("");
+                });
+
+        assertThat(ClosableResult.hasOpenResources()).isFalse();
+        assertEquals(1, f.get());
+        assertEquals(1, h.get());
+
+        f.set(0);
+        h.set(0);
+        Result.<FileInputStream, SingleError>tryFrom(
+                        () -> {
+                            return new FileInputStream(file);
+                        },
+                        () -> {
+                            f.getAndIncrement();
+                            return null;
+                        })
+                .ifPresent(fos -> {
+                    h.getAndIncrement();
+                });
+
+        assertThat(ClosableResult.hasOpenResources()).isFalse();
+        assertEquals(1, f.get());
+        assertEquals(1, h.get());
+
+        f.set(0);
+        h.set(0);
+        AtomicInteger z = new AtomicInteger(0);
+        Result.<FileInputStream, SingleError>tryFrom(
+                        () -> {
+                            return new FileInputStream(file);
+                        },
+                        () -> {
+                            f.getAndIncrement();
+                            return null;
+                        })
+                .flatMapResult(fos -> {
+                    h.getAndIncrement();
+                    return Result.tryFrom((Callable<FileInputStream>) () -> new FileInputStream(file), () -> {
+                        z.getAndIncrement();
+                        return null;
+                    });
+                })
+                .ifPresent(s -> {
+                    log.info("");
+                });
+
+        assertThat(ClosableResult.hasOpenResources()).isFalse();
+        assertEquals(1, f.get());
+        assertEquals(1, h.get());
+        assertEquals(1, z.get());
+
+        f.set(0);
+        h.set(0);
+        Result.<FileInputStream, SingleError>tryFrom(
+                        () -> {
+                            return new FileInputStream(file);
+                        },
+                        () -> {
+                            f.getAndIncrement();
+                            return null;
+                        })
+                .flatMapResult(fos -> {
+                    h.getAndIncrement();
+                    return Result.ok("hello");
+                })
+                .ifPresent(s -> {
+                    log.info("");
+                });
+
+        assertThat(ClosableResult.hasOpenResources()).isFalse();
+        assertEquals(1, f.get());
         assertEquals(1, h.get());
 
     }

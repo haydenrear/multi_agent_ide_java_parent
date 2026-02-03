@@ -6,6 +6,7 @@ plugins {
     id("com.hayden.mcp")
     id("com.hayden.ai")
     id("com.hayden.paths")
+    id("com.hayden.git")
     id("com.hayden.jpa-persistence")
     id("com.hayden.docker-compose")
 }

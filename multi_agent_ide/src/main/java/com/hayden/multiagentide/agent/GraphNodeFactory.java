@@ -4,6 +4,7 @@ import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
+import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Map;
@@ -24,6 +25,17 @@ public class GraphNodeFactory {
 
     public CollectorNode orchestratorCollectorNode(OrchestratorNode orchestrator, String goal, ArtifactKey artifactKey) {
         Instant now = Instant.now();
+        var submoduleWorktrees = orchestrator.submoduleWorktrees();
+        var submoduleNames = submoduleWorktrees == null
+                ? new ArrayList<String>()
+                : submoduleWorktrees.stream()
+                .map(SubmoduleWorktreeContext::submoduleName)
+                .toList();
+        var submoduleWorktreeIds = submoduleWorktrees == null
+                ? new ArrayList<String>()
+                : submoduleWorktrees.stream()
+                .map(SubmoduleWorktreeContext::worktreeId)
+                .toList();
         return new CollectorNode(
                 artifactKey != null ? artifactKey.value() : newNodeId(),
                 "Workflow Collector",
@@ -34,12 +46,12 @@ public class GraphNodeFactory {
                 new ConcurrentHashMap<>(),
                 now,
                 now,
-                orchestrator.repositoryUrl(),
-                orchestrator.baseBranch(),
+                orchestrator.worktreeContext().repositoryUrl(),
+                orchestrator.worktreeContext().baseBranch(),
                 orchestrator.hasSubmodules(),
-                orchestrator.submoduleNames(),
+                submoduleNames,
                 orchestrator.mainWorktreeId(),
-                orchestrator.submoduleWorktreeIds(),
+                submoduleWorktreeIds,
                 ""
         );
     }

@@ -1,6 +1,8 @@
 package com.hayden.multiagentide.repository;
 
 import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
+
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +23,12 @@ public interface WorktreeRepository {
      * @return the worktree if found
      */
     Optional<WorktreeContext> findById(String worktreeId);
+
+    default Optional<WorktreeContext> findByPath(Path worktreeId) {
+        return findAll().stream()
+                .filter(wc -> wc.worktreePath().equals(worktreeId))
+                .findFirst();
+    }
 
     /**
      * Get all worktrees.

@@ -307,9 +307,6 @@ public interface OneResult<R, E> extends ManyResult<R, E> {
             } else {
                 var f = r().map(mapper);
                 Result<U, E> ueResult = f.get();
-                AssertUtil.assertTrue(() -> !(ueResult instanceof StreamResult<U,E>),
-                        () -> "Cannot flatMap from One to StreamResult successfully - call many() first and then flatMapResult instead " +
-                              "of calling flatMapResult to ResultStream on OneResult - or else only returns the first result.");
 
                 if (ueResult.isOkStream()) {
                     //TODO: is this important?

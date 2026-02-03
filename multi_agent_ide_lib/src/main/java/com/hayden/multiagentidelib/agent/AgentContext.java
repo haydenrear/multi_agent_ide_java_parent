@@ -1,5 +1,6 @@
 package com.hayden.multiagentidelib.agent;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 
@@ -15,6 +16,7 @@ public interface AgentContext extends Artifact.AgentModel {
     }
 
     @Override
+    @JsonIgnore
     default List<Artifact.AgentModel> children() {
         return List.of();
     }
@@ -40,10 +42,12 @@ public interface AgentContext extends Artifact.AgentModel {
         };
     }
 
+    @JsonIgnore
     default String prettyPrintInterruptContinuation() {
         return prettyPrint();
     }
 
+    @JsonIgnore
     String prettyPrint();
 
     sealed interface AgentSerializationCtx {

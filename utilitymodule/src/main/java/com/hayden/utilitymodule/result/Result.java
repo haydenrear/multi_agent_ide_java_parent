@@ -288,19 +288,13 @@ public interface Result<T, E> {
         }
     }
 
-    static <
-        T extends AutoCloseable, E
-    > com.hayden.utilitymodule.result.ClosableResult<T, E> tryFrom(
+    static <T extends AutoCloseable, E> com.hayden.utilitymodule.result.ClosableResult<T, E> tryFrom(
         Callable<T> o,
         Callable<Void> onClose
     ) {
-        log.debug(
-            "Doing try from with result ty. Means there was a closable opened. Will log debug on close."
-        );
+        log.debug("Doing try from with result ty. Means there was a closable opened. Will log debug on close.");
         try {
-            return Result.tryOk(
-                new ClosableResult<>(Optional.ofNullable(o.call()), onClose)
-            );
+            return Result.tryOk(new ClosableResult<>(Optional.ofNullable(o.call()), onClose));
         } catch (Exception e) {
             return Result.tryOk(
                 ClosableResult.<T>builder()
@@ -311,21 +305,14 @@ public interface Result<T, E> {
         }
     }
 
-    static <T extends AutoCloseable, E> com.hayden.utilitymodule.result.Result<
-        T,
-        E
-    > tryFrom(T o, Callable<Void> onClose) {
-        log.debug(
-            "Doing try from with result ty. Means there was a closable opened. Will log debug on close."
-        );
+    static <T extends AutoCloseable, E> com.hayden.utilitymodule.result.Result<T, E> tryFrom(T o, Callable<Void> onClose) {
+        log.debug("Doing try from with result ty. Means there was a closable opened. Will log debug on close.");
         return Result.tryOk(
             new ClosableResult<>(Optional.ofNullable(o), onClose)
         );
     }
 
-    static <
-        T extends AutoCloseable, E
-    > com.hayden.utilitymodule.result.ClosableResult<T, E> tryFrom(
+    static <T extends AutoCloseable, E> com.hayden.utilitymodule.result.ClosableResult<T, E> tryFrom(
         Callable<T> o
     ) {
         return tryFrom(o, () -> null);
@@ -631,7 +618,7 @@ public interface Result<T, E> {
     }
 
     default boolean isError() {
-        return r().isEmpty();
+        return isErr();
     }
 
     default boolean isErr() {
@@ -639,7 +626,18 @@ public interface Result<T, E> {
     }
 
     default boolean hasErr() {
-        return this.e().isPresent();
+        return this.e().filterErr(Result::errFilter).isPresent();
+    }
+
+    private static <E> boolean errFilter(E e) {
+        if (e instanceof AggregateError<?> a) {
+            return a.isError();
+        }
+        if (e instanceof SingleError s) {
+            return s.isError();
+        }
+
+        return true;
     }
 
     default Result<T, E> dropEmptyErr() {

@@ -12,6 +12,8 @@ public record MergeResult(
         String mergeId,
         String childWorktreeId,
         String parentWorktreeId,
+        String childWorktreePath,
+        String parentWorktreePath,
         boolean successful,
         String mergeCommitHash,
         List<MergeConflict> conflicts,
@@ -36,7 +38,8 @@ public record MergeResult(
             String conflictType,  // "content", "delete/modify", "add/add", etc.
             String baseContent,
             String oursContent,
-            String theirsContent
+            String theirsContent,
+            String submodulePath
     ) {}
 
     /**

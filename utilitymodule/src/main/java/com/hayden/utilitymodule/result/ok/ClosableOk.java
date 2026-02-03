@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+//DO NOT USE!!!!
 public class ClosableOk<R extends AutoCloseable> extends ResultTy<R> implements Ok<R> {
 
     public ClosableOk(R r) {

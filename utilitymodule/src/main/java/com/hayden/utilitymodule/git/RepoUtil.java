@@ -1,23 +1,27 @@
 package com.hayden.utilitymodule.git;
 
 
+import com.google.common.collect.Sets;
 import com.hayden.utilitymodule.io.ArchiveUtils;
 import com.hayden.utilitymodule.io.FileUtils;
 import com.hayden.utilitymodule.result.ClosableResult;
 import com.hayden.utilitymodule.result.OneResult;
 import com.hayden.utilitymodule.result.Result;
+import com.hayden.utilitymodule.result.agg.AggregateError;
 import com.hayden.utilitymodule.result.error.SingleError;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ResetCommand;
-import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.*;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.submodule.SubmoduleWalk;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.NotTreeFilter;
@@ -189,6 +193,9 @@ public interface RepoUtil {
         }
     }
 
+    record RepoUtilAggregateError(Set<RepoUtilError> errors) implements AggregateError<RepoUtilError> {
+    }
+
     static Result<Path, RepoUtilError> cloneIfRemote(String url, String branchName, File gitDir) {
         if (url.startsWith("http") || url.startsWith("git") || url.startsWith("ssh")) {
             return RepoUtil.cloneRepo(gitDir, url, branchName)
@@ -259,6 +266,97 @@ public interface RepoUtil {
                 .flatExcept(exc -> Result.err(new RepoUtilError(exc)));
     }
 
+    static Result<String, RepoUtilError> worktreeAdd(Path repoPath, Path worktreePath, String branchName) {
+        if (repoPath == null || worktreePath == null) {
+            return Result.err(new RepoUtilError("repoPath/worktreePath required"));
+        }
+        List<String> args = new ArrayList<>(List.of("worktree", "add", worktreePath.toString()));
+        if (branchName != null && !branchName.isBlank()) {
+            args.add(branchName);
+        }
+        return runGitCommand(repoPath, args);
+    }
+
+    static Result<String, RepoUtilError> worktreeRemove(Path repoPath, Path worktreePath, boolean force) {
+        if (repoPath == null || worktreePath == null) {
+            return Result.err(new RepoUtilError("repoPath/worktreePath required"));
+        }
+        List<String> args = new ArrayList<>(List.of("worktree", "remove"));
+        if (force) {
+            args.add("--force");
+        }
+        args.add(worktreePath.toString());
+        return runGitCommand(repoPath, args);
+    }
+
+    static Result<String, RepoUtilError> worktreeList(Path repoPath) {
+        if (repoPath == null) {
+            return Result.err(new RepoUtilError("repoPath required"));
+        }
+        return runGitCommand(repoPath, List.of("worktree", "list", "--porcelain"));
+    }
+
+    static Result<List<String>, RepoUtilAggregateError> updateSubmodulesRecursively(Path repoPath) {
+        return initGit(repoPath)
+                .mapError(err -> new RepoUtilAggregateError(Sets.newHashSet(new RepoUtilError(err.getMessage()))))
+                .flatMapResult(git -> updateSubmodulesRecursively(git.getRepository()))
+                .one();
+    }
+
+    private static Result<List<String>, RepoUtilAggregateError> updateSubmodulesRecursively(Repository repo) {
+        return updateSubmodulesRecursively(repo, "");
+    }
+
+    private static Result<List<String>, RepoUtilAggregateError> updateSubmodulesRecursively(Repository repo, String parent) {
+        List<String> updated = new ArrayList<>();
+        Set<RepoUtilError> errs = new HashSet<>();
+        try (Git git = new Git(repo)) {
+            git.submoduleInit().call();
+            git.submoduleUpdate().call();
+
+            try (SubmoduleWalk walk = SubmoduleWalk.forIndex(repo)) {
+                try {
+                    while (walk.next()) {
+                        String path = walk.getPath();
+                        String relPath = StringUtils.isNotBlank(parent) ? "%s/%s".formatted(parent, path) : path;
+                        if (path != null) {
+                            updated.add(relPath);
+                        }
+                        try (Repository subRepo = walk.getRepository()) {
+                            if (subRepo != null) {
+                                var u = updateSubmodulesRecursively(subRepo, relPath);
+                                if (u.isErr()) {
+                                    u.doOnError(a -> errs.addAll(a.errors));
+                                } else {
+                                    updated.addAll(u.r().get());
+                                }
+                            }
+                        } catch (IOException e) {
+                            errs.add(new RepoUtilError("Failed to get repo %s: %s".formatted(walk.getPath(), e.getMessage())));
+                        }
+                    }
+                } catch (IOException e) {
+                    errs.add(new RepoUtilError("Failed to walk repo %s: %s".formatted(repo.getDirectory(), e.getMessage())));
+                }
+            } catch (IOException e) {
+                errs.add(new RepoUtilError("Failed to get index on repo %s: %s".formatted(repo.getDirectory(), e.getMessage())));
+            }
+        } catch (GitAPIException e) {
+            errs.add(new RepoUtilError("Failed to call git submodule on repo %s: %s".formatted(repo.getDirectory(), e.getMessage())));
+        }
+
+        return Result.from(updated, new RepoUtilAggregateError(errs));
+    }
+
+    static Git initGitOrThrow(Path path) throws IOException {
+        var initialized = initGit(path) ;
+
+        if (initialized.isOk())
+            return initialized.r().get();
+
+        throw new IOException(initialized.e().toString());
+    }
+
     static ClosableResult<Git, GitInitError> initGit(Path path) {
         if (path.toFile().isDirectory() && !path.toFile().getName().endsWith(".git")) {
             path = path.resolve(".git");
@@ -271,14 +369,53 @@ public interface RepoUtil {
         final Path repoPath = path;
 
         if (repoPath.toFile().exists()) {
-            return Result.tryFrom(() -> Git.open(repoPath.toFile()));
+            if (repoPath.toFile().isFile()) {
+                return Result.tryFrom(() -> {
+                    Repository repo = new FileRepositoryBuilder()
+                            .findGitDir(repoPath.toFile())   // resolves even when .git is a file
+                            .build();
+                    return new Git(repo);
+                });
+            }
+
+            return Result.tryFrom(() -> Git.open(repoPath.toFile(), FS.detect()));
         }
 
         return Result.tryFrom(
-                () -> Git.init().setGitDir(repoPath.toFile()).setInitialBranch("main")
+                () -> Git.init().setGitDir(repoPath.toFile())
+                        .setInitialBranch("main")
                         .setFs(FS.detect())
                         .setDirectory(repoPath.toFile().getParentFile())
                         .call());
+    }
+
+    private static Result<String, RepoUtilError> runGitCommand(Path repoPath, List<String> args) {
+        List<String> command = new ArrayList<>();
+        command.add("git");
+        command.add("-C");
+        command.add(repoPath.toString());
+        command.addAll(args);
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectErrorStream(true);
+        StringBuilder output = new StringBuilder();
+        try {
+            Process process = pb.start();
+            try (var reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
+                }
+            }
+            int exit = process.waitFor();
+            if (exit != 0) {
+                return Result.err(new RepoUtilError("Git command failed: %s\n%s"
+                        .formatted(String.join(" ", command), output)));
+            }
+            return Result.ok(output.toString());
+        } catch (Exception e) {
+            return Result.err(new RepoUtilError(e));
+        }
     }
 
     static Path getGitRepo() {

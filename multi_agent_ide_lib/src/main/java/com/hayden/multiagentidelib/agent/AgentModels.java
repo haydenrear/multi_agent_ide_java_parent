@@ -10,6 +10,8 @@ import com.hayden.multiagentidelib.template.DelegationTemplate;
 import com.hayden.multiagentidelib.template.DiscoveryReport;
 import com.hayden.multiagentidelib.template.MemoryReference;
 import com.hayden.multiagentidelib.template.PlanningTicket;
+import com.hayden.multiagentidelib.model.merge.MergeAggregation;
+import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
@@ -57,17 +59,17 @@ public interface AgentModels {
             DiscoveryOrchestratorRequest,
             DiscoveryAgentRequests,
             DiscoveryAgentRequest,
-            DiscoveryAgentResults,
+//            DiscoveryAgentResults,
             DiscoveryCollectorRequest,
             PlanningOrchestratorRequest,
             PlanningAgentRequests,
             PlanningAgentRequest,
-            PlanningAgentResults,
+//            PlanningAgentResults,
             PlanningCollectorRequest,
             TicketOrchestratorRequest,
             TicketAgentRequests,
             TicketAgentRequest,
-            TicketAgentResults,
+//            TicketAgentResults,
             TicketCollectorRequest,
             OrchestratorCollectorRequest,
 //          gets routed to by agents to refine context or after
@@ -80,7 +82,8 @@ public interface AgentModels {
 //            then get rerouted back
             InterruptRequest,
             MergerRequest,
-            ReviewRequest
+            ReviewRequest,
+            ResultsRequest
     {
 
         ArtifactKey contextId();
@@ -98,12 +101,41 @@ public interface AgentModels {
             return hashContext.hash(prettyPrintInterruptContinuation());
         }
 
+        @JsonIgnore
         String prettyPrintInterruptContinuation();
 
         @Override
+        @JsonIgnore
         default String prettyPrint() {
             return prettyPrintInterruptContinuation();
         }
+    }
+
+    /**
+     * Interface for agent results containers that can have merge aggregation.
+     * Implemented by TicketAgentResults, PlanningAgentResults, and DiscoveryAgentResults.
+     */
+    sealed interface ResultsRequest extends AgentRequest
+        permits
+            DiscoveryAgentResults,
+            PlanningAgentResults,
+            TicketAgentResults {
+        
+        /**
+         * The merge aggregation after child→trunk merges.
+         */
+        MergeAggregation mergeAggregation();
+        
+        /**
+         * Return a copy with merge aggregation set.
+         */
+        <T extends ResultsRequest> T withMergeAggregation(MergeAggregation aggregation);
+        
+        /**
+         * Get the list of child agent results.
+         */
+        List<? extends AgentResult> childResults();
+
     }
 
     sealed interface InterruptRequest extends AgentRequest
@@ -811,7 +843,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Structured discovery report.")
             DiscoveryReport report,
             @JsonPropertyDescription("Human-readable summary output.")
-            String output
+            String output,
+            @JsonPropertyDescription("Merge descriptor from trunk→child merge.")
+            MergeDescriptor mergeDescriptor
     ) implements AgentResult {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -831,7 +865,7 @@ public interface AgentModels {
         }
 
         public DiscoveryAgentResult(String output) {
-            this(null, null, null, output);
+            this(null, null, null, output, null);
         }
 
         @Override
@@ -862,7 +896,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Proposed planning tickets.")
             List<PlanningTicket> tickets,
             @JsonPropertyDescription("Human-readable summary output.")
-            String output
+            String output,
+            @JsonPropertyDescription("Merge descriptor from trunk→child merge.")
+            MergeDescriptor mergeDescriptor
     ) implements AgentResult {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -886,7 +922,7 @@ public interface AgentModels {
         }
 
         public PlanningAgentResult(String output) {
-            this(null, null, null, null, output);
+            this(null, null, null, null, output, null);
         }
 
         @Override
@@ -937,10 +973,12 @@ public interface AgentModels {
             @JsonPropertyDescription("Memory references used during execution.")
             List<MemoryReference> memoryReferences,
             @JsonPropertyDescription("Human-readable summary output.")
-            String output
+            String output,
+            @JsonPropertyDescription("Merge descriptor from trunk→child merge.")
+            MergeDescriptor mergeDescriptor
     ) implements AgentResult {
         public TicketAgentResult(String output) {
-            this(null, null, null, null, null, null, null, null, null, null, null, output);
+            this(null, null, null, null, null, null, null, null, null, null, null, output, null);
         }
 
         @Override
@@ -1886,7 +1924,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Curated ticket context from ticket collector.")
             UpstreamContext.TicketCollectorContext ticketCuration,
             @JsonPropertyDescription("Previous orchestrator collector context for reruns.")
-            PreviousContext.OrchestratorCollectorPreviousContext previousContext
+            PreviousContext.OrchestratorCollectorPreviousContext previousContext,
+            @JsonPropertyDescription("Merge descriptor from final merge to source repository.")
+            MergeDescriptor mergeDescriptor
     ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -1925,7 +1965,7 @@ public interface AgentModels {
         }
 
         public OrchestratorCollectorRequest(String goal, String phase) {
-            this(null, null, goal, phase, null, null, null, null);
+            this(null, null, goal, phase, null, null, null, null, null);
         }
 
         @Override
@@ -3649,8 +3689,10 @@ public interface AgentModels {
             @JsonPropertyDescription("Planning agent results to consolidate.")
             List<PlanningAgentResult> planningAgentResults,
             @JsonPropertyDescription("Previous planning collector context for reruns.")
-            PreviousContext.PlanningCollectorPreviousContext previousContext
-    ) implements AgentRequest {
+            PreviousContext.PlanningCollectorPreviousContext previousContext,
+            @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
+            MergeAggregation mergeAggregation
+    ) implements ResultsRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3684,13 +3726,23 @@ public interface AgentModels {
             return switch (serializationCtx) {
                 case AgentSerializationCtx.ResultsSerialization resultsSerialization ->
                         AgentModels.serializeResults(planningAgentResults);
-                default -> AgentRequest.super.prettyPrint(serializationCtx);
+                default -> ResultsRequest.super.prettyPrint(serializationCtx);
             };
         }
 
         @Override
         public String prettyPrintInterruptContinuation() {
             return "";
+        }
+        
+        @Override
+        public ResultsRequest withMergeAggregation(MergeAggregation aggregation) {
+            return this.toBuilder().mergeAggregation(aggregation).build();
+        }
+        
+        @Override
+        public List<? extends AgentResult> childResults() {
+            return planningAgentResults != null ? planningAgentResults : List.of();
         }
     }
 
@@ -3704,8 +3756,10 @@ public interface AgentModels {
             @JsonPropertyDescription("Ticket agent results to consolidate.")
             List<TicketAgentResult> ticketAgentResults,
             @JsonPropertyDescription("Previous ticket collector context for reruns.")
-            PreviousContext.TicketCollectorPreviousContext previousContext
-    ) implements AgentRequest {
+            PreviousContext.TicketCollectorPreviousContext previousContext,
+            @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
+            MergeAggregation mergeAggregation
+    ) implements ResultsRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3739,13 +3793,23 @@ public interface AgentModels {
             return switch (serializationCtx) {
                 case AgentSerializationCtx.ResultsSerialization resultsSerialization ->
                         AgentModels.serializeResults(ticketAgentResults);
-                default -> AgentRequest.super.prettyPrint(serializationCtx);
+                default -> ResultsRequest.super.prettyPrint(serializationCtx);
             };
         }
 
         @Override
         public String prettyPrintInterruptContinuation() {
             return "";
+        }
+        
+        @Override
+        public ResultsRequest withMergeAggregation(MergeAggregation aggregation) {
+            return this.toBuilder().mergeAggregation(aggregation).build();
+        }
+        
+        @Override
+        public List<? extends AgentResult> childResults() {
+            return ticketAgentResults != null ? ticketAgentResults : List.of();
         }
     }
 
@@ -3759,8 +3823,10 @@ public interface AgentModels {
             @JsonPropertyDescription("Discovery agent results to consolidate.")
             List<DiscoveryAgentResult> result,
             @JsonPropertyDescription("Previous discovery collector context for reruns.")
-            PreviousContext.DiscoveryCollectorPreviousContext previousContext
-    ) implements AgentRequest{
+            PreviousContext.DiscoveryCollectorPreviousContext previousContext,
+            @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
+            MergeAggregation mergeAggregation
+    ) implements ResultsRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3794,13 +3860,23 @@ public interface AgentModels {
             return switch (serializationCtx) {
                 case AgentSerializationCtx.ResultsSerialization resultsSerialization ->
                         AgentModels.serializeResults(result);
-                default -> AgentRequest.super.prettyPrint(serializationCtx);
+                default -> ResultsRequest.super.prettyPrint(serializationCtx);
             };
         }
 
         @Override
         public String prettyPrintInterruptContinuation() {
             return "";
+        }
+        
+        @Override
+        public ResultsRequest withMergeAggregation(MergeAggregation aggregation) {
+            return this.toBuilder().mergeAggregation(aggregation).build();
+        }
+        
+        @Override
+        public List<? extends AgentResult> childResults() {
+            return result != null ? result : List.of();
         }
     }
 

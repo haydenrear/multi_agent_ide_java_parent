@@ -3,6 +3,8 @@ package com.hayden.utilitymodule.result;
 import com.hayden.utilitymodule.assert_util.AssertUtil;
 import com.hayden.utilitymodule.result.closable.ClosableMonitor;
 import com.hayden.utilitymodule.result.ok.ClosableOk;
+import com.hayden.utilitymodule.result.ok.Ok;
+import com.hayden.utilitymodule.result.res_support.many.stream.StreamResult;
 import com.hayden.utilitymodule.result.res_ty.IResultItem;
 
 import java.util.Objects;
@@ -10,10 +12,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static com.hayden.utilitymodule.result.res_ty.ClosableResult.isSameClosable;
 import static com.hayden.utilitymodule.result.res_ty.ClosableResult.logClosableEqualsErr;
 
+//DO NOT USE!!!!
 public interface ClosableResult<T extends AutoCloseable, E> extends OneResult<T, E>, AutoCloseable {
 
     /**
@@ -67,8 +71,9 @@ public interface ClosableResult<T extends AutoCloseable, E> extends OneResult<T,
     default <U, V> Result<U, V> flatExcept(Predicate<Exception> exc,
                                            Function<Exception, Result<U, V>> toDo,
                                            Supplier<Result<U, V>> fallback) {
-        if (r().isExcept(exc))
+        if (r().isExcept(exc)) {
             return toDo.apply(r().getExcept());
+        }
 
         return fallback.get();
     }
@@ -82,6 +87,20 @@ public interface ClosableResult<T extends AutoCloseable, E> extends OneResult<T,
         });
     }
 
+    default <U> OneResult<U, E> map(Function<T, U> mapper) {
+        if (this.r().isPresent()) {
+            var toRet = this.r().map(mapper);
+            return Result.from(Ok.ok(toRet), this.e()).one();
+        }
+
+        return this.cast();
+    }
+
+    default <U> ManyResult<U, E> flatMap(Function<T, Result<U, E>> mapper) {
+        var applied = this.r().map(mapper).stream();
+        return new StreamResult<>(applied).concatWith(this.e().stream().map(Result::err));
+    }
+
     @Override
     default <U> ManyResult<U, E> flatMapResult(Function<T, Result<U, E>> mapper) {
         var res = OneResult.super.flatMapResult(toMap -> {
@@ -92,7 +111,7 @@ public interface ClosableResult<T extends AutoCloseable, E> extends OneResult<T,
             }
 
             return applied.peek(u -> {
-                if (isSameClosable(this.r(), u)) {
+                if (!isSameClosable(this.r(), u)) {
                     this.r().doClose();
                 }
             });

@@ -12,7 +12,6 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +50,7 @@ class GitWorktreeServiceTest extends AgentTestBase {
         MainWorktreeContext worktree = gitWorktreeService.createMainWorktree(
             repoDir.toString(),
             "main",
+            "main-0",
             "node-main"
         );
 
@@ -78,23 +78,14 @@ class GitWorktreeServiceTest extends AgentTestBase {
         MainWorktreeContext mainWorktree = gitWorktreeService.createMainWorktree(
             mainRepo.toString(),
             "main",
+            "main-0",
             "node-submodule"
         );
 
-        List<String> submodules = gitWorktreeService.getSubmoduleNames(mainWorktree.worktreePath());
+        List<SubmoduleWorktreeContext> submodules = gitWorktreeService.getSubmoduleWorktrees(mainWorktree.worktreeId());
         assertThat(submodules).isNotEmpty();
 
-        String submoduleName = submodules.getFirst();
-        Path submodulePath = gitWorktreeService.getSubmodulePath(mainWorktree.worktreePath(), submoduleName);
-
-        SubmoduleWorktreeContext submoduleWorktree = gitWorktreeService.createSubmoduleWorktree(
-            submoduleName,
-            mainWorktree.worktreePath().relativize(submodulePath).toString(),
-            mainWorktree.worktreeId(),
-            mainWorktree.worktreePath(),
-            UUID.randomUUID().toString()
-        );
-
+        SubmoduleWorktreeContext submoduleWorktree = submodules.getFirst();
         assertThat(Files.exists(submoduleWorktree.worktreePath())).isTrue();
         assertThat(submoduleWorktree.parentWorktreeId()).isEqualTo(mainWorktree.worktreeId());
     }

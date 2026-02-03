@@ -4,9 +4,6 @@ import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.MergeResult;
-import org.springframework.util.CollectionUtils;
-
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,7 +19,7 @@ public interface WorktreeService {
      * @param nodeId the associated node ID
      * @return the created main worktree context
      */
-    MainWorktreeContext createMainWorktree(String repositoryUrl, String baseBranch, String nodeId);
+    MainWorktreeContext createMainWorktree(String repositoryUrl, String baseBranch, String derivedBranch, String nodeId);
 
     AgentModels.DiscoveryAgentRequests attachWorktreesToDiscoveryRequests(
             AgentModels.DiscoveryAgentRequests input,
@@ -36,18 +33,6 @@ public interface WorktreeService {
             AgentModels.TicketAgentRequests input,
             String nodeId
     );
-
-    /**
-     * Create a worktree for a git submodule.
-     * @param submoduleName the submodule name
-     * @param submodulePath the path to the submodule in the repo
-     * @param parentWorktreeId the parent worktree ID
-     * @param parentWorktreePath the parent worktree path
-     * @param nodeId the associated node ID
-     * @return the created submodule worktree context
-     */
-    SubmoduleWorktreeContext createSubmoduleWorktree(String submoduleName, String submodulePath,
-                                                     String parentWorktreeId, Path parentWorktreePath, String nodeId);
 
     /**
      * Get a worktree context by ID.
@@ -69,28 +54,6 @@ public interface WorktreeService {
      * @return list of submodule worktree contexts
      */
     List<SubmoduleWorktreeContext> getSubmoduleWorktrees(String mainWorktreeId);
-
-    /**
-     * Detect if a repository has git submodules.
-     * @param repositoryPath the path to the repository
-     * @return true if submodules exist
-     */
-    boolean hasSubmodules(Path repositoryPath);
-
-    /**
-     * Get list of submodule names in a repository.
-     * @param repositoryPath the path to the repository
-     * @return list of submodule names
-     */
-    List<String> getSubmoduleNames(Path repositoryPath);
-
-    /**
-     * Get the path of a submodule.
-     * @param repositoryPath the repository path
-     * @param submoduleName the submodule name
-     * @return the path to the submodule
-     */
-    Path getSubmodulePath(Path repositoryPath, String submoduleName);
 
     /**
      * Merge a child worktree into a parent worktree.
@@ -125,21 +88,6 @@ public interface WorktreeService {
     void discardWorktree(String worktreeId);
 
     /**
-     * Get the current commit hash in a worktree.
-     * @param worktreeId the worktree ID
-     * @return the commit hash
-     */
-    String getCurrentCommitHash(String worktreeId);
-
-    /**
-     * Commit changes in a worktree.
-     * @param worktreeId the worktree ID
-     * @param message the commit message
-     * @return the commit hash
-     */
-    String commitChanges(String worktreeId, String message);
-
-    /**
      * Update submodule pointer in main worktree after submodule changes.
      * @param mainWorktreeId the main worktree ID
      * @param submoduleName the submodule name
@@ -147,14 +95,37 @@ public interface WorktreeService {
     void updateSubmodulePointer(String mainWorktreeId, String submoduleName);
 
     /**
-     * Detect merge conflicts between worktrees.
-     * @param childWorktreeId the child worktree ID
-     * @param parentWorktreeId the parent worktree ID
-     * @return list of files with conflicts
+     * Merge the orchestrator's derived branches back into the original base branches
+     * in the source repository. This is the final merge that pushes all agent work
+     * back to the source repo after the orchestrator completes.
+     *
+     * For each submodule: fetches from worktree submodule, merges derived branch
+     * into the source repo's original submodule branch.
+     * For the main repo: fetches from worktree, merges derivedBranch into baseBranch.
+     * Updates submodule pointers in the source repo.
+     *
+     * @param mainWorktreeId the orchestrator's main worktree ID
+     * @return merge result with conflict information
      */
-    List<String> detectMergeConflicts(String childWorktreeId, String parentWorktreeId);
+    MergeResult finalMergeToSource(String mainWorktreeId);
 
-    default boolean containsMergeConflicts(String childWorktreeId, String parentWorktreeId) {
-        return !CollectionUtils.isEmpty(detectMergeConflicts(childWorktreeId, parentWorktreeId));
-    }
+    /**
+     * Ensure merge conflicts are fully captured after a merge, including detected
+     * git conflicts or missing child commits in the parent.
+     *
+     * @param result the merge result to validate
+     * @return updated merge result with conflicts populated if needed
+     */
+    MergeResult ensureMergeConflictsCaptured(MergeResult result);
+
+    /**
+     * Ensure merge conflicts are fully captured for final merges to source, including
+     * missing commits in the source repo and submodules.
+     *
+     * @param result the merge result to validate
+     * @param mainWorktree the orchestrator's main worktree context
+     * @return updated merge result with conflicts populated if needed
+     */
+    MergeResult ensureMergeConflictsCaptured(MergeResult result, MainWorktreeContext mainWorktree);
+
 }

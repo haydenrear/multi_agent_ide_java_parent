@@ -19,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
 
@@ -110,71 +109,28 @@ public class AgentLifecycleHandler {
             return;
         }
 
+        String derivedBranch = baseBranch + "-" + UUID.randomUUID().toString();
         // Create main worktree
         MainWorktreeContext mainWorktree = worktreeService.createMainWorktree(
-                repositoryUrl, baseBranch, resolvedNodeId);
+                repositoryUrl, baseBranch, derivedBranch, resolvedNodeId);
+        List<SubmoduleWorktreeContext> submoduleContexts = mainWorktree.submoduleWorktrees();
 
         // Create orchestrator node
-        OrchestratorNode orchestrator = new OrchestratorNode(
-                resolvedNodeId,
-                Optional.ofNullable(title).orElse("Orchestrator"),
-                goal,
-                Events.NodeStatus.READY,
-                null,
-                new ArrayList<>(),
-                new HashMap<>(),
-                Instant.now(),
-                Instant.now(),
-                repositoryUrl,
-                baseBranch,
-                mainWorktree.hasSubmodules(),
-                worktreeService.getSubmoduleNames(mainWorktree.worktreePath()),
-                mainWorktree.worktreeId(),
-                new ArrayList<>(),
-                null,
-                new ArrayList<>()
-        );
+        OrchestratorNode orchestrator = OrchestratorNode.builder()
+                .nodeId(resolvedNodeId)
+                .title(Optional.ofNullable(title).orElse("Orchestrator")).goal(goal)
+                .status(Events.NodeStatus.READY)
+                .createdAt(Instant.now())
+                .lastUpdatedAt(Instant.now())
+                .worktreeContext(mainWorktree)
+                .build();
 
-        // Create submodule worktrees
         if (mainWorktree.hasSubmodules()) {
-            List<String> submoduleWorktreeIds = new ArrayList<>();
-            for (String submoduleName : orchestrator.submoduleNames()) {
-                Path submodulePath = worktreeService.getSubmodulePath(
-                        mainWorktree.worktreePath(), submoduleName);
-                SubmoduleWorktreeContext subWorktree = worktreeService.createSubmoduleWorktree(
-                        submoduleName, submodulePath.toString(),
-                        mainWorktree.worktreeId(), mainWorktree.worktreePath(),
-                        resolvedNodeId
-                );
-                submoduleWorktreeIds.add(subWorktree.worktreeId());
-                worktreeRepository.save(subWorktree);
-
-                // Emit worktree created event
+            for (SubmoduleWorktreeContext subWorktree : submoduleContexts) {
                 this.orchestrator.emitWorktreeCreatedEvent(subWorktree.worktreeId(), nodeId,
-                        subWorktree.worktreePath().toString(), "submodule", submoduleName);
+                        subWorktree.worktreePath().toString(), "submodule", subWorktree.submoduleName());
+                worktreeRepository.save(subWorktree);
             }
-
-            // Update orchestrator with submodule worktree IDs
-            var submodule = new SubmoduleNode(
-                orchestrator.nodeId(),
-                orchestrator.title(),
-                orchestrator.goal(),
-                    orchestrator.status(),
-                    orchestrator.parentNodeId(),
-                    orchestrator.childNodeIds(),
-                    orchestrator.metadata(),
-                    orchestrator.createdAt(),
-                    orchestrator.lastUpdatedAt(),
-                    orchestrator.repositoryUrl(),
-                    orchestrator.baseBranch(),
-                    orchestrator.hasSubmodules(),
-                    orchestrator.submoduleNames(),
-                    orchestrator.mainWorktreeId(),
-                    submoduleWorktreeIds,
-                    orchestrator.orchestratorOutput()
-            );
-
-            orchestrator.submodules().add(submodule);
         }
 
 

@@ -180,6 +180,9 @@ public interface AgentInterfaces {
         private List<RequestDecorator> requestDecorators = new ArrayList<>();
 
         @Autowired(required = false)
+        private List<ResultsRequestDecorator> resultsRequestDecorators = new ArrayList<>();
+
+        @Autowired(required = false)
         private List<FinalResultDecorator> finalResultDecorators = new ArrayList<>();
 
         @Autowired(required = false)
@@ -1126,7 +1129,21 @@ public interface AgentInterfaces {
                 }
             }
 
-            var d = AgentModels.DiscoveryAgentResults.builder().result(discoveryResults).build();
+            var d = AgentModels.DiscoveryAgentResults.builder()
+                    .result(discoveryResults)
+                    .worktreeContext(input.worktreeContext())
+                    .build();
+
+            // Decorate with ResultsRequestDecorator chain (Phase 2: child→trunk merge)
+            d = AgentInterfaces.decorateResultsRequest(
+                    d,
+                    context,
+                    resultsRequestDecorators,
+                    multiAgentAgentName(),
+                    ACTION_DISCOVERY_DISPATCH,
+                    METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
+                    lastRequest
+            );
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.DISCOVERY_AGENT_DISPATCH,
@@ -1352,7 +1369,19 @@ public interface AgentInterfaces {
 
             AgentModels.PlanningAgentResults planningAgentResults = AgentModels.PlanningAgentResults.builder()
                     .planningAgentResults(planningResults)
+                    .worktreeContext(input.worktreeContext())
                     .build();
+
+            // Decorate with ResultsRequestDecorator chain (Phase 2: child→trunk merge)
+            planningAgentResults = AgentInterfaces.decorateResultsRequest(
+                    planningAgentResults,
+                    context,
+                    resultsRequestDecorators,
+                    multiAgentAgentName(),
+                    ACTION_PLANNING_DISPATCH,
+                    METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
+                    lastRequest
+            );
 
             planningAgentResults = AgentInterfaces.decorateRequest(
                     planningAgentResults,
@@ -1627,7 +1656,19 @@ public interface AgentInterfaces {
 
             var ticketAgentResults = AgentModels.TicketAgentResults.builder()
                     .ticketAgentResults(ticketResults)
+                    .worktreeContext(input.worktreeContext())
                     .build();
+
+            // Decorate with ResultsRequestDecorator chain (Phase 2: child→trunk merge)
+            ticketAgentResults = AgentInterfaces.decorateResultsRequest(
+                    ticketAgentResults,
+                    context,
+                    resultsRequestDecorators,
+                    multiAgentAgentName(),
+                    ACTION_TICKET_DISPATCH,
+                    METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
+                    lastRequest
+            );
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.TICKET_AGENT_DISPATCH,
@@ -3254,6 +3295,48 @@ public interface AgentInterfaces {
         return decorated;
     }
 
+    /**
+     * Decorates a ResultsRequest (TicketAgentResults, PlanningAgentResults, DiscoveryAgentResults)
+     * using the provided ResultsRequestDecorator chain.
+     * 
+     * Used for Phase 2 of the worktree merge flow: merging child agent worktrees
+     * back to the parent (trunk) worktree before routing decisions.
+     * 
+     * @param resultsRequest The results request to decorate
+     * @param context The operation context
+     * @param decorators The list of decorators to apply
+     * @param agentName The agent name for context
+     * @param actionName The action name for context
+     * @param methodName The method name for context
+     * @param lastRequest The last request for context
+     * @return The decorated results request
+     */
+    static <T extends AgentModels.ResultsRequest> T decorateResultsRequest(
+            T resultsRequest,
+            OperationContext context,
+            List<? extends ResultsRequestDecorator> decorators,
+            String agentName,
+            String actionName,
+            String methodName,
+            AgentModels.AgentRequest lastRequest
+    ) {
+        if (resultsRequest == null || decorators == null || decorators.isEmpty()) {
+            return resultsRequest;
+        }
+        DecoratorContext decoratorContext = new DecoratorContext(
+                context, agentName, actionName, methodName, lastRequest, resultsRequest
+        );
+        // Sort decorators by order (lower values first)
+        List<? extends ResultsRequestDecorator> sortedDecorators = decorators.stream()
+                .filter(d -> d != null)
+                .sorted(Comparator.comparingInt(ResultsRequestDecorator::order))
+                .toList();
+        T decorated = resultsRequest;
+        for (ResultsRequestDecorator decorator : sortedDecorators) {
+            decorated = decorator.decorate(decorated, decoratorContext);
+        }
+        return decorated;
+    }
 
     static String renderReturnRoute(
             AgentModels.OrchestratorCollectorRequest orchestratorCollector,
