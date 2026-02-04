@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import java.util.function.Consumer;
 class LazyToolObjectRegistration {
 
     final EmbabelToolObjectRegistry.ToolRegistration underlying;
+
     final String name;
 
     final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -36,14 +38,17 @@ class LazyToolObjectRegistration {
 
     volatile List<ToolObject> setValues;
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    LazyToolObjectRegistration(McpServer value, String name) {
+    public record McpServerDescriptor(McpServer server, String requiredProtocol) {}
+
+    LazyToolObjectRegistration(McpServerDescriptor value, String name, ObjectMapper objectMapper) {
         this.name = name;
+        this.objectMapper = objectMapper;
         underlying = tor -> initializeToolObjects(value, tor);
     }
 
-    private @NonNull Optional<List<ToolObject>> initializeToolObjects(McpServer value, LazyToolObjectRegistration tor) {
+    private @NonNull Optional<List<ToolObject>> initializeToolObjects(McpServerDescriptor value, LazyToolObjectRegistration tor) {
         var t = toToolObjects(tor, name, value);
         return t;
     }
@@ -98,21 +103,20 @@ class LazyToolObjectRegistration {
         this.setValues = List.copyOf(values);
     }
 
-    private @NonNull Optional<List<ToolObject>> toToolObjects(LazyToolObjectRegistration tor, String name, McpServer value) {
+    private @NonNull Optional<List<ToolObject>> toToolObjects(LazyToolObjectRegistration tor, String name, McpServerDescriptor value) {
         var tc = resolveToolCallbacks(name, value, tor);
         return tc.map(toolCallbacks -> EmbabelToolObjectProvider.parseToolObjects(name, toolCallbacks));
     }
 
-    private @NonNull Optional<List<ToolCallback>> resolveToolCallbacks(String name, McpServer value, LazyToolObjectRegistration toolObjectRegistration) {
+    private @NonNull Optional<List<ToolCallback>> resolveToolCallbacks(String name,
+                                                                       McpServerDescriptor value,
+                                                                       LazyToolObjectRegistration toolObjectRegistration) {
 
         try {
-            switch (value) {
+            switch (value.server) {
                 case McpServer.Http http -> {
-                    var m = McpClient.sync(
-                                    DelegatingHttpClientStreamableHttpTransport
-                                            .builder(http.getUrl())
-                                            .build()
-                            )
+                    DelegatingHttpClientStreamableHttpTransport b = httpTransport(value, http);
+                    var m = McpClient.sync(b)
                             .toolsChangeConsumer(toolObjectRegistration.toolsChangeConsumer())
                             .build();
 
@@ -122,15 +126,7 @@ class LazyToolObjectRegistration {
                     return Optional.of(tc);
                 }
                 case McpServer.Stdio stdio -> {
-                    var m = McpClient.sync(
-                                    new StdioClientTransport(
-                                            ServerParameters.builder(stdio.getCommand())
-                                                    .env(MapFunctions.CollectMap(stdio.getEnv().stream()
-                                                            .map(e -> Map.entry(e.getName(), e.getValue()))))
-                                                    .args(stdio.getArgs())
-                                                    .build(),
-                                            new JacksonMcpJsonMapper(objectMapper))
-                            )
+                    var m = McpClient.sync(stdioTransport(stdio, value))
                             .toolsChangeConsumer(toolObjectRegistration.toolsChangeConsumer())
                             .build();
 
@@ -156,6 +152,40 @@ class LazyToolObjectRegistration {
         }
 
         return Optional.empty();
+    }
+
+    private @NonNull StdioClientTransport stdioTransport(McpServer.Stdio stdio, McpServerDescriptor value) {
+        ServerParameters.Builder args = ServerParameters.builder(stdio.getCommand())
+                .env(MapFunctions.CollectMap(stdio.getEnv().stream()
+                        .map(e -> Map.entry(e.getName(), e.getValue()))))
+                .args(stdio.getArgs());
+        return new StdioClientTransport(args.build(), new JacksonMcpJsonMapper(objectMapper));
+    }
+
+    private DelegatingHttpClientStreamableHttpTransport httpTransport(McpServerDescriptor value, McpServer.Http http) {
+        String url = http.getUrl();
+
+        var uri = UriComponentsBuilder
+                .fromUriString(url)
+                .replacePath("")
+                .build()
+                .toUriString();
+        var path = UriComponentsBuilder
+                .fromUriString(url)
+                .build()
+                .getPath();
+        DelegatingHttpClientStreamableHttpTransport.Builder httpBuilder = DelegatingHttpClientStreamableHttpTransport
+                .builder(uri)
+                .endpoint(path);
+
+        Optional.ofNullable(value.requiredProtocol)
+                .map(List::of)
+                .ifPresent(httpBuilder::supportedProtocolVersions);
+
+        httpBuilder.jsonMapper(new JacksonMcpJsonMapper(objectMapper));
+
+        return httpBuilder
+                .build();
     }
 
     private void publishClients(List<McpSyncClient> m1) {

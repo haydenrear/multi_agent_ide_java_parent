@@ -25,6 +25,8 @@ import com.hayden.multiagentide.tool.EmbabelToolObjectRegistry;
 import com.hayden.multiagentidelib.agent.AcpTooling;
 import com.hayden.multiagentidelib.agent.AgentTools;
 import com.hayden.acp_cdc_ai.acp.AcpChatModel;
+import com.hayden.utilitymodule.config.EnvConfigProps;
+import com.hayden.utilitymodule.io.FileUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,6 +69,8 @@ class AcpChatModelCodexIntegrationTest {
     private AgentTools guiEvent;
     @Autowired
     private AcpTooling fileSystemTools;
+    @Autowired
+    private EnvConfigProps envConfigProps;
 
     @Autowired
     private RequestContextRepository requestContextRepository;
@@ -126,6 +130,7 @@ class AcpChatModelCodexIntegrationTest {
                 OperationContext context
         ) {
             Optional<List<ToolObject>> deepwiki = toolObjectRegistry.tool("deepwiki");
+            Optional<List<ToolObject>> hindsight = toolObjectRegistry.tool("hindsight");
 
             assertThat(deepwiki)
                     .withFailMessage("Deep wiki could not be reached.")
@@ -134,6 +139,7 @@ class AcpChatModelCodexIntegrationTest {
             return context.ai().withDefaultLlm()
                     .withId("hello!")
                     .withToolObjects(deepwiki.get())
+                    .withToolObjects(hindsight.get())
 //                    .withToolObject(new ToolObject(guiEvent))
                     .withToolObject(new ToolObject(fileSystemTools))
                     .createObject(input.request, ResultValue.class);
@@ -186,14 +192,18 @@ class AcpChatModelCodexIntegrationTest {
 //        log.info("");
 
         try {
-            File logFile = new File("log.log");
+            Path testWork = envConfigProps.getProjectDir().resolve("test_work");
+            testWork.toFile().mkdirs();
+            var logFile = testWork.resolve("log.log").toFile();
             logFile.delete();
-            File parentLogFile = new File("multi_agent_ide/log.log");
-            parentLogFile.delete();
             String nodeId = ArtifactKey.createRoot().value();
-            
+
+            Path testWorkDir = envConfigProps.getProjectDir().resolve("test_work").resolve("hello");
+
+            FileUtils.writeToFile("wow!", testWorkDir);
+
             // Register RequestContext so sandbox translation can set working directory
-            Path workingDir = new File("").toPath().toAbsolutePath();
+            Path workingDir = testWork.toAbsolutePath();
             RequestContext requestContext = RequestContext.builder()
                     .sessionId(nodeId)
                     .sandboxContext(SandboxContext.builder()
@@ -210,12 +220,13 @@ class AcpChatModelCodexIntegrationTest {
                     .filter(agent -> agent.getName().equals(agentName))
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException("Agent not found: " + agentName));
+            RequestValue v1 = new RequestValue("Can you use your read tool to read the file %s/hello, return the result, ".formatted(workingDir.toAbsolutePath().toString()) +
+                    "then write that result to another file named log.log using your write tool, " +
+                    "then update that file and add the words WHATEVER!??");
             AgentProcess process = agentPlatform.runAgentFrom(
                     thisAgent,
                     processOptions,
-                    Map.of(IoBinding.DEFAULT_BINDING, new RequestValue("Can you use your read tool to read the file /Users/hayde/IdeaProjects/multi_agent_ide_parent/multi_agent_ide/hello, return the result, " +
-                                                                        "then write that result to another file named log.log using your write tool, " +
-                                                                        "then update that file and add the words WHATEVER!??")));
+                    Map.of(IoBinding.DEFAULT_BINDING, v1));
 
             process.bind("conversation", new InMemoryConversation());
 
@@ -223,10 +234,9 @@ class AcpChatModelCodexIntegrationTest {
 
             log.info("{}", res);
 
-            assertThat(logFile.exists() || parentLogFile.exists()).isTrue();
+            assertThat(logFile.exists()).isTrue();
 
             logFile.delete();
-            parentLogFile.delete();
 
         } catch (Exception e) {
             log.error("Error - will not fail test for codex-acp - but failed", e);

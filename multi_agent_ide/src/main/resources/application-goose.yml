@@ -19,6 +19,6 @@ acp.mcp:
     - name: deepwiki
       url: https://mcp.deepwiki.com/mcp
       headers:
-#    - name: hindsight
-#      url: http://localhost:8888/mcp
-#      headers:
+    - name: hindsight
+      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
+      headers:

@@ -1,6 +1,7 @@
 package com.hayden.acp_cdc_ai.mcp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import com.hayden.utilitymodule.concurrent.striped.StripedLock;
 import com.hayden.utilitymodule.result.Result;
 import com.hayden.utilitymodule.result.error.SingleError;
@@ -32,6 +33,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -52,7 +54,8 @@ public class DynamicMcpToolCallbackProvider {
         }
 
         record HttpServerMetadata(String baseUri,
-                                  String endpoint) implements McpServerMetadata {
+                                  String endpoint,
+                                  String requiredProtocolVersion) implements McpServerMetadata {
         }
 
     }
@@ -61,7 +64,8 @@ public class DynamicMcpToolCallbackProvider {
 
         interface StdioServerCustomizer extends ServerCustomizer<McpServerMetadata.StdioServerMetadata> {}
 
-        interface HttpServerCustomizer extends ServerCustomizer<McpServerMetadata.HttpServerMetadata> {}
+        interface HttpServerCustomizer extends ServerCustomizer<McpServerMetadata.HttpServerMetadata> {
+        }
 
     }
 
@@ -73,6 +77,9 @@ public class DynamicMcpToolCallbackProvider {
 
     @Autowired
     private McpSyncClientConfigurer mcpSyncClientConfigurer;
+
+    @Autowired
+    private RequiredProtocolProperties requiredProtocolProperties;
 
     @Autowired(required = false)
     private List<NamedClientMcpTransport> stdioTransports = new ArrayList<>();
@@ -252,9 +259,10 @@ public class DynamicMcpToolCallbackProvider {
         URI uri = transportEndpoint.baseUri();
         String endpoint = transportEndpoint.endpoint();
 
-        var paramsAfter = replace.apply(new McpServerMetadata.HttpServerMetadata(
-                this.connectedClientName(commonProperties.getName(), namedTransport.name()),
-                endpoint));
+//        var paramsAfter = replace.apply(new McpServerMetadata.HttpServerMetadata(
+//                this.connectedClientName(commonProperties.getName(), namedTransport.name()),
+//                endpoint,
+//                this.requiredProtocolProperties.protocolFor(namedTransport.name()).orElse(null)));
 
         if (uri == null) {
             log.error("Could not find valid endpoint for name {}.", clientName);
@@ -267,12 +275,18 @@ public class DynamicMcpToolCallbackProvider {
         }
 
         if (namedTransport.transport() instanceof DelegatingHttpClientStreamableHttpTransport d) {
-             var t = d.toBuilder().build();
+            DelegatingHttpClientStreamableHttpTransport.Builder protocolBuilder = d.toBuilder();
+            var p = this.requiredProtocolProperties.protocolFor(namedTransport.name());
+
+            if (p.isPresent())
+                protocolBuilder = protocolBuilder.supportedProtocolVersions(Lists.newArrayList(p.get()));
+
+            var t = protocolBuilder
+                     .build();
 
             var client = buildInitializeClient(uri.toString(), McpClient.sync(t), namedTransport);
 
             clientConcurrentHashMap.put(clientName, client);
-
             return Result.ok(client);
         }
 

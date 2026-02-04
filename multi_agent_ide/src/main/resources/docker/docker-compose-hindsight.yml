@@ -1,0 +1,53 @@
+services:
+  hindsight-pg:
+    image: localhost:5005/postgres-pgvector
+    container_name: hindsight-pg
+    networks:
+      hindsight-network:
+    environment:
+      POSTGRES_USER: hindsight
+      POSTGRES_PASSWORD: hindsight
+      POSTGRES_DB: hindsight
+    volumes:
+      - hindsight-pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hindsight -d hindsight"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  hindsight:
+    image: localhost:5005/cdc-hindsight
+    container_name: hindsight
+    pull_policy: always
+    networks:
+      hindsight-network:
+    ports:
+      - "8777:8888"
+      - "9999:9999"
+    environment:
+      # Database - use the postgres container
+      HINDSIGHT_API_DATABASE_URL: postgresql://hindsight:hindsight@hindsight-pg:5432/hindsight
+      HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP: "true"
+      # LLM - use Ollama on the host
+      HINDSIGHT_API_LLM_PROVIDER: ollama
+      HINDSIGHT_API_LLM_BASE_URL: http://host.docker.internal:11434/v1
+      HINDSIGHT_API_LLM_MODEL: llama3.1:latest
+      HINDSIGHT_API_LLM_API_KEY: "not-needed"
+      # Embeddings - fully local, no external API
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: local
+      HINDSIGHT_API_EMBEDDINGS_LOCAL_MODEL: BAAI/bge-small-en-v1.5
+      # Reranker - fully local
+      HINDSIGHT_API_RERANKER_PROVIDER: local
+      HINDSIGHT_API_RERANKER_LOCAL_MODEL: cross-encoder/ms-marco-MiniLM-L-6-v2
+    depends_on:
+      hindsight-pg:
+        condition: service_healthy
+
+volumes:
+  hindsight-pgdata:
+
+networks:
+  hindsight-network:
