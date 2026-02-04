@@ -2,6 +2,7 @@ package com.hayden.multiagentide.agent.decorator;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.decorator.request.WorktreeContextRequestDecorator;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.WorktreeService;

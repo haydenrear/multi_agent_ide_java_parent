@@ -1,8 +1,7 @@
-package com.hayden.multiagentide.agent.decorator;
+package com.hayden.multiagentide.agent.decorator.result;
 
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.acp_cdc_ai.acp.events.Artifact;
 
 public interface FinalResultDecorator extends ResultDecorator {
 

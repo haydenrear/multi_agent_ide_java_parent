@@ -1,16 +1,22 @@
 package com.hayden.multiagentide.agent.decorator;
 
 import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.decorator.request.DispatchedAgentRequestDecorator;
+import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
+import com.hayden.multiagentide.agent.decorator.result.DispatchedAgentResultDecorator;
+import com.hayden.multiagentide.agent.decorator.result.FinalResultDecorator;
+import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentide.artifacts.ArtifactEmissionService;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class EmitAgentModelArtifactDecorator implements RequestDecorator, ResultDecorator, FinalResultDecorator {
+public class EmitAgentModelArtifactDecorator implements
+        RequestDecorator, ResultDecorator, FinalResultDecorator,
+        DispatchedAgentResultDecorator, DispatchedAgentRequestDecorator {
 
     private final ExecutionScopeService exec;
 
@@ -18,7 +24,7 @@ public class EmitAgentModelArtifactDecorator implements RequestDecorator, Result
 
     @Override
     public int order() {
-        return RequestDecorator.super.order();
+        return 100_000_000;
     }
 
     @Override

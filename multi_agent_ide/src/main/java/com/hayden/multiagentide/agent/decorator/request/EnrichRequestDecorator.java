@@ -1,4 +1,4 @@
-package com.hayden.multiagentide.agent.decorator;
+package com.hayden.multiagentide.agent.decorator.request;
 
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @RequiredArgsConstructor
-public class EnrichResultDecorator implements ResultDecorator {
+public class EnrichRequestDecorator implements RequestDecorator {
 
     private final RequestEnrichment requestEnrichment;
 
@@ -22,12 +22,7 @@ public class EnrichResultDecorator implements ResultDecorator {
     }
 
     @Override
-    public <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
-        return t;
-    }
-
-    @Override
-    public <T extends AgentModels.AgentResult> T decorate(T request, DecoratorContext context) {
+    public <T extends AgentModels.AgentRequest> T decorate(T request, DecoratorContext context) {
         return requestEnrichment.enrich(request, context.operationContext());
     }
 

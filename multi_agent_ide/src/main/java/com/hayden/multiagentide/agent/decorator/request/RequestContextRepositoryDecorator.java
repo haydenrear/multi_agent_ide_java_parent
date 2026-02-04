@@ -1,19 +1,12 @@
-package com.hayden.multiagentide.agent.decorator;
+package com.hayden.multiagentide.agent.decorator.request;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository;
-import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-
-import java.nio.file.Path;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Stream;
 
 @Component
 @RequiredArgsConstructor

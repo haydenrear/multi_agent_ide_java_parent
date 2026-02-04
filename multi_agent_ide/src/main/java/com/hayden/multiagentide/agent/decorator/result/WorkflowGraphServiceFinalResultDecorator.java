@@ -1,4 +1,4 @@
-package com.hayden.multiagentide.agent.decorator;
+package com.hayden.multiagentide.agent.decorator.result;
 
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentidelib.agent.AgentModels;

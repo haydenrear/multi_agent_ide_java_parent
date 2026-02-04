@@ -1,4 +1,4 @@
-package com.hayden.multiagentide.agent.decorator;
+package com.hayden.multiagentide.agent.decorator.prompt;
 
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;

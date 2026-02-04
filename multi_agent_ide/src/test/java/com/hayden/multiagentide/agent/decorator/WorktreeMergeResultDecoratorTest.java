@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.agent.decorator;
 
 import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.decorator.result.WorktreeMergeResultDecorator;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.MergeResult;

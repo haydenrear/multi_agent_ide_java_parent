@@ -1,4 +1,4 @@
-package com.hayden.multiagentide.agent.decorator;
+package com.hayden.multiagentide.agent.decorator.result;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentide.agent.DecoratorContext;
