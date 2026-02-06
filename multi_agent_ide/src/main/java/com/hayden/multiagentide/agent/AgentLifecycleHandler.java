@@ -109,7 +109,7 @@ public class AgentLifecycleHandler {
             return;
         }
 
-        String derivedBranch = baseBranch + "-" + UUID.randomUUID().toString();
+        String derivedBranch = baseBranch + "-" + UUID.randomUUID();
         // Create main worktree
         MainWorktreeContext mainWorktree = worktreeService.createMainWorktree(
                 repositoryUrl, baseBranch, derivedBranch, resolvedNodeId);

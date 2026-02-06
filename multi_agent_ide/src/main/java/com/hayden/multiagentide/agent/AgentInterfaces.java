@@ -38,6 +38,7 @@ import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
+import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -203,12 +204,43 @@ public interface AgentInterfaces {
             return WORKFLOW_AGENT_NAME;
         }
 
+        private static final int MAX_STUCK_HANDLER_INVOCATIONS = 3;
+
         @Override
         public StuckHandlerResult handleStuck(AgentProcess agentProcess) {
             OperationContext context = buildStuckHandlerContext(agentProcess);
             BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
-            String loopSummary = Optional.ofNullable(history)
+
+            if (history == null)
+                return new StuckHandlerResult(
+                        "Stuck handler called with no blackboard history. Systemic failure!",
+                        this,
+                        StuckHandlingResultCode.NO_RESOLUTION,
+                        agentProcess
+                );
+
+            // Guard against infinite stuck handler re-entry.
+            var lastSize = history.fromHistory(s -> {
+                List<AgentModels.ContextManagerRequest> cmr = s.getLast(AgentModels.ContextManagerRequest.class);
+                if (cmr.size() >= MAX_STUCK_HANDLER_INVOCATIONS
+                        && cmr.stream().allMatch(c -> STUCK_HANDLER.equals(c.reason()))) {
+                    return cmr.size();
+                }
+
+                return -1;
+            });
+
+            if (lastSize != -1)
+                return new StuckHandlerResult(
+                        "Stuck handler exhausted after " + lastSize + " attempts",
+                        this,
+                        StuckHandlingResultCode.NO_RESOLUTION,
+                        agentProcess
+                );
+
+            String loopSummary = Optional.of(history)
                     .map(BlackboardHistory::summary)
+                    .filter(StringUtils::isNotBlank)
                     .orElse("No history available");
 
             AgentModels.AgentRequest lastRequest = findLastRequest(
@@ -2360,7 +2392,9 @@ public interface AgentInterfaces {
             }
             AgentModels.DiscoveryOrchestratorRequest orchestratorRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryOrchestratorRequest.class);
-            return firstNonBlank(orchestratorRequest != null ? orchestratorRequest.goal() : null);
+            return firstNonBlank(
+                    orchestratorRequest != null ? orchestratorRequest.goal() : null,
+                    resolveRootGoal(context));
         }
 
         private static String resolvePlanningGoal(
@@ -2375,7 +2409,9 @@ public interface AgentInterfaces {
             }
             AgentModels.PlanningOrchestratorRequest orchestratorRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningOrchestratorRequest.class);
-            return firstNonBlank(orchestratorRequest != null ? orchestratorRequest.goal() : null);
+            return firstNonBlank(
+                    orchestratorRequest != null ? orchestratorRequest.goal() : null,
+                    resolveRootGoal(context));
         }
 
         private static String resolveTicketGoal(
@@ -2390,7 +2426,15 @@ public interface AgentInterfaces {
             }
             AgentModels.TicketOrchestratorRequest orchestratorRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
-            return firstNonBlank(orchestratorRequest != null ? orchestratorRequest.goal() : null);
+            return firstNonBlank(
+                    orchestratorRequest != null ? orchestratorRequest.goal() : null,
+                    resolveRootGoal(context));
+        }
+
+        private static String resolveRootGoal(ActionContext context) {
+            AgentModels.OrchestratorRequest rootRequest =
+                    BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
+            return rootRequest != null ? rootRequest.goal() : "Continue workflow";
         }
 
         private static String resolveMergeSummary(

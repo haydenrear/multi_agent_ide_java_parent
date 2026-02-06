@@ -271,10 +271,14 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     .map(entry -> (T) entry.input())
                     .reduce((first, second) -> second)
                     .or(() -> entries.stream()
-                            .filter(entry -> entry.inputType() != null
-                                        && type.isAssignableFrom(entry.inputType()))
+                            .filter(entry -> isTy(type, entry))
                             .map(entry -> (T) entry.input())
                             .reduce((first, second) -> second));
+        }
+
+        private <T> boolean isTy(Class<T> type, Entry entry) {
+            return entry.inputType() != null
+                    && (type.isAssignableFrom(entry.inputType()) || type.equals(entry.inputType()));
         }
 
         /**
@@ -362,6 +366,17 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     events
             ));
         }
+
+        public <T> List<T> getLast(Class<T> contextManagerRequestClass) {
+            if (!isTy(contextManagerRequestClass, this.entries.getLast())) {
+                return new ArrayList<>();
+            }
+
+            return this.entries.reversed().stream()
+                    .takeWhile(e -> isTy(contextManagerRequestClass, e))
+                    .map(e -> (T) e.input())
+                    .toList();
+        }
     }
 
     @Override
@@ -440,6 +455,8 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             case Events.PermissionResolvedEvent permissionResolved ->
                     buildTargets(event.nodeId(), permissionResolved.originNodeId());
             case Events.ArtifactEvent artifactEvent ->
+                    new ArrayList<>();
+            case Events.ChatSessionCreatedEvent chatSessionCreatedEvent ->
                     new ArrayList<>();
         };
     }
