@@ -2,6 +2,7 @@ package com.hayden.multiagentide.acp_tests;
 
 import static com.hayden.multiagentide.acp_tests.AcpChatModelCodexIntegrationTest.TestAgent.TEST_AGENT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import com.embabel.agent.api.annotation.AchievesGoal;
 import com.embabel.agent.api.annotation.Action;
@@ -16,13 +17,17 @@ import com.embabel.agent.core.IoBinding;
 import com.embabel.agent.core.ProcessOptions;
 import com.embabel.chat.support.InMemoryConversation;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository;
 import com.hayden.acp_cdc_ai.sandbox.SandboxContext;
 import com.hayden.multiagentide.agent.AgentLifecycleHandler;
 import com.hayden.multiagentide.controller.OrchestrationController;
+import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.tool.EmbabelToolObjectRegistry;
-import com.hayden.multiagentidelib.agent.AcpTooling;
+import com.hayden.multiagentide.gate.PermissionGateAdapter;
+import com.hayden.multiagentide.agent.AcpTooling;
 import com.hayden.multiagentidelib.agent.AgentTools;
 import com.hayden.acp_cdc_ai.acp.AcpChatModel;
 import com.hayden.utilitymodule.config.EnvConfigProps;
@@ -37,12 +42,15 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
-import java.io.File;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
@@ -74,6 +82,10 @@ class AcpChatModelCodexIntegrationTest {
 
     @Autowired
     private RequestContextRepository requestContextRepository;
+    @Autowired
+    private PermissionGateAdapter permissionGateAdapter;
+    @Autowired
+    private EventStreamRepository eventStreamRepository;
 
     public record ResultValue(String result) {}
     public record FinalValue(String result) {}
@@ -154,14 +166,27 @@ class AcpChatModelCodexIntegrationTest {
                 .ifPresentOrElse(agentPlatform::deploy, () -> log.error("Error deploying {} - could not create agent metadata.", agentInterface));
     }
 
-//    @Test
+    @Test
     void testCreateGoal() {
-        var s = orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
-                "Please add centralization of artifacts pulled by any of the LibsDownloader into centralized repository.",
-                "/Users/hayde/IdeaProjects/multi_agent_ide_parent/libs-resolver",
-                "main", "Artifact Centralization"));
 
-        log.info("Performed");
+        CompletableFuture.runAsync(() -> {
+            var s = orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
+                    "Please add centralization of artifacts pulled by any of the LibsDownloader into centralized repository.",
+                    "/Users/hayde/IdeaProjects/multi_agent_ide_parent/libs-resolver",
+                    "main", "Artifact Centralization"));
+        });
+
+        startPermissionConsole();
+
+        await().atMost(Duration.ofMinutes(60))
+                .pollInterval(Duration.ofSeconds(5))
+                .until(() ->
+                        eventStreamRepository.list()
+                                .stream()
+                                .anyMatch(event -> event instanceof Events.GoalCompletedEvent)
+                );
+
+        log.info("Finished!");
     }
 
 //    @Test
@@ -241,5 +266,100 @@ class AcpChatModelCodexIntegrationTest {
         } catch (Exception e) {
             log.error("Error - will not fail test for codex-acp - but failed", e);
         }
+    }
+
+    private void startPermissionConsole() {
+        CompletableFuture.runAsync(() -> {
+            try(var reader = new BufferedReader(new InputStreamReader(System.in))) {
+                while (true) {
+                    if (!permissionGateAdapter.pendingPermissionRequests().isEmpty()) {
+                        permissionGateAdapter.pendingPermissionRequests()
+                                .forEach(request -> {
+                                    System.out.printf("Found permission request: %s%n", request);
+                                    System.out.println("Options:");
+                                    var permissions = request.getPermissions();
+                                    for (int i = 0; i < permissions.size(); i++) {
+                                        var option = permissions.get(i);
+                                        System.out.printf("  %d. %s (%s)%n", i + 1, option.getName(), option.getKind());
+                                    }
+                                    System.out.print("Select option [1.." + permissions.size() + "], optionType, or 'cancel': ");
+                                    try {
+                                        var input = reader.readLine();
+                                        if (input == null || input.isBlank()) {
+                                            permissionGateAdapter.resolveSelected(
+                                                    request.getRequestId(),
+                                                    permissions.getFirst()
+                                            );
+                                            return;
+                                        }
+                                        var trimmed = input.trim();
+                                        if ("cancel".equalsIgnoreCase(trimmed)) {
+                                            permissionGateAdapter.resolveCancelled(request.getRequestId());
+                                            return;
+                                        }
+                                        try {
+                                            int index = Integer.parseInt(trimmed);
+                                            if (index >= 1 && index <= permissions.size()) {
+                                                var selected = permissions.get(index - 1);
+                                                permissionGateAdapter.resolveSelected(request.getRequestId(), selected);
+                                                return;
+                                            }
+                                        } catch (
+                                                NumberFormatException ignored) {
+                                        }
+                                        permissionGateAdapter.resolveSelected(request.getRequestId(), trimmed);
+                                    } catch (
+                                            IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                });
+                    }
+
+                    if (!permissionGateAdapter.pendingInterruptRequests().isEmpty()) {
+                        permissionGateAdapter.pendingInterruptRequests()
+                                .forEach(request -> {
+                                    System.out.printf("Found interrupt request: %s%n", request);
+
+                                    try {
+                                        var input = reader.readLine();
+                                        if (input == null || input.isBlank()) {
+                                            permissionGateAdapter.resolveInterrupt(
+                                                    request.getInterruptId(),
+                                                    request.getOriginNodeId(),
+                                                    "",
+                                                    null
+                                            );
+                                            return;
+                                        }
+                                        var trimmed = input.trim();
+                                        permissionGateAdapter.resolveInterrupt(
+                                                request.getInterruptId(),
+                                                request.getOriginNodeId(),
+                                                trimmed,
+                                                null
+                                        );
+                                    } catch (
+                                            IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                });
+                    }
+
+                    try {
+                        Thread.sleep(500);
+                    } catch (
+                            InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            } catch (IOException e) {
+                log.error("Error on system in: {}.", e.getMessage(), e);
+                throw new RuntimeException(e);
+            }
+        }).exceptionally(t -> {
+            log.error("Found that error!", t);
+            return null;
+        });
     }
 }
