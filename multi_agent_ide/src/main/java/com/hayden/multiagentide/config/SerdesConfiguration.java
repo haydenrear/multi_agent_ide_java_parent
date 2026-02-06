@@ -16,8 +16,18 @@ public class SerdesConfiguration {
     public Jackson2ObjectMapperBuilderCustomizer artifactSerdesCustomizer() {
         return builder -> {
             // Register mix-in for Artifact polymorphic serialization
-            builder.mixIn(Artifact.class, ArtifactMixin.WithTypeInfo.class);
+//            builder.mixIn(Artifact.class, ArtifactMixin.WithTypeInfo.class);
             
+            // Register mix-in for AgentModel polymorphic serialization
+//            builder.mixIn(Artifact.AgentModel.class, AgentModelMixin.WithTypeInfo.class);
+        };
+    }
+
+    public Jackson2ObjectMapperBuilderCustomizer artifactAndAgentModelMixIn() {
+        return builder -> {
+            // Register mix-in for Artifact polymorphic serialization
+            builder.mixIn(Artifact.class, ArtifactMixin.WithTypeInfo.class);
+
             // Register mix-in for AgentModel polymorphic serialization
             builder.mixIn(Artifact.AgentModel.class, AgentModelMixin.WithTypeInfo.class);
         };

@@ -67,6 +67,7 @@ public sealed interface Artifact
         return l;
     }
 
+    Artifact withChildren(List<Artifact> children);
 
     Artifact withHash(String hash);
 
@@ -230,6 +231,12 @@ public sealed interface Artifact
             Map<String, String> metadata,
             String schema
     ) implements Templated {
+
+
+        @Override
+        public Artifact withChildren(List<Artifact> children) {
+            return this;
+        }
 
         @Override
         @JsonIgnore

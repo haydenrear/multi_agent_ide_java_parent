@@ -2,6 +2,7 @@ package com.hayden.acp_cdc_ai.acp.events;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import lombok.val;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -22,6 +23,16 @@ import java.util.regex.Pattern;
  * - Lexicographically sortable by creation time
  */
 public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
+
+    @JsonCreator
+    public ArtifactKey(String value) {
+        value = value.replaceAll("ak:", "");
+        this.value = "ak:" + value;
+        Objects.requireNonNull(this.value, "ArtifactKey value cannot be null");
+        if (!isValid(this.value)) {
+            throw new IllegalArgumentException("Invalid ArtifactKey format: " + value);
+        }
+    }
     
     private static final String PREFIX = "ak:";
     private static final char SEPARATOR = '/';
@@ -35,14 +46,7 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
             "^ak:[0-9A-HJKMNP-TV-Z]{26}(/[0-9A-HJKMNP-TV-Z]{26})*$"
     );
     
-    @JsonCreator
-    public ArtifactKey {
-        Objects.requireNonNull(value, "ArtifactKey value cannot be null");
-        if (!isValid(value)) {
-            throw new IllegalArgumentException("Invalid ArtifactKey format: " + value);
-        }
-    }
-    
+
     /**
      * Creates a new root ArtifactKey with a fresh ULID.
      */
@@ -243,5 +247,10 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
             timestamp = (timestamp << 5) | val;
         }
         return Instant.ofEpochMilli(timestamp);
+    }
+
+    public ArtifactKey root() {
+        var firstSep = value.indexOf(SEPARATOR);
+        return new ArtifactKey(value.substring(0, firstSep));
     }
 }

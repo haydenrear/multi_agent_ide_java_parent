@@ -122,17 +122,7 @@ public class ExecutionScopeService {
                 .map(scope -> scope.groupKeys().get(groupName));
     }
     
-    /**
-     * Creates a new child artifact key under a group.
-     */
-    public ArtifactKey createChildKey(String workflowRunId, String groupName) {
-        return getGroupKey(workflowRunId, groupName)
-                .map(ArtifactKey::createChild)
-                .orElseThrow(() -> new IllegalStateException(
-                        "No active scope or group for: " + workflowRunId + "/" + groupName));
-    }
 
-    
     /**
      * Emits an artifact event.
      */
@@ -157,13 +147,9 @@ public class ExecutionScopeService {
                 .orElseThrow(() -> new IllegalStateException("Group not found: " + groupName));
         emitArtifact(artifact, groupKey);
     }
-    
+
     private String extractNodeId(Artifact artifact) {
-        return switch (artifact) {
-            case Artifact.EventArtifact e -> e.artifactKey().value();
-            case Artifact.AgentModelArtifact a -> a.artifactKey().value();
-            default -> null;
-        };
+        return artifact.artifactKey().value();
     }
 
 

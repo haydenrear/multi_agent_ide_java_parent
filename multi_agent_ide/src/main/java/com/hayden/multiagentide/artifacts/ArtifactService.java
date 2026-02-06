@@ -2,18 +2,20 @@ package com.hayden.multiagentide.artifacts;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Lists;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Templated;
+import com.hayden.multiagentide.config.SerdesConfiguration;
 import com.hayden.utilitymodule.stream.StreamUtil;
 import io.micrometer.common.util.StringUtils;
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.PersistenceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,7 +39,16 @@ import java.util.stream.Stream;
 public class ArtifactService {
 
     private final ArtifactRepository artifactRepository;
-    private final ObjectMapper objectMapper;
+
+    private ObjectMapper objectMapper;
+
+    @PostConstruct
+    public void configure() {
+        var j = new Jackson2ObjectMapperBuilder();
+        new SerdesConfiguration().artifactAndAgentModelMixIn().customize(j);
+
+        this.objectMapper = j.build();
+    }
 
 
     @Transactional

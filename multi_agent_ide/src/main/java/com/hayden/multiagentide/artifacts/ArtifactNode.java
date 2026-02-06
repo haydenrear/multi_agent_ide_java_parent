@@ -125,7 +125,12 @@ public class ArtifactNode {
 
         // Add the child artifact to this artifact's children list
         // This builds the tree structure within the Artifact model itself
-        this.artifact.children().add(childArtifact);
+        try {
+            this.artifact.children().add(childArtifact);
+        } catch (Exception e) {
+            log.error("");
+            throw e;
+        }
 
         // Register the hash for future dedup
         contentHash.ifPresent(childContentHashes::add);

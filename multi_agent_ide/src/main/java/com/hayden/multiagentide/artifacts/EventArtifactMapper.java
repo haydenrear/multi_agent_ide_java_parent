@@ -10,8 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Maps GraphEvent instances to EventArtifact nodes.
@@ -30,11 +29,10 @@ public class EventArtifactMapper {
      * Maps a GraphEvent to an EventArtifact.
      * 
      * @param event The source GraphEvent
-     * @param parentKey The parent artifact key to nest under
      * @return The mapped EventArtifact
      */
-    public Artifact.EventArtifact mapToEventArtifact(Events.GraphEvent event, ArtifactKey parentKey) {
-        ArtifactKey artifactKey = parentKey.createChild(event.timestamp());
+    public Artifact.EventArtifact mapToEventArtifact(Events.GraphEvent event) {
+        ArtifactKey artifactKey = new ArtifactKey(event.nodeId());
         
         Map<String, Object> payload = eventToPayload(event);
         String contentHash = ArtifactHashing.hashJson(payload);
@@ -46,20 +44,20 @@ public class EventArtifactMapper {
                 .eventType(event.eventType())
                 .payloadJson(payload)
                 .hash(contentHash)
-                .metadata(Map.of())
-                .children(List.of())
+                .metadata(Collections.synchronizedMap(new HashMap<>()))
+                .children(Collections.synchronizedList(new ArrayList<>()))
                 .build();
     }
     
     /**
      * Maps stream-related events to MessageStreamArtifact.
      */
-    public MessageStreamArtifact mapToStreamArtifact(Events.GraphEvent event, ArtifactKey parentKey) {
+    public MessageStreamArtifact mapToStreamArtifact(Events.GraphEvent event) {
         if (!isStreamEvent(event)) {
             throw new IllegalArgumentException("Event is not a stream event: " + event.eventType());
         }
-        
-        ArtifactKey artifactKey = parentKey.createChild(event.timestamp());
+
+        var artifactKey = new ArtifactKey(event.nodeId());
         Map<String, Object> payload = eventToPayload(event);
         String contentHash = ArtifactHashing.hashJson(payload);
         
@@ -72,8 +70,8 @@ public class EventArtifactMapper {
                 .eventTimestamp(event.timestamp())
                 .payloadJson(payload)
                 .hash(contentHash)
-                .metadata(Map.of())
-                .children(List.of())
+                .metadata(Collections.synchronizedMap(new HashMap<>()))
+                .children(Collections.synchronizedList(new ArrayList<>()))
                 .build();
     }
     
@@ -144,12 +142,12 @@ public class EventArtifactMapper {
                 .inputHash(inputHash)
                 .outputJson(outputJson)
                 .outputHash(outputHash)
-                .metadata(Map.of(
+                .metadata(Collections.synchronizedMap(Map.of(
                         "kind", event.kind() != null ? event.kind() : "",
                         "status", event.status() != null ? event.status() : "",
                         "phase", event.phase() != null ? event.phase() : ""
-                ))
-                .children(List.of())
+                )))
+                .children(Collections.synchronizedList(new ArrayList<>()))
                 .build();
     }
     
@@ -170,8 +168,8 @@ public class EventArtifactMapper {
                 .evidenceType(evidenceType)
                 .payload(payloadJson)
                 .hash(contentHash)
-                .metadata(Map.of())
-                .children(List.of())
+                .metadata(Collections.synchronizedMap(new HashMap<>()))
+                .children(Collections.synchronizedList(new ArrayList<>()))
                 .build();
     }
     

@@ -59,7 +59,9 @@ class ArtifactTreeBuilderTest {
         objectMapper = jacksonObjectMapperBuilder.build();
         objectMapper.findAndRegisterModules();
 
-        treeBuilder = new ArtifactTreeBuilder(artifactRepository, objectMapper, new ArtifactService(artifactRepository, objectMapper));
+        treeBuilder = new ArtifactTreeBuilder(artifactRepository, objectMapper, new ArtifactService(artifactRepository));
+
+
         
         rootKey = ArtifactKey.createRoot();
         executionKey = rootKey.value();
