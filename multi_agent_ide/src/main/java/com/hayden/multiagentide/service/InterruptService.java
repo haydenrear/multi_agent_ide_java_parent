@@ -1,20 +1,25 @@
 package com.hayden.multiagentide.service;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
+import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentidelib.prompt.PromptContextFactory;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
 import com.hayden.multiagentidelib.model.nodes.InterruptContext;
 import com.hayden.multiagentidelib.model.nodes.InterruptNode;
 import com.hayden.multiagentidelib.model.nodes.Interruptible;
 import com.hayden.multiagentidelib.model.nodes.ReviewNode;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
@@ -27,10 +32,17 @@ public class InterruptService {
 
     private static final String REVIEW_CRITERIA =
             "Review for correctness and completeness. Reply with approved if correct, otherwise explain issues.";
+    private static final String TEMPLATE_WORKFLOW_REVIEW = "workflow/review";
+    private static final String AGENT_NAME = "interrupt-service";
+    private static final String ACTION_AGENT_REVIEW = "agent-review";
+    private static final String METHOD_RUN_INTERRUPT_AGENT_REVIEW = "runInterruptAgentReview";
     public static final String INTERRUPT_ID_NOT_FOUND = "interrupt_id_not_found";
 
     private final PermissionGate permissionGate;
     private final LlmRunner llmRunner;
+    private final PromptContextFactory promptContextFactory;
+    private final List<PromptContextDecorator> promptContextDecorators;
+    private final List<ToolContextDecorator> toolContextDecorators;
 
     /**
      * Handle review interrupt using Jinja templates and PromptContext.
@@ -164,10 +176,10 @@ public class InterruptService {
                         result.reviewContent()
                 );
                 AgentModels.ReviewAgentResult reviewResult =
-                        runInterruptAgentReview(context, promptContext, result.reviewContent());
+                        runInterruptAgentReview(context, promptContext, result, request);
                 String feedback = reviewResult != null ? reviewResult.output() : "";
                 permissionGate.resolveInterrupt(result.interruptId(), "agent-review", feedback, reviewResult);
-                yield  feedback;
+                yield feedback;
             }
         };
     }
@@ -194,22 +206,60 @@ public class InterruptService {
 
     private AgentModels.ReviewAgentResult runInterruptAgentReview(
             OperationContext context,
-            PromptContext promptContext,
-            String reviewContent
+            PromptContext callerPromptContext,
+            InterruptData result,
+            AgentModels.InterruptRequest request
     ) {
-        AgentModels.ReviewRouting routing = llmRunner.runWithTemplate(
-                "workflow/review",
+        BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+
+        // Rebuild prompt context with the interrupt request as currentRequest so that
+        // prompt contributor factories (e.g. InterruptReviewPromptContributorFactory,
+        // WorktreeSandboxPromptContributorFactory) can see it and contribute.
+        PromptContext promptContext = promptContextFactory.build(
+                AgentType.REVIEW_AGENT,
+                callerPromptContext.previousRequest(),
+                callerPromptContext.previousRequest(),
+                request,
+                history,
+                TEMPLATE_WORKFLOW_REVIEW
+        );
+
+        promptContext = AgentInterfaces.decoratePromptContext(
+                promptContext,
+                context,
+                promptContextDecorators,
+                AGENT_NAME,
+                ACTION_AGENT_REVIEW,
+                METHOD_RUN_INTERRUPT_AGENT_REVIEW,
+                callerPromptContext.previousRequest(),
+                request
+        );
+
+        ToolContext toolContext = AgentInterfaces.decorateToolContext(
+                ToolContext.empty(),
+                request,
+                callerPromptContext.previousRequest(),
+                context,
+                toolContextDecorators,
+                AGENT_NAME,
+                ACTION_AGENT_REVIEW,
+                METHOD_RUN_INTERRUPT_AGENT_REVIEW
+        );
+
+        AgentModels.ReviewAgentResult routing = llmRunner.runWithTemplate(
+                TEMPLATE_WORKFLOW_REVIEW,
                 promptContext,
                 Map.of(
-                        "content", Objects.toString(reviewContent, ""),
+                        "content", Objects.toString(result.reviewContent, ""),
                         "criteria", REVIEW_CRITERIA,
                         "returnRoute", "interrupt"
                 ),
-                ToolContext.empty(),
-                AgentModels.ReviewRouting.class,
+                toolContext,
+                AgentModels.ReviewAgentResult.class,
                 context
         );
-        return routing != null ? routing.reviewResult() : null;
+
+        return routing;
     }
     
 
