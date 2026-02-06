@@ -371,9 +371,7 @@ public interface RepoUtil {
         if (repoPath.toFile().exists()) {
             if (repoPath.toFile().isFile()) {
                 return Result.tryFrom(() -> {
-                    Repository repo = new FileRepositoryBuilder()
-                            .findGitDir(repoPath.toFile())   // resolves even when .git is a file
-                            .build();
+                    Repository repo = findRepo(repoPath);
                     return new Git(repo);
                 });
             }
@@ -387,6 +385,13 @@ public interface RepoUtil {
                         .setFs(FS.detect())
                         .setDirectory(repoPath.toFile().getParentFile())
                         .call());
+    }
+
+    static Repository findRepo(Path repoPath) throws IOException {
+        Repository repo = new FileRepositoryBuilder()
+                .findGitDir(repoPath.toFile())   // resolves even when .git is a file
+                .build();
+        return repo;
     }
 
     private static Result<String, RepoUtilError> runGitCommand(Path repoPath, List<String> args) {
