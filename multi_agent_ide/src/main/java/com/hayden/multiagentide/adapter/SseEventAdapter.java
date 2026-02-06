@@ -60,7 +60,6 @@ public class SseEventAdapter extends EventAdapter {
             try {
                 log.info("Writing next event - {}", event);
                 emitter.send(SseEmitter.event().name("ag-ui").data(payload));
-                graphRepository.save(event);
             } catch (IOException e) {
                 log.error("Failed writing next event - {}", event);
                 handleAdapterError(event, e);
