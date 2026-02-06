@@ -239,7 +239,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             verify(computationGraphOrchestrator, atLeastOnce()).emitStatusChangeEvent(any(), any(), any(), any());
             queuedLlmRunner.assertAllConsumed();
 
-            permissionGate.resolveInterrupt(output.getInterruptId(), "", "", null);
+            permissionGate.resolveInterrupt(output.getInterruptId(), "", "", (AgentModels.ReviewAgentResult) null);
         }
 
         @SneakyThrows
@@ -277,7 +277,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     output.getInterruptId(),
                     "",
                     "",
-                    null);
+                    (AgentModels.ReviewAgentResult) null);
 
             await().atMost(Duration.ofSeconds(300))
                     .until(res::isDone);

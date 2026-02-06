@@ -7,6 +7,8 @@ import com.hayden.multiagentide.gate.PermissionGate;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
+import com.hayden.multiagentidelib.agent.AgentModels;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -60,7 +62,7 @@ public class InterruptController {
                 interruptId,
                 request.resolutionType(),
                 message,
-                null
+                (AgentModels.ReviewAgentResult) null
         );
         if (!resolved) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Interrupt request not found");

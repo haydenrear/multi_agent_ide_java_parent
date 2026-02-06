@@ -1,5 +1,7 @@
 package com.hayden.multiagentide.controller;
 
+import com.agentclientprotocol.model.PermissionOptionKind;
+import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -11,6 +13,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Optional;
+
 @RestController
 @RequestMapping("/api/permissions")
 @RequiredArgsConstructor
@@ -19,8 +23,8 @@ public class PermissionController {
     private final PermissionGate permissionGate;
 
     public record PermissionResolutionRequest(
-            String outcome,
-            String optionId
+            String requestId,
+            PermissionOptionKind optionType
     ) {
     }
 
@@ -35,16 +39,20 @@ public class PermissionController {
     public record PermissionError(String message) {
     }
 
-    @PostMapping("/{requestId}/resolve")
+    @PostMapping("/resolve")
     public PermissionResolutionResponse resolve(
-            @PathVariable String requestId,
             @RequestBody PermissionResolutionRequest request
     ) {
         boolean resolved;
-        if (request == null) {
-            resolved = permissionGate.resolveCancelled(requestId);
-        } else if (isSelected(request)) {
-            resolved = permissionGate.resolveSelected(requestId, request.optionId());
+        var requestId = Optional.ofNullable(request)
+                .flatMap(p -> Optional.ofNullable(p.requestId))
+                .orElse(null);
+
+        if (request == null || requestId == null)
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Permission request not found");
+
+        if (request.optionType != null) {
+            resolved = performResolution(requestId, request);
         } else {
             resolved = permissionGate.resolveCancelled(requestId);
         }
@@ -56,15 +64,20 @@ public class PermissionController {
         return new PermissionResolutionResponse(requestId, "RESOLVED");
     }
 
-    private boolean isSelected(PermissionResolutionRequest request) {
-        if (request.optionId() != null && !request.optionId().isBlank()) {
-            return true;
-        }
-        String outcome = request.outcome();
-        return outcome != null && (outcome.equalsIgnoreCase("SELECTED")
-                || outcome.equalsIgnoreCase("GRANTED")
-                || outcome.equalsIgnoreCase("ALLOW")
-                || outcome.equalsIgnoreCase("APPROVED"));
+    private boolean performResolution(String requestId, PermissionResolutionRequest request) {
+        boolean resolved;
+        var o = switch(request.optionType) {
+            case ALLOW_ONCE ->
+                    IPermissionGate.Companion.allowOnce();
+            case ALLOW_ALWAYS ->
+                    IPermissionGate.Companion.allowAlways();
+            case REJECT_ONCE ->
+                    IPermissionGate.Companion.rejectOnce();
+            case REJECT_ALWAYS ->
+                    IPermissionGate.Companion.rejectAlways();
+        };
+        resolved = permissionGate.resolveSelected(requestId, o);
+        return resolved;
     }
 
 }

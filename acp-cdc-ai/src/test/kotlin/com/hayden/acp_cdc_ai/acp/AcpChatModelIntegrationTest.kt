@@ -1,7 +1,6 @@
 package com.hayden.acp_cdc_ai.acp
 
 import com.agentclientprotocol.model.PermissionOption
-import com.agentclientprotocol.model.PermissionOptionId
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.RequestPermissionResponse
 import com.agentclientprotocol.model.SessionUpdate
@@ -13,7 +12,6 @@ import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import com.hayden.acp_cdc_ai.repository.RequestContext
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository
 import com.hayden.acp_cdc_ai.sandbox.*
-import com.hayden.utilitymodule.config.EnvConfigProps
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.serialization.json.JsonElement
 import org.assertj.core.api.Assertions.assertThat
@@ -22,15 +20,11 @@ import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.Prompt
-import org.springframework.boot.env.YamlPropertySourceLoader
-import org.springframework.core.io.ClassPathResource
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver
-import org.yaml.snakeyaml.Yaml
-import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
 import java.util.concurrent.TimeUnit
+import java.util.function.Predicate
 
 /**
  * End-to-end integration tests for AcpChatModel with real ACP providers.
@@ -454,8 +448,24 @@ class AcpChatModelIntegrationTest {
     /**
      * Simple permission gate that auto-accepts all permission requests.
      */
-    private class AutoAcceptPermissionGate : IPermissionGate {
+    private class AutoAcceptPermissionGate() : IPermissionGate {
         private val pending = mutableMapOf<String, IPermissionGate.PendingPermissionRequest>()
+
+        override fun getInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): IPermissionGate.PendingInterruptRequest? {
+            TODO("Not yet implemented")
+        }
+
+        override fun isInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): Boolean {
+            TODO("Not yet implemented")
+        }
+
+        override fun pendingPermissionRequests(): List<IPermissionGate.PendingPermissionRequest> {
+            TODO("Not yet implemented")
+        }
+
+        override suspend fun awaitInterrupt(interruptId: String): IPermissionGate.InterruptResolution {
+            TODO("Not yet implemented")
+        }
 
         override fun publishRequest(
             requestId: String,

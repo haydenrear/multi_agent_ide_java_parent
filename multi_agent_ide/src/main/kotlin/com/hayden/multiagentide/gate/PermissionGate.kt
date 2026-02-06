@@ -36,34 +36,28 @@ class PermissionGate(
 
     val log = LoggerFactory.getLogger(PermissionGate::class.java)
 
-    data class PendingInterruptRequest(
-        val interruptId: String,
-        val originNodeId: String,
-        val type: Events.InterruptType,
-        val reason: String?,
-        val deferred: CompletableDeferred<InterruptResolution>
-    )
-
-    data class InterruptResolution(
-        val interruptId: String,
-        val originNodeId: String,
-        val resolutionType: String?,
-        val resolutionNotes: String?
-    )
 
     private val pendingRequests = ConcurrentHashMap<String, IPermissionGate.PendingPermissionRequest>()
-    private val pendingInterrupts = ConcurrentHashMap<String, PendingInterruptRequest>()
+    private val pendingInterrupts = ConcurrentHashMap<String, IPermissionGate.PendingInterruptRequest>()
 
-    fun getInterruptPending(requestId: Predicate<PendingInterruptRequest>): PendingInterruptRequest? {
+    override fun getInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): IPermissionGate.PendingInterruptRequest? {
         return pendingInterrupts.entries
             .filter{ requestId.test(it.value) }
             .map { it.value }
             .firstOrNull()
     }
 
-    fun isInterruptPending(requestId: Predicate<PendingInterruptRequest>): Boolean {
+    override fun isInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): Boolean {
         return pendingInterrupts.entries
             .any{ requestId.test(it.value) }
+    }
+
+    override fun pendingPermissionRequests(): List<IPermissionGate.PendingPermissionRequest> {
+        return pendingRequests.values.toList()
+    }
+
+    override fun pendingInterruptRequests(): List<IPermissionGate.PendingInterruptRequest> {
+        return pendingInterrupts.values.toList()
     }
 
     override fun publishRequest(
@@ -79,9 +73,8 @@ class PermissionGate(
         }
 
         val now = Instant.now()
-        val permissionNodeId = UUID.randomUUID().toString()
         val permissionNode = AskPermissionNode.builder()
-            .nodeId(ArtifactKey(permissionNodeId).createChild().value)
+            .nodeId(ArtifactKey(originNodeId).createChild().value)
             .title("Permission: " + (toolCall.title ?: "request"))
             .goal("Permission requested for tool call " + toolCall.toolCallId.value)
             .status(Events.NodeStatus.WAITING_INPUT)
@@ -100,6 +93,24 @@ class PermissionGate(
             .optionIds(permissions.map { it.optionId.toString() })
             .build()
 
+        return publishAskPermissionRequest(
+            originNodeId,
+            permissionNode,
+            requestId,
+            permissions,
+            toolCall.toolCallId.value,
+            meta
+        )
+    }
+
+    fun publishAskPermissionRequest(
+        originNodeId: String,
+        permissionNode: AskPermissionNode?,
+        requestId: String,
+        permissions: List<PermissionOption>,
+        toolCallId: String,
+        meta: JsonElement? = null
+    ): IPermissionGate.PendingPermissionRequest {
         try {
             orchestrator.addChildNodeAndEmitEvent(originNodeId, permissionNode)
         } catch (ex: Exception) {
@@ -111,11 +122,11 @@ class PermissionGate(
         val pending = IPermissionGate.PendingPermissionRequest(
             requestId = requestId,
             originNodeId = originNodeId,
-            toolCallId = toolCall.toolCallId.value,
+            toolCallId = toolCallId,
             permissions = permissions,
             deferred = deferred,
             meta = meta,
-            nodeId = permissionNodeId
+            nodeId = permissionNode?.nodeId
         )
 
         pendingRequests[requestId] = pending
@@ -124,10 +135,10 @@ class PermissionGate(
             Events.PermissionRequestedEvent(
                 UUID.randomUUID().toString(),
                 Instant.now(),
-                permissionNodeId,
+                permissionNode?.nodeId,
                 originNodeId,
                 requestId,
-                toolCall.toolCallId.value,
+                toolCallId,
                 permissions
             )
         )
@@ -212,18 +223,18 @@ class PermissionGate(
         )
     }
 
-    fun publishInterrupt(
+    override fun publishInterrupt(
         interruptId: String,
         originNodeId: String,
         type: Events.InterruptType,
         reason: String?
-    ): PendingInterruptRequest {
+    ): IPermissionGate.PendingInterruptRequest {
         val existing = pendingInterrupts[interruptId]
         if (existing != null) {
             return existing
         }
 
-        val pending = PendingInterruptRequest(
+        val pending = IPermissionGate.PendingInterruptRequest(
             interruptId = interruptId,
             originNodeId = originNodeId,
             type = type,
@@ -279,13 +290,13 @@ class PermissionGate(
         return pending
     }
 
-    suspend fun awaitInterrupt(interruptId: String): InterruptResolution {
+    override suspend fun awaitInterrupt(interruptId: String): IPermissionGate.InterruptResolution {
         val pending = pendingInterrupts[interruptId] ?: return invalidInterrupt(interruptId)
         return pending.deferred.await()
     }
 
-    fun invalidInterrupt(interruptId: String): InterruptResolution {
-        return InterruptResolution(
+    fun invalidInterrupt(interruptId: String): IPermissionGate.InterruptResolution {
+        return IPermissionGate.InterruptResolution(
             interruptId = interruptId,
             originNodeId = interruptId,
             resolutionType = "cancelled",
@@ -293,10 +304,30 @@ class PermissionGate(
         )
     }
 
-    fun awaitInterruptBlocking(interruptId: String): InterruptResolution {
+    fun awaitInterruptBlocking(interruptId: String): IPermissionGate.InterruptResolution {
         return runBlocking {
             awaitInterrupt(interruptId)
         }
+    }
+
+    override fun resolveInterrupt(
+        interruptId: String,
+        resolutionType: String?,
+        resolutionNotes: String?,
+        reviewResult: IPermissionGate.InterruptResult?
+    ): Boolean {
+        val rr: AgentModels.ReviewAgentResult? = if (reviewResult != null)
+            AgentModels.ReviewAgentResult(
+                reviewResult.contextId,
+                reviewResult.upstreamArtifactKey,
+                reviewResult.assessmentStatus,
+                reviewResult.feedback,
+                reviewResult.suggestions,
+                reviewResult.contentLinks,
+                reviewResult.output)
+            else null
+
+        return resolveInterrupt(interruptId, resolutionType, resolutionNotes,  rr)
     }
 
     fun resolveInterrupt(
@@ -307,7 +338,7 @@ class PermissionGate(
     ): Boolean {
         val pending = pendingInterrupts.remove(interruptId) ?: return false
 
-        val resolution = InterruptResolution(
+        val resolution = IPermissionGate.InterruptResolution(
             interruptId = interruptId,
             originNodeId = pending.originNodeId,
             resolutionType = resolutionType,
