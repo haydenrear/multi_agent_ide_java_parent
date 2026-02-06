@@ -479,6 +479,17 @@ public interface Events {
         }
     }
 
+    record ChatSessionCreatedEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId
+    ) implements Events.GraphEvent {
+        @Override
+        public String eventType() {
+            return "CHAT_SESSION_CREATED";
+        }
+    }
+
     /**
      * Emitted during streaming output from an agent (e.g., code generation).
      */

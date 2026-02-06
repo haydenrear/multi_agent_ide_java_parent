@@ -53,10 +53,17 @@ public class ArtifactEventListener implements EventListener {
             case Events.NodeThoughtDeltaEvent delta -> handleStreamEvent(delta);
             case Events.UserMessageChunkEvent delta -> handleStreamEvent(delta);
             case Events.PlanUpdateEvent delta -> handlePlanUpdateEvent(delta);
+            case Events.ChatSessionCreatedEvent delta -> handleChatSessionCreatedEvent(delta);
             default -> log.warn("Found event not subscribed to: {}", event);
         }
     }
-    
+
+    private void handleChatSessionCreatedEvent(Events.ChatSessionCreatedEvent delta) {
+        var m = eventArtifactMapper.mapToEventArtifact(delta);
+
+        treeBuilder.addArtifact(m.artifactKey().root().value(), m);
+    }
+
     @Override
     public boolean isInterestedIn(Events.GraphEvent event) {
         return event instanceof Events.ArtifactEvent 
@@ -64,7 +71,8 @@ public class ArtifactEventListener implements EventListener {
                 || event instanceof Events.NodeStreamDeltaEvent
                 || event instanceof Events.NodeThoughtDeltaEvent
                 || event instanceof Events.UserMessageChunkEvent
-                || event instanceof Events.PlanUpdateEvent;
+                || event instanceof Events.PlanUpdateEvent
+                || event instanceof Events.ChatSessionCreatedEvent;
     }
     
     /**
@@ -145,10 +153,10 @@ public class ArtifactEventListener implements EventListener {
             }
             
             // Create parent key based on execution and node
-            ArtifactKey parentKey = new ArtifactKey(executionKey + "/" + nodeId);
+            ArtifactKey parentKey = new ArtifactKey(nodeId);
             
             // Map to MessageStreamArtifact
-            MessageStreamArtifact streamArtifact = eventArtifactMapper.mapToStreamArtifact(event, parentKey);
+            MessageStreamArtifact streamArtifact = eventArtifactMapper.mapToStreamArtifact(event);
             
             boolean added = treeBuilder.addArtifact(executionKey, streamArtifact);
             if (added) {
@@ -178,7 +186,7 @@ public class ArtifactEventListener implements EventListener {
             ArtifactKey parentKey = new ArtifactKey(executionKey + "/" + nodeId);
             
             // Map to EventArtifact (generic event capture)
-            Artifact.EventArtifact eventArtifact = eventArtifactMapper.mapToEventArtifact(event, parentKey);
+            Artifact.EventArtifact eventArtifact = eventArtifactMapper.mapToEventArtifact(event);
             
             boolean added = treeBuilder.addArtifact(executionKey, eventArtifact);
             if (added) {

@@ -134,6 +134,8 @@ public class AgentEventListener implements EventListener {
             }
             case Events.ResolveInterruptEvent resolveInterruptEvent -> {
             }
+            case Events.ChatSessionCreatedEvent chatSessionCreatedEvent -> {
+            }
         }
     }
 
