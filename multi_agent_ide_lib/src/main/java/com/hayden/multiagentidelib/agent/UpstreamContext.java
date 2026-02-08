@@ -5,7 +5,7 @@ import com.hayden.multiagentidelib.template.PlanningTicket;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.Builder;
-import org.immutables.encode.Encoding;
+import lombok.With;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +26,7 @@ public sealed interface UpstreamContext extends AgentContext
             UpstreamContext.TicketCollectorContext,
             UpstreamContext.TicketOrchestratorUpstreamContext {
 
-    ArtifactKey artifactKey();
+    ArtifactKey contextId();
 
     @Override
     default String prettyPrint(AgentSerializationCtx serializationCtx) {
@@ -82,8 +82,9 @@ public sealed interface UpstreamContext extends AgentContext
         return results.isEmpty() ? fallback : List.copyOf(results);
     }
 
+    @With
     record OrchestratorUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             String workflowGoal,
             String phase
     ) implements UpstreamContext {
@@ -100,8 +101,9 @@ public sealed interface UpstreamContext extends AgentContext
         }
     }
 
+    @With
     record OrchestratorCollectorUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             AgentModels.DiscoveryCollectorResult discoveryCollectorResult,
             AgentModels.PlanningCollectorResult planningCollectorResult,
             AgentModels.TicketCollectorResult ticketCollectorResult
@@ -147,7 +149,7 @@ public sealed interface UpstreamContext extends AgentContext
             AgentModels.TicketCollectorResult updatedTicket =
                     firstChildOfType(children, AgentModels.TicketCollectorResult.class, ticketCollectorResult);
             return (T) new OrchestratorCollectorUpstreamContext(
-                    artifactKey,
+                    contextId,
                     updatedDiscovery,
                     updatedPlanning,
                     updatedTicket
@@ -155,8 +157,9 @@ public sealed interface UpstreamContext extends AgentContext
         }
     }
 
+    @With
     record DiscoveryOrchestratorUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             String orchestratorGoal,
             String phase
     ) implements UpstreamContext {
@@ -173,8 +176,9 @@ public sealed interface UpstreamContext extends AgentContext
         }
     }
 
+    @With
     record DiscoveryAgentUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             String orchestratorGoal,
             String subdomainAssignment
     ) implements UpstreamContext {
@@ -191,8 +195,9 @@ public sealed interface UpstreamContext extends AgentContext
         }
     }
 
+    @With
     record PlanningOrchestratorUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             DiscoveryCollectorContext discoveryContext
     ) implements UpstreamContext {
         @Override
@@ -215,14 +220,15 @@ public sealed interface UpstreamContext extends AgentContext
             DiscoveryCollectorContext updatedDiscovery =
                     firstChildOfType(children, DiscoveryCollectorContext.class, discoveryContext);
             return (T) new PlanningOrchestratorUpstreamContext(
-                    artifactKey,
+                    contextId,
                     updatedDiscovery
             );
         }
     }
 
+    @With
     record PlanningAgentUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             DiscoveryCollectorContext discoveryContext
     ) implements UpstreamContext {
         @Override
@@ -245,14 +251,15 @@ public sealed interface UpstreamContext extends AgentContext
             DiscoveryCollectorContext updatedDiscovery =
                     firstChildOfType(children, DiscoveryCollectorContext.class, discoveryContext);
             return (T) new PlanningAgentUpstreamContext(
-                    artifactKey,
+                    contextId,
                     updatedDiscovery
             );
         }
     }
 
+    @With
     record TicketOrchestratorUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             DiscoveryCollectorContext discoveryContext,
             PlanningCollectorContext planningContext
     ) implements UpstreamContext {
@@ -282,15 +289,16 @@ public sealed interface UpstreamContext extends AgentContext
             PlanningCollectorContext updatedPlanning =
                     firstChildOfType(children, PlanningCollectorContext.class, planningContext);
             return (T) new TicketOrchestratorUpstreamContext(
-                    artifactKey,
+                    contextId,
                     updatedDiscovery,
                     updatedPlanning
             );
         }
     }
 
+    @With
     record TicketAgentUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             DiscoveryCollectorContext discoveryContext,
             PlanningCollectorContext planningContext,
             PlanningTicket assignedTicket
@@ -327,7 +335,7 @@ public sealed interface UpstreamContext extends AgentContext
             PlanningTicket updatedTicket =
                     firstChildOfType(children, PlanningTicket.class, assignedTicket);
             return (T) new TicketAgentUpstreamContext(
-                    artifactKey,
+                    contextId,
                     updatedDiscovery,
                     updatedPlanning,
                     updatedTicket
@@ -335,8 +343,9 @@ public sealed interface UpstreamContext extends AgentContext
         }
     }
 
+    @With
     record ReviewUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             List<UpstreamContext> reviewedContexts,
             String reviewScope
     ) implements UpstreamContext {
@@ -376,15 +385,16 @@ public sealed interface UpstreamContext extends AgentContext
             List<UpstreamContext> updatedContexts =
                     childrenOfType(children, UpstreamContext.class, reviewedContexts);
             return (T) new ReviewUpstreamContext(
-                    artifactKey,
+                    contextId,
                     updatedContexts,
                     reviewScope
             );
         }
     }
 
+    @With
     record MergerUpstreamContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             List<UpstreamContext> mergeContexts,
             String mergeScope
     ) implements UpstreamContext {
@@ -424,7 +434,7 @@ public sealed interface UpstreamContext extends AgentContext
             List<UpstreamContext> updatedContexts =
                     childrenOfType(children, UpstreamContext.class, mergeContexts);
             return (T) new MergerUpstreamContext(
-                    artifactKey,
+                    contextId,
                     updatedContexts,
                     mergeScope
             );
@@ -432,8 +442,9 @@ public sealed interface UpstreamContext extends AgentContext
     }
 
     @Builder
+    @With
     record DiscoveryCollectorContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             AgentModels.DiscoveryCuration curation,
             String selectionRationale
     ) implements UpstreamContext, ConsolidationTemplate.Curation {
@@ -458,7 +469,7 @@ public sealed interface UpstreamContext extends AgentContext
             AgentModels.DiscoveryCuration updatedCuration =
                     firstChildOfType(children, AgentModels.DiscoveryCuration.class, curation);
             return (T) new DiscoveryCollectorContext(
-                    artifactKey,
+                    contextId,
                     updatedCuration,
                     selectionRationale
             );
@@ -482,8 +493,9 @@ public sealed interface UpstreamContext extends AgentContext
         }
     }
 
+    @With
     record PlanningCollectorContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             AgentModels.PlanningCuration curation,
             String selectionRationale
     ) implements UpstreamContext, ConsolidationTemplate.Curation {
@@ -508,7 +520,7 @@ public sealed interface UpstreamContext extends AgentContext
             AgentModels.PlanningCuration updatedCuration =
                     firstChildOfType(children, AgentModels.PlanningCuration.class, curation);
             return (T) new PlanningCollectorContext(
-                    artifactKey,
+                    contextId,
                     updatedCuration,
                     selectionRationale
             );
@@ -551,8 +563,9 @@ public sealed interface UpstreamContext extends AgentContext
         }
     }
 
+    @With
     record TicketCollectorContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             AgentModels.TicketCuration curation,
             String selectionRationale
     ) implements UpstreamContext, ConsolidationTemplate.Curation {
@@ -577,7 +590,7 @@ public sealed interface UpstreamContext extends AgentContext
             AgentModels.TicketCuration updatedCuration =
                     firstChildOfType(children, AgentModels.TicketCuration.class, curation);
             return (T) new TicketCollectorContext(
-                    artifactKey,
+                    contextId,
                     updatedCuration,
                     selectionRationale
             );

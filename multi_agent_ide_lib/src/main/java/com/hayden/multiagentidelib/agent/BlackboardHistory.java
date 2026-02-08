@@ -458,6 +458,12 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     new ArrayList<>();
             case Events.ChatSessionCreatedEvent chatSessionCreatedEvent ->
                     new ArrayList<>();
+            case Events.ChatSessionClosedEvent chatSessionClosedEvent ->
+                    new ArrayList<>();
+            case Events.TuiInteractionGraphEvent tuiInteractionGraphEvent ->
+                    new ArrayList<>();
+            case Events.TuiSystemGraphEvent tuiSystemGraphEvent ->
+                    new ArrayList<>();
         };
     }
 

@@ -1,3 +1,5 @@
+logging.config: classpath:logback-multi-agent-console.xml
+
 env-props:
   project-dir: {{PROJ_DIR}}
   home-dir: {{HOME_DIR}}
@@ -7,7 +9,8 @@ spring:
     enabled: false
     schema-provided: false
   autoconfigure:
-    exclude: [org.springframework.boot.autoconfigure.session.SessionAutoConfiguration]
+    exclude:
+      [org.springframework.boot.autoconfigure.session.SessionAutoConfiguration]
   web:
     resources:
       static-locations: "file:{{PROJ_DIR}}/fe/out"
@@ -61,6 +64,8 @@ spring:
         wait: only_if_started
 
 server.port: 8080
+
+# CLI mode (see application-cli.yml): configure via multi-agent-ide.cli.* properties
 
 # LangChain4j configuration
 multi-agent-embabel:
@@ -150,11 +155,14 @@ mcp:
 skills:
   local-skills:
     ContextManagerRequest:
-#      - skill-path: {{PARENT_DIR}}/skills/java_gradle
-#      - skill-path: {{PARENT_DIR}}/skills/docker
-#      - skill-path: {{PARENT_DIR}}/skills/test_graph
-#      - skill-path: {{PARENT_DIR}}/skills/cli_os_env
+    #      - skill-path: {{PARENT_DIR}}/skills/java_gradle
+    #      - skill-path: {{PARENT_DIR}}/skills/docker
+    #      - skill-path: {{PARENT_DIR}}/skills/test_graph
+    #      - skill-path: {{PARENT_DIR}}/skills/cli_os_env
     OrchestratorRequest:
 #      - skill-path: {{PARENT_DIR}}/skills/java_gradle
 #      - skill-path: {{PARENT_DIR}}/skills/spec_driven_development
 #      - skill-path: {{PARENT_DIR}}/skills/cli_os_env
+
+logging.level.com.hayden.acp_cdc_ai.acp: INFO
+logging.level.com.hayden.multiagentide.artifacts: DEBUG

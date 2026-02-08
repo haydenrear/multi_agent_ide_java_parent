@@ -21,6 +21,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.UUID
@@ -30,14 +32,17 @@ import java.util.function.Predicate
 @Service
 class PermissionGate(
     private val graphRepository: GraphRepository,
-    private val orchestrator: ComputationGraphOrchestrator,
-    private val eventBus: EventBus
+    private val orchestrator: ComputationGraphOrchestrator
 ) : IPermissionGate {
+
+    @Autowired @Lazy
+    private lateinit var eventBus: EventBus
 
     val log = LoggerFactory.getLogger(PermissionGate::class.java)
 
 
     private val pendingRequests = ConcurrentHashMap<String, IPermissionGate.PendingPermissionRequest>()
+
     private val pendingInterrupts = ConcurrentHashMap<String, IPermissionGate.PendingInterruptRequest>()
 
     override fun getInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): IPermissionGate.PendingInterruptRequest? {
@@ -111,39 +116,39 @@ class PermissionGate(
         toolCallId: String,
         meta: JsonElement? = null
     ): IPermissionGate.PendingPermissionRequest {
-        try {
-            orchestrator.addChildNodeAndEmitEvent(originNodeId, permissionNode)
-        } catch (ex: Exception) {
-            log.error("Could not add child node and emit event", ex)
-            graphRepository.save(permissionNode)
-        }
+        return pendingRequests.computeIfAbsent(requestId, {it ->
+            try {
+                orchestrator.addChildNodeAndEmitEvent(originNodeId, permissionNode)
+            } catch (ex: Exception) {
+                log.error("Could not add child node and emit event", ex)
+                graphRepository.save(permissionNode)
+            }
 
-        val deferred = CompletableDeferred<RequestPermissionResponse>()
-        val pending = IPermissionGate.PendingPermissionRequest(
-            requestId = requestId,
-            originNodeId = originNodeId,
-            toolCallId = toolCallId,
-            permissions = permissions,
-            deferred = deferred,
-            meta = meta,
-            nodeId = permissionNode?.nodeId
-        )
-
-        pendingRequests[requestId] = pending
-
-        eventBus.publish(
-            Events.PermissionRequestedEvent(
-                UUID.randomUUID().toString(),
-                Instant.now(),
-                permissionNode?.nodeId,
-                originNodeId,
-                requestId,
-                toolCallId,
-                permissions
+            val deferred = CompletableDeferred<RequestPermissionResponse>()
+            val pending = IPermissionGate.PendingPermissionRequest(
+                requestId = requestId,
+                originNodeId = originNodeId,
+                toolCallId = toolCallId,
+                permissions = permissions,
+                deferred = deferred,
+                meta = meta,
+                nodeId = permissionNode?.nodeId
             )
-        )
+            eventBus.publish(
+                Events.PermissionRequestedEvent(
+                    UUID.randomUUID().toString(),
+                    Instant.now(),
+                    permissionNode?.nodeId,
+                    originNodeId,
+                    requestId,
+                    toolCallId,
+                    permissions
+                )
+            )
 
-        return pending
+            pending
+        })
+
     }
 
     override suspend fun awaitResponse(requestId: String): RequestPermissionResponse {
@@ -230,64 +235,66 @@ class PermissionGate(
         reason: String?
     ): IPermissionGate.PendingInterruptRequest {
         val existing = pendingInterrupts[interruptId]
+
         if (existing != null) {
             return existing
         }
 
-        val pending = IPermissionGate.PendingInterruptRequest(
-            interruptId = interruptId,
-            originNodeId = originNodeId,
-            type = type,
-            reason = reason,
-            deferred = CompletableDeferred()
-        )
-        pendingInterrupts[interruptId] = pending
-
-        if (type == Events.InterruptType.HUMAN_REVIEW) {
-            val node = graphRepository.findById(interruptId).orElse(null)
-            val reviewNode = node as? ReviewNode
-            val reviewContent = reason ?: reviewNode?.reviewContent ?: ""
-            if (reviewNode != null && reviewNode.status() != Events.NodeStatus.WAITING_INPUT) {
-                val updated = reviewNode
-                    .toBuilder()
-                    .status(Events.NodeStatus.WAITING_INPUT)
-                    .lastUpdatedAt(Instant.now())
-                    .build()
-                graphRepository.save(updated)
-                orchestrator.emitStatusChangeEvent(
-                    reviewNode.nodeId(),
-                    reviewNode.status(),
-                    Events.NodeStatus.WAITING_INPUT,
-                    "Human review requested"
-                )
-            }
-            orchestrator.emitReviewRequestedEvent(
-                originNodeId,
-                interruptId,
-                Events.ReviewType.HUMAN,
-                reviewContent
+        return pendingInterrupts.computeIfAbsent(interruptId, { _ ->
+            val pending = IPermissionGate.PendingInterruptRequest(
+                interruptId = interruptId,
+                originNodeId = originNodeId,
+                type = type,
+                reason = reason,
+                deferred = CompletableDeferred()
             )
-        }
-        if (type == Events.InterruptType.AGENT_REVIEW) {
-            val node = graphRepository.findById(interruptId).orElse(null)
-            val reviewNode = node as? ReviewNode
-            if (reviewNode != null && reviewNode.status() == Events.NodeStatus.READY) {
-                val updated = reviewNode
-                    .toBuilder()
-                    .status(Events.NodeStatus.RUNNING)
-                    .lastUpdatedAt(Instant.now())
-                    .build()
-                graphRepository.save(updated)
-                orchestrator.emitStatusChangeEvent(
-                    reviewNode.nodeId(),
-                    reviewNode.status(),
-                    Events.NodeStatus.RUNNING,
-                    "Agent review started"
+            if (type == Events.InterruptType.HUMAN_REVIEW) {
+                val node = graphRepository.findById(interruptId).orElse(null)
+                val reviewNode = node as? ReviewNode
+                val reviewContent = reason ?: reviewNode?.reviewContent ?: ""
+                if (reviewNode != null && reviewNode.status() != Events.NodeStatus.WAITING_INPUT) {
+                    val updated = reviewNode
+                        .toBuilder()
+                        .status(Events.NodeStatus.WAITING_INPUT)
+                        .lastUpdatedAt(Instant.now())
+                        .build()
+                    graphRepository.save(updated)
+                    orchestrator.emitStatusChangeEvent(
+                        reviewNode.nodeId(),
+                        reviewNode.status(),
+                        Events.NodeStatus.WAITING_INPUT,
+                        "Human review requested"
+                    )
+                }
+                orchestrator.emitReviewRequestedEvent(
+                    originNodeId,
+                    interruptId,
+                    Events.ReviewType.HUMAN,
+                    reviewContent
                 )
             }
-        }
+            if (type == Events.InterruptType.AGENT_REVIEW) {
+                val node = graphRepository.findById(interruptId).orElse(null)
+                val reviewNode = node as? ReviewNode
+                if (reviewNode != null && reviewNode.status() == Events.NodeStatus.READY) {
+                    val updated = reviewNode
+                        .toBuilder()
+                        .status(Events.NodeStatus.RUNNING)
+                        .lastUpdatedAt(Instant.now())
+                        .build()
+                    graphRepository.save(updated)
+                    orchestrator.emitStatusChangeEvent(
+                        reviewNode.nodeId(),
+                        reviewNode.status(),
+                        Events.NodeStatus.RUNNING,
+                        "Agent review started"
+                    )
+                }
+            }
 
-        return pending
+            pending
+        })
+
     }
 
     override suspend fun awaitInterrupt(interruptId: String): IPermissionGate.InterruptResolution {

@@ -27,7 +27,7 @@ public class RegisterAndHideInputRequestDecorator implements DispatchedAgentRequ
             return null;
         }
 
-        blackboardHistoryService.registerAndHideInput(
+        blackboardHistoryService.register(
                 context.operationContext(),
                 context.methodName(),
                 request

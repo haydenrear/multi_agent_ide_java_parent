@@ -32,6 +32,11 @@ public record PromptTemplateVersion(
         List<Artifact> children
 ) implements Templated {
 
+    @Override
+    public Templated withArtifactKey(ArtifactKey key) {
+        return withTemplateArtifactKey(key);
+    }
+
 
     // Validation pattern for template static IDs
     private static final Pattern STATIC_ID_PATTERN = Pattern.compile(

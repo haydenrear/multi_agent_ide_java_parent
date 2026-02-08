@@ -136,6 +136,12 @@ public class AgentEventListener implements EventListener {
             }
             case Events.ChatSessionCreatedEvent chatSessionCreatedEvent -> {
             }
+            case Events.ChatSessionClosedEvent chatSessionClosedEvent -> {
+            }
+            case Events.TuiInteractionGraphEvent tuiInteractionGraphEvent -> {
+            }
+            case Events.TuiSystemGraphEvent tuiSystemGraphEvent -> {
+            }
         }
     }
 

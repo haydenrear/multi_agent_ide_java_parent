@@ -60,6 +60,8 @@ public sealed interface Artifact
         return this.getClass().getSimpleName();
     }
 
+    Artifact withArtifactKey(ArtifactKey key);
+
     default List<Artifact> collectRecursiveChildren() {
         var l = new ArrayList<>(this.children());
         this.children().stream().flatMap(a -> a.collectRecursiveChildren().stream())
@@ -111,6 +113,11 @@ public sealed interface Artifact
         }
 
         @Override
+        public Artifact withArtifactKey(ArtifactKey key) {
+            return this.withAgentModel(agentModel.withContextId(key));
+        }
+
+        @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
@@ -142,6 +149,8 @@ public sealed interface Artifact
         default String artifactType() {
             return this.getClass().getSimpleName();
         }
+
+        AgentModel withContextId(ArtifactKey key);
 
         @JsonIgnore
         <T extends AgentModel> T withChildren(List<AgentModel> c);
@@ -186,12 +195,17 @@ public sealed interface Artifact
             String artifactType
     ) implements Templated {
 
-//      This is the part that's deduped.
+        //      This is the part that's deduped.
         @Override
         @JsonIgnore
         public String templateText() {
             return Optional.ofNullable(ref).map(Templated::templateText)
                     .orElseGet(() -> null);
+        }
+
+        @Override
+        public Templated withArtifactKey(ArtifactKey key) {
+            return withTemplateArtifactKey(key);
         }
 
         @Override
@@ -232,6 +246,10 @@ public sealed interface Artifact
             String schema
     ) implements Templated {
 
+        @Override
+        public Templated withArtifactKey(ArtifactKey key) {
+            return withTemplateArtifactKey(key);
+        }
 
         @Override
         public Artifact withChildren(List<Artifact> children) {
@@ -358,7 +376,7 @@ public sealed interface Artifact
     @Builder(toBuilder = true)
     @With
     record PromptContributionTemplate(
-            ArtifactKey artifactKey,
+            ArtifactKey templateArtifactKey,
             String contributorName,
             int priority,
             List<String> agentTypes,
@@ -376,13 +394,13 @@ public sealed interface Artifact
         }
 
         @Override
-        public Optional<String> contentHash() {
-            return Optional.ofNullable(hash);
+        public Artifact withArtifactKey(ArtifactKey key) {
+            return this.withTemplateArtifactKey(templateArtifactKey);
         }
 
         @Override
-        public ArtifactKey templateArtifactKey() {
-            return artifactKey;
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
         }
 
     }
@@ -390,7 +408,7 @@ public sealed interface Artifact
     @Builder(toBuilder = true)
     @With
     record ToolPrompt(
-            ArtifactKey artifactKey,
+            ArtifactKey templateArtifactKey,
             Map<String, String> metadata,
             List<Artifact> children,
             String toolCallName,
@@ -409,20 +427,25 @@ public sealed interface Artifact
         }
 
         @Override
+        public Templated withArtifactKey(ArtifactKey key) {
+            return withTemplateArtifactKey(key);
+        }
+
+        @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
 
         @Override
         public ArtifactKey templateArtifactKey() {
-            return artifactKey;
+            return templateArtifactKey;
         }
     }
 
     @Builder(toBuilder = true)
     @With
     record SkillPrompt(
-            ArtifactKey artifactKey,
+            ArtifactKey templateArtifactKey,
             Map<String, String> metadata,
             List<Artifact> children,
             String skillName,
@@ -443,13 +466,18 @@ public sealed interface Artifact
 
 
         @Override
+        public Artifact withArtifactKey(ArtifactKey key) {
+            return withTemplateArtifactKey(key);
+        }
+
+        @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
 
         @Override
         public ArtifactKey templateArtifactKey() {
-            return artifactKey;
+            return templateArtifactKey;
         }
     }
 

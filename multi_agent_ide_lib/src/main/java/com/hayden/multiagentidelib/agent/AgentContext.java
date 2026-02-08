@@ -8,11 +8,12 @@ import java.util.List;
 
 public interface AgentContext extends Artifact.AgentModel {
 
-    ArtifactKey artifactKey();
+    ArtifactKey contextId();
 
     @Override
+    @JsonIgnore
     default ArtifactKey key() {
-        return artifactKey();
+        return contextId();
     }
 
     @Override

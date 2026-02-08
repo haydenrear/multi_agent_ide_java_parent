@@ -75,8 +75,12 @@ public class ArtifactNode {
         ArtifactKey key = artifact.artifactKey();
 
         // If this is for the root node itself, reject as duplicate
-        if (key.equals(this.artifactKey)) {
+        boolean hashesEqual = Objects.equals(artifact.contentHash().orElse(""), this.artifact.contentHash().orElse(""));
+        boolean sameKeys = key.equals(this.artifactKey);
+        if (sameKeys && hashesEqual) {
             return AddResult.DUPLICATE_KEY;
+        } else if (sameKeys) {
+            return this.addArtifact(artifact.withArtifactKey(this.artifactKey.createChild()));
         }
 
         // Find the parent node for this artifact

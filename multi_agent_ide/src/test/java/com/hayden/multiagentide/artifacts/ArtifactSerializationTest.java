@@ -468,7 +468,7 @@ class ArtifactSerializationTest {
             ArtifactKey contributionKey = rootKey.createChild();
             
             Artifact.PromptContributionTemplate contribution = Artifact.PromptContributionTemplate.builder()
-                    .artifactKey(contributionKey)
+                    .templateArtifactKey(contributionKey)
                     .contributorName("ContextContributor")
                     .priority(100)
                     .agentTypes(List.of("orchestrator", "discovery"))
@@ -499,7 +499,7 @@ class ArtifactSerializationTest {
             ArtifactKey toolPromptKey = rootKey.createChild();
             
             Artifact.ToolPrompt toolPrompt = Artifact.ToolPrompt.builder()
-                    .artifactKey(toolPromptKey)
+                    .templateArtifactKey(toolPromptKey)
                     .toolCallName("searchCodebase")
                     .toolDescription("Search the codebase for files matching a pattern")
                     .hash("tool-prompt-hash")
@@ -525,7 +525,7 @@ class ArtifactSerializationTest {
             ArtifactKey skillPromptKey = rootKey.createChild();
             
             Artifact.SkillPrompt skillPrompt = Artifact.SkillPrompt.builder()
-                    .artifactKey(skillPromptKey)
+                    .templateArtifactKey(skillPromptKey)
                     .skillName("codeReview")
                     .skillDescription("Review code changes and provide feedback on quality and best practices")
                     .hash("skill-prompt-hash")
@@ -806,7 +806,7 @@ class ArtifactSerializationTest {
             
             PreviousContext.DiscoveryAgentPreviousContext previousContext = 
                     PreviousContext.DiscoveryAgentPreviousContext.builder()
-                            .artifactKey(contextKey)
+                            .contextId(contextKey)
                             .previousContextId(contextKey)
                             .serializedOutput("Previous output")
                             .attemptNumber(1)
@@ -836,7 +836,7 @@ class ArtifactSerializationTest {
             ArtifactKey curationKey = rootKey.createChild();
             
             AgentModels.DiscoveryCuration curation = AgentModels.DiscoveryCuration.builder()
-                    .artifactKey(curationKey)
+                    .contextId(curationKey)
                     .discoveryReports(List.of())
                     .recommendations(List.of())
                     .build();
@@ -895,11 +895,11 @@ class ArtifactSerializationTest {
                     .discoveryCollectorContext(
                             UpstreamContext.DiscoveryCollectorContext
                                     .builder()
-                                    .artifactKey(c)
+                                    .contextId(c)
                                     .selectionRationale("okay")
                                     .curation(
                                             AgentModels.DiscoveryCuration.builder()
-                                                    .artifactKey(c.createChild())
+                                                    .contextId(c.createChild())
                                                     .build()
                                     )
                                     .build()
@@ -966,7 +966,7 @@ class ArtifactSerializationTest {
             
             ArtifactKey curationKey = resultKey.createChild();
             AgentModels.DiscoveryCuration curation = AgentModels.DiscoveryCuration.builder()
-                    .artifactKey(curationKey)
+                    .contextId(curationKey)
                     .discoveryReports(new ArrayList<>())
                     .build();
             artifactTreeBuilder.addArtifact(executionKey, curation.toArtifact(Artifact.HashContext.defaultHashContext()));

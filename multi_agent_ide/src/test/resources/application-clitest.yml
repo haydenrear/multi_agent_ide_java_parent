@@ -1,0 +1,4 @@
+logging.config: classpath:logback-multi-agent-ide.xml
+spring:
+  main:
+    allow-bean-definition-overriding: true

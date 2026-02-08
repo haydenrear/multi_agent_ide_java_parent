@@ -4,6 +4,7 @@ import static com.hayden.multiagentide.acp_tests.AcpChatModelCodexIntegrationTes
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.agentclientprotocol.model.PermissionOptionKind;
 import com.embabel.agent.api.annotation.AchievesGoal;
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Agent;
@@ -285,10 +286,11 @@ class AcpChatModelCodexIntegrationTest {
                                     System.out.print("Select option [1.." + permissions.size() + "], optionType, or 'cancel': ");
                                     try {
                                         var input = reader.readLine();
+                                        Thread.sleep(1000);
                                         if (input == null || input.isBlank()) {
                                             permissionGateAdapter.resolveSelected(
                                                     request.getRequestId(),
-                                                    permissions.getFirst()
+                                                    permissions.stream().filter(po -> po.getKind() == PermissionOptionKind.ALLOW_ONCE).findAny().orElseThrow()
                                             );
                                             return;
                                         }
@@ -311,6 +313,9 @@ class AcpChatModelCodexIntegrationTest {
                                     } catch (
                                             IOException e) {
                                         throw new RuntimeException(e);
+                                    } catch (
+                                            InterruptedException e) {
+                                        throw new RuntimeException(e);
                                     }
                                 });
                     }
@@ -322,6 +327,9 @@ class AcpChatModelCodexIntegrationTest {
 
                                     try {
                                         var input = reader.readLine();
+
+                                        Thread.sleep(1000);
+
                                         if (input == null || input.isBlank()) {
                                             permissionGateAdapter.resolveInterrupt(
                                                     request.getInterruptId(),
@@ -339,14 +347,15 @@ class AcpChatModelCodexIntegrationTest {
                                                 null
                                         );
                                     } catch (
-                                            IOException e) {
+                                            IOException |
+                                            InterruptedException e) {
                                         throw new RuntimeException(e);
                                     }
                                 });
                     }
 
                     try {
-                        Thread.sleep(500);
+                        Thread.sleep(10_000);
                     } catch (
                             InterruptedException e) {
                         Thread.currentThread().interrupt();

@@ -26,7 +26,7 @@ import java.util.Optional;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class WorktreeContextRequestDecorator implements RequestDecorator {
+public class WorktreeContextRequestDecorator implements RequestDecorator, DispatchedAgentRequestDecorator {
 
     private final GraphRepository graphRepository;
     private final WorktreeRepository worktreeRepository;
@@ -39,7 +39,7 @@ public class WorktreeContextRequestDecorator implements RequestDecorator {
 
     @Override
     public <T extends AgentModels.AgentRequest> T decorate(T request, DecoratorContext context) {
-        if (request == null) {
+        if (request == null || request.worktreeContext() != null) {
             return request;
         }
 
@@ -71,11 +71,11 @@ public class WorktreeContextRequestDecorator implements RequestDecorator {
         }
         return switch (request) {
             case AgentModels.DiscoveryAgentRequests r ->
-                    worktreeService.attachWorktreesToDiscoveryRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.artifactKey().value());
+                    worktreeService.attachWorktreesToDiscoveryRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.contextId().value());
             case AgentModels.PlanningAgentRequests r ->
-                    worktreeService.attachWorktreesToPlanningRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.artifactKey().value());
+                    worktreeService.attachWorktreesToPlanningRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.contextId().value());
             case AgentModels.TicketAgentRequests r ->
-                    worktreeService.attachWorktreesToTicketRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.artifactKey().value());
+                    worktreeService.attachWorktreesToTicketRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.contextId().value());
             case AgentModels.OrchestratorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.OrchestratorCollectorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.DiscoveryOrchestratorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();

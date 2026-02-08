@@ -478,6 +478,11 @@ class ArtifactEventListenerTest {
                     }
 
                     @Override
+                    public Artifact.AgentModel withContextId(ArtifactKey key) {
+                        return this;
+                    }
+
+                    @Override
                     public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> c) {
                         return null;
                     }

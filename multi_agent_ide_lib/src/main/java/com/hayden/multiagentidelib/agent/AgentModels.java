@@ -36,15 +36,6 @@ public interface AgentModels {
             permits DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
 
     {
-
-        ArtifactKey contextId();
-
-        @Override
-        @JsonIgnore
-        default ArtifactKey artifactKey() {
-            return contextId();
-        }
-
         @Override
         default String computeHash(Artifact.HashContext hashContext) {
             return hashContext.hash(prettyPrint());
@@ -86,15 +77,7 @@ public interface AgentModels {
             ResultsRequest
     {
 
-        ArtifactKey contextId();
-
         WorktreeSandboxContext worktreeContext();
-
-        @Override
-        @JsonIgnore
-        default ArtifactKey artifactKey() {
-            return contextId();
-        }
 
         @Override
         default String computeHash(Artifact.HashContext hashContext) {
@@ -188,6 +171,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for orchestrator-level workflow steering.")
+        @With
         record OrchestratorInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -218,6 +202,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for orchestrator collector phase decisions.")
+        @With
         record OrchestratorCollectorInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -246,6 +231,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for discovery orchestration scope and partitioning.")
+        @With
         record DiscoveryOrchestratorInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -274,6 +260,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for discovery agent code finding clarification.")
+        @With
         record DiscoveryAgentInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -302,6 +289,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for discovery collector consolidation decisions.")
+        @With
         record DiscoveryCollectorInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -330,6 +318,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for discovery dispatch routing decisions.")
+        @With
         record DiscoveryAgentDispatchInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -358,6 +347,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for planning orchestration and decomposition decisions.")
+        @With
         record PlanningOrchestratorInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -386,6 +376,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for planning agent ticket design decisions.")
+        @With
         record PlanningAgentInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -414,6 +405,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for planning collector consolidation decisions.")
+        @With
         record PlanningCollectorInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -442,6 +434,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for planning dispatch routing decisions.")
+        @With
         record PlanningAgentDispatchInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -470,6 +463,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for ticket orchestration and execution scope decisions.")
+        @With
         record TicketOrchestratorInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -496,6 +490,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for ticket agent implementation decisions.")
+        @With
         record TicketAgentInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -524,6 +519,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for ticket collector completion decisions.")
+        @With
         record TicketCollectorInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -550,6 +546,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for ticket dispatch routing decisions.")
+        @With
         record TicketAgentDispatchInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -578,6 +575,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for review agent assessment decisions.")
+        @With
         record ReviewInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -604,6 +602,7 @@ public interface AgentModels {
 
         @JsonClassDescription("Interrupt request for merger conflict resolution decisions.")
         @Builder(toBuilder = true)
+        @With
         record MergerInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -633,6 +632,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for context manager routing decisions.")
+        @With
         record ContextManagerInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -659,6 +659,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Interrupt request for user question/answer flow.")
+        @With
         record QuestionAnswerInterruptRequest(
                 @JsonInclude(JsonInclude.Include.NON_NULL)
                 ArtifactKey contextId,
@@ -679,6 +680,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Multiple-choice decision with optional write-in.")
+        @With
         record StructuredChoice(
                 @JsonPropertyDescription("Stable identifier for this choice.")
                 String choiceId,
@@ -695,6 +697,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Yes/no confirmation item for interrupt decisions.")
+        @With
         record ConfirmationItem(
                 @JsonPropertyDescription("Stable identifier for this confirmation.")
                 String confirmationId,
@@ -711,6 +714,7 @@ public interface AgentModels {
 
         @Builder(toBuilder=true)
         @JsonClassDescription("Controller response resolving an interrupt request.")
+        @With
         record InterruptResolution(
                 @JsonPropertyDescription("Selected option per choiceId (A/B/C/CUSTOM).")
                 Map<String, String> selectedChoices,
@@ -724,6 +728,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Collector branch decision used to route workflow phases.")
+    @With
     record CollectorDecision(
             @JsonPropertyDescription("Decision type (ADVANCE_PHASE, ROUTE_BACK, STOP).")
             Events.CollectorDecisionType decisionType,
@@ -739,6 +744,7 @@ public interface AgentModels {
      * These are intentionally transport-agnostic and can be serialized as needed.
      */
     @Builder(toBuilder=true)
+    @With
     record AgentInteraction(
             InteractionType interactionType,
             String message
@@ -749,6 +755,7 @@ public interface AgentModels {
      * Defines how to kick off sub-agents for orchestrated work.
      */
     @Builder(toBuilder=true)
+    @With
     record DelegationPlan(
             String summary,
             Map<String, String> subAgentGoals
@@ -761,6 +768,7 @@ public interface AgentModels {
      * *AgentRequests types that contain multiple sub-agent requests.
      */
     @Builder(toBuilder=true)
+    @With
     record OrchestratorAgentResult(
             ArtifactKey contextId,
             ArtifactKey upstreamArtifactKey,
@@ -777,6 +785,7 @@ public interface AgentModels {
     }
 
     @Builder(toBuilder=true)
+    @With
     record DiscoveryOrchestratorResult(
             ArtifactKey contextId,
             ArtifactKey upstreamArtifactKey,
@@ -793,6 +802,7 @@ public interface AgentModels {
     }
 
     @Builder(toBuilder=true)
+    @With
     record PlanningOrchestratorResult(
             ArtifactKey contextId,
             ArtifactKey upstreamArtifactKey,
@@ -810,6 +820,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Result payload from the ticket orchestrator.")
+    @With
     record TicketOrchestratorResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
@@ -835,6 +846,7 @@ public interface AgentModels {
 //        something cool about this
     @Builder(toBuilder=true)
     @JsonClassDescription("Result payload from a discovery agent.")
+    @With
     record DiscoveryAgentResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
@@ -886,6 +898,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Result payload from a planning agent.")
+    @With
     record PlanningAgentResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
@@ -949,6 +962,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Result payload from a ticket execution agent.")
+    @With
     record TicketAgentResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
@@ -1005,6 +1019,7 @@ public interface AgentModels {
 
 
     @Builder(toBuilder=true)
+    @With
     record ReviewAgentResult(
             ArtifactKey contextId,
             ArtifactKey upstreamArtifactKey,
@@ -1054,6 +1069,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Result payload from a merger agent.")
+    @With
     record MergerAgentResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
@@ -1118,6 +1134,7 @@ public interface AgentModels {
 //    TODO: this should be a code-map-like report returned
     @Builder(toBuilder=true)
     @JsonClassDescription("Consolidated discovery results and routing decision.")
+    @With
     record DiscoveryCollectorResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
@@ -1190,6 +1207,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Consolidated planning results and routing decision.")
+    @With
     record PlanningCollectorResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
@@ -1269,6 +1287,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Final consolidated workflow result and routing decision.")
+    @With
     record OrchestratorCollectorResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
@@ -1357,6 +1376,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Consolidated ticket execution results and routing decision.")
+    @With
     record TicketCollectorResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
@@ -1618,8 +1638,9 @@ public interface AgentModels {
     }
 
     @Builder(toBuilder=true)
+    @With
     record DiscoveryCuration(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             List<DiscoveryReport> discoveryReports,
             CodeMap unifiedCodeMap,
             List<Recommendation> recommendations,
@@ -1630,6 +1651,11 @@ public interface AgentModels {
         @Override
         public String computeHash(Artifact.HashContext hashContext) {
             return hashContext.hash(prettyPrint());
+        }
+
+        @Override
+        public ArtifactKey contextId() {
+            return contextId;
         }
 
         @Override
@@ -1683,8 +1709,9 @@ public interface AgentModels {
     }
 
     @Builder(toBuilder=true)
+    @With
     record PlanningCuration(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             List<PlanningAgentResult> planningAgentResults,
             List<PlanningTicket> finalizedTickets,
             List<TicketDependency> dependencyGraph,
@@ -1757,8 +1784,9 @@ public interface AgentModels {
     }
 
     @Builder(toBuilder=true)
+    @With
     record TicketCuration(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             List<TicketAgentResult> ticketAgentResults,
             String completionStatus,
             List<String> followUps,
@@ -1907,6 +1935,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Orchestrator collector request to finalize workflow outputs.")
+    @With
     record OrchestratorCollectorRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -2067,6 +2096,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for the discovery orchestrator to partition and dispatch discovery work.")
+    @With
     record DiscoveryOrchestratorRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -2116,6 +2146,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for a discovery agent to inspect a subdomain.")
+    @With
     record DiscoveryAgentRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -2173,6 +2204,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Delegation template carrying multiple discovery agent requests.")
+    @With
     record DiscoveryAgentRequests(
             @JsonPropertyDescription("List of discovery agent requests.")
             List<DiscoveryAgentRequest> requests,
@@ -2274,6 +2306,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for the discovery collector to consolidate agent findings.")
+    @With
     record DiscoveryCollectorRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -2400,6 +2433,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for the planning orchestrator to decompose work.")
+    @With
     record PlanningOrchestratorRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -2452,6 +2486,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for a planning agent to produce tickets.")
+    @With
     record PlanningAgentRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -2505,6 +2540,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Delegation template carrying multiple planning agent requests.")
+    @With
     record PlanningAgentRequests(
             @JsonPropertyDescription("List of planning agent requests.")
             List<PlanningAgentRequest> requests,
@@ -2600,6 +2636,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for the planning collector to consolidate tickets.")
+    @With
     record PlanningCollectorRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -2733,6 +2770,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for the ticket orchestrator to execute planned work.")
+    @With
     record TicketOrchestratorRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -2793,6 +2831,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for a ticket agent to implement a ticket.")
+    @With
     record TicketAgentRequest(
             @JsonPropertyDescription("Unique context id for this request.")
             ArtifactKey contextId,
@@ -2865,6 +2904,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Delegation template carrying multiple ticket agent requests.")
+    @With
     record TicketAgentRequests(
             @JsonPropertyDescription("List of ticket agent requests.")
             List<TicketAgentRequest> requests,
@@ -2956,6 +2996,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for the ticket collector to consolidate execution results.")
+    @With
     record TicketCollectorRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -3090,6 +3131,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for the review agent to assess content.")
+    @With
     record ReviewRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -3198,6 +3240,7 @@ public interface AgentModels {
      */
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for the merger agent to validate a merge.")
+    @With
     record MergerRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -3325,6 +3368,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Lightweight request to route to the context manager.")
+    @With
     record ContextManagerRoutingRequest(
             @JsonPropertyDescription("Unique context id for this request.")
             ArtifactKey contextId,
@@ -3355,6 +3399,7 @@ public interface AgentModels {
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Request for Context Manager to reconstruct context.")
+    @With
     record ContextManagerRequest(
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonPropertyDescription("Unique context id for this request.")
@@ -3681,6 +3726,7 @@ public interface AgentModels {
 
     @Builder(toBuilder = true)
     @JsonClassDescription("Wrapper for planning agent results used in dispatch.")
+    @With
     record PlanningAgentResults(
             @JsonPropertyDescription("Unique context id for this request.")
             ArtifactKey contextId,
@@ -3748,6 +3794,7 @@ public interface AgentModels {
 
     @Builder(toBuilder = true)
     @JsonClassDescription("Wrapper for ticket agent results used in dispatch.")
+    @With
     record TicketAgentResults(
             @JsonPropertyDescription("Unique context id for this request.")
             ArtifactKey contextId,
@@ -3815,6 +3862,7 @@ public interface AgentModels {
 
     @Builder(toBuilder = true)
     @JsonClassDescription("Wrapper for discovery agent results used in dispatch.")
+    @With
     record DiscoveryAgentResults(
             @JsonPropertyDescription("Unique context id for this request.")
             ArtifactKey contextId,

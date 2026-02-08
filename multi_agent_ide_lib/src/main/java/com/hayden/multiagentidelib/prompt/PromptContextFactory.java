@@ -181,7 +181,7 @@ public class PromptContextFactory {
 
         var pc = new PromptContext(
                 agentType,
-                resolve(contextRequest != null ? contextRequest.artifactKey() : null),
+                resolve(contextRequest != null ? contextRequest.contextId() : null),
                 upstreamContexts,
                 previousContext,
                 blackboardHistory,

@@ -3,7 +3,6 @@ package com.hayden.multiagentide.integration;
 import com.embabel.agent.api.common.PlannerType;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.ProcessOptions;
-import com.hayden.commitdiffcontext.git.res.Git;
 import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentide.artifacts.ArtifactEventListener;
@@ -17,7 +16,6 @@ import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.service.LlmRunner;
-import com.hayden.multiagentide.service.WorktreeService;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentide.support.QueuedLlmRunner;
 import com.hayden.multiagentide.support.TestEventListener;
@@ -27,6 +25,7 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
+import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
@@ -48,6 +47,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -181,17 +181,32 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                 .branchSubmoduleWorktree(any(), any(), any());
 
         Mockito.when(worktreeService.attachWorktreesToDiscoveryRequests(any(AgentModels.DiscoveryAgentRequests.class), anyString()))
-                .thenAnswer(inv -> inv.getArgument(0));
+                .thenAnswer(inv -> {
+                    AgentModels.DiscoveryAgentRequests d = inv.getArgument(0);
+                    return d.toBuilder()
+                            .requests(d.requests().stream().map(dar -> dar.withWorktreeContext(d.worktreeContext())).toList())
+                            .build();
+                });
         Mockito.when(worktreeService.attachWorktreesToPlanningRequests(any(AgentModels.PlanningAgentRequests.class), anyString()))
-                .thenAnswer(inv -> inv.getArgument(0));
+                .thenAnswer(inv -> {
+                    AgentModels.PlanningAgentRequests d = inv.getArgument(0);
+                    return d.toBuilder()
+                            .requests(d.requests().stream().map(dar -> dar.withWorktreeContext(d.worktreeContext())).toList())
+                            .build();
+                });
         Mockito.when(worktreeService.attachWorktreesToTicketRequests(any(AgentModels.TicketAgentRequests.class), anyString()))
-                .thenAnswer(inv -> inv.getArgument(0));
+                .thenAnswer(inv -> {
+                    AgentModels.TicketAgentRequests d = inv.getArgument(0);
+                    return d.toBuilder()
+                            .requests(d.requests().stream().map(dar -> dar.withWorktreeContext(d.worktreeContext())).toList())
+                            .build();
+                });
         Mockito.when(worktreeService.mergeChildToTrunk(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
-                        .thenAnswer(inv -> MergeDescriptor.builder().build());
+                        .thenAnswer(inv -> MergeDescriptor.builder().mergeDirection(MergeDirection.CHILD_TO_TRUNK).build());
         Mockito.when(worktreeService.mergeTrunkToChild(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
-                .thenAnswer(inv -> MergeDescriptor.builder().build());
+                .thenAnswer(inv -> MergeDescriptor.builder().mergeDirection(MergeDirection.TRUNK_TO_CHILD).build());
         Mockito.when(worktreeService.finalMergeToSourceDescriptor(anyString()))
-                .thenAnswer(inv -> MergeDescriptor.builder().build());
+                .thenAnswer(inv -> MergeDescriptor.builder().mergeDirection(MergeDirection.WORKTREE_TO_SOURCE).build());
 
         artifactRepository.deleteAll();
         artifactRepository.flush();
@@ -312,6 +327,231 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             ordered.verify(workflowAgent).consolidateWorkflowOutputs(any(), any());
 
             verify(computationGraphOrchestrator, atLeastOnce()).emitStatusChangeEvent(any(), any(), any(), any());
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        @SneakyThrows
+        @Test
+        void humanReviewInterrupt_blocksUntilExternallyResolved() {
+            var contextId = seedOrchestrator().value();
+
+            // First LLM call: orchestrator returns a HUMAN_REVIEW interrupt
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                    .interruptRequest(AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
+                            .type(Events.InterruptType.HUMAN_REVIEW)
+                            .reason("Please review the proposed architecture")
+                            .build())
+                    .build());
+
+            // Second LLM call: after interrupt is resolved, the handleInterrupt method
+            // calls runWithTemplate with the feedback — enqueue the post-interrupt routing
+            // that continues the workflow to discovery
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                    .orchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                            .goal("Human review task")
+                            .build())
+                    .build());
+
+            enqueueDiscoveryToEnd("Human review task");
+
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Human review task", "DISCOVERY"))
+            ));
+
+            // Wait for the interrupt to be published
+            await().atMost(Duration.ofSeconds(300))
+                    .until(() -> permissionGate.isInterruptPending(
+                            t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                                 && Objects.equals(t.getReason(), "Please review the proposed architecture")));
+
+            var pendingInterrupt = permissionGate.getInterruptPending(
+                    t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                         && Objects.equals(t.getReason(), "Please review the proposed architecture"));
+            assertThat(pendingInterrupt).isNotNull();
+
+            // Verify the workflow is actually blocked — it should NOT have progressed past
+            // the interrupt handler (i.e. discovery should NOT have started yet)
+            Thread.sleep(2000);
+            assertThat(workflowFuture.isDone())
+                    .as("Workflow should still be blocked waiting for human review resolution")
+                    .isFalse();
+
+            // The interrupt should STILL be pending — not removed
+            assertThat(permissionGate.isInterruptPending(
+                    t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                         && Objects.equals(t.getReason(), "Please review the proposed architecture")))
+                    .as("HUMAN_REVIEW interrupt should remain pending until explicitly resolved")
+                    .isTrue();
+
+            // Only one LLM call should have been consumed so far (the orchestrator routing)
+            // The second one (post-interrupt) should NOT have been consumed yet
+            assertThat(queuedLlmRunner.getCallCount())
+                    .as("Only the initial orchestrator LLM call should have fired; " +
+                        "the post-interrupt call should be blocked")
+                    .isEqualTo(1);
+
+            // Now externally resolve the interrupt (simulating human approval)
+            permissionGate.resolveInterrupt(
+                    pendingInterrupt.getInterruptId(),
+                    "approved",
+                    "Architecture looks good, proceed",
+                    (AgentModels.ReviewAgentResult) null);
+
+            // Workflow should now complete
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+
+            var result = workflowFuture.get();
+            assertThat(result).isNotNull();
+
+            // The interrupt should no longer be pending
+            assertThat(permissionGate.isInterruptPending(
+                    t -> Objects.equals(t.getInterruptId(), pendingInterrupt.getInterruptId())))
+                    .as("Interrupt should have been removed after resolution")
+                    .isFalse();
+
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        @SneakyThrows
+        @Test
+        void humanReviewInterrupt_pendingInterruptNotRemovedBeforeResolution() {
+            // This test specifically targets the observed bug: the pending interrupt entry
+            // is added to pendingInterrupts but then disappears before resolveInterrupt
+            // is called, causing awaitInterruptBlocking to return invalidInterrupt immediately.
+            var contextId = seedOrchestrator().value();
+
+            // Track all resolveInterrupt calls to prove none happen unexpectedly
+            var resolveCallTracker = new java.util.concurrent.CopyOnWriteArrayList<String>();
+            doAnswer(invocation -> {
+                String interruptId = invocation.getArgument(0);
+                resolveCallTracker.add(interruptId + " | " + Arrays.toString(Thread.currentThread().getStackTrace()));
+                return invocation.callRealMethod();
+            }).when(computationGraphOrchestrator).emitStatusChangeEvent(any(), any(), any(), any());
+
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                    .interruptRequest(AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
+                            .type(Events.InterruptType.HUMAN_REVIEW)
+                            .reason("Review before proceeding")
+                            .build())
+                    .build());
+
+            // Enqueue the post-interrupt response so the workflow can finish after resolution
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                    .orchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                            .goal("Post review task")
+                            .build())
+                    .build());
+
+            enqueueDiscoveryToEnd("Post review task");
+
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Post review task", "DISCOVERY"))
+            ));
+
+            // Wait for the interrupt to appear
+            await().atMost(Duration.ofSeconds(300))
+                    .until(() -> permissionGate.isInterruptPending(
+                            t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                                 && Objects.equals(t.getReason(), "Review before proceeding")));
+
+            var pendingInterrupt = permissionGate.getInterruptPending(
+                    t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                         && Objects.equals(t.getReason(), "Review before proceeding"));
+            assertThat(pendingInterrupt).isNotNull();
+            String interruptId = pendingInterrupt.getInterruptId();
+
+            // Poll multiple times over a period to detect if the entry disappears unexpectedly
+            for (int i = 0; i < 10; i++) {
+                Thread.sleep(500);
+                boolean stillPending = permissionGate.isInterruptPending(
+                        t -> Objects.equals(t.getInterruptId(), interruptId));
+                assertThat(stillPending)
+                        .as("Interrupt %s should remain pending (check %d/10). " +
+                            "If this fails, the entry was removed from pendingInterrupts " +
+                            "without resolveInterrupt being called. resolveInterrupt calls so far: %s",
+                            interruptId, i + 1, resolveCallTracker)
+                        .isTrue();
+
+                // Also verify workflow hasn't completed (which would mean it auto-resolved)
+                assertThat(workflowFuture.isDone())
+                        .as("Workflow should not have completed without resolving interrupt (check %d/10)", i + 1)
+                        .isFalse();
+            }
+
+            // Now resolve and let workflow finish
+            permissionGate.resolveInterrupt(interruptId, "approved", "Approved after checks",
+                    (AgentModels.ReviewAgentResult) null);
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+
+            assertThat(workflowFuture.get()).isNotNull();
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        @SneakyThrows
+        @Test
+        void humanReviewInterrupt_workflowCompletesWithFeedbackAfterResolution() {
+            // Verifies that after human resolves the interrupt with feedback notes,
+            // those notes are passed through to the LLM as interruptFeedback and the
+            // workflow continues to completion.
+            var contextId = seedOrchestrator().value();
+
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                    .interruptRequest(AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
+                            .type(Events.InterruptType.HUMAN_REVIEW)
+                            .reason("Needs human sign-off")
+                            .build())
+                    .build());
+
+            // After resolution, handleInterrupt calls runWithTemplate with interruptFeedback
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                    .orchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                            .goal("Feedback task")
+                            .build())
+                    .build());
+
+            enqueueDiscoveryToEnd("Feedback task");
+
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Feedback task", "DISCOVERY"))
+            ));
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(() -> permissionGate.isInterruptPending(
+                            t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                                 && Objects.equals(t.getReason(), "Needs human sign-off")));
+
+            var pendingInterrupt = permissionGate.getInterruptPending(
+                    t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                         && Objects.equals(t.getReason(), "Needs human sign-off"));
+            assertThat(pendingInterrupt).isNotNull();
+
+            // Resolve with specific feedback
+            permissionGate.resolveInterrupt(
+                    pendingInterrupt.getInterruptId(),
+                    "approved",
+                    "Approved with note: use event sourcing pattern",
+                    (AgentModels.ReviewAgentResult) null);
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+
+            var result = workflowFuture.get();
+            assertThat(result).isNotNull();
+            assertThat(result.getStatus()).isEqualTo(com.embabel.agent.core.AgentProcessStatusCode.COMPLETED);
+
+            // Verify the orchestrator interrupt handler was invoked
+            verify(workflowGraphService).handleOrchestratorInterrupt(any(),
+                    argThat(req -> req.type() == Events.InterruptType.HUMAN_REVIEW));
+
             queuedLlmRunner.assertAllConsumed();
         }
     }

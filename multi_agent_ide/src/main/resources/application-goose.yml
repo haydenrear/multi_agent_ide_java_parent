@@ -7,8 +7,8 @@ multi-agent-embabel:
     args: ${ACP_ARGS:}
     working-directory: ${ACP_WORKING_DIR:}
 #    will throw an error if your on mac for some security ring
-#    env:
-#      HOME: {{PROJ_DIR}}/configs
+    env:
+      GOOSE_MODE: auto
 
 spring:
   lifecycle:

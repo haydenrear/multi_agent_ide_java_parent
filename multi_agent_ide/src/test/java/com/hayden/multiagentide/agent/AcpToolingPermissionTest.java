@@ -25,6 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -78,7 +79,8 @@ class AcpToolingPermissionTest {
         GraphRepository graphRepository = mock(GraphRepository.class);
         ComputationGraphOrchestrator orchestrator = mock(ComputationGraphOrchestrator.class);
         eventBus = mock(EventBus.class);
-        permissionGate = new PermissionGate(graphRepository, orchestrator, eventBus);
+        permissionGate = new PermissionGate(graphRepository, orchestrator);
+        ReflectionTestUtils.setField(permissionGate, "eventBus", eventBus);
 
         PermissionGateAdapter permissionGateAdapter = new PermissionGateAdapter(permissionGate);
         acpTooling = new AcpTooling(requestContextRepository, new ObjectMapper());

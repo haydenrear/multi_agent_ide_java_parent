@@ -2,6 +2,7 @@ package com.hayden.multiagentide.controller;
 
 import com.hayden.multiagentide.agent.AgentLifecycleHandler;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,33 @@ public class OrchestrationController {
                 request.title(),
                 nodeId
         );
+
+        return new StartGoalResponse(nodeId);
+    }
+
+    public StartGoalResponse startGoalAsync(StartGoalRequest request) {
+        if (request == null || request.goal() == null || request.goal().isBlank()) {
+            throw new IllegalArgumentException("goal is required");
+        }
+        if (request.repositoryUrl() == null || request.repositoryUrl().isBlank()) {
+            throw new IllegalArgumentException("repositoryUrl is required");
+        }
+
+        String nodeId = ArtifactKey.createRoot().value();
+
+        String baseBranch = (request.baseBranch() == null || request.baseBranch().isBlank())
+                ? "main"
+                : request.baseBranch();
+
+        CompletableFuture.runAsync(() -> {
+            agentLifecycleHandler.initializeOrchestrator(
+                    request.repositoryUrl(),
+                    baseBranch,
+                    request.goal(),
+                    request.title(),
+                    nodeId
+            );
+        });
 
         return new StartGoalResponse(nodeId);
     }

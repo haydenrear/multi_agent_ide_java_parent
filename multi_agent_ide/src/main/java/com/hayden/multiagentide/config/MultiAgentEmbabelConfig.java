@@ -4,6 +4,7 @@ import com.embabel.agent.api.annotation.support.AgentMetadataReader;
 import com.embabel.agent.api.channel.*;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentScope;
+import com.embabel.agent.core.support.DefaultAgentPlatform;
 import com.embabel.agent.spi.AgentProcessIdGenerator;
 import com.embabel.common.ai.model.Llm;
 import com.hayden.multiagentide.agent.AgentInterfaces;
@@ -24,8 +25,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.*;
+import org.springframework.util.ReflectionUtils;
 import reactor.core.publisher.Flux;
 
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,11 +44,19 @@ public class MultiAgentEmbabelConfig {
     @Value("${multi-agent-embabel.chat-model.provider:acp}")
     private String modelProvider;
 
+
+
     @SneakyThrows
     @Bean
     public ApplicationRunner deployAgents(List<AgentInterfaces> agents,
                                           AgentPlatform agentPlatform,
-                                          AgentMetadataReader agentMetadataReader) {
+                                          AgentMetadataReader agentMetadataReader,
+                                          BlackboardRoutingPlannerFactory b) {
+        if (agentPlatform instanceof DefaultAgentPlatform) {
+            Field declaredField = agentPlatform.getClass().getDeclaredField("plannerFactory");
+            declaredField.trySetAccessible();
+            ReflectionUtils.setField(declaredField, agentPlatform, b);
+        }
         for (AgentInterfaces agent : agents) {
             AgentScope agentMetadata = agentMetadataReader.createAgentMetadata(agent);
             deployAgent(

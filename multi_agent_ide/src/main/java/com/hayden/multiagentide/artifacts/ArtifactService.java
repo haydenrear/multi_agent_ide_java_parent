@@ -15,14 +15,14 @@ import jakarta.persistence.PersistenceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,8 +53,33 @@ public class ArtifactService {
 
     @Transactional
     public void doPersist(String executionKey, ArtifactNode root) {
-        var allArtifacts = root.collectAll();
-        
+        var collected = new ArrayList<>(root.collectAll());
+
+        var groupedByKey = collected.stream()
+                .filter(a -> a.artifactKey() != null && StringUtils.isNotBlank(a.artifactKey().value()))
+                .collect(Collectors.groupingBy(Artifact::artifactKey));
+
+        // records are special
+        Map<Artifact, Artifact> updates = new IdentityHashMap<>();
+
+        for (var entry : groupedByKey.entrySet()) {
+            var list = entry.getValue();
+            updates.put(list.getFirst(), list.getFirst());
+
+            if (list.size() <= 1)
+                continue;
+
+            // decide allSameHash using “present+nonblank” logic
+            if (!entry.getValue().stream().allMatch(art -> art.contentHash().orElse("").equals(list.getFirst().contentHash().orElse("")))) {
+                for (int i = 1; i < list.size(); i++) {
+                    var e = list.get(i);
+                    updates.put(e, e.withArtifactKey(e.artifactKey().createChild()));
+                }
+            }
+        }
+
+        var allArtifacts = new ArrayList<>(updates.values());
+
         // Group by content hash to find duplicates
         var groupedByHash = allArtifacts.stream()
                 .map(a -> {
@@ -66,16 +91,17 @@ public class ArtifactService {
                 .collect(Collectors.groupingBy(a -> a.contentHash().orElseThrow()));
 
         var refsToSave = new ArrayList<Artifact>();
-        
+
         for (var entry : groupedByHash.entrySet()) {
             var contentHash = entry.getKey();
             var artifacts = entry.getValue();
-            if (artifacts.isEmpty()) continue;
+            if (artifacts.isEmpty())
+                continue;
 
-            
+
             // Check if this hash already exists in the DB
             var existingOpt = artifactRepository.findByContentHash(contentHash);
-            
+
             if (existingOpt.isPresent()) {
                 // Original already in DB - decorateDuplicate all of them
                 for (var artifact : artifacts) {
@@ -87,7 +113,7 @@ public class ArtifactService {
                 var original = artifacts.getFirst();
                 ArtifactEntity entity = toEntity(executionKey, original);
                 artifactRepository.save(entity);
-                
+
                 // decorateDuplicate the rest
                 for (int i = 1; i < artifacts.size(); i++) {
                     var duplicate = artifacts.get(i);
@@ -96,27 +122,29 @@ public class ArtifactService {
                 }
             }
         }
-        
+
         // Save all refs
         var savedRefs = artifactRepository.saveAll(
                 refsToSave.stream()
                         .map(a -> toEntity(executionKey, a))
                         .toList());
-        
+
         // Update the original artifacts with their ref keys
         for (var refEntity : savedRefs) {
             if (refEntity.getReferencedArtifactKey() != null) {
-                artifactRepository.findByArtifactKey(refEntity.getReferencedArtifactKey())
-                        .ifPresentOrElse(ae -> {
-                            try {
+                try {
+                    artifactRepository.findByArtifactKey(refEntity.getReferencedArtifactKey())
+                            .ifPresentOrElse(ae -> {
                                 ae.addRef(refEntity.getArtifactKey());
                                 artifactRepository.save(ae);
-                            } catch (PersistenceException p) {
-                                log.error("Error adding referenced artifact key {}.", ae.getArtifactKey(), p);
-                            }
-                        }, () -> {
-                            log.error("Could not find referenced artifact key {}.", refEntity.getReferencedArtifactKey());
-                        });
+                            }, () -> {
+                                log.error("Could not find referenced artifact key {}.", refEntity.getReferencedArtifactKey());
+                            });
+                } catch (
+                        PersistenceException |
+                        DataIntegrityViolationException p) {
+                    log.error("Error adding referenced artifact key {}.", refEntity.getReferencedArtifactKey(), p);
+                }
             }
         }
     }
@@ -130,13 +158,23 @@ public class ArtifactService {
 
         return artifactRepository.findByContentHash(contentHash)
                 .flatMap(this::deserializeArtifact)
-                .map( a -> switch(a) {
-                    case Templated t ->
-//                          use a random hash for this one as it's a ref
-                            new Artifact.TemplateDbRef(artifact, t.templateStaticId(), UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType());
-                    case Artifact t ->
-//                          use a random hash for this one as it's a ref
-                            new Artifact.ArtifactDbRef(artifact, UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType());
+                .flatMap(a -> switch (a) {
+                    case Templated t -> {
+//                      use a random hash for this one as it's a ref
+                        if (!a.artifactKey().equals(artifact)) {
+                            yield Optional.of(new Artifact.TemplateDbRef(artifact, t.templateStaticId(), UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType()));
+                        }
+
+                        yield Optional.of(new Artifact.TemplateDbRef(artifact.createChild(), t.templateStaticId(), UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType()));
+                    }
+                    case Artifact t ->{
+//                      use a random hash for this one as it's a ref
+                        if (!t.artifactKey().equals(artifact)) {
+                            yield Optional.of(new Artifact.ArtifactDbRef(artifact, UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType()));
+                        }
+
+                        yield Optional.of(new Artifact.ArtifactDbRef(artifact.createChild(), UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType()));
+                    }
                 });
     }
 
@@ -155,7 +193,7 @@ public class ArtifactService {
             // Deserialize using the artifact type as a hint
             Artifact artifact = objectMapper.readValue(entity.getContentJson(), Artifact.class);
 
-            artifact = switch(artifact) {
+            artifact = switch (artifact) {
                 case Artifact.TemplateDbRef t ->
                         this.artifactRepository.findByArtifactKey(entity.getReferencedArtifactKey())
                                 .flatMap(this::deserializeArtifact)
@@ -191,7 +229,7 @@ public class ArtifactService {
                     entity.getArtifactKey(), entity.getArtifactType());
             return Optional.of(artifact);
         } catch (JsonProcessingException e) {
-            log.error("Failed to deserialize artifact: {} of type: {}", 
+            log.error("Failed to deserialize artifact: {} of type: {}",
                     entity.getArtifactKey(), entity.getArtifactType(), e);
             return Optional.empty();
         }

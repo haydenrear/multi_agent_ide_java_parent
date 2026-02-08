@@ -131,7 +131,7 @@ public class ArtifactEventListener implements EventListener {
             // 4. Add the child to the parent artifact's children list
             boolean added = treeBuilder.addArtifact(executionKey, artifact);
             if (added) {
-                log.debug("Added artifact: {} (type: {})", artifactKey.value(), event.artifactType());
+                log.debug("Added artifact: {}:\n{}", artifactKey.value(), event.artifact());
             }
             
         } catch (Exception e) {
@@ -160,8 +160,8 @@ public class ArtifactEventListener implements EventListener {
             
             boolean added = treeBuilder.addArtifact(executionKey, streamArtifact);
             if (added) {
-                log.debug("Added stream artifact: {} (type: {})", 
-                        streamArtifact.artifactKey().value(), streamArtifact.streamType());
+                log.debug("Added stream artifact: {}:\n{}",
+                        streamArtifact.artifactKey().value(), streamArtifact);
             }
             
         } catch (Exception e) {

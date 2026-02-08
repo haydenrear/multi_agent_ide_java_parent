@@ -1155,17 +1155,15 @@ public interface AgentInterfaces {
 
                 context.addObject(input);
 
-                AgentModels.DiscoveryAgentRouting response = runSubProcess(
+                AgentModels.DiscoveryAgentResult response = runSubProcess(
                         context,
                         request,
                         discoveryDispatchAgent,
-                        AgentModels.DiscoveryAgentRouting.class
+                        AgentModels.DiscoveryAgentResult.class
                 );
 
-                AgentModels.DiscoveryAgentResult agentResult = response != null ? response.agentResult() : null;
-                if (agentResult != null) {
-                    discoveryResults.add(agentResult);
-                }
+                AgentModels.DiscoveryAgentResult agentResult = response;
+                discoveryResults.add(agentResult);
             }
 
             var d = AgentModels.DiscoveryAgentResults.builder()
@@ -1393,17 +1391,14 @@ public interface AgentInterfaces {
 
                 context.addObject(input);
 
-                AgentModels.PlanningAgentRouting response = runSubProcess(
+                AgentModels.PlanningAgentResult response = runSubProcess(
                         context,
                         request,
                         planningDispatchAgent,
-                        AgentModels.PlanningAgentRouting.class
+                        AgentModels.PlanningAgentResult.class
                 );
 
-                AgentModels.PlanningAgentResult agentResult = response != null ? response.agentResult() : null;
-                if (agentResult != null) {
-                    planningResults.add(agentResult);
-                }
+                planningResults.add(response);
             }
 
             AgentModels.PlanningAgentResults planningAgentResults = AgentModels.PlanningAgentResults.builder()
@@ -1555,7 +1550,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            blackboardHistoryService.registerAndHideInput(context, METHOD_FINALIZE_TICKET_ORCHESTRATOR, input);
+            blackboardHistoryService.register(context, METHOD_FINALIZE_TICKET_ORCHESTRATOR, input);
             AgentModels.OrchestratorCollectorResult result = new AgentModels.OrchestratorCollectorResult(
                     input.output(),
                     new AgentModels.CollectorDecision(Events.CollectorDecisionType.ADVANCE_PHASE, "", ""));
@@ -1679,18 +1674,14 @@ public interface AgentInterfaces {
 
                 context.addObject(input);
 
-                AgentModels.TicketAgentRouting response = runSubProcess(
+                AgentModels.TicketAgentResult agentResult = runSubProcess(
                         context,
                         request,
                         ticketDispatchAgent,
-                        AgentModels.TicketAgentRouting.class
+                        AgentModels.TicketAgentResult.class
                 );
 
-                AgentModels.TicketAgentResult agentResult = response != null ? response.agentResult() : null;
-
-                if (agentResult != null) {
-                    ticketResults.add(agentResult);
-                }
+                ticketResults.add(agentResult);
             }
 
             var ticketAgentResults = AgentModels.TicketAgentResults.builder()
@@ -2049,7 +2040,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            blackboardHistoryService.registerAndHideInput(context, METHOD_HANDLE_TICKET_COLLECTOR_BRANCH, request);
+            blackboardHistoryService.register(context, METHOD_HANDLE_TICKET_COLLECTOR_BRANCH, request);
 
             // Get upstream curations from context for routing back
             AgentModels.TicketOrchestratorRequest lastTicketOrchestratorRequest =
@@ -2127,7 +2118,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            blackboardHistoryService.registerAndHideInput(context, METHOD_HANDLE_DISCOVERY_COLLECTOR_BRANCH, request);
+            blackboardHistoryService.register(context, METHOD_HANDLE_DISCOVERY_COLLECTOR_BRANCH, request);
             AgentModels.DiscoveryCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
                 case ROUTE_BACK -> {
                     AgentModels.DiscoveryOrchestratorRequest discoveryRequest = AgentModels.DiscoveryOrchestratorRequest.builder()
@@ -2185,7 +2176,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            blackboardHistoryService.registerAndHideInput(context, METHOD_HANDLE_ORCHESTRATOR_COLLECTOR_BRANCH, request);
+            blackboardHistoryService.register(context, METHOD_HANDLE_ORCHESTRATOR_COLLECTOR_BRANCH, request);
             AgentModels.OrchestratorCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
                 case ROUTE_BACK -> {
                     AgentModels.OrchestratorRequest orchestratorRequest = AgentModels.OrchestratorRequest.builder()
@@ -2240,7 +2231,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            blackboardHistoryService.registerAndHideInput(context, METHOD_HANDLE_PLANNING_COLLECTOR_BRANCH, request);
+            blackboardHistoryService.register(context, METHOD_HANDLE_PLANNING_COLLECTOR_BRANCH, request);
             // Get discovery curation from prior planning orchestrator request
             AgentModels.PlanningOrchestratorRequest lastPlanningOrchestratorRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningOrchestratorRequest.class);
@@ -2377,6 +2368,7 @@ public interface AgentInterfaces {
             }
             context.addObject(request);
             T result = context.asSubProcess(outputClass, agent);
+            context.hide(result);
             return result;
         }
 

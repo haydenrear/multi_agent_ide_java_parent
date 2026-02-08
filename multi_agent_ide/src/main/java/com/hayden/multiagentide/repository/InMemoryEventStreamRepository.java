@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class InMemoryEventStreamRepository implements EventStreamRepository {
 
     private final Map<String, List<Events.GraphEvent>> events = new ConcurrentHashMap<>();
+    private final Map<String, Events.GraphEvent> byId = new ConcurrentHashMap<>();
 
     @Override
     public void save(Events.GraphEvent graphEvent) {
@@ -24,6 +25,9 @@ public class InMemoryEventStreamRepository implements EventStreamRepository {
 
             return prev;
         });
+        if (graphEvent != null && graphEvent.eventId() != null) {
+            byId.put(graphEvent.eventId(), graphEvent);
+        }
     }
 
     @Override
@@ -32,6 +36,14 @@ public class InMemoryEventStreamRepository implements EventStreamRepository {
                 .stream()
                 .flatMap(Collection::stream)
                 .toList();
+    }
+
+    @Override
+    public java.util.Optional<Events.GraphEvent> findById(String eventId) {
+        if (eventId == null) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.ofNullable(byId.get(eventId));
     }
 
 }

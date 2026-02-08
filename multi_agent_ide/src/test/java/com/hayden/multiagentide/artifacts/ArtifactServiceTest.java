@@ -5,11 +5,13 @@ import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
+import com.hayden.multiagentide.config.SerdesConfiguration;
 import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +48,13 @@ class ArtifactServiceTest {
     @BeforeEach
     void setUp() {
         artifactRepository.deleteAll();
+
+        SerdesConfiguration s = new SerdesConfiguration();
+
+        var b = new Jackson2ObjectMapperBuilder();
+        s.artifactAndAgentModelMixIn().customize(b);
+
+        this.objectMapper = b.build();
     }
 
     @AfterEach
@@ -123,7 +132,7 @@ class ArtifactServiceTest {
         ArtifactKey artifactKey = ArtifactKey.createRoot();
         
         Artifact.PromptContributionTemplate artifact = Artifact.PromptContributionTemplate.builder()
-                .artifactKey(artifactKey)
+                .templateArtifactKey(artifactKey)
                 .contributorName("test-contributor")
                 .priority(10)
                 .agentTypes(List.of("agent1"))
@@ -412,7 +421,7 @@ class ArtifactServiceTest {
         String contentHash = "templatehash456";
         
         Artifact.PromptContributionTemplate original = Artifact.PromptContributionTemplate.builder()
-                .artifactKey(originalKey)
+                .templateArtifactKey(originalKey)
                 .contributorName("test-template")
                 .priority(5)
                 .agentTypes(List.of("agent"))
@@ -643,7 +652,7 @@ class ArtifactServiceTest {
         ArtifactKey artifactKey = ArtifactKey.createRoot();
         
         Artifact.PromptContributionTemplate original = Artifact.PromptContributionTemplate.builder()
-                .artifactKey(artifactKey)
+                .templateArtifactKey(artifactKey)
                 .contributorName("system-prompt")
                 .priority(100)
                 .agentTypes(List.of("planning", "coding"))

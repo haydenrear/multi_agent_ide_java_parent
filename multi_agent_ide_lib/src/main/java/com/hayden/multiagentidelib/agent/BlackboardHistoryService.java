@@ -24,7 +24,7 @@ public class BlackboardHistoryService {
      * @param input The input object to register and hide
      * @return Updated history with the new entry
      */
-    public BlackboardHistory registerAndHideInput(
+    public BlackboardHistory register(
             OperationContext context,
             String actionName,
             Artifact.AgentModel input
@@ -32,12 +32,6 @@ public class BlackboardHistoryService {
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
 
         history.addEntry(actionName, input);
-
-        if (input != null) {
-            context.getAgentProcess().clear();
-        }
-
-        context.getAgentProcess().addObject(history);
 
         if (degenerateLoopPolicies != null && !degenerateLoopPolicies.isEmpty()) {
             for (DegenerateLoopPolicy policy : degenerateLoopPolicies) {
@@ -50,6 +44,18 @@ public class BlackboardHistoryService {
                         });
             }
         }
+
+        return history;
+    }
+
+    public BlackboardHistory hideInput(
+            OperationContext context
+    ) {
+        BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+
+        context.getAgentProcess().clear();
+
+        context.getAgentProcess().addObject(history);
 
         return history;
     }

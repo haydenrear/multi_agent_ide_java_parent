@@ -4,6 +4,7 @@ import com.hayden.multiagentidelib.template.DiscoveryReport;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.Builder;
+import lombok.With;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -173,9 +174,9 @@ public sealed interface PreviousContext extends AgentContext permits
         return fallback;
     }
 
-    @Builder
+    @Builder @With
     record OrchestratorPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -216,7 +217,7 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.TicketCollectorContext updatedTicket =
                     firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
             return (T) new OrchestratorPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -231,13 +232,13 @@ public sealed interface PreviousContext extends AgentContext permits
 
         @Override
         public ArtifactKey key() {
-            return artifactKey;
+            return contextId;
         }
     }
 
-    @Builder
+    @Builder @With
     record OrchestratorCollectorPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -278,7 +279,7 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.TicketCollectorContext updatedTicket =
                     firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
             return (T) new OrchestratorCollectorPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -292,9 +293,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record DiscoveryOrchestratorPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -335,7 +336,7 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.TicketCollectorContext updatedTicket =
                     firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
             return (T) new DiscoveryOrchestratorPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -349,9 +350,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record PlanningOrchestratorPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -386,7 +387,7 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.PlanningCollectorContext updatedPlanning =
                     firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, previousPlanningCuration);
             return (T) new PlanningOrchestratorPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -399,9 +400,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record TicketOrchestratorPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -442,7 +443,7 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.TicketCollectorContext updatedTicket =
                     firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
             return (T) new TicketOrchestratorPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -456,9 +457,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record DiscoveryAgentPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -487,7 +488,7 @@ public sealed interface PreviousContext extends AgentContext permits
             DiscoveryReport updatedDiscovery =
                     firstChildOfType(children, DiscoveryReport.class, previousDiscoveryResult);
             return (T) new DiscoveryAgentPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -499,9 +500,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record PlanningAgentPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -530,7 +531,7 @@ public sealed interface PreviousContext extends AgentContext permits
             AgentModels.PlanningAgentResult updatedResult =
                     firstChildOfType(children, AgentModels.PlanningAgentResult.class, previousPlanningResult);
             return (T) new PlanningAgentPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -542,9 +543,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record TicketAgentPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -573,7 +574,7 @@ public sealed interface PreviousContext extends AgentContext permits
             AgentModels.TicketAgentResult updatedResult =
                     firstChildOfType(children, AgentModels.TicketAgentResult.class, previousTicketResult);
             return (T) new TicketAgentPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -585,9 +586,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record DiscoveryCollectorPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -622,7 +623,7 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.DiscoveryCollectorContext updatedCuration =
                     firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, previousDiscoveryCuration);
             return (T) new DiscoveryCollectorPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -635,9 +636,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record PlanningCollectorPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -672,7 +673,7 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.PlanningCollectorContext updatedCuration =
                     firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, previousPlanningCuration);
             return (T) new PlanningCollectorPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -685,9 +686,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record TicketCollectorPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -722,7 +723,7 @@ public sealed interface PreviousContext extends AgentContext permits
             UpstreamContext.TicketCollectorContext updatedCuration =
                     firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, previousTicketCuration);
             return (T) new TicketCollectorPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -735,9 +736,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record ReviewPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -766,7 +767,7 @@ public sealed interface PreviousContext extends AgentContext permits
             AgentModels.ReviewAgentResult updatedResult =
                     firstChildOfType(children, AgentModels.ReviewAgentResult.class, previousReviewEvaluation);
             return (T) new ReviewPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,
@@ -778,9 +779,9 @@ public sealed interface PreviousContext extends AgentContext permits
         }
     }
 
-    @Builder
+    @Builder @With
     record MergerPreviousContext(
-            ArtifactKey artifactKey,
+            ArtifactKey contextId,
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -809,7 +810,7 @@ public sealed interface PreviousContext extends AgentContext permits
             AgentModels.MergerAgentResult updatedResult =
                     firstChildOfType(children, AgentModels.MergerAgentResult.class, previousMergerValidation);
             return (T) new MergerPreviousContext(
-                    artifactKey,
+                    contextId,
                     previousContextId,
                     serializedOutput,
                     errorMessage,

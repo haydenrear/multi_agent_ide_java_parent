@@ -12,15 +12,21 @@ import com.hayden.acp_cdc_ai.acp.events.Events
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.JsonElement
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 @Component
-class AcpSessionManager(private val eventBus: EventBus) {
+class AcpSessionManager {
 
     val sessionContexts = ConcurrentHashMap<Any, AcpSessionContext>()
+
+    @Lazy
+    @Autowired
+    lateinit var eventBus: EventBus
 
     inner class AcpSessionContext(
         val scope: CoroutineScope,

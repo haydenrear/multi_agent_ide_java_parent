@@ -227,7 +227,7 @@ class AcpStreamWindowBufferTest {
         )
 
         parseGenerationsFromAcpEvent(Event.SessionUpdateEvent(plan), sessionContext, "node-1")
-        assertTrue(bus.events.isEmpty())
+        assertTrue(bus.events.size == 1)
         parseGenerationsFromAcpEvent(Event.SessionUpdateEvent(mode), sessionContext, "node-1")
         assertTrue(bus.events.any { it is Events.PlanUpdateEvent })
         parseGenerationsFromAcpEvent(Event.SessionUpdateEvent(commands), sessionContext, "node-1")
@@ -281,7 +281,8 @@ class AcpStreamWindowBufferTest {
     }
 
     private fun createSessionContext(bus: RecordingEventBus): AcpSessionManager.AcpSessionContext {
-        val manager = AcpSessionManager(bus)
+        val manager = AcpSessionManager()
+        manager.eventBus = bus
         val scope = CoroutineScope(Dispatchers.Unconfined)
         val transport = mock(Transport::class.java)
         val protocol = mock(Protocol::class.java)

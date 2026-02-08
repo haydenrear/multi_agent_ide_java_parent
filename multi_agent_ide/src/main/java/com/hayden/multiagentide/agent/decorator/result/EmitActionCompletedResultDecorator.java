@@ -21,7 +21,7 @@ import java.util.UUID;
  */
 @Component
 @RequiredArgsConstructor
-public class EmitActionCompletedResultDecorator implements FinalResultDecorator, ResultDecorator {
+public class EmitActionCompletedResultDecorator implements FinalResultDecorator, ResultDecorator, DispatchedAgentResultDecorator {
 
     private final EventBus eventBus;
 
@@ -60,18 +60,6 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
             BlackboardHistory.unsubscribe(eventBus, operationContext);
         }
 
-        // Emit the action completed event
-        String nodeId = resolveNodeId(operationContext);
-        String outcomeType = t.getClass().getSimpleName();
-        eventBus.publish(new Events.ActionCompletedEvent(
-                UUID.randomUUID().toString(),
-                Instant.now(),
-                nodeId,
-                agentName,
-                actionName,
-                outcomeType
-        ));
-
         return t;
     }
 
@@ -97,7 +85,8 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
                 nodeId,
                 agentName,
                 actionName,
-                outcomeType
+                outcomeType,
+                t
         ));
 
         if (t instanceof AgentModels.OrchestratorCollectorResult res) {
@@ -134,7 +123,8 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
                 nodeId,
                 agentName,
                 actionName,
-                outcomeType
+                outcomeType,
+                t
         ));
 
         return t;
