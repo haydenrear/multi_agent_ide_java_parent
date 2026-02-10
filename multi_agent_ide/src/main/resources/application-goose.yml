@@ -8,7 +8,8 @@ multi-agent-embabel:
     working-directory: ${ACP_WORKING_DIR:}
 #    will throw an error if your on mac for some security ring
     env:
-      GOOSE_MODE: auto
+      GOOSE_MODE: smart
+      GOOSE_DISABLE_SUBAGENTS: true
 
 spring:
   lifecycle:

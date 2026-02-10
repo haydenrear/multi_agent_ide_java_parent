@@ -1,4 +1,1 @@
 logging.config: classpath:logback-multi-agent-ide.xml
-
-
-logging.level.org.springframework.shell.component.view.event: TRACE

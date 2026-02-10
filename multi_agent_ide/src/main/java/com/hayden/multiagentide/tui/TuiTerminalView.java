@@ -8,7 +8,10 @@ import org.springframework.shell.component.view.control.*;
 import org.springframework.shell.component.view.event.KeyEvent;
 import org.springframework.shell.component.view.event.KeyHandler;
 import org.springframework.shell.component.view.screen.Screen;
+import org.springframework.shell.geom.Rectangle;
 
+import java.lang.reflect.Field;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -21,6 +24,34 @@ import java.util.function.Supplier;
 
 @Slf4j
 class TuiTerminalView extends GridView {
+    private static final Field WINDOW_MIN_WIDTH_FIELD;
+    private static final Field WINDOW_MAX_WIDTH_FIELD;
+    private static final Field WINDOW_MIN_HEIGHT_FIELD;
+    private static final Field WINDOW_MAX_HEIGHT_FIELD;
+
+    static {
+        Field minWidth = null;
+        Field maxWidth = null;
+        Field minHeight = null;
+        Field maxHeight = null;
+        try {
+            Class<?> windowView = Class.forName("org.springframework.shell.component.view.control.WindowView");
+            minWidth = windowView.getDeclaredField("minWidth");
+            maxWidth = windowView.getDeclaredField("maxWidth");
+            minHeight = windowView.getDeclaredField("minHeight");
+            maxHeight = windowView.getDeclaredField("maxHeight");
+            minWidth.setAccessible(true);
+            maxWidth.setAccessible(true);
+            minHeight.setAccessible(true);
+            maxHeight.setAccessible(true);
+        } catch (Exception ex) {
+            log.warn("Unable to access WindowView bounds fields; modal size may be capped by defaults");
+        }
+        WINDOW_MIN_WIDTH_FIELD = minWidth;
+        WINDOW_MAX_WIDTH_FIELD = maxWidth;
+        WINDOW_MIN_HEIGHT_FIELD = minHeight;
+        WINDOW_MAX_HEIGHT_FIELD = maxHeight;
+    }
 
     interface Controller {
         void moveSelection(int delta);
@@ -51,12 +82,19 @@ class TuiTerminalView extends GridView {
     private static final int ESCAPE_KEY = 27;
     private static final int CTRL_F = 6;
     private static final int CTRL_N = 14;
+    private static final int MIN_MENU_HEIGHT = 3;
+    private static final int MIN_SESSION_VIEW_HEIGHT = 8;
     private static final int CTRL_S = 19;
     private static final int CTRL_E = 5;
+    private static final int MODAL_HORIZONTAL_MARGIN = 2;
+    private static final int MODAL_VERTICAL_MARGIN = 1;
+    private static final int MIN_MODAL_WIDTH = 50;
+    private static final int MIN_MODAL_HEIGHT = 12;
 
     private final Supplier<TuiState> stateSupplier;
     private final CliEventFormatter formatter;
     private final EventStreamRepository eventStreamRepository;
+    private final Path initialRepoPath;
     private final Controller controller;
     private final IntConsumer eventListHeightConsumer;
     private final Consumer<View> modalViewConsumer;
@@ -71,11 +109,13 @@ class TuiTerminalView extends GridView {
     private String modalEventId;
     private boolean modalOpen;
     private TuiDetailTextView activeDetailView;
+    private DialogView activeDialogView;
 
     TuiTerminalView(
             Supplier<TuiState> stateSupplier,
             CliEventFormatter formatter,
             EventStreamRepository eventStreamRepository,
+            Path initialRepoPath,
             Controller controller,
             IntConsumer eventListHeightConsumer,
             Consumer<View> modalViewConsumer,
@@ -83,6 +123,7 @@ class TuiTerminalView extends GridView {
         this.stateSupplier = stateSupplier;
         this.formatter = formatter;
         this.eventStreamRepository = eventStreamRepository;
+        this.initialRepoPath = initialRepoPath;
         this.controller = controller;
         this.eventListHeightConsumer = eventListHeightConsumer;
         this.modalViewConsumer = modalViewConsumer;
@@ -142,11 +183,13 @@ class TuiTerminalView extends GridView {
             return;
         }
 
+
         String sessionId = resolveActiveSessionId(state);
         TuiSessionState sessionState = resolveSessionState(state, sessionId);
 
         sessionMenu.setTitle(state.focus() == TuiFocus.SESSION_LIST ? "Sessions (focus)" : "Sessions");
-        sessionMenu.setItems(buildSessionMenuItems(state, sessionId));
+        List<MenuView.MenuItem> menuItems = buildSessionMenuItems(state, sessionId);
+        sessionMenu.setItems(menuItems);
         ensureConfigured(sessionMenu);
 
         TuiSessionView sessionView = sessionViews.computeIfAbsent(
@@ -154,6 +197,7 @@ class TuiTerminalView extends GridView {
                 this::newSessionView
         );
         sessionView.update(state, sessionState);
+        updateRowLayout(menuItems.size());
 
         ensureLayoutItems(sessionView);
 
@@ -164,7 +208,9 @@ class TuiTerminalView extends GridView {
     }
 
     private TuiSessionView newSessionView(String sessionId) {
-        TuiSessionView sessionView = new TuiSessionView(sessionId, new TuiMessageStreamView(formatter));
+        TuiState state = stateSupplier.get();
+        Path repoPath = resolveRepoPath(state, sessionId);
+        TuiSessionView sessionView = new TuiSessionView(sessionId, repoPath, new TuiMessageStreamView(formatter, repoPath));
         for (View view : sessionView.allViews()) {
             ensureConfigured(view);
         }
@@ -197,6 +243,15 @@ class TuiTerminalView extends GridView {
         return items;
     }
 
+    private void updateRowLayout(int menuItemCount) {
+        int totalHeight = Math.max(MIN_MENU_HEIGHT + 1, getInnerRect().height());
+        int desiredMenuHeight = Math.max(MIN_MENU_HEIGHT, menuItemCount + 2);
+        int maxMenuHeight = Math.max(MIN_MENU_HEIGHT, totalHeight - MIN_SESSION_VIEW_HEIGHT);
+        int menuHeight = Math.min(desiredMenuHeight, maxMenuHeight);
+        int sessionHeight = Math.max(1, totalHeight - menuHeight);
+        setRowSize(menuHeight, sessionHeight);
+    }
+
     private void ensureLayoutItems(TuiSessionView sessionView) {
         if (activeSessionView == sessionView) {
             return;
@@ -215,6 +270,7 @@ class TuiTerminalView extends GridView {
 
         String detailEventId = sessionState.detailEventId();
         if (modalOpen && detailEventId.equals(modalEventId)) {
+            resizeActiveModal();
             return;
         }
 
@@ -226,13 +282,16 @@ class TuiTerminalView extends GridView {
         DialogView dialogView = new DialogView(detailView, closeButton);
         dialogView.setLayer(100);
         detailView.setLayer(101);
+        applyModalSize(dialogView);
         ensureConfigured(closeButton);
         ensureConfigured(dialogView);
+        resizeActiveModal();
 
         modalViewConsumer.accept(dialogView);
         modalOpen = true;
         modalEventId = detailEventId;
         activeDetailView = detailView;
+        activeDialogView = dialogView;
 
     }
 
@@ -244,6 +303,7 @@ class TuiTerminalView extends GridView {
         modalOpen = false;
         modalEventId = null;
         activeDetailView = null;
+        activeDialogView = null;
     }
 
     boolean isModalOpen() {
@@ -270,11 +330,45 @@ class TuiTerminalView extends GridView {
     }
 
     private String formatDetail(Events.GraphEvent event) {
-        return event.eventType()
-                + "\nid=" + event.eventId()
-                + "\nnode=" + event.nodeId()
-                + "\n\n"
-                + formatter.format(event);
+        return formatter.format(new CliEventFormatter.CliEventArgs(20_000, event, true));
+    }
+
+    private void resizeActiveModal() {
+        if (!modalOpen || activeDialogView == null) {
+            return;
+        }
+        applyModalSize(activeDialogView);
+    }
+
+    private void applyModalSize(DialogView dialogView) {
+        Rectangle inner = getInnerRect();
+        int totalWidth = Math.max(MIN_MODAL_WIDTH, inner.width());
+        int totalHeight = Math.max(MIN_MODAL_HEIGHT, inner.height());
+
+        int desiredWidth = Math.max(MIN_MODAL_WIDTH, totalWidth - (MODAL_HORIZONTAL_MARGIN * 2));
+        int desiredHeight = Math.max(MIN_MODAL_HEIGHT, totalHeight - (MODAL_VERTICAL_MARGIN * 2));
+        int width = Math.min(totalWidth, desiredWidth);
+        int height = Math.min(totalHeight, desiredHeight);
+
+        int x = inner.x() + Math.max(0, (totalWidth - width) / 2);
+        int y = inner.y() + Math.max(0, (totalHeight - height) / 2);
+        applyDialogBounds(dialogView, width, height);
+        dialogView.setRect(x, y, width, height);
+    }
+
+    private void applyDialogBounds(DialogView dialogView, int width, int height) {
+        if (WINDOW_MIN_WIDTH_FIELD == null || WINDOW_MAX_WIDTH_FIELD == null
+                || WINDOW_MIN_HEIGHT_FIELD == null || WINDOW_MAX_HEIGHT_FIELD == null) {
+            return;
+        }
+        try {
+            WINDOW_MIN_WIDTH_FIELD.setInt(dialogView, width);
+            WINDOW_MAX_WIDTH_FIELD.setInt(dialogView, width);
+            WINDOW_MIN_HEIGHT_FIELD.setInt(dialogView, height);
+            WINDOW_MAX_HEIGHT_FIELD.setInt(dialogView, height);
+        } catch (IllegalAccessException ex) {
+            log.warn("Failed to apply DialogView bounds override", ex);
+        }
     }
 
     private void onChar(KeyEvent event) {
@@ -406,18 +500,29 @@ class TuiTerminalView extends GridView {
 
     private TuiSessionState resolveSessionState(TuiState state, String sessionId) {
         if (sessionId == null || sessionId.isBlank()) {
-            return TuiSessionState.initial();
+            return TuiSessionState.initial(resolveRepoPath(state, sessionId));
         }
-        return state.sessions().getOrDefault(sessionId, TuiSessionState.initial());
+        return state.sessions().getOrDefault(sessionId, TuiSessionState.initial(resolveRepoPath(state, sessionId)));
+    }
+
+    private Path resolveRepoPath(TuiState state, String sessionId) {
+        if (state != null && sessionId != null && !sessionId.isBlank()) {
+            TuiSessionState sessionState = state.sessions().get(sessionId);
+            if (sessionState != null && sessionState.repo() != null) {
+                return sessionState.repo();
+            }
+        }
+        return initialRepoPath;
     }
 
     private String abbreviate(String text) {
-        if (text == null || text.isBlank()) {
+        String sanitized = TuiTextLayout.sanitizeInline(text);
+        if (sanitized.isBlank()) {
             return "none";
         }
-        if (text.length() <= 12) {
-            return text;
+        if (sanitized.length() <= 12) {
+            return sanitized;
         }
-        return text.substring(0, 12) + "...";
+        return sanitized.substring(0, 12) + "...";
     }
 }

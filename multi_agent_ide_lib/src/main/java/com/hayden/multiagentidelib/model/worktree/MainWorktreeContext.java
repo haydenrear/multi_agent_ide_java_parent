@@ -1,5 +1,6 @@
 package com.hayden.multiagentidelib.model.worktree;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Builder;
 
 import java.nio.file.Path;
@@ -26,6 +27,7 @@ public record MainWorktreeContext(
         String lastCommitHash,
         
         // Main worktree-specific
+        @JsonIgnore
         String repositoryUrl,
         boolean hasSubmodules,
         List<SubmoduleWorktreeContext> submoduleWorktrees,

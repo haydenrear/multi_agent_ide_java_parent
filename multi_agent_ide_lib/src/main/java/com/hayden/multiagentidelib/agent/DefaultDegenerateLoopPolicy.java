@@ -1,7 +1,11 @@
 package com.hayden.multiagentidelib.agent;
 
+import com.hayden.acp_cdc_ai.acp.events.Artifact;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.multiagentidelib.events.DegenerateLoopException;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -11,10 +15,18 @@ import java.util.Optional;
 @Component
 public class DefaultDegenerateLoopPolicy implements DegenerateLoopPolicy {
 
-    private static final int REPETITION_THRESHOLD = 3;
+    private static final int REPETITION_THRESHOLD = 6;
+
+    private EventBus eventBus;
+
+    @Autowired
+    @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     @Override
-    public Optional<DegenerateLoopException> detectLoop(BlackboardHistory history, String actionName, Object input) {
+    public Optional<DegenerateLoopException> detectLoop(BlackboardHistory history, String actionName, Artifact.AgentModel input) {
         if (history == null) {
             return Optional.empty();
         }
@@ -32,8 +44,10 @@ public class DefaultDegenerateLoopPolicy implements DegenerateLoopPolicy {
         }
 
         Class<?> inputType = input != null ? input.getClass() : Object.class;
+        String message = "Degenerate loop detected by node repetition policy.";
+        eventBus.publish(Events.NodeErrorEvent.err(message, input.key()));
         return Optional.of(new DegenerateLoopException(
-                "Degenerate loop detected by node repetition policy.",
+                message,
                 actionName,
                 inputType,
                 REPETITION_THRESHOLD

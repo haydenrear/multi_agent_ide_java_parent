@@ -2,6 +2,7 @@ package com.hayden.multiagentide.tui;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -21,7 +22,7 @@ public class TuiStateReducer {
 
     private TuiState appendGraphEvent(TuiState state, Events.GraphEvent event, TuiViewport viewport, String sessionId) {
         Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState sessionState = sessions.getOrDefault(sessionId, TuiSessionState.initial());
+        TuiSessionState sessionState = sessions.getOrDefault(sessionId, initialSessionFromState(state));
         List<Events.GraphEvent> updated = new ArrayList<>(sessionState.events());
         updated.add(event);
 
@@ -35,29 +36,22 @@ public class TuiStateReducer {
                 newScroll = Math.max(0, updated.size() - height);
             }
         }
-        TuiSessionState updatedSession = new TuiSessionState(
-                List.copyOf(updated),
-                clampIndex(newSelected, updated.size()),
-                Math.max(0, newScroll),
-                sessionState.autoFollow(),
-                sessionState.detailOpen(),
-                sessionState.detailEventId(),
-                sessionState.chatInput(),
-                sessionState.chatSearch()
-        );
+
+        TuiSessionState updatedSession = sessionState.toBuilder()
+                .events(List.copyOf(updated))
+                .selectedIndex(clampIndex(newSelected, updated.size()))
+                .scrollOffset(Math.max(0, newScroll))
+                .build();
+
         sessions.put(sessionId, updatedSession);
         List<String> order = new ArrayList<>(state.sessionOrder());
         if (sessionId != null && !order.contains(sessionId)) {
             order.add(sessionId);
         }
-        return new TuiState(
-                state.sessionId(),
-                state.activeSessionId(),
-                List.copyOf(order),
-                sessions,
-                state.focus(),
-                state.chatScrollOffset()
-        );
+        return state.toBuilder()
+                .sessionOrder(List.copyOf(order))
+                .sessions(sessions)
+                .build();
     }
 
     private TuiState applySystemEvent(TuiState state, Events.TuiSystemEvent event) {
@@ -69,7 +63,7 @@ public class TuiStateReducer {
             return state;
         }
         Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), TuiSessionState.initial());
+        TuiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), initialSessionFromState(state));
         return switch (event) {
             case Events.EventStreamMoveSelection e -> {
                 int target = clampIndex(e.newSelectedIndex(), sessionState.events().size());
@@ -84,166 +78,80 @@ public class TuiStateReducer {
                 int scroll = Math.max(0, e.newScrollOffset());
                 yield stateWithSelection(state, sessions, sessionState, sessionState.selectedIndex(), scroll, false);
             }
-            case Events.EventStreamOpenDetail e -> new TuiState(
-                    state.sessionId(),
-                    state.activeSessionId(),
-                    state.sessionOrder(),
-                    updateSession(sessions, state.activeSessionId(), new TuiSessionState(
-                            sessionState.events(),
-                            sessionState.selectedIndex(),
-                            sessionState.scrollOffset(),
-                            sessionState.autoFollow(),
-                            true,
-                            e.eventId(),
-                            sessionState.chatInput(),
-                            sessionState.chatSearch()
-                    )),
-                    state.focus(),
-                    state.chatScrollOffset()
-            );
-            case Events.EventStreamCloseDetail e -> new TuiState(
-                    state.sessionId(),
-                    state.activeSessionId(),
-                    state.sessionOrder(),
-                    updateSession(sessions, state.activeSessionId(), new TuiSessionState(
-                            sessionState.events(),
-                            sessionState.selectedIndex(),
-                            sessionState.scrollOffset(),
-                            sessionState.autoFollow(),
-                            false,
-                            null,
-                            sessionState.chatInput(),
-                            sessionState.chatSearch()
-                    )),
-                    state.focus(),
-                    state.chatScrollOffset()
-            );
-            case Events.FocusChatInput e -> new TuiState(
-                    state.sessionId(),
-                    state.activeSessionId(),
-                    state.sessionOrder(),
-                    sessions,
-                    TuiFocus.CHAT_INPUT,
-                    state.chatScrollOffset()
-            );
-            case Events.FocusEventStream e -> new TuiState(
-                    state.sessionId(),
-                    state.activeSessionId(),
-                    state.sessionOrder(),
-                    sessions,
-                    TuiFocus.EVENT_STREAM,
-                    state.chatScrollOffset()
-            );
-            case Events.FocusSessionList e -> new TuiState(
-                    state.sessionId(),
-                    state.activeSessionId(),
-                    state.sessionOrder(),
-                    sessions,
-                    TuiFocus.SESSION_LIST,
-                    state.chatScrollOffset()
-            );
-            case Events.ChatInputChanged e -> new TuiState(
-                    state.sessionId(),
-                    state.activeSessionId(),
-                    state.sessionOrder(),
-                    updateSession(sessions, state.activeSessionId(), new TuiSessionState(
-                            sessionState.events(),
-                            sessionState.selectedIndex(),
-                            sessionState.scrollOffset(),
-                            sessionState.autoFollow(),
-                            sessionState.detailOpen(),
-                            sessionState.detailEventId(),
-                            e.text(),
-                            sessionState.chatSearch()
-                    )),
-                    state.focus(),
-                    state.chatScrollOffset()
-            );
-            case Events.ChatInputSubmitted e -> new TuiState(
-                    state.sessionId(),
-                    state.activeSessionId(),
-                    state.sessionOrder(),
-                    updateSession(sessions, state.activeSessionId(), new TuiSessionState(
-                            sessionState.events(),
-                            sessionState.selectedIndex(),
-                            sessionState.scrollOffset(),
-                            sessionState.autoFollow(),
-                            sessionState.detailOpen(),
-                            sessionState.detailEventId(),
-                            "",
-                            sessionState.chatSearch()
-                    )),
-                    state.focus(),
-                    state.chatScrollOffset()
-            );
-            case Events.ChatSearchOpened e -> new TuiState(
-                    state.sessionId(),
-                    state.activeSessionId(),
-                    state.sessionOrder(),
-                    updateSession(sessions, state.activeSessionId(), new TuiSessionState(
-                            sessionState.events(),
-                            sessionState.selectedIndex(),
-                            sessionState.scrollOffset(),
-                            sessionState.autoFollow(),
-                            sessionState.detailOpen(),
-                            sessionState.detailEventId(),
-                            sessionState.chatInput(),
-                            new TuiChatSearch(true, e.initialQuery(), List.of(), -1)
-                    )),
-                    TuiFocus.CHAT_SEARCH,
-                    state.chatScrollOffset()
-            );
+            case Events.EventStreamOpenDetail e -> state.toBuilder()
+                    .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
+                            .detailOpen(true)
+                            .detailEventId(e.eventId())
+                            .build()))
+                    .build();
+            case Events.EventStreamCloseDetail e -> state.toBuilder()
+                    .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
+                            .detailOpen(false)
+                            .detailEventId(null)
+                            .build()))
+                    .build();
+            case Events.FocusChatInput e -> state.toBuilder()
+                    .sessions(sessions)
+                    .focus(TuiFocus.CHAT_INPUT)
+                    .build();
+            case Events.FocusEventStream e -> state.toBuilder()
+                    .sessions(sessions)
+                    .focus(TuiFocus.EVENT_STREAM)
+                    .build();
+            case Events.FocusSessionList e -> state.toBuilder()
+                    .sessions(sessions)
+                    .focus(TuiFocus.SESSION_LIST)
+                    .build();
+            case Events.ChatInputChanged e -> state.toBuilder()
+                    .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
+                            .chatInput(e.text())
+                            .build()))
+                    .build();
+            case Events.ChatInputSubmitted e -> state.toBuilder()
+                    .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
+                            .chatInput("")
+                            .build()))
+                    .build();
+            case Events.ChatSearchOpened e -> state.toBuilder()
+                    .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
+                            .chatSearch(new TuiChatSearch(true, e.initialQuery(), List.of(), -1))
+                            .build()))
+                    .focus(TuiFocus.CHAT_SEARCH)
+                    .build();
             case Events.ChatSearchQueryChanged e -> applySearchQueryChange(state, e.query(), viewport);
             case Events.ChatSearchResultNavigate e -> applySearchNavigation(state, e.delta(), viewport);
-            case Events.ChatSearchClosed e -> new TuiState(
-                    state.sessionId(),
-                    state.activeSessionId(),
-                    state.sessionOrder(),
-                    updateSession(sessions, state.activeSessionId(), new TuiSessionState(
-                            sessionState.events(),
-                            sessionState.selectedIndex(),
-                            sessionState.scrollOffset(),
-                            sessionState.autoFollow(),
-                            sessionState.detailOpen(),
-                            sessionState.detailEventId(),
-                            sessionState.chatInput(),
-                            TuiChatSearch.inactive()
-                    )),
-                    TuiFocus.EVENT_STREAM,
-                    state.chatScrollOffset()
-            );
-            case Events.SessionSelected e -> new TuiState(
-                    state.sessionId(),
-                    e.sessionId(),
-                    ensureSessionOrder(state.sessionOrder(), e.sessionId()),
-                    ensureSessionExists(sessions, e.sessionId()),
-                    state.focus(),
-                    state.chatScrollOffset()
-            );
+            case Events.ChatSearchClosed e -> state.toBuilder()
+                    .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
+                            .chatSearch(TuiChatSearch.inactive())
+                            .build()))
+                    .focus(TuiFocus.EVENT_STREAM)
+                    .build();
+            case Events.SessionSelected e -> state.toBuilder()
+                    .activeSessionId(e.sessionId())
+                    .sessionOrder(ensureSessionOrder(state.sessionOrder(), e.sessionId()))
+                    .sessions(ensureSessionExists(state, sessions, e.sessionId()))
+                    .build();
             case Events.SessionCreated e -> {
                 Map<String, TuiSessionState> updatedSessions = new LinkedHashMap<>(sessions);
                 if (!updatedSessions.containsKey(e.sessionId())) {
-                    updatedSessions.put(e.sessionId(), TuiSessionState.initial());
+                    updatedSessions.put(e.sessionId(), initialSessionFromState(state));
                 }
                 List<String> order = new ArrayList<>(state.sessionOrder());
                 if (!order.contains(e.sessionId())) {
                     order.add(e.sessionId());
                 }
-                yield new TuiState(
-                        state.sessionId(),
-                        e.sessionId(),
-                        List.copyOf(order),
-                        updatedSessions,
-                        state.focus(),
-                        state.chatScrollOffset()
-                );
+                yield state.toBuilder()
+                        .activeSessionId(e.sessionId())
+                        .sessionOrder(List.copyOf(order))
+                        .sessions(updatedSessions)
+                        .build();
             }
         };
     }
 
     private TuiState applySearchQueryChange(TuiState state, String query, TuiViewport viewport) {
         Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), TuiSessionState.initial());
+        TuiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), initialSessionFromState(state));
         String trimmed = query == null ? "" : query.trim();
         List<Integer> results = new ArrayList<>();
         if (!trimmed.isBlank()) {
@@ -266,28 +174,20 @@ public class TuiStateReducer {
         if (viewport != null) {
             scroll = adjustScrollForSelection(selectedEventIndex, scroll, viewport.eventListHeight());
         }
-        return new TuiState(
-                state.sessionId(),
-                state.activeSessionId(),
-                state.sessionOrder(),
-                updateSession(sessions, state.activeSessionId(), new TuiSessionState(
-                        sessionState.events(),
-                        selectedEventIndex,
-                        scroll,
-                        false,
-                        sessionState.detailOpen(),
-                        sessionState.detailEventId(),
-                        sessionState.chatInput(),
-                        new TuiChatSearch(true, trimmed, List.copyOf(results), selectedResultIndex)
-                )),
-                TuiFocus.CHAT_SEARCH,
-                state.chatScrollOffset()
-        );
+        return state.toBuilder()
+                .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
+                        .selectedIndex(selectedEventIndex)
+                        .scrollOffset(scroll)
+                        .autoFollow(false)
+                        .chatSearch(new TuiChatSearch(true, trimmed, List.copyOf(results), selectedResultIndex))
+                        .build()))
+                .focus(TuiFocus.CHAT_SEARCH)
+                .build();
     }
 
     private TuiState applySearchNavigation(TuiState state, int delta, TuiViewport viewport) {
         Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), TuiSessionState.initial());
+        TuiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), initialSessionFromState(state));
         TuiChatSearch search = sessionState.chatSearch();
         if (!search.active() || search.resultIndices().isEmpty()) {
             return state;
@@ -303,23 +203,15 @@ public class TuiStateReducer {
         if (viewport != null) {
             scroll = adjustScrollForSelection(selectedEventIndex, scroll, viewport.eventListHeight());
         }
-        return new TuiState(
-                state.sessionId(),
-                state.activeSessionId(),
-                state.sessionOrder(),
-                updateSession(sessions, state.activeSessionId(), new TuiSessionState(
-                        sessionState.events(),
-                        selectedEventIndex,
-                        scroll,
-                        false,
-                        sessionState.detailOpen(),
-                        sessionState.detailEventId(),
-                        sessionState.chatInput(),
-                        new TuiChatSearch(true, search.query(), search.resultIndices(), next)
-                )),
-                TuiFocus.CHAT_SEARCH,
-                state.chatScrollOffset()
-        );
+        return state.toBuilder()
+                .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
+                        .selectedIndex(selectedEventIndex)
+                        .scrollOffset(scroll)
+                        .autoFollow(false)
+                        .chatSearch(new TuiChatSearch(true, search.query(), search.resultIndices(), next))
+                        .build()))
+                .focus(TuiFocus.CHAT_SEARCH)
+                .build();
     }
 
     private TuiState stateWithSelection(
@@ -330,23 +222,13 @@ public class TuiStateReducer {
             int scroll,
             boolean autoFollow
     ) {
-        return new TuiState(
-                state.sessionId(),
-                state.activeSessionId(),
-                state.sessionOrder(),
-                updateSession(sessions, state.activeSessionId(), new TuiSessionState(
-                        sessionState.events(),
-                        selected,
-                        scroll,
-                        autoFollow,
-                        sessionState.detailOpen(),
-                        sessionState.detailEventId(),
-                        sessionState.chatInput(),
-                        sessionState.chatSearch()
-                )),
-                state.focus(),
-                state.chatScrollOffset()
-        );
+        return state.toBuilder()
+                .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
+                        .selectedIndex(selected)
+                        .scrollOffset(scroll)
+                        .autoFollow(autoFollow)
+                        .build()))
+                .build();
     }
 
     private Map<String, TuiSessionState> updateSession(Map<String, TuiSessionState> sessions, String sessionId, TuiSessionState state) {
@@ -365,12 +247,23 @@ public class TuiStateReducer {
         return List.copyOf(updated);
     }
 
-    private Map<String, TuiSessionState> ensureSessionExists(Map<String, TuiSessionState> sessions, String sessionId) {
+    private Map<String, TuiSessionState> ensureSessionExists(TuiState state, Map<String, TuiSessionState> sessions, String sessionId) {
         Map<String, TuiSessionState> updated = new LinkedHashMap<>(sessions);
         if (sessionId != null && !updated.containsKey(sessionId)) {
-            updated.put(sessionId, TuiSessionState.initial());
+            updated.put(sessionId, initialSessionFromState(state));
         }
         return updated;
+    }
+
+    private TuiSessionState initialSessionFromState(TuiState state) {
+        if (state == null || state.activeSessionId() == null) {
+            return TuiSessionState.initial(state.repo());
+        }
+        TuiSessionState active = state.sessions().get(state.activeSessionId());
+        if (active != null && active.repo() != null) {
+            return TuiSessionState.initial(active.repo());
+        }
+        return TuiSessionState.initial(state.repo());
     }
 
     private int adjustScrollForSelection(int selectedIndex, int scrollOffset, int height) {

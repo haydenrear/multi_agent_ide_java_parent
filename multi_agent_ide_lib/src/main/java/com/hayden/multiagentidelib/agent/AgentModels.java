@@ -79,6 +79,8 @@ public interface AgentModels {
 
         WorktreeSandboxContext worktreeContext();
 
+        AgentRequest withGoal(String goal);
+
         @Override
         default String computeHash(Artifact.HashContext hashContext) {
             return hashContext.hash(prettyPrintInterruptContinuation());
@@ -151,6 +153,10 @@ public interface AgentModels {
         List<ConfirmationItem> confirmationItems();
 
         String contextForDecision();
+
+        default InterruptRequest withGoal(String goal) {
+            return this;
+        }
 
         default String prettyPrintInterruptContinuation() {
             StringBuilder builder = new StringBuilder();
@@ -1562,6 +1568,286 @@ public interface AgentModels {
         }
     }
 
+    private static void appendPrettyLine(StringBuilder builder, String label, String value) {
+        builder.append(label).append(": ");
+        if (value == null) {
+            builder.append("(none)\n");
+            return;
+        }
+        builder.append(value.isBlank() ? "(empty)" : value.trim()).append("\n");
+    }
+
+    private static void appendPrettyLine(StringBuilder builder, String label, ArtifactKey value) {
+        appendPrettyArtifactKey(builder, label, value);
+    }
+
+    private static void appendPrettyLine(StringBuilder builder, String label, WorktreeSandboxContext value) {
+        appendPrettyWorktreeContext(builder, label, value);
+    }
+
+    private static void appendPrettyLine(StringBuilder builder, String label, MergeDescriptor value) {
+        appendPrettyMergeDescriptor(builder, label, value);
+    }
+
+    private static void appendPrettyLine(StringBuilder builder, String label, Map<String, String> value) {
+        appendPrettyMap(builder, label, value);
+    }
+
+    private static void appendPrettyLine(StringBuilder builder, String label, ContextManagerRequestType value) {
+        builder.append(label).append(": ");
+        if (value == null) {
+            builder.append("(none)\n");
+            return;
+        }
+        builder.append(value.name()).append("\n");
+    }
+
+    private static void appendPrettyText(StringBuilder builder, String label, String value) {
+        builder.append(label).append(":\n");
+        if (value == null) {
+            builder.append("\t(none)\n");
+            return;
+        }
+        if (value.isBlank()) {
+            builder.append("\t(empty)\n");
+            return;
+        }
+        String normalized = value.trim().replace("\n", "\n\t");
+        builder.append("\t").append(normalized).append("\n");
+    }
+
+    private static void appendPrettyContext(StringBuilder builder, String label, AgentContext context) {
+        builder.append(label).append(":\n");
+        if (context == null) {
+            builder.append("\t(none)\n");
+            return;
+        }
+        String rendered = context.prettyPrint();
+        if (rendered == null || rendered.isBlank()) {
+            builder.append("\t(empty)\n");
+            return;
+        }
+        builder.append("\t")
+                .append(rendered.trim().replace("\n", "\n\t"))
+                .append("\n");
+    }
+
+    private static void appendPrettyArtifactKey(StringBuilder builder, String label, ArtifactKey key) {
+        builder.append(label).append(": ");
+        if (key == null || key.value() == null || key.value().isBlank()) {
+            builder.append("(none)\n");
+            return;
+        }
+        builder.append(key.value()).append("\n");
+    }
+
+    private static void appendPrettyMap(StringBuilder builder, String label, Map<String, String> values) {
+        builder.append(label).append(":\n");
+        if (values == null || values.isEmpty()) {
+            builder.append("\t(none)\n");
+            return;
+        }
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            String key = entry.getKey() == null || entry.getKey().isBlank() ? "(blank-key)" : entry.getKey().trim();
+            String value = entry.getValue();
+            if (value == null) {
+                builder.append("\t- ").append(key).append(": (none)\n");
+                continue;
+            }
+            if (value.isBlank()) {
+                builder.append("\t- ").append(key).append(": (empty)\n");
+                continue;
+            }
+            builder.append("\t- ")
+                    .append(key)
+                    .append(": ")
+                    .append(value.trim().replace("\n", "\n\t  "))
+                    .append("\n");
+        }
+    }
+
+    private static void appendPrettyWorktreeContext(StringBuilder builder, String label, WorktreeSandboxContext context) {
+        builder.append(label).append(":\n");
+        if (context == null) {
+            builder.append("\t(none)\n");
+            return;
+        }
+        var main = context.mainWorktree();
+        if (main == null) {
+            builder.append("\tMain Worktree: (none)\n");
+        } else {
+            builder.append("\tMain Worktree:\n");
+            builder.append("\t\tId: ").append(main.worktreeId()).append("\n");
+            builder.append("\t\tPath: ").append(main.worktreePath()).append("\n");
+            builder.append("\t\tBase Branch: ").append(main.baseBranch()).append("\n");
+            builder.append("\t\tDerived Branch: ").append(main.derivedBranch()).append("\n");
+            builder.append("\t\tStatus: ").append(main.status()).append("\n");
+            builder.append("\t\tParent Worktree Id: ").append(main.parentWorktreeId()).append("\n");
+            builder.append("\t\tAssociated Node Id: ").append(main.associatedNodeId()).append("\n");
+            builder.append("\t\tCreated At: ").append(main.createdAt()).append("\n");
+            builder.append("\t\tLast Commit Hash: ").append(main.lastCommitHash()).append("\n");
+            builder.append("\t\tRepository Url: ").append(main.repositoryUrl()).append("\n");
+            builder.append("\t\tHas Submodules: ").append(main.hasSubmodules()).append("\n");
+            appendPrettyMap(builder, "\t\tMetadata", main.metadata());
+        }
+
+        List<com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext> submodules = context.submoduleWorktrees();
+        builder.append("\tSubmodule Worktrees:\n");
+        if (submodules == null || submodules.isEmpty()) {
+            builder.append("\t\t(none)\n");
+            return;
+        }
+        int idx = 1;
+        for (var submodule : submodules) {
+            builder.append("\t\t").append(idx++).append(".\n");
+            if (submodule == null) {
+                builder.append("\t\t\t(none)\n");
+                continue;
+            }
+            builder.append("\t\t\tId: ").append(submodule.worktreeId()).append("\n");
+            builder.append("\t\t\tPath: ").append(submodule.worktreePath()).append("\n");
+            builder.append("\t\t\tBase Branch: ").append(submodule.baseBranch()).append("\n");
+            builder.append("\t\t\tStatus: ").append(submodule.status()).append("\n");
+            builder.append("\t\t\tParent Worktree Id: ").append(submodule.parentWorktreeId()).append("\n");
+            builder.append("\t\t\tAssociated Node Id: ").append(submodule.associatedNodeId()).append("\n");
+            builder.append("\t\t\tCreated At: ").append(submodule.createdAt()).append("\n");
+            builder.append("\t\t\tLast Commit Hash: ").append(submodule.lastCommitHash()).append("\n");
+            builder.append("\t\t\tSubmodule Name: ").append(submodule.submoduleName()).append("\n");
+            builder.append("\t\t\tSubmodule Url: ").append(submodule.submoduleUrl()).append("\n");
+            builder.append("\t\t\tMain Worktree Id: ").append(submodule.mainWorktreeId()).append("\n");
+            appendPrettyMap(builder, "\t\t\tMetadata", submodule.metadata());
+        }
+    }
+
+    private static void appendPrettyMergeResult(StringBuilder builder, String label, com.hayden.multiagentidelib.model.MergeResult mergeResult) {
+        builder.append(label).append(":\n");
+        if (mergeResult == null) {
+            builder.append("\t(none)\n");
+            return;
+        }
+        builder.append("\tMerge Id: ").append(mergeResult.mergeId()).append("\n");
+        builder.append("\tChild Worktree Id: ").append(mergeResult.childWorktreeId()).append("\n");
+        builder.append("\tParent Worktree Id: ").append(mergeResult.parentWorktreeId()).append("\n");
+        builder.append("\tChild Worktree Path: ").append(mergeResult.childWorktreePath()).append("\n");
+        builder.append("\tParent Worktree Path: ").append(mergeResult.parentWorktreePath()).append("\n");
+        builder.append("\tSuccessful: ").append(mergeResult.successful()).append("\n");
+        builder.append("\tMerge Commit Hash: ").append(mergeResult.mergeCommitHash()).append("\n");
+        builder.append("\tMerge Message: ").append(mergeResult.mergeMessage()).append("\n");
+        builder.append("\tMerged At: ").append(mergeResult.mergedAt()).append("\n");
+        builder.append("\tConflicts:\n");
+        if (mergeResult.conflicts() == null || mergeResult.conflicts().isEmpty()) {
+            builder.append("\t\t(none)\n");
+        } else {
+            int index = 1;
+            for (var conflict : mergeResult.conflicts()) {
+                builder.append("\t\t").append(index++).append(". ");
+                if (conflict == null) {
+                    builder.append("(none)\n");
+                    continue;
+                }
+                builder.append("file=").append(conflict.filePath())
+                        .append(", type=").append(conflict.conflictType())
+                        .append(", submodulePath=").append(conflict.submodulePath())
+                        .append("\n");
+            }
+        }
+        builder.append("\tSubmodule Pointer Updates:\n");
+        if (mergeResult.submoduleUpdates() == null || mergeResult.submoduleUpdates().isEmpty()) {
+            builder.append("\t\t(none)\n");
+            return;
+        }
+        int index = 1;
+        for (var update : mergeResult.submoduleUpdates()) {
+            builder.append("\t\t").append(index++).append(". ");
+            if (update == null) {
+                builder.append("(none)\n");
+                continue;
+            }
+            builder.append("submodule=").append(update.submoduleName())
+                    .append(", old=").append(update.oldCommitHash())
+                    .append(", new=").append(update.newCommitHash())
+                    .append(", requiresResolution=").append(update.requiresResolution())
+                    .append("\n");
+        }
+    }
+
+    private static void appendPrettyMergeDescriptor(StringBuilder builder, String label, MergeDescriptor descriptor) {
+        builder.append(label).append(":\n");
+        if (descriptor == null) {
+            builder.append("\t(none)\n");
+            return;
+        }
+        builder.append("\tDirection: ").append(descriptor.mergeDirection()).append("\n");
+        builder.append("\tSuccessful: ").append(descriptor.successful()).append("\n");
+        appendPrettyText(builder, "\tError Message", descriptor.errorMessage());
+        builder.append("\tConflict Files:\n");
+        if (descriptor.conflictFiles() == null || descriptor.conflictFiles().isEmpty()) {
+            builder.append("\t\t(none)\n");
+        } else {
+            for (String conflict : descriptor.conflictFiles()) {
+                builder.append("\t\t- ").append(conflict).append("\n");
+            }
+        }
+        appendPrettyMergeResult(builder, "\tMain Worktree Merge Result", descriptor.mainWorktreeMergeResult());
+        builder.append("\tSubmodule Merge Results:\n");
+        if (descriptor.submoduleMergeResults() == null || descriptor.submoduleMergeResults().isEmpty()) {
+            builder.append("\t\t(none)\n");
+            return;
+        }
+        int index = 1;
+        for (var result : descriptor.submoduleMergeResults()) {
+            builder.append("\t\t").append(index++).append(".\n");
+            if (result == null) {
+                builder.append("\t\t\t(none)\n");
+                continue;
+            }
+            builder.append("\t\t\tSubmodule Name: ").append(result.submoduleName()).append("\n");
+            builder.append("\t\t\tChild Worktree Path: ").append(result.childWorktreePath()).append("\n");
+            builder.append("\t\t\tParent Worktree Path: ").append(result.parentWorktreePath()).append("\n");
+            builder.append("\t\t\tPointer Updated: ").append(result.pointerUpdated()).append("\n");
+            appendPrettyMergeResult(builder, "\t\t\tMerge Result", result.mergeResult());
+        }
+    }
+
+    private static void appendPrettyMergeAggregation(StringBuilder builder, String label, MergeAggregation aggregation) {
+        builder.append(label).append(":\n");
+        if (aggregation == null) {
+            builder.append("\t(none)\n");
+            return;
+        }
+        builder.append("\tMerged:\n");
+        appendPrettyMergeStatuses(builder, aggregation.merged());
+        builder.append("\tPending:\n");
+        appendPrettyMergeStatuses(builder, aggregation.pending());
+        builder.append("\tConflicted:\n");
+        if (aggregation.conflicted() == null) {
+            builder.append("\t\t(none)\n");
+        } else {
+            appendPrettyMergeStatus(builder, aggregation.conflicted(), 2);
+        }
+    }
+
+    private static void appendPrettyMergeStatuses(StringBuilder builder, List<com.hayden.multiagentidelib.model.merge.AgentMergeStatus> statuses) {
+        if (statuses == null || statuses.isEmpty()) {
+            builder.append("\t\t(none)\n");
+            return;
+        }
+        for (com.hayden.multiagentidelib.model.merge.AgentMergeStatus status : statuses) {
+            appendPrettyMergeStatus(builder, status, 2);
+        }
+    }
+
+    private static void appendPrettyMergeStatus(StringBuilder builder, com.hayden.multiagentidelib.model.merge.AgentMergeStatus status, int tabDepth) {
+        String indent = "\t".repeat(tabDepth);
+        if (status == null) {
+            builder.append(indent).append("- (none)\n");
+            return;
+        }
+        builder.append(indent).append("- Agent Result Id: ").append(status.agentResultId()).append("\n");
+        appendPrettyWorktreeContext(builder, indent + "  Worktree Context", status.worktreeContext());
+        appendPrettyMergeDescriptor(builder, indent + "  Merge Descriptor", status.mergeDescriptor());
+    }
+
     static String serializeResults(List<? extends AgentResult> results) {
         if (results == null || results.isEmpty()) {
             return "(none)";
@@ -1864,6 +2150,8 @@ public interface AgentModels {
             String goal,
             @JsonPropertyDescription("Current workflow phase.")
             String phase,
+            @JsonPropertyDescription("Provide any feedback from interrupt requests.")
+            String feedback,
             @JsonPropertyDescription("Curated discovery context from discovery collector.")
             UpstreamContext.DiscoveryCollectorContext discoveryCuration,
             @JsonPropertyDescription("Curated planning context from planning collector.")
@@ -1910,11 +2198,11 @@ public interface AgentModels {
         }
 
         public OrchestratorRequest(ArtifactKey contextId, String goal, String phase) {
-            this(contextId, null, goal, phase, null, null, null, null);
+            this(contextId, null, goal, phase, null,null, null, null, null);
         }
 
         public OrchestratorRequest(String goal, String phase) {
-            this(null, null, goal, phase, null, null, null, null);
+            this(null, null, goal, phase, null,null, null, null, null);
         }
 
         @Override
@@ -1930,6 +2218,20 @@ public interface AgentModels {
                 builder.append("Phase: ").append(phase.trim());
             }
             return builder.isEmpty() ? "Goal: (none)" : builder.toString();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Orchestrator Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Phase", phase);
+            appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
+            appendPrettyContext(builder, "Planning Curation", planningCuration);
+            appendPrettyContext(builder, "Ticket Curation", ticketCuration);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
         }
     }
 
@@ -2011,6 +2313,21 @@ public interface AgentModels {
             }
             return builder.isEmpty() ? "Goal: (none)" : builder.toString();
         }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Orchestrator Collector Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Phase", phase);
+            appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
+            appendPrettyContext(builder, "Planning Curation", planningCuration);
+            appendPrettyContext(builder, "Ticket Curation", ticketCuration);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            appendPrettyLine(builder, "Merge Descriptor", mergeDescriptor);
+            return builder.toString().trim();
+        }
     }
 
     /**
@@ -2048,13 +2365,15 @@ public interface AgentModels {
             InterruptRequest.OrchestratorInterruptRequest interruptRequest,
             @JsonPropertyDescription("Route to orchestrator collector for finalization.")
             OrchestratorCollectorRequest collectorRequest,
-            @JsonPropertyDescription("Route to discovery orchestrator to start discovery.")
-            DiscoveryOrchestratorRequest orchestratorRequest,
+            @JsonPropertyDescription("Route to discovery orchestrator.")
+            DiscoveryOrchestratorRequest discoveryOrchestratorRequest,
+            @JsonPropertyDescription("Route to parent orchestrator.")
+            OrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
         public OrchestratorRouting(InterruptRequest.OrchestratorInterruptRequest interruptRequest, OrchestratorCollectorRequest collectorRequest) {
-            this(interruptRequest, collectorRequest, null, null);
+            this(interruptRequest, collectorRequest, null, null, null);
         }
     }
 
@@ -2105,6 +2424,8 @@ public interface AgentModels {
             WorktreeSandboxContext worktreeContext,
             @JsonPropertyDescription("Workflow goal statement.")
             String goal,
+            @JsonPropertyDescription("Provide any feedback from interrupt requests.")
+            String feedback,
             @JsonPropertyDescription("Previous discovery orchestrator context for reruns.")
             PreviousContext.DiscoveryOrchestratorPreviousContext previousContext
     ) implements AgentRequest {
@@ -2127,7 +2448,7 @@ public interface AgentModels {
         }
 
         public DiscoveryOrchestratorRequest(String goal) {
-            this(null, null, goal, null);
+            this(null, null, goal, null, null);
         }
 
         public DiscoveryOrchestratorRequested to() {
@@ -2137,6 +2458,16 @@ public interface AgentModels {
         @Override
         public String prettyPrintInterruptContinuation() {
             return goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Discovery Orchestrator Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
         }
 
     }
@@ -2195,6 +2526,17 @@ public interface AgentModels {
                 builder.append("Subdomain Focus: ").append(subdomainFocus.trim());
             }
             return builder.isEmpty() ? "Goal: (none)" : builder.toString();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Discovery Agent Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Subdomain Focus", subdomainFocus);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
         }
     }
 
@@ -2286,6 +2628,31 @@ public interface AgentModels {
             return builder.toString().trim();
         }
 
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Discovery Agent Requests\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Delegation Rationale", delegationRationale);
+            appendPrettyLine(builder, "Metadata", metadata);
+            builder.append("Requests:\n");
+            if (requests == null || requests.isEmpty()) {
+                builder.append("\t(none)\n");
+            } else {
+                int idx = 1;
+                for (DiscoveryAgentRequest request : requests) {
+                    builder.append("\t").append(idx++).append(". ");
+                    if (request == null) {
+                        builder.append("(none)\n");
+                        continue;
+                    }
+                    builder.append(request.prettyPrintInterruptContinuation().replace("\n", " | ")).append("\n");
+                }
+            }
+            return builder.toString().trim();
+        }
+
         private String resolveGoal() {
             if (goal != null && !goal.isBlank()) {
                 return goal.trim();
@@ -2356,6 +2723,17 @@ public interface AgentModels {
             }
             return builder.isEmpty() ? "Goal: (none)" : builder.toString();
         }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Discovery Collector Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyText(builder, "Discovery Results", discoveryResults);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
+        }
     }
 
     /**
@@ -2371,6 +2749,8 @@ public interface AgentModels {
             DiscoveryAgentRequests agentRequests,
             @JsonPropertyDescription("Route to discovery collector.")
             DiscoveryCollectorRequest collectorRequest,
+            @JsonPropertyDescription("Route to discovery orchestrator.")
+            DiscoveryOrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
@@ -2442,6 +2822,8 @@ public interface AgentModels {
             WorktreeSandboxContext worktreeContext,
             @JsonPropertyDescription("Workflow goal statement.")
             String goal,
+            @JsonPropertyDescription("Provide any feedback from interrupt requests.")
+            String feedback,
             @JsonPropertyDescription("Curated discovery context from discovery collector.")
             UpstreamContext.DiscoveryCollectorContext discoveryCuration,
             @JsonPropertyDescription("Previous planning orchestrator context for reruns.")
@@ -2472,12 +2854,23 @@ public interface AgentModels {
         }
 
         public PlanningOrchestratorRequest(String goal) {
-            this(null, null, goal, null, null);
+            this(null, null, goal, null, null, null);
         }
 
         @Override
         public String prettyPrintInterruptContinuation() {
             return goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Planning Orchestrator Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
         }
     }
 
@@ -2531,6 +2924,17 @@ public interface AgentModels {
         @Override
         public String prettyPrintInterruptContinuation() {
             return goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Planning Agent Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
         }
     }
 
@@ -2616,6 +3020,31 @@ public interface AgentModels {
             return builder.toString().trim();
         }
 
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Planning Agent Requests\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Delegation Rationale", delegationRationale);
+            appendPrettyLine(builder, "Metadata", metadata);
+            builder.append("Requests:\n");
+            if (requests == null || requests.isEmpty()) {
+                builder.append("\t(none)\n");
+            } else {
+                int idx = 1;
+                for (PlanningAgentRequest request : requests) {
+                    builder.append("\t").append(idx++).append(". ");
+                    if (request == null) {
+                        builder.append("(none)\n");
+                        continue;
+                    }
+                    builder.append(request.prettyPrintInterruptContinuation().replace("\n", " | ")).append("\n");
+                }
+            }
+            return builder.toString().trim();
+        }
+
         private String resolveGoal() {
             if (goal != null && !goal.isBlank()) {
                 return goal.trim();
@@ -2694,6 +3123,18 @@ public interface AgentModels {
             }
             return builder.isEmpty() ? "Goal: (none)" : builder.toString();
         }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Planning Collector Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyText(builder, "Planning Results", planningResults);
+            appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
+        }
     }
 
     /**
@@ -2705,6 +3146,8 @@ public interface AgentModels {
     record PlanningOrchestratorRouting(
             @JsonPropertyDescription("Interrupt request for planning orchestration decisions.")
             InterruptRequest.PlanningOrchestratorInterruptRequest interruptRequest,
+            @JsonPropertyDescription("Route back to the planning orchestrator.")
+            PlanningOrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Delegation payload for planning agents.")
             PlanningAgentRequests agentRequests,
             @JsonPropertyDescription("Route to planning collector.")
@@ -2779,6 +3222,8 @@ public interface AgentModels {
             WorktreeSandboxContext worktreeContext,
             @JsonPropertyDescription("Workflow goal statement.")
             String goal,
+            @JsonPropertyDescription("Provide any feedback from interrupt requests.")
+            String feedback,
             @JsonPropertyDescription("Curated discovery context from discovery collector.")
             UpstreamContext.DiscoveryCollectorContext discoveryCuration,
             @JsonPropertyDescription("Curated planning context from planning collector.")
@@ -2817,12 +3262,24 @@ public interface AgentModels {
         }
 
         public TicketOrchestratorRequest(String goal) {
-            this(null, null, goal, null, null, null);
+            this(null, null, goal, null, null, null, null);
         }
 
         @Override
         public String prettyPrintInterruptContinuation() {
             return goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Ticket Orchestrator Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
+            appendPrettyContext(builder, "Planning Curation", planningCuration);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
         }
     }
 
@@ -2883,6 +3340,11 @@ public interface AgentModels {
         }
 
         @Override
+        public AgentRequest withGoal(String goal) {
+            return this;
+        }
+
+        @Override
         public String prettyPrintInterruptContinuation() {
             StringBuilder builder = new StringBuilder();
             if (ticketDetails != null && !ticketDetails.isBlank()) {
@@ -2895,6 +3357,19 @@ public interface AgentModels {
                 builder.append("Ticket File Path: ").append(ticketDetailsFilePath.trim());
             }
             return builder.isEmpty() ? "Ticket Details: (none)" : builder.toString();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Ticket Agent Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyText(builder, "Ticket Details", ticketDetails);
+            appendPrettyLine(builder, "Ticket Details File Path", ticketDetailsFilePath);
+            appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
+            appendPrettyContext(builder, "Planning Curation", planningCuration);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
         }
     }
 
@@ -2982,6 +3457,31 @@ public interface AgentModels {
             return builder.toString().trim();
         }
 
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Ticket Agent Requests\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Delegation Rationale", delegationRationale);
+            appendPrettyLine(builder, "Metadata", metadata);
+            builder.append("Requests:\n");
+            if (requests == null || requests.isEmpty()) {
+                builder.append("\t(none)\n");
+            } else {
+                int idx = 1;
+                for (TicketAgentRequest request : requests) {
+                    builder.append("\t").append(idx++).append(". ");
+                    if (request == null) {
+                        builder.append("(none)\n");
+                        continue;
+                    }
+                    builder.append(request.prettyPrintInterruptContinuation().replace("\n", " | ")).append("\n");
+                }
+            }
+            return builder.toString().trim();
+        }
+
         private String resolveGoal() {
             if (goal != null && !goal.isBlank()) {
                 return goal.trim();
@@ -3062,6 +3562,19 @@ public interface AgentModels {
             }
             return builder.isEmpty() ? "Goal: (none)" : builder.toString();
         }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Ticket Collector Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyText(builder, "Ticket Results", ticketResults);
+            appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
+            appendPrettyContext(builder, "Planning Curation", planningCuration);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
+        }
     }
 
     /**
@@ -3077,6 +3590,8 @@ public interface AgentModels {
             TicketAgentRequests agentRequests,
             @JsonPropertyDescription("Route to ticket collector.")
             TicketCollectorRequest collectorRequest,
+            @JsonPropertyDescription("Route to ticket orchestrator.")
+            TicketOrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
@@ -3153,6 +3668,12 @@ public interface AgentModels {
             @JsonPropertyDescription("Return route to ticket collector.")
             TicketCollectorRequest returnToTicketCollector
     ) implements AgentRequest {
+
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this;
+        }
+
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3213,6 +3734,21 @@ public interface AgentModels {
             }
             return builder.isEmpty() ? "Review Request: (none)" : builder.toString();
         }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Review Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyText(builder, "Criteria", criteria);
+            appendPrettyText(builder, "Content", content);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            appendPrettyContext(builder, "Return To Orchestrator Collector", returnToOrchestratorCollector);
+            appendPrettyContext(builder, "Return To Discovery Collector", returnToDiscoveryCollector);
+            appendPrettyContext(builder, "Return To Planning Collector", returnToPlanningCollector);
+            appendPrettyContext(builder, "Return To Ticket Collector", returnToTicketCollector);
+            return builder.toString().trim();
+        }
     }
 
     @Builder(toBuilder=true)
@@ -3264,6 +3800,10 @@ public interface AgentModels {
             @JsonPropertyDescription("Return route to ticket collector.")
             TicketCollectorRequest returnToTicketCollector
     ) implements AgentRequest {
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this;
+        }
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3339,6 +3879,22 @@ public interface AgentModels {
             }
             return builder.isEmpty() ? "Merge Request: (none)" : builder.toString();
         }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Merger Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyText(builder, "Merge Summary", mergeSummary);
+            appendPrettyText(builder, "Conflict Files", conflictFiles);
+            appendPrettyText(builder, "Merge Context", mergeContext);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            appendPrettyContext(builder, "Return To Orchestrator Collector", returnToOrchestratorCollector);
+            appendPrettyContext(builder, "Return To Discovery Collector", returnToDiscoveryCollector);
+            appendPrettyContext(builder, "Return To Planning Collector", returnToPlanningCollector);
+            appendPrettyContext(builder, "Return To Ticket Collector", returnToTicketCollector);
+            return builder.toString().trim();
+        }
     }
 
     @Builder(toBuilder=true)
@@ -3384,6 +3940,11 @@ public interface AgentModels {
             String suggestedSources
     ) implements AgentRequest {
 
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this;
+        }
+
         public ContextManagerRoutingRequest(ArtifactKey contextId, String reason, ContextManagerRequestType type) {
             this(contextId, null, reason, "", type, "");
         }
@@ -3394,6 +3955,18 @@ public interface AgentModels {
                 return "Context Manager Routing: (no reason)";
             }
             return "Context Manager Routing: " + reason.trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Context Manager Routing Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Type", type);
+            appendPrettyText(builder, "Reason", reason);
+            appendPrettyText(builder, "Missing Context Description", missingContextDescription);
+            appendPrettyText(builder, "Suggested Sources", suggestedSources);
+            return builder.toString().trim();
         }
     }
 
@@ -3619,6 +4192,39 @@ public interface AgentModels {
             return builder.isEmpty() ? "Context Manager Request: (none)" : builder.toString();
         }
 
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Context Manager Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Type", type);
+            appendPrettyText(builder, "Reason", reason);
+            appendPrettyText(builder, "Goal", goal);
+            appendPrettyText(builder, "Additional Context", additionalContext);
+            appendPrettyContext(builder, "Return To Orchestrator", returnToOrchestrator);
+            appendPrettyContext(builder, "Return To Orchestrator Collector", returnToOrchestratorCollector);
+            appendPrettyContext(builder, "Return To Discovery Orchestrator", returnToDiscoveryOrchestrator);
+            appendPrettyContext(builder, "Return To Discovery Collector", returnToDiscoveryCollector);
+            appendPrettyContext(builder, "Return To Planning Orchestrator", returnToPlanningOrchestrator);
+            appendPrettyContext(builder, "Return To Planning Collector", returnToPlanningCollector);
+            appendPrettyContext(builder, "Return To Ticket Orchestrator", returnToTicketOrchestrator);
+            appendPrettyContext(builder, "Return To Ticket Collector", returnToTicketCollector);
+            appendPrettyContext(builder, "Return To Review", returnToReview);
+            appendPrettyContext(builder, "Return To Merger", returnToMerger);
+            appendPrettyContext(builder, "Return To Planning Agent", returnToPlanningAgent);
+            appendPrettyContext(builder, "Return To Planning Agent Requests", returnToPlanningAgentRequests);
+            appendPrettyContext(builder, "Return To Planning Agent Results", returnToPlanningAgentResults);
+            appendPrettyContext(builder, "Return To Ticket Agent", returnToTicketAgent);
+            appendPrettyContext(builder, "Return To Ticket Agent Requests", returnToTicketAgentRequests);
+            appendPrettyContext(builder, "Return To Ticket Agent Results", returnToTicketAgentResults);
+            appendPrettyContext(builder, "Return To Discovery Agent", returnToDiscoveryAgent);
+            appendPrettyContext(builder, "Return To Discovery Agent Requests", returnToDiscoveryAgentRequests);
+            appendPrettyContext(builder, "Return To Discovery Agent Results", returnToDiscoveryAgentResults);
+            appendPrettyContext(builder, "Return To Context Orchestrator", returnToContextOrchestrator);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            return builder.toString().trim();
+        }
+
         public ContextManagerRequest addRequest(AgentRequest lastOfType) {
             if (lastOfType == null) {
                 return this;
@@ -3739,6 +4345,12 @@ public interface AgentModels {
             @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
             MergeAggregation mergeAggregation
     ) implements ResultsRequest {
+
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this;
+        }
+
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3778,7 +4390,18 @@ public interface AgentModels {
 
         @Override
         public String prettyPrintInterruptContinuation() {
-            return "";
+            return "Planning Agent Results Dispatch";
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Planning Agent Results\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyMergeAggregation(builder, "Merge Aggregation", mergeAggregation);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            appendPrettyText(builder, "Planning Agent Results", AgentModels.serializeResults(planningAgentResults));
+            return builder.toString().trim();
         }
         
         @Override
@@ -3807,6 +4430,12 @@ public interface AgentModels {
             @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
             MergeAggregation mergeAggregation
     ) implements ResultsRequest {
+
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this;
+        }
+
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3846,7 +4475,18 @@ public interface AgentModels {
 
         @Override
         public String prettyPrintInterruptContinuation() {
-            return "";
+            return "Ticket Agent Results Dispatch";
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Ticket Agent Results\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyMergeAggregation(builder, "Merge Aggregation", mergeAggregation);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            appendPrettyText(builder, "Ticket Agent Results", AgentModels.serializeResults(ticketAgentResults));
+            return builder.toString().trim();
         }
         
         @Override
@@ -3875,6 +4515,12 @@ public interface AgentModels {
             @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
             MergeAggregation mergeAggregation
     ) implements ResultsRequest {
+
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this;
+        }
+
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3914,7 +4560,18 @@ public interface AgentModels {
 
         @Override
         public String prettyPrintInterruptContinuation() {
-            return "";
+            return "Discovery Agent Results Dispatch";
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Discovery Agent Results\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyMergeAggregation(builder, "Merge Aggregation", mergeAggregation);
+            appendPrettyContext(builder, "Previous Context", previousContext);
+            appendPrettyText(builder, "Discovery Agent Results", AgentModels.serializeResults(result));
+            return builder.toString().trim();
         }
         
         @Override
@@ -3929,4 +4586,3 @@ public interface AgentModels {
     }
 
 }
-

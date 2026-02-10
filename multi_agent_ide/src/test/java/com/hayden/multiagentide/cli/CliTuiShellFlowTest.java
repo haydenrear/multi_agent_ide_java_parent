@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.shell.test.ShellTestClient;
 import org.springframework.shell.test.autoconfigure.ShellTest;
+import org.springframework.test.annotation.DirtiesContext;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -44,14 +45,19 @@ import static org.mockito.Mockito.when;
         "spring.main.lazy-initialization=true",
         "spring.docker.compose.enabled=false"
 }, terminalWidth = 70, terminalHeight = 120)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class CliTuiShellFlowTest {
 
     private static final String CTRL_C = String.valueOf((char) 3);
     private static final String CTRL_E = String.valueOf((char) 5);
+    private static final String CTRL_S = String.valueOf((char) 19);
+    private static final String CTRL_N = String.valueOf((char) 14);
     private static final String ESC = String.valueOf((char) 27);
     private static final String ENTER = "\r";
-    private static final String KEY_UP = ESC + "[A";
-    private static final String KEY_RIGHT = ESC + "[C";
+    private static final String KEY_UP = "\u001B[A";
+    private static final String KEY_DOWN = "\u001B[B";
+    private static final String KEY_RIGHT = "\u001B[C";
+    private static final String BACKSPACE = "\u007F";
 
     private ShellTestClient.BaseShellSession<?> currentSession;
 
@@ -72,12 +78,6 @@ class CliTuiShellFlowTest {
     @Import(CliModeConfig.class)
     @ComponentScan(basePackageClasses = {TuiSession.class, CliTuiRunner.class})
     static class TestConfig {
-
-        @Bean
-        @Primary
-        CliOutputWriter cliOutputWriter() {
-            return mock(CliOutputWriter.class);
-        }
 
         @Bean
         @Primary
@@ -119,7 +119,10 @@ class CliTuiShellFlowTest {
     void tearDown() {
         if (currentSession != null && !currentSession.isComplete()) {
             currentSession.write(CTRL_C);
-            sleep(50);
+            long deadline = System.currentTimeMillis() + 3000;
+            while (!currentSession.isComplete() && System.currentTimeMillis() < deadline) {
+                sleep(25);
+            }
         }
     }
 
@@ -193,9 +196,12 @@ class CliTuiShellFlowTest {
         testEventBus.clearPublishedEvents();
 
         String goal = "keyboard-start-goal";
-        currentSession.write(goal);
+        currentSession.write(currentSession.writeSequence().text(goal).build());
 
-        awaitState(state -> goal.equals(activeSession(state).chatInput()));
+        awaitState(state -> {
+            String anObject = activeSession(state).chatInput();
+            return goal.equals(anObject);
+        });
         awaitContains(currentSession, goal);
         awaitInteraction(interaction -> interaction.tuiEvent() instanceof Events.ChatInputChanged changed
                 && goal.equals(changed.text()));
@@ -207,7 +213,7 @@ class CliTuiShellFlowTest {
         awaitState(state -> nodeId.equals(state.activeSessionId()));
     }
 
-//    @Test
+    @Test
     void keyboardNavigationPublishesInteractionEventsAndUpdatesTui() {
         String nodeId = ArtifactKey.createRoot().value();
         when(orchestrationController.startGoalAsync(any())).thenReturn(new OrchestrationController.StartGoalResponse(nodeId));
@@ -250,7 +256,7 @@ class CliTuiShellFlowTest {
         awaitInteraction(interaction -> interaction.tuiEvent() instanceof Events.EventStreamOpenDetail);
         awaitState(state -> activeSession(state).detailOpen());
 
-        currentSession.write(ESC);
+        currentSession.write(BACKSPACE);
         awaitInteraction(interaction -> interaction.tuiEvent() instanceof Events.EventStreamCloseDetail);
         awaitState(state -> !activeSession(state).detailOpen());
     }
@@ -328,12 +334,81 @@ class CliTuiShellFlowTest {
         assertThat(formatted).contains("[MESSAGE]");
         assertThat(formatted).contains("ADD_MESSAGE");
         assertThat(formatted).contains("message=detail-check");
-        assertThat(formatted).doesNotContain("{\"eventId\"");
+        assertThat(formatted).contains("event={");
+        assertThat(formatted).contains("\"toAddMessage\":\"detail-check");
+    }
+
+    @Test
+    void createsNewSessionFromShortcut() {
+        currentSession = startTui();
+        String initialSession = tuiSession.snapshotForTests().activeSessionId();
+        testEventBus.clearPublishedEvents();
+
+        currentSession.write(CTRL_N);
+
+        Events.TuiInteractionGraphEvent createdEvent = awaitInteractionEvent(
+                interaction -> interaction.tuiEvent() instanceof Events.SessionCreated
+        );
+        String newSessionId = ((Events.SessionCreated) createdEvent.tuiEvent()).sessionId();
+
+        awaitInteractionEvent(interaction -> interaction.tuiEvent() instanceof Events.SessionSelected selected
+                && newSessionId.equals(selected.sessionId()));
+        awaitState(state -> state.sessionOrder().size() == 2);
+        awaitState(state -> newSessionId.equals(state.activeSessionId()));
+
+        assertThat(newSessionId).isNotEqualTo(initialSession);
+        assertThat(tuiSession.snapshotForTests().sessionOrder()).contains(initialSession, newSessionId);
+    }
+
+    @Test
+    void cyclesSessionMenuSelection() {
+        currentSession = startTui();
+
+        createSessionViaShortcut();
+        Events.TuiInteractionGraphEvent secondCreated = createSessionViaShortcut();
+        String newestSession = ((Events.SessionCreated) secondCreated.tuiEvent()).sessionId();
+
+        awaitState(state -> state.sessionOrder().size() == 3);
+        awaitState(state -> newestSession.equals(state.activeSessionId()));
+
+        currentSession.write(CTRL_S);
+        awaitInteractionEvent(interaction -> interaction.tuiEvent() instanceof Events.FocusSessionList);
+        awaitState(state -> state.focus() == TuiFocus.SESSION_LIST);
+        awaitContains(currentSession, "Sessions (focus)");
+
+        List<String> order = tuiSession.snapshotForTests().sessionOrder();
+        int activeIndex = order.indexOf(newestSession);
+        assertThat(activeIndex).isGreaterThan(0);
+
+        String previousSession = order.get(activeIndex - 1);
+        testEventBus.clearPublishedEvents();
+        currentSession.write(KEY_UP);
+        awaitInteractionEvent(interaction -> interaction.tuiEvent() instanceof Events.SessionSelected selected
+                && previousSession.equals(selected.sessionId()));
+        awaitState(state -> previousSession.equals(state.activeSessionId()));
+
+        String nextSession = order.get(activeIndex);
+        testEventBus.clearPublishedEvents();
+        currentSession.write(KEY_DOWN);
+        awaitInteractionEvent(interaction -> interaction.tuiEvent() instanceof Events.SessionSelected selected
+                && nextSession.equals(selected.sessionId()));
+        awaitState(state -> nextSession.equals(state.activeSessionId()));
+    }
+
+    private Events.TuiInteractionGraphEvent createSessionViaShortcut() {
+        testEventBus.clearPublishedEvents();
+        currentSession.write(CTRL_N);
+        return awaitInteractionEvent(interaction -> interaction.tuiEvent() instanceof Events.SessionCreated);
     }
 
     private ShellTestClient.NonInteractiveShellSession startTui() {
+        TuiState before = tuiSession.snapshotForTests();
+        String previousActiveSessionId = before == null ? null : before.activeSessionId();
+        testEventBus.clearPublishedEvents();
         ShellTestClient.NonInteractiveShellSession session = shellTestClient.nonInterative("tui").run();
-        awaitState(state -> state != null && state.activeSessionId() != null);
+        awaitState(state -> state != null
+                && state.activeSessionId() != null
+                && (previousActiveSessionId == null || !previousActiveSessionId.equals(state.activeSessionId())));
         awaitContains(session, "Chat>");
         return session;
     }
@@ -393,11 +468,25 @@ class CliTuiShellFlowTest {
         fail("Timed out waiting for TuiInteractionGraphEvent");
     }
 
+    private Events.TuiInteractionGraphEvent awaitInteractionEvent(Predicate<Events.TuiInteractionGraphEvent> condition) {
+        long deadline = System.currentTimeMillis() + 10000;
+        while (System.currentTimeMillis() < deadline) {
+            for (Events.GraphEvent event : testEventBus.snapshotPublishedEvents()) {
+                if (event instanceof Events.TuiInteractionGraphEvent interaction && condition.test(interaction)) {
+                    return interaction;
+                }
+            }
+            sleep(25);
+        }
+        fail("Timed out waiting for TuiInteractionGraphEvent");
+        return null;
+    }
+
     private static TuiSessionState activeSession(TuiState state) {
         if (state == null || state.activeSessionId() == null) {
-            return TuiSessionState.initial();
+            return TuiSessionState.initial(state.repo());
         }
-        return state.sessions().getOrDefault(state.activeSessionId(), TuiSessionState.initial());
+        return state.sessions().getOrDefault(state.activeSessionId(), TuiSessionState.initial(state.repo()));
     }
 
     private static void sleep(long millis) {

@@ -56,8 +56,9 @@ public sealed interface PreviousContext extends AgentContext permits
     @Override
     default String prettyPrint() {
         StringBuilder builder = new StringBuilder();
+        appendLine(builder, "Context Id", keyValue(contextId()));
         appendLine(builder, "Attempt", attemptNumber() > 0 ? String.valueOf(attemptNumber()) : null);
-        appendLine(builder, "Previous Context Id", valueOf(previousContextId()));
+        appendLine(builder, "Previous Context Id", keyValue(previousContextId()));
         appendLine(builder, "Previous Attempt At", formatInstant(previousAttemptAt()));
         appendLine(builder, "Error Message", errorMessage());
         appendLine(builder, "Error Stack Trace", errorStackTrace());
@@ -151,8 +152,8 @@ public sealed interface PreviousContext extends AgentContext permits
                 : context.prettyPrint();
     }
 
-    private static String valueOf(Object value) {
-        return value == null ? "" : value.toString();
+    private static String keyValue(ArtifactKey value) {
+        return value == null ? "" : value.value();
     }
     private static String formatInstant(Instant instant) {
         return instant != null ? instant.toString() : "";

@@ -1,18 +1,17 @@
 package com.hayden.multiagentidelib.prompt.contributor;
 
 import com.google.common.collect.Lists;
-import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 @Component
-public class ArtifactKeyPromptContributorFactory implements PromptContributorFactory {
+@Profile("goose")
+public class GoosePromptContributorFactory implements PromptContributorFactory {
 
     @Override
     public List<PromptContributor> create(PromptContext context) {
@@ -20,12 +19,12 @@ public class ArtifactKeyPromptContributorFactory implements PromptContributorFac
             return List.of();
         }
 
-        return Lists.newArrayList(ArtifactKeyPromptContributor.INSTANCE);
+        return Lists.newArrayList(GoosePromptContributor.INSTANCE);
     }
 
-    public record ArtifactKeyPromptContributor() implements PromptContributor {
+    public record GoosePromptContributor() implements PromptContributor {
 
-        public static final ArtifactKeyPromptContributor INSTANCE = new ArtifactKeyPromptContributor();
+        public static final GoosePromptContributor INSTANCE = new GoosePromptContributor();
 
         @Override
         public String name() {
@@ -45,9 +44,12 @@ public class ArtifactKeyPromptContributorFactory implements PromptContributorFac
         @Override
         public String template() {
             return """
-                    Please do not set any of the contextId field or property contextId on any result or type in your
-                    JSON response. This is for internal purposes only. Please set contextId to null. Do not set to an empty
-                    object. Please set to null.
+                    Under no circumstances should you use the Subagent tool call.
+                    This subagent tool call will not have any of the required permissions.
+                    It will fail in every respect. Instead, use the routing of the agents
+                    provided to perform the work.
+                    
+                    **Please do not use the Subagent tool call under any circumstances.**
                     """;
         }
 

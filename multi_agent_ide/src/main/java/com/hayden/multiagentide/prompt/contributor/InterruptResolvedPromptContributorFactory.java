@@ -10,6 +10,8 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Contributes review guidance when the current request is an interrupt
@@ -17,7 +19,7 @@ import java.util.List;
  * to perform the review, including the interrupt reason and context.
  */
 @Component
-public class InterruptReviewPromptContributorFactory implements PromptContributorFactory {
+public class InterruptResolvedPromptContributorFactory implements PromptContributorFactory {
 
     @Override
     public List<PromptContributor> create(PromptContext context) {
@@ -28,25 +30,20 @@ public class InterruptReviewPromptContributorFactory implements PromptContributo
         if (!(context.currentRequest() instanceof AgentModels.InterruptRequest interruptRequest)) {
             return List.of();
         }
-
         if (!context.model().containsKey("interruptFeedback")
                 || StringUtils.isBlank(String.valueOf(context.model().get("interruptFeedback")))) {
             return List.of();
         }
 
-        if (interruptRequest.type() != Events.InterruptType.AGENT_REVIEW) {
-            return List.of();
-        }
-
-        return Lists.newArrayList(new InterruptReviewPromptContributor(interruptRequest));
+        return Lists.newArrayList(new InterruptReviewPromptContributor(interruptRequest, context.model()));
     }
 
-    public record InterruptReviewPromptContributor(AgentModels.InterruptRequest interruptRequest)
-            implements PromptContributor {
+    public record InterruptReviewPromptContributor(AgentModels.InterruptRequest interruptRequest,
+                                                   Map<String, Object> interruptFeedback) implements PromptContributor {
 
         @Override
         public String name() {
-            return "interrupt-review-guidance";
+            return "interrupt-review-resolution";
         }
 
         @Override
@@ -60,30 +57,46 @@ public class InterruptReviewPromptContributorFactory implements PromptContributo
             String contextForDecision = interruptRequest.contextForDecision() != null
                     ? interruptRequest.contextForDecision() : "";
 
-            return template()
+            String f = template()
                     .replace("{{interrupt_reason}}", reason)
-                    .replace("{{context_for_decision}}", contextForDecision);
+                    .replace("{{context_for_decision}}", contextForDecision)
+                    .replace("{{interrupt_feedback}}", String.valueOf(interruptFeedback.get("interruptFeedback")));
+
+            return Optional.ofNullable(context.previousRequest())
+                    .map(ar -> f.replace("{{last_request}}", """
+                        Here is the agent request that routed to you for the review, for context, and so you will know where to route back to in your response:
+                        Name: %s
+                        Printed:
+                        %s
+                        """.formatted(ar.getClass().getName(), ar.prettyPrint())))
+                    .orElse(f);
         }
 
         @Override
         public String template() {
             return """
-                    ## Agent Review Instructions
+                    ## Interrupt Review Resolution
                     
-                    You are performing an agent review for an interrupt request. Your role is to carefully
-                    evaluate the content being reviewed and provide a thorough assessment.
+                    You are performing the routing after an interrupt resolution from a user. Your job is to route back to the appropriate agent
+                    that requested the review. Please do not route back again to an interrupt request.
                     
                     ### Review Context
                     - **Interrupt Reason**: {{interrupt_reason}}
                     - **Decision Context**: {{context_for_decision}}
+                    - **Decision**: {{interrupt_feedback}}
+                   
+                    Now that we have resolution, please route to the appropriate agent accordingly. Please do not reroute back to another interrupt
+                    request - please route back to the agent that routed to you.
                     
-                    ### Review Guidelines
-                    - Assess correctness: verify the content is logically sound and free of errors.
-                    - Assess completeness: verify nothing important is missing from the output.
-                    - If the content is correct and complete, respond with an approved status.
-                    - If there are issues, clearly explain what is wrong and suggest corrections.
-                    - Consider the broader workflow context when making your assessment.
-                    - Be specific in your feedback so the originating agent can act on it.
+                    Here is the request that routed to you:
+                    
+                    ---
+                    
+                    {{last_request}}
+                    
+                    ---
+                    
+                    Please route back to that agent with the given feedback provided in the goal field.
                     """;
         }
 

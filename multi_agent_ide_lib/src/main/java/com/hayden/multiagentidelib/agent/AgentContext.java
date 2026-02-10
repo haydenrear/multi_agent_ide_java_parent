@@ -1,6 +1,7 @@
 package com.hayden.multiagentidelib.agent;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 
@@ -8,6 +9,7 @@ import java.util.List;
 
 public interface AgentContext extends Artifact.AgentModel {
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     ArtifactKey contextId();
 
     @Override

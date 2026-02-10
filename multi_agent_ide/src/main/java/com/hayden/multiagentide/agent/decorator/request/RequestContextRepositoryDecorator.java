@@ -21,7 +21,7 @@ public class RequestContextRepositoryDecorator implements RequestDecorator {
 
     @Override
     public <T extends AgentModels.AgentRequest> T decorate(T request, DecoratorContext context) {
-        if (request == null || request.contextId() == null) {
+        if (request == null || (request.contextId() == null || request.contextId().value() == null)) {
             return request;
         }
 

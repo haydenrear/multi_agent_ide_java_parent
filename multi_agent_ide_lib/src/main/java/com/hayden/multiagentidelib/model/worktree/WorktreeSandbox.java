@@ -2,6 +2,7 @@ package com.hayden.multiagentidelib.model.worktree;
 
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import com.hayden.utilitymodule.stream.StreamUtil;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -11,6 +12,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+@Slf4j
 public final class WorktreeSandbox {
 
     private final List<Path> allowedRoots;
@@ -51,6 +53,7 @@ public final class WorktreeSandbox {
      */
     public SandboxValidationResult validatePath(String rawPath) {
         if (rawPath == null || rawPath.isBlank()) {
+            log.info("Retrieved attempt to validate path with no path.");
             return SandboxValidationResult.denied("path is required", null);
         }
 
@@ -58,6 +61,7 @@ public final class WorktreeSandbox {
         String normalizedString = normalized.toString();
 
         if (allowedRoots.isEmpty()) {
+            log.info("Retrieved attempt to validate path with no allowed roots: {}.", rawPath);
             return SandboxValidationResult.denied("no worktree sandbox configured", normalizedString);
         }
 
@@ -74,6 +78,7 @@ public final class WorktreeSandbox {
         }
 
         if (!inRoot) {
+            log.info("Retrieved attempt to validate path with no allowed roots {} in path: {}.", allowedRoots, rawPath);
             return SandboxValidationResult.denied("path outside of worktree sandbox", normalizedString);
         }
 
@@ -86,6 +91,7 @@ public final class WorktreeSandbox {
 
         for (Path cur = existing; cur != null; cur = cur.getParent()) {
             if (Files.isSymbolicLink(cur)) {
+                log.info("Retrieved attempt to validate path with being symlink {} allowed roots {} in path: {}.", cur, allowedRoots, rawPath);
                 return SandboxValidationResult.denied("Do not allow symlinks!", normalizedString);
             }
         }

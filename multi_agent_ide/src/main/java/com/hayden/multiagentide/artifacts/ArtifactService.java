@@ -162,18 +162,18 @@ public class ArtifactService {
                     case Templated t -> {
 //                      use a random hash for this one as it's a ref
                         if (!a.artifactKey().equals(artifact)) {
-                            yield Optional.of(new Artifact.TemplateDbRef(artifact, t.templateStaticId(), UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType()));
+                            yield Optional.of(new Artifact.TemplateDbRef(artifact, t.templateStaticId(), UUID.randomUUID().toString(), t, new ArrayList<>(StreamUtil.toStream(t.children()).toList()), new HashMap<>(t.metadata()), t.artifactType()));
                         }
 
-                        yield Optional.of(new Artifact.TemplateDbRef(artifact.createChild(), t.templateStaticId(), UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType()));
+                        yield Optional.of(new Artifact.TemplateDbRef(artifact.createChild(), t.templateStaticId(), UUID.randomUUID().toString(), t, new ArrayList<>(StreamUtil.toStream(t.children()).toList()), new HashMap<>(t.metadata()), t.artifactType()));
                     }
                     case Artifact t ->{
 //                      use a random hash for this one as it's a ref
                         if (!t.artifactKey().equals(artifact)) {
-                            yield Optional.of(new Artifact.ArtifactDbRef(artifact, UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType()));
+                            yield Optional.of(new Artifact.ArtifactDbRef(artifact, UUID.randomUUID().toString(), t, new ArrayList<>(StreamUtil.toStream(t.children()).toList()), new HashMap<>(t.metadata()), t.artifactType()));
                         }
 
-                        yield Optional.of(new Artifact.ArtifactDbRef(artifact.createChild(), UUID.randomUUID().toString(), t, new ArrayList<>(t.children()), new HashMap<>(t.metadata()), t.artifactType()));
+                        yield Optional.of(new Artifact.ArtifactDbRef(artifact.createChild(), UUID.randomUUID().toString(), t, new ArrayList<>(StreamUtil.toStream(t.children()).toList()), new HashMap<>(t.metadata()), t.artifactType()));
                     }
                 });
     }

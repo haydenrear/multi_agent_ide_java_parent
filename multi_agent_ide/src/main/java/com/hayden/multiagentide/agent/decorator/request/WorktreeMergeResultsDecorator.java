@@ -114,7 +114,7 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
     }
 
     private AgentMergeStatus createPendingStatus(AgentModels.AgentResult result) {
-        String agentResultId = result.contextId() != null ? result.contextId().value() : "unknown";
+        String agentResultId = (result.contextId() != null && result.contextId().value() != null) ? result.contextId().value() : "unknown";
         WorktreeSandboxContext worktreeContext = resolveChildWorktreeFromResult(result);
         
         return AgentMergeStatus.builder()

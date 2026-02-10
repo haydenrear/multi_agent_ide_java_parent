@@ -1,5 +1,7 @@
 package com.hayden.multiagentidelib.model.worktree;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.HashMap;
@@ -20,6 +22,7 @@ public record SubmoduleWorktreeContext(
         
         // Submodule-specific
         String submoduleName,
+        @JsonIgnore
         String submoduleUrl,
         String mainWorktreeId,  // Reference to parent main worktree
         Map<String, String> metadata

@@ -67,6 +67,19 @@ server.port: 8080
 
 # CLI mode (see application-cli.yml): configure via multi-agent-ide.cli.* properties
 
+# LangChain4j configuration
+multi-agent-embabel:
+  chat-model:
+    provider: acp
+  acp:
+    transport: stdio
+    command: ${ACP_COMMAND:codex-acp}
+    args: ${ACP_ARGS:}
+    working-directory: ${ACP_WORKING_DIR:}
+    auth-method: chatgpt
+#    env:
+#      PATH:
+
 # Logging
 logging:
   level:
@@ -131,9 +144,9 @@ acp.mcp:
     - name: deepwiki
       url: https://mcp.deepwiki.com/mcp
       headers:
-    - name: hindsight
-      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
-      headers:
+#    - name: hindsight
+#      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
+#      headers:
   stdio-values:
     - name: intellij
       command: "/Users/hayde/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java"

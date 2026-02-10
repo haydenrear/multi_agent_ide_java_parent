@@ -6,6 +6,7 @@ import org.springframework.shell.component.view.control.View;
 import org.springframework.shell.component.view.screen.Screen;
 import org.springframework.shell.geom.Rectangle;
 
+import java.nio.file.Path;
 import java.util.List;
 
 @Slf4j
@@ -15,18 +16,21 @@ class TuiSessionView extends GridView {
     private static final int MIN_STREAM_HEIGHT = 3;
 
     private final String sessionId;
+    private final Path initialRepoPath;
     private final TuiHeaderView headerView;
     private final TuiMessageStreamView messageStreamView;
     private final TuiChatView chatView;
 
     private TuiState state = null;
-    private TuiSessionState sessionState = TuiSessionState.initial();
+    private TuiSessionState sessionState;
 
-    TuiSessionView(String sessionId, TuiMessageStreamView messageStreamView) {
+    TuiSessionView(String sessionId, Path initialRepoPath, TuiMessageStreamView messageStreamView) {
         this.sessionId = sessionId;
-        this.headerView = new TuiHeaderView();
+        this.initialRepoPath = initialRepoPath;
+        this.headerView = new TuiHeaderView(initialRepoPath);
         this.messageStreamView = messageStreamView;
-        this.chatView = new TuiChatView();
+        this.chatView = new TuiChatView(initialRepoPath);
+        this.sessionState = TuiSessionState.initial(initialRepoPath);
 
         setShowBorders(false);
         setColumnSize(0);
@@ -39,7 +43,8 @@ class TuiSessionView extends GridView {
 
     void update(TuiState state, TuiSessionState sessionState) {
         this.state = state;
-        this.sessionState = sessionState == null ? TuiSessionState.initial() : sessionState;
+        Path repo = sessionState != null && sessionState.repo() != null ? sessionState.repo() : initialRepoPath;
+        this.sessionState = sessionState == null ? TuiSessionState.initial(repo) : sessionState;
         this.headerView.update(this.state, sessionId, this.sessionState);
         this.messageStreamView.update(this.state, this.sessionState);
         this.chatView.update(this.state, this.sessionState);

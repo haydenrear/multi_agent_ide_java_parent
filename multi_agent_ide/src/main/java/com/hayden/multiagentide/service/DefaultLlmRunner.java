@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Default implementation of LlmRunner using Embabel's native prompt contribution pattern.
@@ -52,6 +53,7 @@ public class DefaultLlmRunner implements LlmRunner {
         var aiQuery = context
                 .ai()
                 .withDefaultLlm()
+                .withPropertyFilter(s -> !Objects.equals("contextId", s))
                 .withPromptElements(promptContext.promptContributors().toArray(ContextualPromptElement[]::new));
 
         aiQuery = applyToolContext(aiQuery, toolContext);
@@ -68,20 +70,6 @@ public class DefaultLlmRunner implements LlmRunner {
         T result = llmCallContext.templateOperations().createObject(responseClass, model);
         
         return result;
-    }
-    
-    /**
-     * Resolves the workflow run ID from the prompt context.
-     */
-    private String resolveWorkflowRunId(PromptContext promptContext) {
-        if (promptContext == null || promptContext.currentContextId() == null) {
-            return null;
-        }
-        String contextId = promptContext.currentContextId().value();
-        if (contextId == null || contextId.isBlank()) {
-            return null;
-        }
-        return contextId;
     }
 
     private PromptRunner applyToolContext(PromptRunner promptRunner, ToolContext toolContext) {

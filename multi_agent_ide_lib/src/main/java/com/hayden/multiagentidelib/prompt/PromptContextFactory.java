@@ -38,9 +38,10 @@ public class PromptContextFactory {
             AgentType agentType,
             AgentModels.AgentRequest input,
             BlackboardHistory blackboardHistory,
-            String templateName
+            String templateName,
+            Map<String, Object> model
     ) {
-        return build(agentType, input, null, input, blackboardHistory, templateName);
+        return build(agentType, input, null, input, blackboardHistory, templateName, model);
     }
 
     /**
@@ -53,7 +54,8 @@ public class PromptContextFactory {
             AgentModels.AgentRequest previousRequest,
             AgentModels.AgentRequest currentRequest,
             BlackboardHistory blackboardHistory,
-            String templateName
+            String templateName,
+            Map<String, Object> model
     ) {
         List<UpstreamContext> upstreamContexts = new ArrayList<>();
         PreviousContext previousContext = null;
@@ -188,7 +190,8 @@ public class PromptContextFactory {
                 previousRequest,
                 currentRequest,
                 Map.of(),
-                templateName
+                templateName,
+                model
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
@@ -204,7 +207,8 @@ public class PromptContextFactory {
             List<UpstreamContext> upstreamContexts,
             PreviousContext previousContext,
             BlackboardHistory blackboardHistory,
-            String templateName
+            String templateName,
+            Map<String, Object> model
     ) {
         var pc = new PromptContext(
                 agentType,
@@ -215,7 +219,8 @@ public class PromptContextFactory {
                 null,
                 null,
                 Map.of(),
-                templateName
+                templateName,
+                model
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
@@ -231,7 +236,8 @@ public class PromptContextFactory {
             UpstreamContext upstreamContext,
             PreviousContext previousContext,
             BlackboardHistory blackboardHistory,
-            String templateName
+            String templateName,
+            Map<String, Object> model
     ) {
         List<UpstreamContext> contexts = upstreamContext != null 
                 ? List.of(upstreamContext) 
@@ -245,7 +251,8 @@ public class PromptContextFactory {
                 null,
                 null,
                 Map.of(),
-                templateName
+                templateName,
+                model
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();

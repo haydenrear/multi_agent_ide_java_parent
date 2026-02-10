@@ -149,6 +149,14 @@ public interface WorkflowAgentGraphNode {
 
         // Context manager
         map.put(AgentModels.ContextManagerRequest.class, AgentModels.ContextManagerResultRouting.class);
+        // Context manager
+        map.put(AgentModels.InterruptRequest.OrchestratorInterruptRequest.class, AgentModels.OrchestratorRouting.class);
+        map.put(AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest.class, AgentModels.DiscoveryOrchestratorRouting.class);
+        map.put(AgentModels.InterruptRequest.PlanningOrchestratorInterruptRequest.class, AgentModels.PlanningOrchestratorRouting.class);
+        map.put(AgentModels.InterruptRequest.TicketOrchestratorInterruptRequest.class, AgentModels.TicketOrchestratorRouting.class);
+        map.put(AgentModels.InterruptRequest.TicketAgentInterruptRequest.class, AgentModels.TicketAgentRouting.class);
+        map.put(AgentModels.InterruptRequest.PlanningAgentInterruptRequest.class, AgentModels.PlanningAgentRouting.class);
+        map.put(AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest.class, AgentModels.DiscoveryAgentRouting.class);
 
         return map;
     }

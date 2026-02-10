@@ -11,6 +11,20 @@ final class TuiTextLayout {
     private TuiTextLayout() {
     }
 
+    static int safeContentWidth(int innerWidth) {
+        // Spring Shell/JLine can report an inner rect that is slightly wider than the
+        // truly renderable text area in grid layouts. Reserve 2 chars defensively.
+        return Math.max(1, innerWidth - 2);
+    }
+
+    static String sanitizeInline(String line) {
+        if (line == null) {
+            return "";
+        }
+        // Normalize control characters that can corrupt terminal layout.
+        return line.replaceAll("[\\r\\n\\t]", " ");
+    }
+
     static String pad(String line, int width) {
         String trimmed = trim(line, width);
         if (trimmed.length() >= width) {
@@ -20,22 +34,15 @@ final class TuiTextLayout {
     }
 
     static String trim(String line, int width) {
-        if (line == null) {
-            return "";
+        String sanitized = sanitizeInline(line);
+        if (sanitized.length() <= width) {
+            return sanitized;
         }
-        if (line.length() <= width) {
-            return line;
-        }
-        return line.substring(0, Math.max(0, width));
+        return sanitized.substring(0, Math.max(0, width));
     }
 
     static String truncateWithEllipsis(String line, int width) {
-        if (line == null) {
-            return "";
-        }
-        // Replace newlines/control chars with spaces — a newline in the cell
-        // text causes a terminal line break that corrupts the TUI layout.
-        String sanitized = line.replaceAll("[\\r\\n\\t]", " ");
+        String sanitized = sanitizeInline(line);
         // Reserve 1 extra char for trailing space to prevent terminal word-wrap
         // from pushing the border onto the next line.
         int max = Math.max(1, width - 1);
@@ -52,12 +59,13 @@ final class TuiTextLayout {
         if (text == null || text.isEmpty()) {
             return List.of("");
         }
+        String sanitized = sanitizeInline(text);
         int maxWidth = Math.max(1, width);
         List<String> lines = new ArrayList<>();
         int i = 0;
-        while (i < text.length()) {
-            int end = Math.min(text.length(), i + maxWidth);
-            lines.add(text.substring(i, end));
+        while (i < sanitized.length()) {
+            int end = Math.min(sanitized.length(), i + maxWidth);
+            lines.add(sanitized.substring(i, end));
             i = end;
         }
         return lines;
@@ -67,9 +75,10 @@ final class TuiTextLayout {
         if (text == null || text.isEmpty()) {
             return List.of("");
         }
+        String sanitized = sanitizeInline(text);
         int maxWidth = Math.max(1, width);
         List<String> lines = new ArrayList<>();
-        String remaining = text;
+        String remaining = sanitized;
         while (!remaining.isEmpty()) {
             if (remaining.length() <= maxWidth) {
                 lines.add(remaining);

@@ -1,6 +1,8 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
@@ -17,6 +19,8 @@ import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -31,6 +35,13 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
     private final GraphRepository graphRepository;
     private final WorktreeRepository worktreeRepository;
     private final WorktreeService worktreeService;
+
+    private EventBus eventBus;
+
+    @Autowired @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     @Override
     public int order() {
@@ -56,10 +67,12 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
 
         if (sandboxContext == null) {
             log.error("Sandbox context could not be resolved.");
-            throw new DegenerateLoopException("""
+            String message = """
                     No worktree was provided by orchestrator during it's request.
                     And therefore the worktree could not be provided for the downstream request.
-                    """, request.artifactType(), request.getClass(), 1);
+                    """;
+            eventBus.publish(Events.NodeErrorEvent.err(message, request.key()));
+            throw new DegenerateLoopException(message, request.artifactType(), request.getClass(), 1);
         }
 
         return (T) withWorktreeContext(request, sandboxContext);

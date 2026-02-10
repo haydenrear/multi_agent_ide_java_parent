@@ -179,12 +179,14 @@ class AcpChatModel(
     fun createProcessStdioTransport(
         coroutineScope: CoroutineScope,
         command: Array<String>,
-        extraEnv: Map<String, String>
+        extraEnv: Map<String, String>,
+        dir: Path
     ): Transport {
         val pb = ProcessBuilder(*command)
             .redirectInput(ProcessBuilder.Redirect.PIPE)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
             .redirectError(ProcessBuilder.Redirect.PIPE)
+            .directory(dir.toFile())
 
        this.properties.envCopy()
            ?.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
@@ -245,11 +247,26 @@ class AcpChatModel(
         val workingDirectory = properties.workingDirectory
 
         val joinedEnv = sandboxTranslation.env.toMutableMap()
+//        joinedEnv["user.dir"] = sandboxTranslation.workingDirectory
+//        joinedEnv["PATH"] = "" TODO: the path should probably include all docker env, java home, etc...
         joinedEnv.putAll(properties.envCopy())
+
+        // Use sandbox translation working directory if available, otherwise fall back to properties or system default
+        var cwd = workingDirectoryOrNull(sandboxTranslation)
+            .or {
+                if (workingDirectory == null || workingDirectory.isBlank())
+                    null
+                else
+                    workingDirectory
+            }
+            .or {  System.getProperty("user.dir") }!!
+
+        if (cwd.isBlank())
+            cwd = System.getProperty("user.dir")
 
         return try {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-            val transport = createProcessStdioTransport(scope, process, joinedEnv)
+            val transport = createProcessStdioTransport(scope, process, joinedEnv, Path.of(cwd))
             val protocol = Protocol(scope, transport)
             val client = Client(protocol)
 
@@ -328,18 +345,6 @@ class AcpChatModel(
                 mcpSyncServers.add(McpServer.Http("agent-tools", "http://localhost:8080/mcp", toolHeaders))
             }
 
-            // Use sandbox translation working directory if available, otherwise fall back to properties or system default
-            var cwd = workingDirectoryOrNull(sandboxTranslation)
-                .or {
-                    if (workingDirectory == null || workingDirectory.isBlank())
-                        null
-                    else
-                        workingDirectory
-                }
-                .or {  System.getProperty("user.dir") }!!
-
-            if (cwd.isBlank())
-                cwd = System.getProperty("user.dir")
 
             val sessionParams = SessionCreationParameters(cwd, mcpSyncServers.toList())
 

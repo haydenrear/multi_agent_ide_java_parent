@@ -1,14 +1,14 @@
 package com.hayden.multiagentide.repository;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
+@Slf4j
 @Component
 public class InMemoryEventStreamRepository implements EventStreamRepository {
 
@@ -46,4 +46,17 @@ public class InMemoryEventStreamRepository implements EventStreamRepository {
         return java.util.Optional.ofNullable(byId.get(eventId));
     }
 
+    @Override
+    public <T extends Events.GraphEvent> Optional<T> getLastMatching(Class<T> v, Predicate<T> toMatch) {
+        return events.values().stream()
+                .flatMap(Collection::stream)
+                .filter(gn -> gn.getClass().equals(v) || v.isAssignableFrom(gn.getClass()))
+                .map(ge -> (T) ge)
+                .filter(toMatch)
+                .max(Comparator.comparing(Events.GraphEvent::timestamp))
+                .map(t -> {
+                    log.info("Found last matching {}:{}, {}", t.getClass(), t.nodeId(), t);
+                    return t;
+                });
+    }
 }

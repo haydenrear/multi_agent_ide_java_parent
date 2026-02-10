@@ -72,10 +72,9 @@ public class WorktreeSandboxPromptContributorFactory implements PromptContributo
             String submoduleInfo = buildSubmoduleInfo(worktreeContext.submoduleWorktrees());
 
             return template()
+                    .replace("{{repository_path}}", repoUrl)
                     .replace("{{main_worktree_path}}", mainPath)
-                    .replace("{{base_branch}}", baseBranch)
                     .replace("{{derived_branch}}", derivedBranch)
-                    .replace("{{repository_url}}", repoUrl)
                     .replace("{{submodule_info}}", submoduleInfo);
         }
 
@@ -102,12 +101,18 @@ public class WorktreeSandboxPromptContributorFactory implements PromptContributo
                     
                     ### Main Worktree
                     - **Path**: {{main_worktree_path}}
-                    - **Repository**: {{repository_url}}
-                    - **Base Branch**: {{base_branch}}
-                    - **Derived Branch**: {{derived_branch}}
+                    - **Branch**: {{derived_branch}}
                     
                     ### Submodule Worktrees
                     {{submodule_info}}
+                    
+                    
+                    ## Notes on Tool Calls
+                    You should be making those tool calls on the worktree path, instead of the
+                    repository path, {{repository_path}}, especially the writes, because we will then merge those changes into
+                    the main repository.
+                    
+                    This is especially because
                     """;
         }
 

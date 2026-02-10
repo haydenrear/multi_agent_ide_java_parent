@@ -1,9 +1,14 @@
 package com.hayden.multiagentide.tui;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import lombok.Builder;
+import lombok.With;
 
+import java.nio.file.Path;
 import java.util.List;
 
+@Builder(toBuilder = true)
+@With
 public record TuiSessionState(
         List<Events.GraphEvent> events,
         int selectedIndex,
@@ -12,9 +17,12 @@ public record TuiSessionState(
         boolean detailOpen,
         String detailEventId,
         String chatInput,
-        TuiChatSearch chatSearch
+        TuiChatSearch chatSearch,
+        Path repo
 ) {
     public TuiSessionState {
+        if (repo == null)
+            throw new IllegalArgumentException("");
         if (events == null) {
             events = List.of();
         }
@@ -26,7 +34,7 @@ public record TuiSessionState(
         }
     }
 
-    public static TuiSessionState initial() {
+    public static TuiSessionState initial(Path repo) {
         return new TuiSessionState(
                 List.of(),
                 0,
@@ -35,7 +43,8 @@ public record TuiSessionState(
                 false,
                 null,
                 "",
-                TuiChatSearch.inactive()
+                TuiChatSearch.inactive(),
+                repo
         );
     }
 }

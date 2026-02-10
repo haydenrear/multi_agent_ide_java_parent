@@ -3,6 +3,7 @@ package com.hayden.multiagentidelib.agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.commitdiffcontext.cdc_utils.SetFromHeader;
 import com.hayden.commitdiffcontext.mcp.ToolCarrier;
 import com.hayden.acp_cdc_ai.acp.events.Events;
@@ -532,13 +533,26 @@ public class ContextManagerTools implements ToolCarrier {
 
 
     private BlackboardHistory getCurrentHistory(String sessionId) {
-        if (!StringUtils.hasText(sessionId)) {
+        String root;
+        try {
+            ArtifactKey artifactKey = new ArtifactKey(sessionId);
+            if(artifactKey.isRoot()) {
+                root = artifactKey.value();
+            } else {
+                root = artifactKey.root().value();
+            }
+        } catch (Exception e) {
+            root = sessionId;
+        }
+
+
+        if (!StringUtils.hasText(root)) {
             return null;
         }
         if (agentPlatform == null) {
             return null;
         }
-        AgentProcess agentProcess = agentPlatform.getAgentProcess(sessionId);
+        AgentProcess agentProcess = agentPlatform.getAgentProcess(root);
         if (agentProcess == null) {
             return null;
         }

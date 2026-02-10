@@ -3,6 +3,7 @@ package com.hayden.multiagentide.artifacts;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
+import com.hayden.multiagentidelib.agent.AgentContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.PreviousContext;
 import com.hayden.multiagentidelib.agent.UpstreamContext;
@@ -75,6 +76,49 @@ class ArtifactSerializationTest {
     @Nested
     @DisplayName("Core Artifact Serialization")
     class CoreArtifactSerialization {
+
+        @SneakyThrows
+        @Test
+        @DisplayName("Artifact Key")
+        void artifactKey() {
+            ArtifactKey c = new ArtifactKey(null);
+            record C(ArtifactKey contextId) implements AgentContext {
+
+                @Override
+                public String prettyPrint() {
+                    return "";
+                }
+
+                @Override
+                public String computeHash(Artifact.HashContext hashContext) {
+                    return "";
+                }
+
+                @Override
+                public Artifact.AgentModel withContextId(ArtifactKey key) {
+                    return new C(key);
+                }
+            }
+
+            C isC = new C(c);
+
+            var written = objectMapper.writeValueAsString(isC);
+
+            var read = objectMapper.readValue(written, C.class);
+
+            assertThat(read.key()).isNull();
+
+            var f = """
+                    { "contextId": {} }
+                    """;
+
+            read = Assertions.assertDoesNotThrow(() -> objectMapper.readValue(f, C.class));
+
+            assertThat(read).isNotNull();
+            assertThat(read.key().value()).isNull();
+
+        }
+
         @SneakyThrows
         @Test
         @DisplayName("ExecutionArtifact serializes and deserializes correctly")

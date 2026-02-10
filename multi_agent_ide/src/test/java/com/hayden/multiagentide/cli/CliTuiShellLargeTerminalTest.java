@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.shell.test.ShellTestClient;
 import org.springframework.shell.test.autoconfigure.ShellTest;
+import org.springframework.test.annotation.DirtiesContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,7 @@ import java.util.function.Predicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -38,6 +40,7 @@ import static org.mockito.Mockito.when;
         "spring.main.lazy-initialization=true",
         "spring.docker.compose.enabled=false"
 }, terminalWidth = 120, terminalHeight = 40)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class CliTuiShellLargeTerminalTest {
 
     private static final String CTRL_C = String.valueOf((char) 3);
@@ -53,12 +56,6 @@ class CliTuiShellLargeTerminalTest {
     @Import(CliModeConfig.class)
     @ComponentScan(basePackageClasses = {TuiSession.class, CliTuiRunner.class})
     static class TestConfig {
-
-        @Bean
-        @Primary
-        CliOutputWriter cliOutputWriter() {
-            return mock(CliOutputWriter.class);
-        }
 
         @Bean
         @Primary
@@ -110,6 +107,12 @@ class CliTuiShellLargeTerminalTest {
 
         List<String> lines = currentSession.screen().lines();
         assertThat(lines).isNotEmpty();
+
+        await().until(() -> {
+            var l = currentSession.screen().lines();
+            return l.stream().anyMatch(line -> line != null && line.contains("Chat>"));
+        });
+        lines = currentSession.screen().lines();
         assertThat(lines).anyMatch(line -> line != null && line.contains("Chat>"));
         assertThat(lines).allMatch(line -> line == null || line.length() <= 120);
         assertThat(tuiSession.eventListHeightForTests()).isGreaterThan(20);

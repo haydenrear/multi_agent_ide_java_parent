@@ -66,6 +66,7 @@ public class ArtifactEventListener implements EventListener {
 
     @Override
     public boolean isInterestedIn(Events.GraphEvent event) {
+        log.info("Found event {}.", event.getClass().getSimpleName());
         return event instanceof Events.ArtifactEvent 
                 || event instanceof Events.GoalCompletedEvent
                 || event instanceof Events.NodeStreamDeltaEvent

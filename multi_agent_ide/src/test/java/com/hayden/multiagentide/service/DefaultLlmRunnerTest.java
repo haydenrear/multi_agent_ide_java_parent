@@ -26,6 +26,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import java.util.List;
 import java.util.Map;
 
+import static com.hayden.multiagentide.agent.AgentInterfaces.TEMPLATE_WORKFLOW_ORCHESTRATOR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -34,6 +35,7 @@ import static org.mockito.Mockito.*;
 @SpringBootTest
 @Profile("test")
 class DefaultLlmRunnerSpringBootTest {
+
 
     @Autowired
     private DefaultLlmRunner defaultLlmRunner;
@@ -56,8 +58,9 @@ class DefaultLlmRunnerSpringBootTest {
     void runWithTemplate_usesAutoconfiguredDecorators() {
         OperationContext operationContext = mock(OperationContext.class, Answers.RETURNS_DEEP_STUBS);
         PromptRunner promptRunner = mock(PromptRunner.class);
+        String templateName = TEMPLATE_WORKFLOW_ORCHESTRATOR;
         TemplateOperations templateOperations = new TemplateOperations(
-            "workflow/orchestrator",
+                templateName,
                 agentPlatform.getPlatformServices().getTemplateRenderer(),
                 promptRunner
         );
@@ -76,14 +79,14 @@ class DefaultLlmRunnerSpringBootTest {
                 .currentContextId(ArtifactKey.createRoot())
                 .currentRequest(new AgentModels.OrchestratorRequest(ArtifactKey.createRoot(), "Goal", "DISCOVERY"))
                 .promptContributors(List.of())
-                .templateName("workflow/orchestrator")
+                .templateName(templateName)
                 .metadata(Map.of())
                 .build();
 
         ToolContext toolContext = new ToolContext(List.of());
 
         ResponseValue result = defaultLlmRunner.runWithTemplate(
-                "workflow/orchestrator",
+                templateName,
                 promptContext,
                 Map.of("goal", "Goal",
                        "phase", "orchestrator"),

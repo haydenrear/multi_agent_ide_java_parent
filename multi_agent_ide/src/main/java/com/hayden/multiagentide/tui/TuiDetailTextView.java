@@ -28,7 +28,7 @@ class TuiDetailTextView extends BoxView {
     protected void drawInternal(Screen screen) {
         super.drawInternal(screen);
         Rectangle inner = getInnerRect();
-        int width = Math.max(1, inner.width());
+        int width = TuiTextLayout.safeContentWidth(inner.width());
         int height = Math.max(1, inner.height());
 
         List<String> lines = new ArrayList<>();

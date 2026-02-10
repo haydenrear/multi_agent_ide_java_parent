@@ -347,7 +347,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             // calls runWithTemplate with the feedback — enqueue the post-interrupt routing
             // that continues the workflow to discovery
             queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
-                    .orchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                    .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
                             .goal("Human review task")
                             .build())
                     .build());
@@ -440,7 +440,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
             // Enqueue the post-interrupt response so the workflow can finish after resolution
             queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
-                    .orchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                    .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
                             .goal("Post review task")
                             .build())
                     .build());
@@ -511,7 +511,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
             // After resolution, handleInterrupt calls runWithTemplate with interruptFeedback
             queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
-                    .orchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                    .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
                             .goal("Feedback task")
                             .build())
                     .build());
@@ -935,7 +935,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
     private void initialOrchestratorToDiscovery(String goal) {
         queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
-                .orchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
                         .goal(goal)
                         .build())
                 .build());

@@ -2,6 +2,7 @@ package com.hayden.acp_cdc_ai.acp.events;
 
 import com.agui.core.types.BaseEvent;
 import com.fasterxml.jackson.annotation.JsonClassDescription;
+import lombok.Builder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,6 +109,358 @@ public interface Events {
          */
         String eventType();
 
+        default String prettyPrint() {
+            return switch (this) {
+                case NodeAddedEvent e -> formatEvent("Node Added Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("nodeTitle", e.nodeTitle()),
+                        line("nodeType", e.nodeType()),
+                        line("parentNodeId", e.parentNodeId()));
+                case ActionStartedEvent e -> formatEvent("Action Started Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("agentName", e.agentName()),
+                        line("actionName", e.actionName()));
+                case ActionCompletedEvent e -> formatEvent("Action Completed Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("agentName", e.agentName()),
+                        line("actionName", e.actionName()),
+                        line("outcomeType", e.outcomeType()),
+                        line("agentModel", summarizeObject(e.agentModel())));
+                case StopAgentEvent e -> formatEvent("Stop Agent Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()));
+                case PauseEvent e -> formatEvent("Pause Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("toAddMessage", e.toAddMessage()));
+                case ResumeEvent e -> formatEvent("Resume Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("message", e.message()));
+                case ResolveInterruptEvent e -> formatEvent("Resolve Interrupt Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("toAddMessage", e.toAddMessage()));
+                case AddMessageEvent e -> formatEvent("Add Message Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("toAddMessage", e.toAddMessage()));
+                case NodeStatusChangedEvent e -> formatEvent("Node Status Changed Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("oldStatus", e.oldStatus()),
+                        line("newStatus", e.newStatus()),
+                        block("reason", e.reason()));
+                case NodeErrorEvent e -> formatEvent("Node Error Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("nodeTitle", e.nodeTitle()),
+                        line("nodeType", e.nodeType()),
+                        block("message", e.message()));
+                case NodeBranchedEvent e -> formatEvent("Node Branched Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("originalNodeId", e.originalNodeId()),
+                        line("branchedNodeId", e.branchedNodeId()),
+                        block("newGoal", e.newGoal()),
+                        line("mainWorktreeId", e.mainWorktreeId()),
+                        list("submoduleWorktreeIds", e.submoduleWorktreeIds()));
+                case NodePrunedEvent e -> formatEvent("Node Pruned Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("reason", e.reason()),
+                        list("pruneWorktreeIds", e.pruneWorktreeIds()));
+                case NodeReviewRequestedEvent e -> formatEvent("Node Review Requested Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("reviewNodeId", e.reviewNodeId()),
+                        line("reviewType", e.reviewType()),
+                        block("contentToReview", e.contentToReview()));
+                case InterruptStatusEvent e -> formatEvent("Interrupt Status Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("interruptType", e.interruptType()),
+                        line("interruptStatus", e.interruptStatus()),
+                        line("originNodeId", e.originNodeId()),
+                        line("resumeNodeId", e.resumeNodeId()));
+                case GoalCompletedEvent e -> formatEvent("Goal Completed Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("orchestratorNodeId", e.orchestratorNodeId()),
+                        line("workflowId", e.workflowId()),
+                        line("model", summarizeObject(e.model())));
+                case WorktreeCreatedEvent e -> formatEvent("Worktree Created Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("worktreeId", e.worktreeId()),
+                        line("associatedNodeId", e.associatedNodeId()),
+                        line("worktreePath", e.worktreePath()),
+                        line("worktreeType", e.worktreeType()),
+                        line("submoduleName", e.submoduleName()));
+                case WorktreeBranchedEvent e -> formatEvent("Worktree Branched Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("originalWorktreeId", e.originalWorktreeId()),
+                        line("branchedWorktreeId", e.branchedWorktreeId()),
+                        line("branchName", e.branchName()),
+                        line("worktreeType", e.worktreeType()),
+                        line("nodeId", e.nodeId()));
+                case WorktreeMergedEvent e -> formatEvent("Worktree Merged Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("childWorktreeId", e.childWorktreeId()),
+                        line("parentWorktreeId", e.parentWorktreeId()),
+                        line("mergeCommitHash", e.mergeCommitHash()),
+                        line("conflictDetected", e.conflictDetected()),
+                        list("conflictFiles", e.conflictFiles()),
+                        line("worktreeType", e.worktreeType()),
+                        line("nodeId", e.nodeId()));
+                case WorktreeDiscardedEvent e -> formatEvent("Worktree Discarded Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("worktreeId", e.worktreeId()),
+                        block("reason", e.reason()),
+                        line("worktreeType", e.worktreeType()),
+                        line("nodeId", e.nodeId()));
+                case NodeUpdatedEvent e -> formatEvent("Node Updated Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        map("updates", e.updates()));
+                case NodeDeletedEvent e -> formatEvent("Node Deleted Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("reason", e.reason()));
+                case ChatSessionCreatedEvent e -> formatEvent("Chat Session Created Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()));
+                case ChatSessionClosedEvent e -> formatEvent("Chat Session Closed Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("sessionId", e.sessionId()));
+                case NodeStreamDeltaEvent e -> formatEvent("Node Stream Delta Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("tokenCount", e.tokenCount()),
+                        line("isFinal", e.isFinal()),
+                        block("deltaContent", e.deltaContent()));
+                case NodeThoughtDeltaEvent e -> formatEvent("Node Thought Delta Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("tokenCount", e.tokenCount()),
+                        line("isFinal", e.isFinal()),
+                        block("deltaContent", e.deltaContent()));
+                case ToolCallEvent e -> formatEvent("Tool Call Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("toolCallId", e.toolCallId()),
+                        line("title", e.title()),
+                        line("kind", e.kind()),
+                        line("status", e.status()),
+                        line("phase", e.phase()),
+                        list("content", e.content()),
+                        list("locations", e.locations()),
+                        line("rawInput", summarizeObject(e.rawInput())),
+                        line("rawOutput", summarizeObject(e.rawOutput())));
+                case GuiRenderEvent e -> formatEvent("GUI Render Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionId", e.sessionId()),
+                        line("payload", summarizeObject(e.payload())));
+                case UiDiffAppliedEvent e -> formatEvent("UI Diff Applied Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionId", e.sessionId()),
+                        line("revision", e.revision()),
+                        line("renderTree", summarizeObject(e.renderTree())),
+                        block("summary", e.summary()));
+                case UiDiffRejectedEvent e -> formatEvent("UI Diff Rejected Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionId", e.sessionId()),
+                        line("errorCode", e.errorCode()),
+                        block("message", e.message()));
+                case UiDiffRevertedEvent e -> formatEvent("UI Diff Reverted Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionId", e.sessionId()),
+                        line("revision", e.revision()),
+                        line("renderTree", summarizeObject(e.renderTree())),
+                        line("sourceEventId", e.sourceEventId()));
+                case UiFeedbackEvent e -> formatEvent("UI Feedback Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionId", e.sessionId()),
+                        line("sourceEventId", e.sourceEventId()),
+                        block("message", e.message()),
+                        line("snapshot", summarizeObject(e.snapshot())));
+                case NodeBranchRequestedEvent e -> formatEvent("Node Branch Requested Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("message", e.message()));
+                case PlanUpdateEvent e -> formatEvent("Plan Update Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        list("entries", e.entries()));
+                case UserMessageChunkEvent e -> formatEvent("User Message Chunk Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("content", e.content()));
+                case CurrentModeUpdateEvent e -> formatEvent("Current Mode Update Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("currentModeId", e.currentModeId()));
+                case AvailableCommandsUpdateEvent e -> formatEvent("Available Commands Update Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        list("commands", e.commands()));
+                case PermissionRequestedEvent e -> formatEvent("Permission Requested Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("originNodeId", e.originNodeId()),
+                        line("requestId", e.requestId()),
+                        line("toolCallId", e.toolCallId()),
+                        line("permissions", summarizeObject(e.permissions())));
+                case PermissionResolvedEvent e -> formatEvent("Permission Resolved Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("originNodeId", e.originNodeId()),
+                        line("requestId", e.requestId()),
+                        line("toolCallId", e.toolCallId()),
+                        line("outcome", e.outcome()),
+                        line("selectedOptionId", e.selectedOptionId()));
+                case TuiInteractionGraphEvent e -> formatEvent("TUI Interaction Graph Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionId", e.sessionId()),
+                        line("tuiEvent", summarizeObject(e.tuiEvent())));
+                case TuiSystemGraphEvent e -> formatEvent("TUI System Graph Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionId", e.sessionId()),
+                        line("tuiEvent", summarizeObject(e.tuiEvent())));
+                case ArtifactEvent e -> formatEvent("Artifact Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("artifactType", e.artifactType()),
+                        line("parentArtifactKey", e.parentArtifactKey()),
+                        line("artifactKey", e.artifactKey() == null ? null : e.artifactKey().value()),
+                        line("artifact", summarizeObject(e.artifact())));
+            };
+        }
+
+    }
+
+    private static String formatEvent(String title, String eventType, String... lines) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(title).append("\n");
+        builder.append("type: ").append(eventType == null ? "(none)" : eventType).append("\n");
+        for (String line : lines) {
+            if (line == null || line.isBlank()) {
+                continue;
+            }
+            builder.append(line).append("\n");
+        }
+        return builder.toString().trim();
+    }
+
+    private static String line(String label, Object value) {
+        if (value == null) {
+            return label + ": (none)";
+        }
+        String rendered = String.valueOf(value);
+        if (rendered.isBlank()) {
+            return label + ": (empty)";
+        }
+        return label + ": " + rendered;
+    }
+
+    private static String block(String label, String value) {
+        if (value == null) {
+            return label + ":\n\t(none)";
+        }
+        if (value.isBlank()) {
+            return label + ":\n\t(empty)";
+        }
+        return label + ":\n\t" + value.trim().replace("\n", "\n\t");
+    }
+
+    private static String list(String label, List<?> values) {
+        if (values == null || values.isEmpty()) {
+            return label + ":\n\t(none)";
+        }
+        StringBuilder builder = new StringBuilder(label).append(":\n");
+        int index = 1;
+        for (Object value : values) {
+            builder.append("\t").append(index++).append(". ")
+                    .append(value == null ? "(none)" : summarizeObject(value))
+                    .append("\n");
+        }
+        return builder.toString().trim();
+    }
+
+    private static String map(String label, Map<?, ?> values) {
+        if (values == null || values.isEmpty()) {
+            return label + ":\n\t(none)";
+        }
+        StringBuilder builder = new StringBuilder(label).append(":\n");
+        for (Map.Entry<?, ?> entry : values.entrySet()) {
+            builder.append("\t- ")
+                    .append(entry.getKey() == null ? "(null)" : entry.getKey())
+                    .append(": ")
+                    .append(entry.getValue() == null ? "(none)" : summarizeObject(entry.getValue()))
+                    .append("\n");
+        }
+        return builder.toString().trim();
+    }
+
+    private static String summarizeObject(Object value) {
+        if (value == null) {
+            return "(none)";
+        }
+        if (value instanceof String s) {
+            return s.isBlank() ? "(empty)" : s;
+        }
+        if (value instanceof ArtifactKey key) {
+            return key.value();
+        }
+        return String.valueOf(value);
     }
 
     sealed interface AgentEvent extends GraphEvent {
@@ -242,6 +595,7 @@ public interface Events {
         }
     }
 
+    @Builder
     record NodeErrorEvent(
             String eventId,
             Instant timestamp,
@@ -250,6 +604,17 @@ public interface Events {
             NodeType nodeType,
             String message
     ) implements GraphEvent {
+
+        public static NodeErrorEvent err(String errorMessage, ArtifactKey curr) {
+            return NodeErrorEvent.builder()
+                    .message(errorMessage)
+                    .nodeId(curr.value())
+                    .nodeType(NodeType.SUMMARY)
+                    .nodeTitle("Found an error.")
+                    .timestamp(Instant.now())
+                    .build();
+        }
+
         @Override
         public String eventType() {
             return "NODE_ERROR";

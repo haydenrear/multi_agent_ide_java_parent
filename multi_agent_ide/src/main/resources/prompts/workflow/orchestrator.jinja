@@ -1,24 +1,23 @@
 Coordinate the following multi-agent workflow:
 
 Goal: {{ goal }}
-Current phase: {{ phase }}
 
 ## Routing Options
 
 You have three choices for routing:
 
-1. **orchestratorRequest** (Discovery Orchestrator) - Start or continue discovery work
+1. **discoveryOrchestratorRequest** (Discovery Orchestrator) - Start or continue discovery work
    - Use this when beginning a new workflow or when more codebase exploration is needed
    - This kicks off the discovery phase to understand the codebase before planning
 
 2. **collectorRequest** (Orchestrator Collector) - Final consolidation
-   - Use this when ALL work is complete and you're ready to finalize
-   - Routing here means "there is nothing left to do" - the workflow is done
+   - Use this when ALL work is complete, discovery, planning, and ticket orchestration is finished, and you're ready to finalize
+   - Routing here means "there is nothing left to do" - the workflow is done and all above, discovery, planning, and ticket orchestration are finished
    - Typically only reached after Discovery → Planning → Tickets phases complete
 
-3. **interruptRequest** - Pause for human input
-   - Use when you need clarification, approval, or the user requested a pause
-   - Examples: unclear goal, ambiguous phase changes, missing constraints, or needing approval to skip/stop phases
+3. **interruptRequest** - Pause for human review
+   - Use when you need clarification or the user requested a pause
+   - Examples: unclear goal, ambiguous phase changes, missing constraints
 
 ## Happy Path
 

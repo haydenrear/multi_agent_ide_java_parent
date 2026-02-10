@@ -2,6 +2,8 @@ package com.hayden.acp_cdc_ai.acp.events;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.micrometer.common.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.time.Instant;
@@ -22,15 +24,24 @@ import java.util.regex.Pattern;
  * - Child keys start with parent key followed by /
  * - Lexicographically sortable by creation time
  */
+@Slf4j
 public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
+
+    public ArtifactKey() {
+        this(null);
+    }
 
     @JsonCreator
     public ArtifactKey(String value) {
-        value = value.replaceAll("ak:", "");
-        this.value = "ak:" + value;
-        Objects.requireNonNull(this.value, "ArtifactKey value cannot be null");
-        if (!isValid(this.value)) {
-            throw new IllegalArgumentException("Invalid ArtifactKey format: " + value);
+        if (StringUtils.isBlank(value)) {
+            this.value = null;
+        } else {
+            value = value.replaceAll("ak:", "");
+            this.value = "ak:" + value;
+            Objects.requireNonNull(this.value, "ArtifactKey value cannot be null");
+            if (!isValid(this.value)) {
+                throw new IllegalArgumentException("Invalid ArtifactKey format: " + value);
+            }
         }
     }
     

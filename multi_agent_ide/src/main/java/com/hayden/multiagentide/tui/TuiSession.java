@@ -21,6 +21,7 @@ import org.springframework.shell.component.view.control.View;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,7 +39,7 @@ public class TuiSession implements EventListener {
 
     @FunctionalInterface
     public interface GoalStarter {
-        String startGoal(String goal);
+        String startGoal(String repo, String goal);
     }
 
     private final EventStreamRepository eventStreamRepository;
@@ -55,6 +56,7 @@ public class TuiSession implements EventListener {
     private EventBus eventBus;
 
     private GoalStarter goalStarter;
+    private Path defaultRepoPath;
     private String shellSessionId;
     private String activeSessionId;
     private String activeNodeId;
@@ -64,7 +66,6 @@ public class TuiSession implements EventListener {
     private TuiState state;
     private final Map<String, Boolean> startedSessions = new LinkedHashMap<>();
     private volatile int eventListHeight = 10;
-    private final AtomicLong lastUiWakeNanos = new AtomicLong(0L);
 
     @Autowired
     @Lazy
@@ -72,8 +73,9 @@ public class TuiSession implements EventListener {
         this.eventBus = eventBus;
     }
 
-    public void configureSession(String initialSessionId, GoalStarter goalStarter) {
+    public void configureSession(String initialSessionId, Path defaultRepoPath, GoalStarter goalStarter) {
         this.goalStarter = goalStarter;
+        this.defaultRepoPath = normalizeRepoPath(defaultRepoPath);
         this.activeSessionId = initialSessionId;
         this.activeNodeId = initialSessionId;
         this.startedSessions.put(initialSessionId, false);
@@ -94,6 +96,7 @@ public class TuiSession implements EventListener {
                     this::snapshotState,
                     eventFormatter,
                     eventStreamRepository,
+                    resolveDefaultRepoPath(),
                     new ViewController(),
                     height -> eventListHeight = Math.max(1, height),
                     this::setModalView,
@@ -115,6 +118,15 @@ public class TuiSession implements EventListener {
     }
 
     private void syncTerminalSizeAtStartup() {
+        Size current = safeSize(terminal::getSize);
+        int currentColumns = dimension(current, true);
+        int currentRows = dimension(current, false);
+        // Trust terminal-reported size when available. Forcing a guessed size
+        // can lock in an incorrect width until a manual resize occurs.
+        if (currentColumns > 0 && currentRows > 0) {
+            return;
+        }
+
         Size resolved = resolveStartupTerminalSize();
         if (resolved == null) {
             return;
@@ -261,8 +273,9 @@ public class TuiSession implements EventListener {
                 startedSessions.put(activeSessionId, false);
             }
             Map<String, TuiSessionState> sessions = new LinkedHashMap<>();
-            sessions.put(activeSessionId, TuiSessionState.initial());
-            state = TuiState.initial(shellSessionId, activeSessionId, List.of(activeSessionId), sessions);
+            TuiSessionState initial = TuiSessionState.initial(resolveDefaultRepoPath());
+            sessions.put(activeSessionId, initial);
+            state = TuiState.initial(shellSessionId, activeSessionId, List.of(activeSessionId), sessions, initial.repo());
         }
     }
 
@@ -274,9 +287,9 @@ public class TuiSession implements EventListener {
 
     private TuiSessionState activeSessionState() {
         if (state == null || state.activeSessionId() == null) {
-            return TuiSessionState.initial();
+            return TuiSessionState.initial(resolveDefaultRepoPath());
         }
-        return state.sessions().getOrDefault(state.activeSessionId(), TuiSessionState.initial());
+        return state.sessions().getOrDefault(state.activeSessionId(), TuiSessionState.initial(resolveDefaultRepoPath()));
     }
 
     private void publishInteraction(Events.TuiInteractionEvent event) {
@@ -317,7 +330,7 @@ public class TuiSession implements EventListener {
             return null;
         }
 
-        if (handlePendingPermissions(text.trim()) || handlePendingInterrupts(text.trim())) {
+        if (handlePendingPermissions(currentSession, text.trim()) || handlePendingInterrupts(currentSession, text.trim())) {
             return null;
         }
 
@@ -333,13 +346,14 @@ public class TuiSession implements EventListener {
         if (goalStarter == null || sessionIdToReplace == null) {
             return;
         }
-        String startedNodeId = goalStarter.startGoal(goal);
+        String repo = resolveRepoForSession(sessionIdToReplace);
+        String startedNodeId = goalStarter.startGoal(repo, goal);
         if (startedNodeId == null || startedNodeId.isBlank()) {
             return;
         }
 
         Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState existing = sessions.getOrDefault(sessionIdToReplace, TuiSessionState.initial());
+        TuiSessionState existing = sessions.getOrDefault(sessionIdToReplace, TuiSessionState.initial(resolveDefaultRepoPath()));
         sessions.remove(sessionIdToReplace);
         sessions.put(startedNodeId, existing);
 
@@ -356,28 +370,49 @@ public class TuiSession implements EventListener {
 
         activeSessionId = startedNodeId;
         activeNodeId = startedNodeId;
-        state = new TuiState(
-                state.sessionId(),
-                startedNodeId,
-                List.copyOf(order),
-                sessions,
-                TuiFocus.CHAT_INPUT,
-                state.chatScrollOffset()
-        );
+        state = state.toBuilder()
+                .activeSessionId(startedNodeId)
+                .sessionOrder(List.copyOf(order))
+                .sessions(sessions)
+                .focus(TuiFocus.CHAT_INPUT)
+                .build();
     }
 
-    private boolean handlePendingPermissions(String input) {
-        List<IPermissionGate.PendingPermissionRequest> pending = permissionGateAdapter.pendingPermissionRequests();
-        if (pending == null || pending.isEmpty()) {
+    private Path normalizeRepoPath(Path repoPath) {
+        if (repoPath == null) {
+            return null;
+        }
+        return repoPath.toAbsolutePath().normalize();
+    }
+
+    private Path resolveDefaultRepoPath() {
+        if (defaultRepoPath != null) {
+            return defaultRepoPath;
+        }
+        return Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+    }
+
+    private String resolveRepoForSession(String sessionId) {
+        if (state != null && sessionId != null) {
+            TuiSessionState sessionState = state.sessions().get(sessionId);
+            if (sessionState != null && sessionState.repo() != null) {
+                return sessionState.repo().toString();
+            }
+        }
+        return resolveDefaultRepoPath().toString();
+    }
+
+    private boolean handlePendingPermissions(String sessionId, String input) {
+        IPermissionGate.PendingPermissionRequest request = findPendingPermissionForSession(sessionId);
+        if (request == null) {
             return false;
         }
-        IPermissionGate.PendingPermissionRequest request = pending.get(0);
         if ("cancel".equalsIgnoreCase(input)) {
             permissionGateAdapter.resolveCancelled(request.getRequestId());
             return true;
         }
         List<com.agentclientprotocol.model.PermissionOption> options = request.getPermissions();
-        if (options != null && !options.isEmpty()) {
+        if (!options.isEmpty()) {
             try {
                 int index = Integer.parseInt(input);
                 if (index >= 1 && index <= options.size()) {
@@ -391,12 +426,11 @@ public class TuiSession implements EventListener {
         return true;
     }
 
-    private boolean handlePendingInterrupts(String input) {
-        List<IPermissionGate.PendingInterruptRequest> pending = permissionGateAdapter.pendingInterruptRequests();
-        if (pending == null || pending.isEmpty()) {
+    private boolean handlePendingInterrupts(String sessionId, String input) {
+        IPermissionGate.PendingInterruptRequest request = findPendingInterruptForSession(sessionId);
+        if (request == null) {
             return false;
         }
-        IPermissionGate.PendingInterruptRequest request = pending.get(0);
         String resolutionType;
         String resolutionNotes;
         if (input.isBlank()) {
@@ -413,6 +447,58 @@ public class TuiSession implements EventListener {
         return true;
     }
 
+    private IPermissionGate.PendingPermissionRequest findPendingPermissionForSession(String sessionId) {
+        List<IPermissionGate.PendingPermissionRequest> pending = permissionGateAdapter.pendingPermissionRequests();
+        if (pending == null || pending.isEmpty()) {
+            return null;
+        }
+        String sessionRoot = resolveRootNodeId(sessionId);
+        for (IPermissionGate.PendingPermissionRequest request : pending) {
+            if (matchesSessionRoot(sessionRoot, request.getOriginNodeId())
+                    || matchesSessionRoot(sessionRoot, request.getNodeId())) {
+                return request;
+            }
+        }
+        return null;
+    }
+
+    private IPermissionGate.PendingInterruptRequest findPendingInterruptForSession(String sessionId) {
+        List<IPermissionGate.PendingInterruptRequest> pending = permissionGateAdapter.pendingInterruptRequests();
+        if (pending == null || pending.isEmpty()) {
+            return null;
+        }
+        String sessionRoot = resolveRootNodeId(sessionId);
+        for (IPermissionGate.PendingInterruptRequest request : pending) {
+            if (matchesSessionRoot(sessionRoot, request.getOriginNodeId())) {
+                return request;
+            }
+        }
+        return null;
+    }
+
+    private boolean matchesSessionRoot(String sessionRoot, String nodeId) {
+        if (sessionRoot == null || sessionRoot.isBlank() || nodeId == null || nodeId.isBlank()) {
+            return false;
+        }
+        return sessionRoot.equals(resolveRootNodeId(nodeId));
+    }
+
+    private String resolveRootNodeId(String nodeId) {
+        if (nodeId == null || nodeId.isBlank()) {
+            return null;
+        }
+        try {
+            ArtifactKey artifactKey = new ArtifactKey(nodeId);
+            if (artifactKey.isRoot()) {
+                return artifactKey.value();
+            }
+
+            return artifactKey.root().value();
+        } catch (Exception ignored) {
+            return nodeId;
+        }
+    }
+
     private String resolveSessionId(Events.GraphEvent event) {
         if (event instanceof Events.TuiInteractionGraphEvent interaction) {
             return interaction.sessionId();
@@ -421,11 +507,7 @@ public class TuiSession implements EventListener {
         if (nodeId == null || nodeId.isBlank()) {
             return state == null ? activeSessionId : state.activeSessionId();
         }
-        try {
-            return new ArtifactKey(nodeId).root().value();
-        } catch (Exception ignored) {
-            return nodeId;
-        }
+        return resolveRootNodeId(nodeId);
     }
 
     private void moveSessionSelection(int delta) {

@@ -7,26 +7,31 @@ import org.springframework.shell.component.view.screen.Screen;
 import org.springframework.shell.geom.Position;
 import org.springframework.shell.geom.Rectangle;
 
+import java.nio.file.Path;
 import java.util.List;
 
 @Slf4j
 class TuiChatView extends InputView {
 
+    private final Path initialRepoPath;
     private TuiState state = null;
-    private TuiSessionState sessionState = TuiSessionState.initial();
+    private TuiSessionState sessionState;
 
-    TuiChatView() {
+    TuiChatView(Path initialRepoPath) {
+        this.initialRepoPath = initialRepoPath;
+        this.sessionState = TuiSessionState.initial(initialRepoPath);
         setShowBorder(true);
     }
 
     void update(TuiState state, TuiSessionState sessionState) {
         this.state = state;
-        this.sessionState = sessionState == null ? TuiSessionState.initial() : sessionState;
+        Path repo = sessionState != null && sessionState.repo() != null ? sessionState.repo() : initialRepoPath;
+        this.sessionState = sessionState == null ? TuiSessionState.initial(repo) : sessionState;
     }
 
     int requiredHeight(int width) {
         ChatLine chatLine = resolveChatLine();
-        int contentWidth = Math.max(1, width - 2);
+        int contentWidth = TuiTextLayout.safeContentWidth(Math.max(1, width - 2));
         List<String> lines = TuiTextLayout.wrapFixed(chatLine.prompt() + chatLine.value(), contentWidth);
         int desired = lines.size() + 2;
         return Math.max(3, Math.min(10, desired));
@@ -55,7 +60,7 @@ class TuiChatView extends InputView {
         super.drawInternal(screen);
 
         Rectangle inner = getInnerRect();
-        int width = Math.max(1, inner.width());
+        int width = TuiTextLayout.safeContentWidth(inner.width());
         int height = Math.max(1, inner.height());
 
         String full = chatLine.prompt() + chatLine.value();

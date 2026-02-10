@@ -491,7 +491,7 @@ public class RequestEnrichment {
     private AgentModels.OrchestratorRequest enrichOrchestratorRequest(
             AgentModels.OrchestratorRequest req, OperationContext context, Artifact.AgentModel parent) {
         var reqBuilder = req.toBuilder();
-        if (req.key() == null && parent == null) {
+        if ((req.key() == null || req.key().value() == null) && parent == null) {
             String processId = context.getProcessContext().getAgentProcess().getId();
             log.error("Orchestrator request key was null. This isnt' supposed to happen. Manually creating ArtifactKey with ID as OperationContext.processId({})",
                     processId);
@@ -795,7 +795,7 @@ public class RequestEnrichment {
      */
     private ArtifactKey findPreviousContextId(BlackboardHistory history, AgentModels.AgentRequest currentRequest) {
         AgentModels.AgentRequest previous = history.getLastOfType(currentRequest.getClass());
-        if (previous != null && previous.contextId() != null) {
+        if (previous != null && (previous.contextId() != null && previous.contextId().value() != null)) {
             return previous.contextId();
         }
         return null;

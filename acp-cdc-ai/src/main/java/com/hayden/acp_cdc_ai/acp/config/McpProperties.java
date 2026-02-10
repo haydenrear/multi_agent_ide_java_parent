@@ -1,5 +1,6 @@
 package com.hayden.acp_cdc_ai.acp.config;
 
+import com.agentclientprotocol.model.EnvVariable;
 import com.agentclientprotocol.model.McpServer;
 import com.hayden.utilitymodule.MapFunctions;
 import com.hayden.utilitymodule.stream.StreamUtil;
@@ -24,11 +25,15 @@ public class McpProperties {
 
     List<McpServer.Stdio> stdio = new ArrayList<>();
 
+    List<StdioValues> stdioValues = new ArrayList<>();
+
     List<McpServer.Http> http = new ArrayList<>();
 
     Map<String, McpServer> collected = new HashMap<>();
 
     boolean enabled = true;
+
+    public record StdioValues(String name, String command, List<Map<String, String>> env, List<String> args) {}
 
     @Setter
     @Getter
@@ -46,6 +51,13 @@ public class McpProperties {
             collected = new HashMap<>();
             return;
         }
+
+        stdio = new ArrayList<>(stdio);
+
+        stdioValues.forEach(s -> stdio.add(new McpServer.Stdio(s.name, s.command, s.args, s.env.stream()
+                .flatMap(e -> e.entrySet().stream())
+                .map(e -> new EnvVariable(e.getKey(), e.getValue(), null)).toList())));
+
         collected = MapFunctions.CollectMap(
                 Stream.concat(
                             StreamUtil.toStream(stdio),
