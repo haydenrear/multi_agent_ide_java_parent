@@ -1,17 +1,29 @@
 package com.hayden.multiagentidelib.prompt;
 
+import org.springframework.stereotype.Component;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Component
 public class PromptContributorRegistry {
 
     private final List<PromptContributor> contributors;
 
     public PromptContributorRegistry(List<PromptContributor> contributors) {
         this.contributors = contributors != null ? List.copyOf(contributors) : List.of();
+        var contributorMap = this.contributors.stream()
+                .filter(c -> c != null && c.name() != null)
+                .collect(Collectors.toMap(
+                        PromptContributor::name,
+                        contributor -> contributor,
+                        (existing, replacement) -> {
+                            throw new IllegalArgumentException("Failed because found duplicate.");
+                        }
+                ));
     }
 
     public List<PromptContributor> getContributors(PromptContext context) {
@@ -23,7 +35,9 @@ public class PromptContributorRegistry {
                 .collect(Collectors.toMap(
                         PromptContributor::name,
                         contributor -> contributor,
-                        (existing, replacement) -> existing
+                        (existing, replacement) -> {
+                            return existing;
+                        }
                 ));
         List<PromptContributor> filtered = new ArrayList<>(unique.values());
         filtered.removeIf(contributor -> !contributor.isApplicable(context));

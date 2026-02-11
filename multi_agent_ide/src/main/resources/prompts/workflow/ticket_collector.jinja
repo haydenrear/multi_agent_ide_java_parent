@@ -16,14 +16,7 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 
 {% include "workflow/_interrupt_guidance.jinja" %}
 
-Return a routing object with exactly one of:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, completionStatus, followUps, verificationResults }
-- collectorResult: { schemaVersion, resultId, inputs, mergeStrategy, conflictResolutions, aggregatedMetrics, consolidatedOutput, collectorDecision { decisionType, rationale, requestedPhase }, upstreamContextChain, metadata, completionStatus, followUps, ticketCuration }
-- ticketRequest: { goal, discoveryCuration, planningCuration }
-- orchestratorCollectorRequest: { goal, phase }
-- reviewRequest: { content, criteria, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
-- mergerRequest: { mergeContext, mergeSummary, conflictFiles, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
+{% include "workflow/_collector_base.jinja" %}
 
-Happy path guidance:
-- Normally return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "COMPLETE".
-- Do NOT route directly to orchestratorCollectorRequest unless explicitly branching; use collectorResult so the branch handler advances the workflow.
+Happy path: return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "COMPLETE".
+Do NOT route directly to orchestratorCollectorRequest unless explicitly branching; use collectorResult so the branch handler advances the workflow.

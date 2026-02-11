@@ -16,6 +16,7 @@ import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import io.micrometer.common.util.StringUtils;
 import lombok.Builder;
 import lombok.With;
 
@@ -80,6 +81,10 @@ public interface AgentModels {
         WorktreeSandboxContext worktreeContext();
 
         AgentRequest withGoal(String goal);
+
+        default AgentRequest withPhase(String phase) {
+            return this;
+        }
 
         @Override
         default String computeHash(Artifact.HashContext hashContext) {
@@ -224,8 +229,6 @@ public interface AgentModels {
                 List<ConfirmationItem> confirmationItems,
                 @JsonPropertyDescription("Concise context needed to make the decision.")
                 String contextForDecision,
-                @JsonPropertyDescription("Proposed phase decision or outcome.")
-                String phaseDecision,
                 @JsonPropertyDescription("Summary of collector results driving the decision.")
                 String collectorResults,
                 @JsonPropertyDescription("Rationale for advancing or routing back.")
@@ -830,13 +833,11 @@ public interface AgentModels {
     record TicketOrchestratorResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
-            @JsonPropertyDescription("Upstream context id driving this result.")
-            ArtifactKey upstreamArtifactKey,
             @JsonPropertyDescription("Human-readable summary output.")
             String output
     ) implements AgentResult {
         public TicketOrchestratorResult(String output) {
-            this(null, null, output);
+            this(null, output);
         }
 
         @Override
@@ -856,8 +857,6 @@ public interface AgentModels {
     record DiscoveryAgentResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
-            @JsonPropertyDescription("Upstream context id driving this result.")
-            ArtifactKey upstreamArtifactKey,
             @JsonPropertyDescription("Structured discovery report.")
             DiscoveryReport report,
             @JsonPropertyDescription("Human-readable summary output.")
@@ -883,7 +882,7 @@ public interface AgentModels {
         }
 
         public DiscoveryAgentResult(String output) {
-            this(null, null, null, output, null);
+            this(null, null, output, null);
         }
 
         @Override
@@ -908,10 +907,6 @@ public interface AgentModels {
     record PlanningAgentResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
-            @JsonPropertyDescription("Upstream context id driving this result.")
-            ArtifactKey upstreamArtifactKey,
-            @JsonPropertyDescription("Discovery result id referenced during planning.")
-            ArtifactKey discoveryResultId,
             @JsonPropertyDescription("Proposed planning tickets.")
             List<PlanningTicket> tickets,
             @JsonPropertyDescription("Human-readable summary output.")
@@ -941,7 +936,7 @@ public interface AgentModels {
         }
 
         public PlanningAgentResult(String output) {
-            this(null, null, null, null, output, null);
+            this(null, null, output, null);
         }
 
         @Override
@@ -972,12 +967,8 @@ public interface AgentModels {
     record TicketAgentResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
-            @JsonPropertyDescription("Upstream context id driving this result.")
-            ArtifactKey upstreamArtifactKey,
             @JsonPropertyDescription("Ticket identifier being implemented.")
             String ticketId,
-            @JsonPropertyDescription("Discovery result id referenced during execution.")
-            ArtifactKey discoveryResultId,
             @JsonPropertyDescription("Summary of implementation completed.")
             String implementationSummary,
             @JsonPropertyDescription("Files modified during execution.")
@@ -988,8 +979,6 @@ public interface AgentModels {
             List<String> commits,
             @JsonPropertyDescription("Verification status summary.")
             String verificationStatus,
-            @JsonPropertyDescription("Full upstream context chain for traceability.")
-            List<ArtifactKey> upstreamContextChain,
             @JsonPropertyDescription("Memory references used during execution.")
             List<MemoryReference> memoryReferences,
             @JsonPropertyDescription("Human-readable summary output.")
@@ -998,7 +987,7 @@ public interface AgentModels {
             MergeDescriptor mergeDescriptor
     ) implements AgentResult {
         public TicketAgentResult(String output) {
-            this(null, null, null, null, null, null, null, null, null, null, null, output, null);
+            this(null, null, null, null, null, null, null, null, output, null);
         }
 
         @Override
@@ -1028,7 +1017,6 @@ public interface AgentModels {
     @With
     record ReviewAgentResult(
             ArtifactKey contextId,
-            ArtifactKey upstreamArtifactKey,
             String assessmentStatus,
             String feedback,
             List<String> suggestions,
@@ -1036,7 +1024,7 @@ public interface AgentModels {
             String output
     ) implements AgentResult {
         public ReviewAgentResult(String output) {
-            this(null, null, null, output, null, null, output);
+            this(null, null, output, null, null, output);
         }
 
         @Override
@@ -1079,8 +1067,6 @@ public interface AgentModels {
     record MergerAgentResult(
             @JsonPropertyDescription("Unique context id for this result.")
             ArtifactKey contextId,
-            @JsonPropertyDescription("Upstream context id driving this result.")
-            ArtifactKey upstreamArtifactKey,
             @JsonPropertyDescription("Acceptability assessment of the merge.")
             String acceptability,
             @JsonPropertyDescription("Conflict details identified during review.")
@@ -1091,7 +1077,7 @@ public interface AgentModels {
             String output
     ) implements AgentResult {
         public MergerAgentResult(String output) {
-            this(null, null, null, null, null, output);
+            this(null, null, null, null, output);
         }
 
         @Override
@@ -2217,6 +2203,9 @@ public interface AgentModels {
                 }
                 builder.append("Phase: ").append(phase.trim());
             }
+            if (StringUtils.isNotBlank(feedback)) {
+                builder.append("Feedback resolved from interrupt: ").append(feedback.trim());
+            }
             return builder.isEmpty() ? "Goal: (none)" : builder.toString();
         }
 
@@ -2227,6 +2216,7 @@ public interface AgentModels {
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyLine(builder, "Goal", goal);
             appendPrettyLine(builder, "Phase", phase);
+            appendPrettyLine(builder, "Interrupt Feedback Resolutions", feedback);
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
             appendPrettyContext(builder, "Planning Curation", planningCuration);
             appendPrettyContext(builder, "Ticket Curation", ticketCuration);
@@ -2367,13 +2357,11 @@ public interface AgentModels {
             OrchestratorCollectorRequest collectorRequest,
             @JsonPropertyDescription("Route to discovery orchestrator.")
             DiscoveryOrchestratorRequest discoveryOrchestratorRequest,
-            @JsonPropertyDescription("Route to parent orchestrator.")
-            OrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
         public OrchestratorRouting(InterruptRequest.OrchestratorInterruptRequest interruptRequest, OrchestratorCollectorRequest collectorRequest) {
-            this(interruptRequest, collectorRequest, null, null, null);
+            this(interruptRequest, collectorRequest, null, null);
         }
     }
 
@@ -2457,7 +2445,12 @@ public interface AgentModels {
 
         @Override
         public String prettyPrintInterruptContinuation() {
-            return goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
+            StringBuilder sb = new StringBuilder();
+            if (StringUtils.isNotBlank(feedback)) {
+                sb.append("Feedback resolved from interrupt: ").append(feedback.trim());
+            }
+            sb.append(goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim());
+            return sb.toString();
         }
 
         @Override
@@ -2466,6 +2459,7 @@ public interface AgentModels {
             appendPrettyLine(builder, "Context Id", contextId);
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Interrupt Feedback Resolutions", feedback);
             appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
@@ -2859,7 +2853,12 @@ public interface AgentModels {
 
         @Override
         public String prettyPrintInterruptContinuation() {
-            return goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
+            StringBuilder sb = new StringBuilder();
+            if (StringUtils.isNotBlank(feedback)) {
+                sb.append("Feedback resolved from interrupt: ").append(feedback.trim());
+            }
+            sb.append(goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim());
+            return sb.toString();
         }
 
         @Override
@@ -2868,6 +2867,7 @@ public interface AgentModels {
             appendPrettyLine(builder, "Context Id", contextId);
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Interrupt Feedback Resolutions", feedback);
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
             appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
@@ -2923,7 +2923,9 @@ public interface AgentModels {
 
         @Override
         public String prettyPrintInterruptContinuation() {
-            return goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
+            StringBuilder sb = new StringBuilder();
+            sb.append(goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim());
+            return sb.toString();
         }
 
         @Override
@@ -3146,8 +3148,6 @@ public interface AgentModels {
     record PlanningOrchestratorRouting(
             @JsonPropertyDescription("Interrupt request for planning orchestration decisions.")
             InterruptRequest.PlanningOrchestratorInterruptRequest interruptRequest,
-            @JsonPropertyDescription("Route back to the planning orchestrator.")
-            PlanningOrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Delegation payload for planning agents.")
             PlanningAgentRequests agentRequests,
             @JsonPropertyDescription("Route to planning collector.")
@@ -3267,7 +3267,9 @@ public interface AgentModels {
 
         @Override
         public String prettyPrintInterruptContinuation() {
-            return goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
+            var g = goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
+            var f = StringUtils.isNotBlank(feedback) ? "Interrupt Feedback Resolutions (none)" : "Interrupt Feedback Resolutions: " + feedback.trim();
+            return g + "\n" + f;
         }
 
         @Override
@@ -3276,6 +3278,7 @@ public interface AgentModels {
             appendPrettyLine(builder, "Context Id", contextId);
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Interrupt Feedback Resolutions", feedback);
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
             appendPrettyContext(builder, "Planning Curation", planningCuration);
             appendPrettyContext(builder, "Previous Context", previousContext);
@@ -3590,8 +3593,6 @@ public interface AgentModels {
             TicketAgentRequests agentRequests,
             @JsonPropertyDescription("Route to ticket collector.")
             TicketCollectorRequest collectorRequest,
-            @JsonPropertyDescription("Route to ticket orchestrator.")
-            TicketOrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {

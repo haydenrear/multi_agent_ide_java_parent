@@ -206,6 +206,23 @@ public class ComputationGraphOrchestrator {
         eventBus.publish(event);
     }
 
+    public void emitInterruptResolved(
+            String nodeId,
+            String interruptId,
+             Events.InterruptType reviewType,
+            String content
+    ) {
+        Events.ResolveInterruptEvent event = new Events.ResolveInterruptEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                nodeId,
+                interruptId,
+                content,
+                reviewType
+        );
+        eventBus.publish(event);
+    }
+
     public void emitReviewRequestedEvent(
             String nodeId,
             String reviewNodeId,

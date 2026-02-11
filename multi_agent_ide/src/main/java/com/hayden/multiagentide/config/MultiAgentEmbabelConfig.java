@@ -44,7 +44,7 @@ import java.util.Optional;
 @Slf4j
 @Configuration
 @EnableConfigurationProperties({AcpModelProperties.class, McpProperties.class})
-@ComponentScan(basePackages = "com.hayden.acp_cdc_ai")
+@ComponentScan(basePackages = {"com.hayden.acp_cdc_ai"})
 public class MultiAgentEmbabelConfig {
 
     @Value("${multi-agent-embabel.chat-model.provider:acp}")

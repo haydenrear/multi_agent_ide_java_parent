@@ -19,8 +19,3 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 - Unsure about safety/risk of changes or migration steps
 
 {% include "workflow/_interrupt_guidance.jinja" %}
-
-Return a routing object with exactly one of:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, implementationApproach, fileChanges, filesToModify, testStrategies }
-- agentResult: { schemaVersion, resultId, upstreamContextId, ticketId, discoveryResultId, implementationSummary, filesModified, testResults, commits, verificationStatus, upstreamContextChain, output }
-- interruptState: { request: { type, reason, contextForDecision, choices, confirmationItems, implementationApproach, fileChanges, filesToModify, testStrategies } }

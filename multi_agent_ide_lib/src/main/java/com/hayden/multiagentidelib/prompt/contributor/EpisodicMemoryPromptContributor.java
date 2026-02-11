@@ -3,9 +3,11 @@ package com.hayden.multiagentidelib.prompt.contributor;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
+@Component
 public class EpisodicMemoryPromptContributor implements PromptContributor {
 
     @Override

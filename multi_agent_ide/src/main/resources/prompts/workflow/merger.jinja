@@ -20,10 +20,3 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 - Missing context about the intended behavior or design
 
 {% include "workflow/_interrupt_guidance.jinja" %}
-
-Return a routing object with:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, conflictFiles, resolutionStrategies, mergeApproach }
-- mergerResult: { schemaVersion, resultId, upstreamContextId, acceptability, conflictDetails, resolutionGuidance, output }
-- one return route matching the provided returnTo*Collector field:
-  orchestratorCollectorRequest | discoveryCollectorRequest | planningCollectorRequest |
-  ticketCollectorRequest | contextCollectorRequest

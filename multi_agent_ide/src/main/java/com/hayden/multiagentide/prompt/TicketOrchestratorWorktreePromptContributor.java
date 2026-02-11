@@ -5,7 +5,9 @@ import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import org.springframework.stereotype.Component;
 
+@Component
 public class TicketOrchestratorWorktreePromptContributor implements PromptContributor {
 
     private static final String TEMPLATE = """

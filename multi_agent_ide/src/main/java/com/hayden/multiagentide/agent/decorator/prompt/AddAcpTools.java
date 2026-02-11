@@ -1,21 +1,14 @@
 package com.hayden.multiagentide.agent.decorator.prompt;
 
 import com.hayden.multiagentide.agent.AcpTooling;
-import com.hayden.multiagentide.tool.EmbabelToolObjectRegistry;
 import com.hayden.multiagentide.tool.ToolAbstraction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
-import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Predicate;
 
 @Slf4j
 @Component

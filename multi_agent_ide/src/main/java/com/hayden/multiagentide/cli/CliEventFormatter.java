@@ -374,7 +374,6 @@ public class CliEventFormatter {
                             + " goal=" + summarize(args, r.goal());
             case AgentModels.InterruptRequest.OrchestratorCollectorInterruptRequest r ->
                     "OrchestratorCollectorInterruptRequest " + base
-                            + " phaseDecision=" + summarize(args, r.phaseDecision())
                             + " phaseOptions=" + countOf(r.phaseOptions());
             case AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest r ->
                     "DiscoveryOrchestratorInterruptRequest " + base

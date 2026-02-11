@@ -1,6 +1,7 @@
 Orchestrate ticket-based implementation for the following tickets:
 
 Goal: {{ goal }}
+Phase: {{ phase }}
 
 Coordinate execution of each ticket:
 1. Determine ticket execution order and dependencies
@@ -15,9 +16,3 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 - Unsure whether to route to collector vs. request more execution
 
 {% include "workflow/_interrupt_guidance.jinja" %}
-
-Return a routing object with exactly one of:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, implementationScope, planningContextUsage, executionStrategy }
-- agentRequests: { requests: [ { ticketDetails, ticketDetailsFilePath, discoveryCuration, planningCuration } ] }
-- collectorRequest: { goal, ticketResults }
-- delegation fields: { schemaVersion, resultId, upstreamContextId, goal, delegationRationale, assignments, contextSelections, metadata }

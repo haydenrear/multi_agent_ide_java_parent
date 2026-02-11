@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.agent.decorator.prompt;
 
-import com.hayden.multiagentide.tool.EmbabelToolObjectRegistry;
+import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.multiagentide.tool.ToolAbstraction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +19,8 @@ import java.util.function.Predicate;
 @RequiredArgsConstructor
 public class AddMemoryToolCallDecorator implements LlmCallDecorator {
 
-    private final EmbabelToolObjectRegistry toolObjectRegistry;
+    private final McpToolObjectRegistrar toolObjectRegistry;
+
 
     @Override
     public int order() {

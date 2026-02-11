@@ -5,6 +5,7 @@ import com.hayden.multiagentidelib.agent.AgentType;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.util.Comparator;
 import java.util.List;
@@ -50,7 +51,7 @@ public class PromptContributorService {
 
     private @NonNull List<ContextualPromptElement> retrievePromptContributors(PromptContext promptContext) {
         List<PromptContributor> contributors = new java.util.ArrayList<>(registry.getContributors(promptContext));
-        if (factories != null && !factories.isEmpty()) {
+        if (!CollectionUtils.isEmpty(factories)) {
             for (PromptContributorFactory factory : factories) {
                 if (factory == null) {
                     continue;

@@ -32,7 +32,6 @@ interface IPermissionGate {
 
     data class InterruptResult(
             val contextId: ArtifactKey,
-            val upstreamArtifactKey: ArtifactKey,
             val assessmentStatus: String?,
             val feedback: String?,
             val suggestions: List<String>,

@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 import java.util.stream.Stream;
@@ -22,8 +23,6 @@ import java.util.stream.Stream;
 @Slf4j
 @Data
 public class McpProperties {
-
-    List<McpServer.Stdio> stdio = new ArrayList<>();
 
     List<StdioValues> stdioValues = new ArrayList<>();
 
@@ -43,16 +42,25 @@ public class McpProperties {
         return enableSelf;
     }
 
-    @PostConstruct
+    public Map<String, McpServer> getCollected() {
+        if (!CollectionUtils.isEmpty(collected)) {
+            return collected;
+        }
+
+        after();
+
+        return collected;
+    }
+
     public void after() {
         if (!enabled) {
             http = new ArrayList<>();
-            stdio = new ArrayList<>();
+            stdioValues = new ArrayList<>();
             collected = new HashMap<>();
             return;
         }
 
-        stdio = new ArrayList<>(stdio);
+        var stdio = new ArrayList<McpServer.Stdio>();
 
         stdioValues.forEach(s -> stdio.add(new McpServer.Stdio(s.name, s.command, s.args, s.env.stream()
                 .flatMap(e -> e.entrySet().stream())

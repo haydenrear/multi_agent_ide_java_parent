@@ -146,11 +146,6 @@ public interface Events {
                         line("timestamp", e.timestamp()),
                         line("nodeId", e.nodeId()),
                         block("message", e.message()));
-                case ResolveInterruptEvent e -> formatEvent("Resolve Interrupt Event", e.eventType(),
-                        line("eventId", e.eventId()),
-                        line("timestamp", e.timestamp()),
-                        line("nodeId", e.nodeId()),
-                        block("toAddMessage", e.toAddMessage()));
                 case AddMessageEvent e -> formatEvent("Add Message Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
@@ -191,6 +186,12 @@ public interface Events {
                         line("reviewNodeId", e.reviewNodeId()),
                         line("reviewType", e.reviewType()),
                         block("contentToReview", e.contentToReview()));
+                case ResolveInterruptEvent e -> formatEvent("Interrupt Resolved Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("interruptType", e.interruptType),
+                        block("resolution", e.toAddMessage));
                 case InterruptStatusEvent e -> formatEvent("Interrupt Status Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
@@ -558,7 +559,9 @@ public interface Events {
             String eventId,
             Instant timestamp,
             String nodeId,
-            String toAddMessage
+            String interruptId,
+            String toAddMessage,
+            InterruptType interruptType
     ) implements AgentEvent {
         @Override
         public String eventType() {

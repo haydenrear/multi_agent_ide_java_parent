@@ -9,7 +9,9 @@ import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import com.hayden.multiagentidelib.prompt.SimplePromptContributor;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -29,7 +31,12 @@ public class HistoryPromptContributorFactory implements PromptContributorFactory
                     new FirstOrchestratorRequestPromptContributor(r)
             );
         }
+
+        if (context.currentRequest() instanceof AgentModels.InterruptRequest)
+            return new ArrayList<>();
+
         AgentModels.InterruptRequest interruptDescriptor = findLastInterrupt(context.blackboardHistory());
+
         if (interruptDescriptor == null) {
             return List.of();
         }
@@ -117,26 +124,37 @@ public class HistoryPromptContributorFactory implements PromptContributorFactory
         builder.append(interrupt.prettyPrint(new AgentContext.AgentSerializationCtx.InterruptSerialization()));
         appendSection(builder, "Before Interrupt", formatRequestSummary(previousRequest));
         appendSection(builder, "After Interrupt", formatRequestSummary(request));
+        appendSection(builder, "Instructions", """
+                Now that we have routed to an interrupt and been routed back with the desired information, please continue the process to the next agent,
+                as desired by the standard workflow.
+                """);
         return builder.toString().trim();
     }
 
     private AgentModels.InterruptRequest findLastInterrupt(BlackboardHistory history) {
+        if (history == null)
+            return null;
+
         var e = history.copyOfEntries();
-        if (history == null || e == null) {
+
+        if (!CollectionUtils.isEmpty(e)) {
             return null;
         }
+
         List<BlackboardHistory.Entry> entries = e;
-        for (int i = entries.size() - 1; i >= 0; i--) {
-            BlackboardHistory.Entry entry = entries.get(i);
-            Object input = entryInput(entry);
-            if (input == null) {
-                continue;
-            }
-            if (input instanceof AgentModels.InterruptRequest interrupt) {
-                return interrupt;
-            }
+
+        if (entries.size() == 1)
+            return null;
+
+        if (entries.get(entries.size() - 2) == null) {
+            return null;
         }
-        return null;
+
+        if (!(entries.get(entries.size() - 2).input() instanceof AgentModels.InterruptRequest)) {
+            return null;
+        }
+
+        return (AgentModels.InterruptRequest) entries.get(entries.size() - 2).input();
     }
 
     private Object findPreviousNonInterrupt(List<BlackboardHistory.Entry> entries) {

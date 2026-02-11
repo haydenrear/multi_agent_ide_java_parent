@@ -303,7 +303,13 @@ public interface AgentInterfaces {
                     lastRequest
             );
 
-            Map<String, Object> model = Map.of("reason", loopSummary);
+            Map<String, Object> model = new HashMap<>(Map.of(
+                    "reason",
+                    loopSummary));
+
+            Optional.ofNullable(request.goal())
+                            .ifPresent(g -> model.put("goal", g));
+
             PromptContext promptContext = buildPromptContext(
                     AgentType.CONTEXT_MANAGER,
                     request,
@@ -385,7 +391,12 @@ public interface AgentInterfaces {
                     lastRequest
             );
 
-            Map<String, Object> model = Map.of("reason", loopSummary);
+            Map<String, Object> model = new HashMap<>(Map.of(
+                    "reason",
+                    loopSummary));
+
+            Optional.ofNullable(request.goal())
+                    .ifPresent(g -> model.put("goal", g));
             PromptContext promptContext = buildPromptContext(
                     AgentType.CONTEXT_MANAGER,
                     request,
@@ -689,7 +700,7 @@ public interface AgentInterfaces {
         }
 
         /**
-         * Build prompt context by extracting upstream contexts from typed curation fields on the input.
+         * Build prompt context by extracting upstream prev from typed curation fields on the input.
          * Delegates to PromptContextFactory for pattern matching logic.
          */
         private PromptContext buildPromptContext(
@@ -1067,7 +1078,7 @@ public interface AgentInterfaces {
 
 
         @Action(canRerun = true, cost = 1)
-        public AgentModels.OrchestratorRouting handleOrchestratorInterrupt(
+        public AgentModels.OrchestratorRequest handleOrchestratorInterrupt(
                 AgentModels.InterruptRequest.OrchestratorInterruptRequest request,
                 OperationContext context
         ) {
@@ -1118,10 +1129,8 @@ public interface AgentInterfaces {
                     model,
                     AgentModels.OrchestratorRequest.class
             );
-            return AgentInterfaces.decorateRouting(
-                    AgentModels.OrchestratorRouting.builder()
-                            .orchestratorRequest(resumed)
-                            .build(),
+            return AgentInterfaces.decorateRequestResult(
+                    resumed,
                     context,
                     resultDecorators,
                     multiAgentAgentName(),
@@ -1156,7 +1165,10 @@ public interface AgentInterfaces {
                     METHOD_KICK_OFF_ANY_NUMBER_OF_AGENTS_FOR_CODE_SEARCH,
                     lastRequest
             );
-            Map<String, Object> model = Map.of("goal", input.goal());
+            var model = new HashMap<String, Object>();
+            model.put("goal", input.goal());
+            Optional.ofNullable(lastRequest.phase())
+                    .ifPresent(p -> model.put("phase", p));
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.DISCOVERY_ORCHESTRATOR,
@@ -1312,7 +1324,7 @@ public interface AgentInterfaces {
         }
 
         @Action(canRerun = true, cost = 1.0)
-        public AgentModels.DiscoveryOrchestratorRouting handleDiscoveryInterrupt(
+        public AgentModels.DiscoveryOrchestratorRequest handleDiscoveryInterrupt(
                 AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest request,
                 OperationContext context
         ) {
@@ -1362,10 +1374,8 @@ public interface AgentInterfaces {
                     model,
                     AgentModels.DiscoveryOrchestratorRequest.class
             );
-            return AgentInterfaces.decorateRouting(
-                    AgentModels.DiscoveryOrchestratorRouting.builder()
-                            .orchestratorRequest(routing)
-                            .build(),
+            return AgentInterfaces.decorateRequestResult(
+                    routing,
                     context,
                     resultDecorators,
                     multiAgentAgentName(),
@@ -1399,7 +1409,13 @@ public interface AgentInterfaces {
                     METHOD_DECOMPOSE_PLAN_AND_CREATE_WORK_ITEMS,
                     lastRequest
             );
-            Map<String, Object> model = Map.of("goal", input.goal());
+            var model = new HashMap<String, Object>();
+
+
+            Optional.ofNullable(input.goal())
+                    .ifPresent(p -> model.put("goal", p));
+            Optional.ofNullable(input.goal())
+                    .ifPresent(p -> model.put("phase", p));
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.PLANNING_ORCHESTRATOR,
@@ -1468,7 +1484,7 @@ public interface AgentInterfaces {
                     lastRequest
             );
 
-            String goal = resolvePlanningGoal(context, input);
+            String goal = input.goal();
 
             var planningDispatchAgent = context.agentPlatform().agents()
                     .stream().filter(a -> Objects.equals(a.getName(), AgentInterfaces.WORKFLOW_PLANNING_DISPATCH_SUBAGENT))
@@ -1519,12 +1535,11 @@ public interface AgentInterfaces {
                     lastRequest
             );
 
-            Map<String, Object> model = Map.of(
-                    "goal",
-                    goal,
-                    "planningResults",
-                    planningAgentResults.prettyPrint(new AgentContext.AgentSerializationCtx.ResultsSerialization())
-            );
+            Map<String, Object> model = new HashMap<>();
+
+            Optional.ofNullable(goal)
+                    .ifPresent(g -> model.put("goal", g));
+            model.put("planningResults", planningAgentResults.prettyPrint(new AgentContext.AgentSerializationCtx.ResultsSerialization()));
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.PLANNING_AGENT_DISPATCH,
@@ -1569,7 +1584,7 @@ public interface AgentInterfaces {
         }
 
         @Action(canRerun = true, cost = 1.0)
-        public AgentModels.PlanningOrchestratorRouting handlePlanningInterrupt(
+        public AgentModels.PlanningOrchestratorRequest handlePlanningInterrupt(
                 AgentModels.InterruptRequest.PlanningOrchestratorInterruptRequest request,
                 OperationContext context
         ) {
@@ -1600,7 +1615,10 @@ public interface AgentInterfaces {
                     lastRequest
             );
 
-            Map<String, Object> model = Map.of("goal", lastRequest.goal());
+            Map<String, Object> model = new HashMap<>();
+
+            Optional.ofNullable(lastRequest.goal())
+                    .ifPresent(g -> model.put("goal", g));
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.PLANNING_ORCHESTRATOR,
@@ -1622,10 +1640,10 @@ public interface AgentInterfaces {
                     model,
                     AgentModels.PlanningOrchestratorRequest.class
             );
-            return AgentInterfaces.decorateRouting(
-                    AgentModels.PlanningOrchestratorRouting.builder()
-                            .orchestratorRequest(routing)
-                            .build(),
+
+
+            return AgentInterfaces.decorateRequestResult(
+                    routing,
                     context,
                     resultDecorators,
                     multiAgentAgentName(),
@@ -1760,7 +1778,9 @@ public interface AgentInterfaces {
                     lastRequest
             );
 
-            String goal = resolveTicketGoal(context, input);
+            String goal =  Optional.ofNullable(input.goal())
+                    .or(() -> Optional.ofNullable(lastRequest.goal()))
+                    .orElse("");
 
             List<AgentModels.TicketAgentResult> ticketResults = new ArrayList<>();
 
@@ -1851,7 +1871,7 @@ public interface AgentInterfaces {
         }
 
         @Action(canRerun = true, cost = 1.0)
-        public AgentModels.TicketOrchestratorRouting handleTicketInterrupt(
+        public AgentModels.TicketOrchestratorRequest handleTicketInterrupt(
                 AgentModels.InterruptRequest.TicketOrchestratorInterruptRequest request,
                 OperationContext context
         ) {
@@ -1902,10 +1922,8 @@ public interface AgentInterfaces {
                     model,
                     AgentModels.TicketOrchestratorRequest.class
             );
-            return AgentInterfaces.decorateRouting(
-                    AgentModels.TicketOrchestratorRouting.builder()
-                            .orchestratorRequest(routing)
-                            .build(),
+            return AgentInterfaces.decorateRequestResult(
+                    routing,
                     context,
                     resultDecorators,
                     multiAgentAgentName(),
@@ -2503,40 +2521,6 @@ public interface AgentInterfaces {
             }
             AgentModels.DiscoveryOrchestratorRequest orchestratorRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryOrchestratorRequest.class);
-            return firstNonBlank(
-                    orchestratorRequest != null ? orchestratorRequest.goal() : null,
-                    resolveRootGoal(context));
-        }
-
-        private static String resolvePlanningGoal(
-                ActionContext context,
-                AgentModels.PlanningAgentRequests input
-        ) {
-            String resolved = input != null
-                    ? input.prettyPrint(new AgentContext.AgentSerializationCtx.GoalResolutionSerialization())
-                    : "";
-            if (resolved != null && !resolved.isBlank()) {
-                return resolved;
-            }
-            AgentModels.PlanningOrchestratorRequest orchestratorRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningOrchestratorRequest.class);
-            return firstNonBlank(
-                    orchestratorRequest != null ? orchestratorRequest.goal() : null,
-                    resolveRootGoal(context));
-        }
-
-        private static String resolveTicketGoal(
-                ActionContext context,
-                AgentModels.TicketAgentRequests input
-        ) {
-            String resolved = input != null
-                    ? input.prettyPrint(new AgentContext.AgentSerializationCtx.GoalResolutionSerialization())
-                    : "";
-            if (resolved != null && !resolved.isBlank()) {
-                return resolved;
-            }
-            AgentModels.TicketOrchestratorRequest orchestratorRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
             return firstNonBlank(
                     orchestratorRequest != null ? orchestratorRequest.goal() : null,
                     resolveRootGoal(context));

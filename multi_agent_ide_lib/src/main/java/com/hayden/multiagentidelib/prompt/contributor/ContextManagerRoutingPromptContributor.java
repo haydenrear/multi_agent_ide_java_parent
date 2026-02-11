@@ -64,6 +64,7 @@ public class ContextManagerRoutingPromptContributor implements PromptContributor
 
     @Override
     public String contribute(PromptContext context) {
+//        TODO: the context manager prompt should only start to be shown after some loops or danger of loops.
         return template();
     }
 

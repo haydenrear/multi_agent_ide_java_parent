@@ -1,17 +1,25 @@
 package com.hayden.multiagentide.agent.decorator.prompt;
 
-import com.hayden.multiagentide.tool.EmbabelToolObjectRegistry;
+import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.multiagentide.tool.ToolAbstraction;
+import com.hayden.multiagentidelib.prompt.PromptContext;
+import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 @Slf4j
@@ -19,7 +27,12 @@ import java.util.function.Predicate;
 @RequiredArgsConstructor
 public class AddIntellij implements LlmCallDecorator {
 
-    private final EmbabelToolObjectRegistry toolObjectRegistry;
+    private static final String INTELLIJ_TOOL_NAME = "intellij";
+    private static final String INTELLIJ_CLI = "idea";
+    private static final long IDEA_EXIT_CHECK_MILLIS = 300L;
+
+    private final McpToolObjectRegistrar toolObjectRegistry;
+    private final Set<Path> openedWorktreePaths = ConcurrentHashMap.newKeySet();
 
     @Override
     public int order() {
@@ -28,6 +41,7 @@ public class AddIntellij implements LlmCallDecorator {
 
     @Override
     public LlmCallContext decorate(LlmCallContext promptContext) {
+        ensureWorktreeProjectOpened(promptContext);
         var t = withIntellij(promptContext);
 
         return promptContext.toBuilder()
@@ -41,7 +55,7 @@ public class AddIntellij implements LlmCallDecorator {
     private @NonNull List<ToolAbstraction> withIntellij(LlmCallContext promptContext) {
         var t = new ArrayList<>(promptContext.tcc().tools());
 
-        toolObjectRegistry.tool("intellij")
+        toolObjectRegistry.tool(INTELLIJ_TOOL_NAME)
                 .flatMap(to -> {
                     var obj = to.stream().filter(Objects::nonNull)
                             .map(ToolAbstraction.EmbabelToolObject::new).toList();
@@ -51,8 +65,68 @@ public class AddIntellij implements LlmCallDecorator {
                 })
                 .ifPresentOrElse(
                         t::addAll,
-                        () -> log.error("Could not find hindsight tool."));
+                        () -> log.warn(
+                                "Could not find '{}' tool registration. Ensure the IntelliJ MCP server is connected and the worktree project was opened (for example, run `idea .` from the worktree root).",
+                                INTELLIJ_TOOL_NAME));
 
         return t;
+    }
+
+    public void ensureWorktreeProjectOpened(LlmCallContext llmCallContext) {
+        resolveMainWorktreePath(llmCallContext)
+                .map(Path::toAbsolutePath)
+                .map(Path::normalize)
+                .ifPresent(this::openInIntellijIfNeeded);
+    }
+
+    private Optional<Path> resolveMainWorktreePath(LlmCallContext llmCallContext) {
+        return Optional.ofNullable(llmCallContext)
+                .map(LlmCallContext::promptContext)
+                .flatMap(this::resolveMainWorktreePath);
+    }
+
+    private Optional<Path> resolveMainWorktreePath(PromptContext promptContext) {
+        return Optional.ofNullable(promptContext.currentRequest())
+                .map(ar -> ar.worktreeContext())
+                .map(ws -> ws.mainWorktree())
+                .map(main -> main.worktreePath())
+                .or(() -> Optional.ofNullable(promptContext.previousRequest())
+                        .map(ar -> ar.worktreeContext())
+                        .map(ws -> ws.mainWorktree())
+                        .map(main -> main.worktreePath()));
+    }
+
+    public void openInIntellijIfNeeded(Path worktreePath) {
+        if (!Files.isDirectory(worktreePath)) {
+            log.warn("Skipping IntelliJ project open; worktree path is not a directory: {}", worktreePath);
+            return;
+        }
+
+        if (!openedWorktreePaths.add(worktreePath)) {
+            return;
+        }
+
+        try {
+            Process process = new ProcessBuilder(INTELLIJ_CLI, ".")
+                    .directory(worktreePath.toFile())
+                    .start();
+
+            var b = new String(process.getErrorStream().readAllBytes());
+
+            if (StringUtils.isNotBlank(b))
+                log.error("Received err opening intellij: {}", b);
+
+            if (process.waitFor(IDEA_EXIT_CHECK_MILLIS, TimeUnit.MILLISECONDS) && process.exitValue() != 0) {
+                openedWorktreePaths.remove(worktreePath);
+                log.warn("IntelliJ open command exited with code {} for worktree '{}'.", process.exitValue(), worktreePath);
+            }
+        } catch (IOException e) {
+            openedWorktreePaths.remove(worktreePath);
+            log.warn("Failed to run `{} .` from worktree '{}'. Ensure IntelliJ launcher is on PATH.", INTELLIJ_CLI, worktreePath, e);
+        } catch (InterruptedException e) {
+            openedWorktreePaths.remove(worktreePath);
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while trying to open IntelliJ for worktree '{}'.", worktreePath, e);
+        }
     }
 }

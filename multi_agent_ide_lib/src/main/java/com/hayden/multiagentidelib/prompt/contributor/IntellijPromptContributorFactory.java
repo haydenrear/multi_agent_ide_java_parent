@@ -1,13 +1,12 @@
 package com.hayden.multiagentidelib.prompt.contributor;
 
-import com.google.common.collect.Lists;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,16 +15,23 @@ public class IntellijPromptContributorFactory implements PromptContributorFactor
 
     @Override
     public List<PromptContributor> create(PromptContext context) {
-        if (context == null || context.currentRequest() == null) {
+        if (context == null) {
             return List.of();
         }
 
-        return Optional.of(context.currentRequest())
-                .flatMap(ar -> Optional.ofNullable(ar.worktreeContext()))
-                .flatMap(w -> Optional.ofNullable(w.mainWorktree()))
+        return resolveMainWorktree(context)
                 .map(IntellijPromptContributor::new)
-                .map(Lists::<PromptContributor>newArrayList)
-                .orElse(new ArrayList<>());
+                .<List<PromptContributor>>map(List::of)
+                .orElseGet(List::of);
+    }
+
+    private Optional<MainWorktreeContext> resolveMainWorktree(PromptContext context) {
+        return Optional.ofNullable(context.currentRequest())
+                .map(ar -> ar.worktreeContext())
+                .map(WorktreeSandboxContext::mainWorktree)
+                .or(() -> Optional.ofNullable(context.previousRequest())
+                        .map(ar -> ar.worktreeContext())
+                        .map(WorktreeSandboxContext::mainWorktree));
     }
 
     public record IntellijPromptContributor(MainWorktreeContext main) implements PromptContributor {
@@ -45,20 +51,23 @@ public class IntellijPromptContributorFactory implements PromptContributorFactor
             String mainPath = main.worktreePath() != null ? main.worktreePath().toString() : "(unknown)";
             String repoUrl = main.repositoryUrl() != null ? main.repositoryUrl() : "(unknown)";
             return template()
-                    .replace("{{project_path}}", repoUrl)
-                    .replace("{{worktree_path}}", mainPath);
+                    .replace("{{intellij_project_path}}", mainPath)
+                    .replace("{{source_repository_path}}", repoUrl);
         }
 
         @Override
         public String template() {
             return """
-                    When you are using Intellij tool calls, you must reference the project from which this worktree was created.
-                   
-                    Worktree Path (the git worktree path you make changes to): {{worktree_path}}
-                    Original Project Path (project path for Intellij worktree created from): {{project_path}}
-                    
-                    This worktree was created from this project, so when you request information, you request it
-                    from the associated project repository.
+                    For IntelliJ MCP tool calls, always target the worktree project opened in IntelliJ.
+
+                    We run `idea .` from the worktree root, which adds that worktree as a project IntelliJ MCP can query.
+
+                    For every IntelliJ MCP request:
+                    - Set `projectPath` to the worktree path below.
+                    - Do not set `projectPath` to the original repository path.
+
+                    Worktree path (use this as `projectPath`): {{intellij_project_path}}
+                    Original repository path (reference only): {{source_repository_path}}
                     """;
         }
 

@@ -1,5 +1,7 @@
 Decompose the planning for the goal according to the results from discovery.
-Define tickets and update the spec file in .specify/.../spec.md.
+
+Goal: {{ goal }}
+Phase: {{ phase }}
 
 If you are uncertain or need confirmation, return an interruptRequest when:
 - Unsure how to decompose the goal into tickets or phases
@@ -8,10 +10,3 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 - Unsure about high-level architecture direction for planning
 
 {% include "workflow/_interrupt_guidance.jinja" %}
-
-Return a routing object with exactly one of:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, ticketDecomposition, ticketBreakdownStrategy, discoveryContextUsage, planningScope }
-- agentRequests: { requests: [ { goal } ] }
-- collectorRequest: { goal, planningResults }
-
-Goal: {{ goal }}

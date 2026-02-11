@@ -19,16 +19,15 @@ import com.embabel.agent.core.ProcessOptions;
 import com.embabel.chat.support.InMemoryConversation;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository;
 import com.hayden.acp_cdc_ai.sandbox.SandboxContext;
 import com.hayden.multiagentide.agent.AgentLifecycleHandler;
 import com.hayden.multiagentide.controller.OrchestrationController;
 import com.hayden.multiagentide.repository.EventStreamRepository;
-import com.hayden.multiagentide.tool.EmbabelToolObjectRegistry;
 import com.hayden.multiagentide.gate.PermissionGateAdapter;
 import com.hayden.multiagentide.agent.AcpTooling;
+import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.multiagentidelib.agent.AgentTools;
 import com.hayden.acp_cdc_ai.acp.AcpChatModel;
 import com.hayden.utilitymodule.config.EnvConfigProps;
@@ -37,11 +36,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -56,6 +57,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
 @ActiveProfiles("goose")
+@ExtendWith(SpringExtension.class)
 @TestPropertySource(properties = {"spring.ai.mcp.server.stdio=false"})
 class AcpChatModelCodexIntegrationTest {
 
@@ -72,7 +74,7 @@ class AcpChatModelCodexIntegrationTest {
     private OrchestrationController orchestrationController;
 
     @Autowired
-    private EmbabelToolObjectRegistry toolObjectRegistry;
+    private McpToolObjectRegistrar toolObjectRegistry;
 
     @Autowired
     private AgentTools guiEvent;
@@ -89,6 +91,7 @@ class AcpChatModelCodexIntegrationTest {
     private EventStreamRepository eventStreamRepository;
 
     public record ResultValue(String result) {}
+
     public record FinalValue(String result) {}
 
     public record RequestValue(String request) {}
@@ -103,7 +106,7 @@ class AcpChatModelCodexIntegrationTest {
 
         public static final String TEST_AGENT = "test_agent";
 
-        private final EmbabelToolObjectRegistry toolObjectRegistry;
+        private final McpToolObjectRegistrar toolObjectRegistry;
 
         private final AgentTools guiEvent;
 
@@ -142,16 +145,16 @@ class AcpChatModelCodexIntegrationTest {
                 RequestValue input,
                 OperationContext context
         ) {
-            Optional<List<ToolObject>> deepwiki = toolObjectRegistry.tool("deepwiki");
+//            Optional<List<ToolObject>> deepwiki = toolObjectRegistry.tool("deepwiki");
             Optional<List<ToolObject>> hindsight = toolObjectRegistry.tool("hindsight");
 
-            assertThat(deepwiki)
-                    .withFailMessage("Deep wiki could not be reached.")
+            assertThat(hindsight)
+                    .withFailMessage("Hindsight could not be reached.")
                     .isPresent();
 
             return context.ai().withDefaultLlm()
                     .withId("hello!")
-                    .withToolObjects(deepwiki.get())
+//                    .withToolObjects(deepwiki.get())
                     .withToolObjects(hindsight.get())
 //                    .withToolObject(new ToolObject(guiEvent))
                     .withToolObject(new ToolObject(fileSystemTools))

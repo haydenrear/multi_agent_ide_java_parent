@@ -141,9 +141,9 @@ artifacts:
       - classpath:prompts/workflow/
 acp.mcp:
   http:
-    - name: deepwiki
-      url: https://mcp.deepwiki.com/mcp
-      headers:
+#    - name: deepwiki
+#      url: https://mcp.deepwiki.com/mcp
+#      headers:
 #    - name: hindsight
 #      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
 #      headers:

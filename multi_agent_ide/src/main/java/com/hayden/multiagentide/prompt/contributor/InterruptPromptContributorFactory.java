@@ -1,6 +1,5 @@
 package com.hayden.multiagentide.prompt.contributor;
 
-import com.google.common.collect.Lists;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
@@ -9,17 +8,23 @@ import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Contributes review guidance when the current request is an interrupt
- * with AGENT_REVIEW type. Provides the LLM with instructions on how
- * to perform the review, including the interrupt reason and context.
+ * Merged factory that produces interrupt-related prompt contributors:
+ * <ul>
+ *   <li>{@link InterruptAgentReviewContributor} — review guidance when the interrupt type is AGENT_REVIEW</li>
+ *   <li>{@link InterruptResolutionContributor} — resolution routing guidance for all resolved interrupts</li>
+ * </ul>
+ *
+ * Both require the current request to be an {@link AgentModels.InterruptRequest} with non-blank
+ * {@code interruptFeedback} in the model.
  */
 @Component
-public class InterruptResolvedPromptContributorFactory implements PromptContributorFactory {
+public class InterruptPromptContributorFactory implements PromptContributorFactory {
 
     @Override
     public List<PromptContributor> create(PromptContext context) {
@@ -30,16 +35,78 @@ public class InterruptResolvedPromptContributorFactory implements PromptContribu
         if (!(context.currentRequest() instanceof AgentModels.InterruptRequest interruptRequest)) {
             return List.of();
         }
+
         if (!context.model().containsKey("interruptFeedback")
                 || StringUtils.isBlank(String.valueOf(context.model().get("interruptFeedback")))) {
             return List.of();
         }
 
-        return Lists.newArrayList(new InterruptReviewPromptContributor(interruptRequest, context.model()));
+        List<PromptContributor> contributors = new ArrayList<>();
+
+        if (interruptRequest.type() == Events.InterruptType.AGENT_REVIEW) {
+            contributors.add(new InterruptAgentReviewContributor(interruptRequest));
+        }
+
+        contributors.add(new InterruptResolutionContributor(interruptRequest, context.model()));
+
+        return contributors;
     }
 
-    public record InterruptReviewPromptContributor(AgentModels.InterruptRequest interruptRequest,
-                                                   Map<String, Object> interruptFeedback) implements PromptContributor {
+    record InterruptAgentReviewContributor(AgentModels.InterruptRequest interruptRequest)
+            implements PromptContributor {
+
+        @Override
+        public String name() {
+            return "interrupt-review-guidance";
+        }
+
+        @Override
+        public boolean include(PromptContext promptContext) {
+            return true;
+        }
+
+        @Override
+        public String contribute(PromptContext context) {
+            String reason = interruptRequest.reason() != null ? interruptRequest.reason() : "";
+            String contextForDecision = interruptRequest.contextForDecision() != null
+                    ? interruptRequest.contextForDecision() : "";
+
+            return template()
+                    .replace("{{interrupt_reason}}", reason)
+                    .replace("{{context_for_decision}}", contextForDecision);
+        }
+
+        @Override
+        public String template() {
+            return """
+                    ## Agent Review Instructions
+                    
+                    You are performing an agent review for an interrupt request. Your role is to carefully
+                    evaluate the content being reviewed and provide a thorough assessment.
+                    
+                    ### Review Context
+                    - **Interrupt Reason**: {{interrupt_reason}}
+                    - **Decision Context**: {{context_for_decision}}
+                    
+                    ### Review Guidelines
+                    - Assess correctness: verify the content is logically sound and free of errors.
+                    - Assess completeness: verify nothing important is missing from the output.
+                    - If the content is correct and complete, respond with an approved status.
+                    - If there are issues, clearly explain what is wrong and suggest corrections.
+                    - Consider the broader workflow context when making your assessment.
+                    - Be specific in your feedback so the originating agent can act on it.
+                    """;
+        }
+
+        @Override
+        public int priority() {
+            return 50;
+        }
+    }
+
+    record InterruptResolutionContributor(AgentModels.InterruptRequest interruptRequest,
+                                          Map<String, Object> interruptFeedback)
+            implements PromptContributor {
 
         @Override
         public String name() {

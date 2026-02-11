@@ -12,14 +12,4 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 
 {% include "workflow/_interrupt_guidance.jinja" %}
 
-Return a routing object with exactly one of:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, phaseDecision, collectorResults, advancementRationale, phaseOptions }
-- collectorResult: { schemaVersion, resultId, inputs, mergeStrategy, conflictResolutions, aggregatedMetrics, consolidatedOutput, collectorDecision { decisionType, rationale, requestedPhase }, upstreamContextChain, metadata, discoveryCollectorResult?, planningCollectorResult?, ticketCollectorResult? }
-- orchestratorRequest: { goal, phase }
-- discoveryRequest: { goal }
-- discoveryState: { request: { goal } }
-- planningRequest: { goal }
-- ticketRequest: { goal, discoveryCuration, planningCuration }
-- contextRequest: { goal, phase }
-- reviewRequest: { content, criteria, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
-- mergerRequest: { mergeContext, mergeSummary, conflictFiles, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
+{% include "workflow/_collector_base.jinja" %}

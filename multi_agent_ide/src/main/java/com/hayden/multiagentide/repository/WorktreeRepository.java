@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Repository for storing and retrieving worktree contexts (main and submodules).
+ * Repository for storing and retrieving worktree prev (main and submodules).
  */
 public interface WorktreeRepository {
 

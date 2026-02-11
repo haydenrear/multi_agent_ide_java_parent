@@ -53,7 +53,7 @@ public interface WorktreeService {
     /**
      * Get all submodule worktrees for a main worktree.
      * @param mainWorktreeId the main worktree ID
-     * @return list of submodule worktree contexts
+     * @return list of submodule worktree prev
      */
     List<SubmoduleWorktreeContext> getSubmoduleWorktrees(String mainWorktreeId);
 

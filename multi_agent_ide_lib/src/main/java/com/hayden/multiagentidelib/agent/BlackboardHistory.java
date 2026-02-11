@@ -261,6 +261,13 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     .collect(Collectors.toList());
         }
 
+        public <T> List<T> getEntriesOfTypeOrSuper(Class<T> type) {
+            return entries.stream()
+                    .filter(entry -> entry.inputType() != null && (entry.inputType().equals(type) || type.isAssignableFrom(entry.inputType())))
+                    .map(entry -> (T) entry.input())
+                    .collect(Collectors.toList());
+        }
+
         /**
          * Get the most recent entry of a specific type
          */

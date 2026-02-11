@@ -19,10 +19,3 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 - Unsure whether to recommend approval or revision
 
 {% include "workflow/_interrupt_guidance.jinja" %}
-
-Return a routing object with:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, reviewCriteria, assessmentFindings, approvalRecommendation }
-- reviewResult: { schemaVersion, resultId, upstreamContextId, assessmentStatus, feedback, suggestions, contentLinks, output }
-- one return route matching the provided returnTo*Collector field:
-  orchestratorCollectorRequest | discoveryCollectorRequest | planningCollectorRequest |
-  ticketCollectorRequest | contextCollectorRequest

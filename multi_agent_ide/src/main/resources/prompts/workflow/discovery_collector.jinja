@@ -18,27 +18,9 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 - Unsure whether subdomain boundaries should be merged or split
 - Unsure whether code references are actually relevant to the goal
 
-Return an interruptRequest with:
-- reason (explain the uncertainty)
-- contextForDecision (concise decision context)
-- choices (StructuredChoice list with choiceId, question, context, options A/B/C/CUSTOM, recommended)
-- confirmationItems (ConfirmationItem list with confirmationId, statement, context, defaultValue, impactIfNo)
-- agent-specific context: consolidationDecisions, recommendations, codeReferences, subdomainBoundaries
-
 {% include "workflow/_interrupt_guidance.jinja" %}
 
-Return a routing object with exactly one of:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, consolidationDecisions, recommendations, codeReferences, subdomainBoundaries }
-- collectorResult: { schemaVersion, resultId, inputs, mergeStrategy, conflictResolutions, aggregatedMetrics, consolidatedOutput, collectorDecision { decisionType, rationale, requestedPhase }, upstreamContextChain, metadata, unifiedCodeMap, recommendations, querySpecificFindings, discoveryCuration }
-- orchestratorRequest: { goal, phase }
-- discoveryRequest: { goal }
-- planningRequest: { goal }
-- planningState: { request: { goal } }
-- ticketRequest: { goal, discoveryCuration, planningCuration }
-- contextRequest: { goal, phase }
-- reviewRequest: { content, criteria, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
-- mergerRequest: { mergeContext, mergeSummary, conflictFiles, returnToOrchestratorCollector?, returnToDiscoveryCollector?, returnToPlanningCollector?, returnToTicketCollector?, returnToContextCollector? }
+{% include "workflow/_collector_base.jinja" %}
 
-Happy path guidance:
-- Normally return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "PLANNING".
-- Do NOT route directly to planningRequest unless explicitly looping or branching; use collectorResult so the branch handler advances the workflow.
+Happy path: return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "PLANNING".
+Do NOT route directly to planningRequest unless explicitly looping or branching; use collectorResult so the branch handler advances the workflow.

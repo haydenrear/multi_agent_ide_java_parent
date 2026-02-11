@@ -326,7 +326,6 @@ class PermissionGate(
         val rr: AgentModels.ReviewAgentResult? = if (reviewResult != null)
             AgentModels.ReviewAgentResult(
                 reviewResult.contextId,
-                reviewResult.upstreamArtifactKey,
                 reviewResult.assessmentStatus,
                 reviewResult.feedback,
                 reviewResult.suggestions,
@@ -377,6 +376,12 @@ class PermissionGate(
                     Events.NodeStatus.COMPLETED,
                     "Review resolved"
                 )
+                orchestrator.emitInterruptResolved(
+                    ArtifactKey(interruptNode.nodeId()).createChild().value,
+                    interruptNode.nodeId(),
+                    interruptNode.interruptContext.type,
+                    resolution.resolutionNotes
+                )
             }
             is InterruptNode -> {
                 val updatedContext = interruptNode.interruptContext()
@@ -394,6 +399,12 @@ class PermissionGate(
                     interruptNode.status(),
                     Events.NodeStatus.COMPLETED,
                     "Interrupt resolved"
+                )
+                orchestrator.emitInterruptResolved(
+                    ArtifactKey(interruptNode.nodeId()).createChild().value,
+                    interruptNode.nodeId(),
+                    interruptNode.interruptContext.type,
+                    resolution.resolutionNotes
                 )
             }
             else -> {

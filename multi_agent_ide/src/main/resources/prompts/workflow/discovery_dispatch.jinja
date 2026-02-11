@@ -9,7 +9,3 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 - Unsure whether to route directly to collector or wait for missing results
 
 {% include "workflow/_interrupt_guidance.jinja" %}
-
-Return a routing object with exactly one of:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, dispatchDecisions, agentAssignments, workloadDistribution, routingRationale }
-- collectorRequest: { goal, discoveryResults }

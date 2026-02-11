@@ -14,8 +14,3 @@ If you are uncertain or need confirmation, return an interruptRequest when:
 - Unsure how discovery findings constrain planning decisions
 
 {% include "workflow/_interrupt_guidance.jinja" %}
-
-Return a routing object with exactly one of:
-- interruptRequest: { type, reason, contextForDecision, choices, confirmationItems, ticketDesign, architectureDecisions, proposedTickets, discoveryReferences }
-- agentResult: { schemaVersion, resultId, upstreamContextId, discoveryResultId, tickets, output }
-- interruptState: { request: { type, reason, contextForDecision, choices, confirmationItems, ticketDesign, architectureDecisions, proposedTickets, discoveryReferences } }

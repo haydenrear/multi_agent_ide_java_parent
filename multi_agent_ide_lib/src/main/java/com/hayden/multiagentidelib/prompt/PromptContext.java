@@ -17,7 +17,7 @@ import java.util.Map;
 
 /**
  * Context for prompt assembly containing agent type, context identifiers,
- * upstream contexts from prior workflow phases, and optional metadata.
+ * upstream prev from prior workflow phases, and optional metadata.
  */
 @Builder(toBuilder = true)
 @With
@@ -42,7 +42,7 @@ public record PromptContext(
     }
 
     /**
-     * Constructor that normalizes null upstream contexts and metadata.
+     * Constructor that normalizes null upstream prev and metadata.
      */
     public PromptContext {
         if (upstreamContexts == null) {

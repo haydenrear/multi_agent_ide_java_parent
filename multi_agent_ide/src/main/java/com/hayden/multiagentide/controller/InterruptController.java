@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.controller;
 
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.service.AgentControlService;
@@ -70,8 +71,10 @@ public class InterruptController {
         eventBus.publish(new Events.ResolveInterruptEvent(
                 UUID.randomUUID().toString(),
                 Instant.now(),
+                new ArtifactKey(request.originNodeId()).createChild().value(),
                 request.originNodeId(),
-                message
+                message,
+                Events.InterruptType.HUMAN_REVIEW
         ));
         return new InterruptStatusResponse(interruptId, "RESOLVED", request.originNodeId(), request.originNodeId());
     }

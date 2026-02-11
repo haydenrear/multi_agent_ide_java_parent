@@ -1,5 +1,6 @@
 logging.config: classpath:logback-multi-agent-console.xml
 
+
 env-props:
   project-dir: {{PROJ_DIR}}
   home-dir: {{HOME_DIR}}
@@ -128,12 +129,12 @@ artifacts:
       - classpath:prompts/workflow/
 acp.mcp:
   http:
-    - name: deepwiki
-      url: https://mcp.deepwiki.com/mcp
-      headers:
-    - name: hindsight
-      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
-      headers:
+#    - name: deepwiki
+#      url: https://mcp.deepwiki.com/mcp
+#      headers:
+#    - name: hindsight
+#      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
+#      headers:
   stdio-values:
     - name: intellij
       command: "/Users/hayde/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java"
@@ -143,6 +144,7 @@ acp.mcp:
         - "com.intellij.mcpserver.stdio.McpStdioRunnerKt"
       env:
         - IJ_MCP_SERVER_PORT: 64342
+
 mcp:
   protocols:
     required:

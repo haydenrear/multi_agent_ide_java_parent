@@ -28,18 +28,14 @@ public class ContextManagerRoutingPromptContributorFactory implements PromptCont
      * Maps request types to their corresponding AgentType for agents that can route to Context Manager.
      */
     private static final Set<Class<? extends AgentModels.AgentRequest>> REQUEST_TO_AGENT_TYPE = Set.of(
-            AgentModels.OrchestratorRequest.class,
             AgentModels.DiscoveryOrchestratorRequest.class,
             AgentModels.DiscoveryAgentRequests.class,
-            AgentModels.DiscoveryAgentRequest.class,
             AgentModels.DiscoveryCollectorRequest.class,
             AgentModels.PlanningOrchestratorRequest.class,
             AgentModels.PlanningAgentRequests.class,
-            AgentModels.PlanningAgentRequest.class,
             AgentModels.PlanningCollectorRequest.class,
             AgentModels.TicketOrchestratorRequest.class,
             AgentModels.TicketAgentRequests.class,
-            AgentModels.TicketAgentRequest.class,
             AgentModels.TicketCollectorRequest.class,
             AgentModels.OrchestratorCollectorRequest.class
     );
@@ -48,6 +44,10 @@ public class ContextManagerRoutingPromptContributorFactory implements PromptCont
     public List<PromptContributor> create(PromptContext context) {
         if (context == null || context.currentRequest() == null) {
             return List.of();
+        }
+
+        if (context.blackboardHistory().copyOfEntries().size() < 3) {
+            return new ArrayList<>();
         }
 
         if (REQUEST_TO_AGENT_TYPE.contains(context.currentRequest().getClass()))

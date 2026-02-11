@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Factory for creating PromptContext instances by extracting upstream contexts
+ * Factory for creating PromptContext instances by extracting upstream prev
  * from typed request objects using pattern matching.
  */
 
@@ -27,12 +27,12 @@ public class PromptContextFactory {
 
     /**
      * Build a PromptContext by pattern matching on the input object to extract
-     * contextId, upstream contexts, and previousContext.
+     * contextId, upstream prev, and previousContext.
      *
      * @param agentType the type of agent this context is for
      * @param input the request object containing typed curation/upstream context fields
      * @param blackboardHistory optional blackboard history
-     * @return a PromptContext with all upstream contexts collected
+     * @return a PromptContext with all upstream prev collected
      */
     public PromptContext build(
             AgentType agentType,
@@ -74,7 +74,7 @@ public class PromptContextFactory {
                 previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryOrchestratorRequest req -> {
-                // Discovery orchestrator is at the start - no upstream contexts
+                // Discovery orchestrator is at the start - no upstream prev
                 previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryAgentResults req -> {
@@ -198,8 +198,8 @@ public class PromptContextFactory {
     }
 
     /**
-     * Build a PromptContext with explicit upstream contexts (for cases where
-     * upstream contexts are already extracted or need to be manually specified).
+     * Build a PromptContext with explicit upstream prev (for cases where
+     * upstream prev are already extracted or need to be manually specified).
      */
     public PromptContext build(
             AgentType agentType,

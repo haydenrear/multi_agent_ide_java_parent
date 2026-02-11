@@ -67,7 +67,7 @@ class WeAreHerePromptContributorTest {
             assertThat(output).contains("interruptRequest");
             assertThat(output).contains("collectorRequest");
             assertThat(output).contains("orchestratorRequest");
-            assertThat(output).contains("set `orchestratorRequest` to start discovery");
+            assertThat(output).contains("set `discoveryOrchestratorRequest` to start discovery");
         }
 
         @Test

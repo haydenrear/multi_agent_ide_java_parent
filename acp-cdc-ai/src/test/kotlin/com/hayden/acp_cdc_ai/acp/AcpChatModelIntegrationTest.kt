@@ -8,6 +8,7 @@ import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
 import com.hayden.acp_cdc_ai.acp.config.McpProperties
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.EventBus
+import com.hayden.acp_cdc_ai.acp.events.Events
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import com.hayden.acp_cdc_ai.repository.RequestContext
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository
@@ -160,7 +161,8 @@ class AcpChatModelIntegrationTest {
             override fun hasSubscribers(): Boolean = false
         }
 
-        val sessionManager = AcpSessionManager(eventBus)
+        val sessionManager = AcpSessionManager()
+        sessionManager.eventBus = eventBus
         val mcpProperties = McpProperties()
 
         mcpProperties.isEnableSelf = false
@@ -450,6 +452,23 @@ class AcpChatModelIntegrationTest {
      */
     private class AutoAcceptPermissionGate() : IPermissionGate {
         private val pending = mutableMapOf<String, IPermissionGate.PendingPermissionRequest>()
+        override fun resolveInterrupt(
+            interruptId: String,
+            resolutionType: String?,
+            resolutionNotes: String?,
+            reviewResult: IPermissionGate.InterruptResult?
+        ): Boolean {
+            TODO("Not yet implemented")
+        }
+
+        override fun publishInterrupt(
+            interruptId: String,
+            originNodeId: String,
+            type: Events.InterruptType,
+            reason: String?
+        ): IPermissionGate.PendingInterruptRequest {
+            TODO("Not yet implemented")
+        }
 
         override fun getInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): IPermissionGate.PendingInterruptRequest? {
             TODO("Not yet implemented")
@@ -460,6 +479,10 @@ class AcpChatModelIntegrationTest {
         }
 
         override fun pendingPermissionRequests(): List<IPermissionGate.PendingPermissionRequest> {
+            TODO("Not yet implemented")
+        }
+
+        override fun pendingInterruptRequests(): List<IPermissionGate.PendingInterruptRequest> {
             TODO("Not yet implemented")
         }
 

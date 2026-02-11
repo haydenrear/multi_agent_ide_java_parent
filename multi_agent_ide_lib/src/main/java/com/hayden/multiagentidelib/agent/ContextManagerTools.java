@@ -10,6 +10,7 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
@@ -213,11 +214,11 @@ public class ContextManagerTools implements ToolCarrier {
     }
 
     private static boolean matchesInputType(String inputTypeFilter, Class<?> aClass) {
-        return inputTypeFilter == null || (aClass != null && aClass.getSimpleName().equalsIgnoreCase(inputTypeFilter));
+        return !StringUtils.hasText(inputTypeFilter) || (aClass != null && aClass.getSimpleName().equalsIgnoreCase(inputTypeFilter));
     }
 
     private static boolean matchesActionName(String actionNameFilter, String s) {
-        return actionNameFilter == null
+        return !StringUtils.hasText(actionNameFilter)
                 || s.toLowerCase().contains(actionNameFilter.toLowerCase())
                 || s.toLowerCase().matches(actionNameFilter)
                 || s.matches(actionNameFilter);
@@ -498,16 +499,30 @@ public class ContextManagerTools implements ToolCarrier {
 
             return c.fromHistory(history -> {
                 if (history == null) {
+                    log.error("History was non-existent");
                     return new HistoryNoteResult("error", null, null, "No history available");
                 }
 
                 // Validate indices
-                if (entryIndices != null) {
+                if (!CollectionUtils.isEmpty(entryIndices)) {
                     for (int index : entryIndices) {
                         if (index < 0 || index >= history.entries().size()) {
                             return new HistoryNoteResult("error", null, null,
                                     String.format("Index %d out of bounds", index));
                         }
+                    }
+                }
+
+                var entryIndicesFinal = new ArrayList<Integer>(entryIndices);
+                if (CollectionUtils.isEmpty(entryIndicesFinal)) {
+                    int count = 0;
+                    for (int i=history.entries().size() - 1; i>=0; --i) {
+                        entryIndicesFinal.add(i);
+
+                        count += 1;
+
+                        if (count > 10)
+                            break;
                     }
                 }
 
@@ -522,7 +537,7 @@ public class ContextManagerTools implements ToolCarrier {
                         null
                 );
 
-                storeNote(note, entryIndices != null ? entryIndices : List.of());
+                storeNote(note, entryIndicesFinal);
 
                 return new HistoryNoteResult("success", noteId, created, null);
             });
@@ -552,8 +567,11 @@ public class ContextManagerTools implements ToolCarrier {
         if (agentPlatform == null) {
             return null;
         }
+
         AgentProcess agentProcess = agentPlatform.getAgentProcess(root);
+
         if (agentProcess == null) {
+            log.error("Could not find agent process from {}.", root);
             return null;
         }
         return Optional.ofNullable(agentProcess.getBlackboard().last(BlackboardHistory.class))
@@ -685,6 +703,9 @@ public class ContextManagerTools implements ToolCarrier {
     }
 
     private boolean matchesQuery(BlackboardHistory.Entry entry, String query) {
+        if (!StringUtils.hasText(query)) {
+            return true;
+        }
         return switch (entry) {
             case BlackboardHistory.DefaultEntry defaultEntry -> {
                 if (defaultEntry.actionName().toLowerCase().contains(query)) {
