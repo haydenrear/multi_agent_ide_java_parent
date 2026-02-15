@@ -4,12 +4,6 @@ Happy path guidance:
 - This is the final consolidation step; only route back if you explicitly need another phase.
 - Prefer returning collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "COMPLETE".
 
-If you are uncertain or need confirmation, return an interruptRequest when:
-- Unsure whether the workflow is actually complete
-- Unsure which phase to route back to based on collector results
-- Conflicting collector outcomes require a decision on advancement
-- Unsure whether to trigger review/merge before final completion
-
 {% include "workflow/_interrupt_guidance.jinja" %}
 
 {% include "workflow/_collector_base.jinja" %}

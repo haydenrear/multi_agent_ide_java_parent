@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.prompt.contributor;
 
+import com.google.common.collect.Lists;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
@@ -38,7 +39,7 @@ public class InterruptPromptContributorFactory implements PromptContributorFacto
 
         if (!context.model().containsKey("interruptFeedback")
                 || StringUtils.isBlank(String.valueOf(context.model().get("interruptFeedback")))) {
-            return List.of();
+            return Lists.newArrayList(new InterruptResolutionContributor(interruptRequest, context.model()));
         }
 
         List<PromptContributor> contributors = new ArrayList<>();
@@ -46,8 +47,6 @@ public class InterruptPromptContributorFactory implements PromptContributorFacto
         if (interruptRequest.type() == Events.InterruptType.AGENT_REVIEW) {
             contributors.add(new InterruptAgentReviewContributor(interruptRequest));
         }
-
-        contributors.add(new InterruptResolutionContributor(interruptRequest, context.model()));
 
         return contributors;
     }

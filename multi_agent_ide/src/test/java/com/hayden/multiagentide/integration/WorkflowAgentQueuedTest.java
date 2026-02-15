@@ -219,12 +219,14 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @Test
         void orchestratorPause_workflowStops() {
             var contextId = seedOrchestrator().value();
-            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
-                    .interruptRequest(AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
-                            .type(Events.InterruptType.PAUSE)
-                            .reason("User requested pause")
-                            .build())
-                    .build());
+            queuedLlmRunner.enqueue(
+                    AgentModels.OrchestratorRouting.builder()
+                            .interruptRequest(
+                                    AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
+                                            .type(Events.InterruptType.PAUSE)
+                                            .reason("User requested pause")
+                                            .build())
+                            .build());
 
             CompletableFuture.runAsync(() -> {
                 agentPlatform.runAgentFrom(
@@ -268,7 +270,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                             .build())
                     .build());
 
-            initialOrchestratorToDiscovery("Do that thing.");
+            orchestratorRequestThenDiscovery("Do that thing.");
             enqueueDiscoveryToEnd("Do that thing.");
 
             var res = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
@@ -346,11 +348,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             // Second LLM call: after interrupt is resolved, the handleInterrupt method
             // calls runWithTemplate with the feedback — enqueue the post-interrupt routing
             // that continues the workflow to discovery
-            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
-                    .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
-                            .goal("Human review task")
-                            .build())
-                    .build());
+            orchestratorRequestThenDiscovery("Human review task");
 
             enqueueDiscoveryToEnd("Human review task");
 
@@ -439,12 +437,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     .build());
 
             // Enqueue the post-interrupt response so the workflow can finish after resolution
-            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
-                    .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
-                            .goal("Post review task")
-                            .build())
-                    .build());
-
+            orchestratorRequestThenDiscovery("Post review task");
             enqueueDiscoveryToEnd("Post review task");
 
             var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
@@ -509,12 +502,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                             .build())
                     .build());
 
-            // After resolution, handleInterrupt calls runWithTemplate with interruptFeedback
-            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
-                    .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
-                            .goal("Feedback task")
-                            .build())
-                    .build());
+            orchestratorRequestThenDiscovery("Feedback task");
 
             enqueueDiscoveryToEnd("Feedback task");
 
@@ -931,6 +919,18 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
     private void enqueueDiscoveryToEnd(String goal) {
         discoveryOnly(goal);
         enqueuePlanningToCompletion(goal);
+    }
+    private void orchestratorRequestThenDiscovery(String goal) {
+        queuedLlmRunner.enqueue(
+                AgentModels.OrchestratorRequest.builder()
+                        .goal(goal)
+                        .build());
+        queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                .discoveryOrchestratorRequest(
+                        AgentModels.DiscoveryOrchestratorRequest.builder()
+                                .goal(goal)
+                                .build())
+                .build());
     }
 
     private void initialOrchestratorToDiscovery(String goal) {

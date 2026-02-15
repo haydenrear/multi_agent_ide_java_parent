@@ -1,5 +1,6 @@
 package com.hayden.multiagentidelib.model.merge;
 
+import com.hayden.multiagentidelib.agent.SkipPropertyFilter;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.Builder;
 import lombok.With;
@@ -11,6 +12,7 @@ import lombok.With;
 @With
 public record AgentMergeStatus(
         String agentResultId,
+        @SkipPropertyFilter
         WorktreeSandboxContext worktreeContext,
         MergeDescriptor mergeDescriptor
 ) {

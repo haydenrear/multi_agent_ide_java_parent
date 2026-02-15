@@ -3,9 +3,4 @@ Dispatch the discovery workflow results to the next step.
 Goal: {{ goal }}
 Discovery Results: {{ discoveryResults }}
 
-If you are uncertain or need confirmation, return an interruptRequest when:
-- Unsure which agent should own a discovery subdomain
-- Unsure how to balance workload across agents
-- Unsure whether to route directly to collector or wait for missing results
-
 {% include "workflow/_interrupt_guidance.jinja" %}

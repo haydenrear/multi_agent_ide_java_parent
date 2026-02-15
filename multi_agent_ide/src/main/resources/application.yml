@@ -1,5 +1,4 @@
-logging.config: classpath:logback-multi-agent-console.xml
-
+logging.config: classpath:logback-multi-agent-ide.xml
 
 env-props:
   project-dir: {{PROJ_DIR}}
@@ -28,7 +27,7 @@ spring:
     name: multi-agent-ide
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create-drop
   datasource:
     driver-class-name: org.postgresql.Driver
     username: postgres
@@ -40,7 +39,7 @@ spring:
       #jdbc-url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5105}/${POSTGRES_DATABASE:postgres}
       driver-class-name: org.postgresql.Driver
   liquibase:
-    enabled: true
+    enabled: false
     change-log: classpath:/db/changelog/db.changelog-master.yaml
     user: postgres
     password: postgres
@@ -129,12 +128,12 @@ artifacts:
       - classpath:prompts/workflow/
 acp.mcp:
   http:
-#    - name: deepwiki
-#      url: https://mcp.deepwiki.com/mcp
-#      headers:
-#    - name: hindsight
-#      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
-#      headers:
+  #    - name: deepwiki
+  #      url: https://mcp.deepwiki.com/mcp
+  #      headers:
+  #    - name: hindsight
+  #      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
+  #      headers:
   stdio-values:
     - name: intellij
       command: "/Users/hayde/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java"

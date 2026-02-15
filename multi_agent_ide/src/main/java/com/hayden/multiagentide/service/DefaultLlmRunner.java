@@ -53,21 +53,23 @@ public class DefaultLlmRunner implements LlmRunner {
         var aiQuery = context
                 .ai()
                 .withFirstAvailableLlmOf("acp-chat-model", promptContext.currentRequest().contextId().value())
-                .withPropertyFilter(s -> !Objects.equals("contextId", s))
                 .withPromptElements(promptContext.promptContributors().toArray(ContextualPromptElement[]::new));
 
         aiQuery = applyToolContext(aiQuery, toolContext);
 
-        var aiQueryWithTemplate = aiQuery.withTemplate(templateName);
+        var aiQueryWithTemplate = aiQuery
+                .creating(responseClass);
 
-        var llmCallContext = new LlmCallDecorator.LlmCallContext(promptContext, toolContext, aiQueryWithTemplate, model, context);
+        var llmCallContext = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, aiQueryWithTemplate, model, context);
 
         for (var l : llmCallDecorators) {
             llmCallContext = l.decorate(llmCallContext);
         }
 
         // Execute and return
-        T result = llmCallContext.templateOperations().createObject(responseClass, model);
+        T result = llmCallContext
+                .templateOperations()
+                .fromTemplate(templateName, model);
         
         return result;
     }

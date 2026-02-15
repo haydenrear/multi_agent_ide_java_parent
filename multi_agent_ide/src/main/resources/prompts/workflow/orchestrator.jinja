@@ -62,10 +62,4 @@ regarding the goal, and then routing to the discovery orchestrator.
 - **Do NOT skip to Collector**: The `collectorRequest` is the final step, not the starting point
 - **Phase tracking**: The phase parameter reflects where you are (DISCOVERY, PLANNING, TICKETS, COMPLETE)
 
-If you are uncertain or need confirmation, return an interruptRequest when:
-- Unsure whether to advance, pause, or stop the workflow
-- Unsure the goal has shifted or needs re-scoping
-- Unsure which phase to enter next based on results
-- Conflicting signals from collectors require a decision
-
 {% include "workflow/_interrupt_guidance.jinja" %}

@@ -1,0 +1,58 @@
+onboarding:
+  pipeline:
+    dry-run: false
+    keep-ingestion-repo: false
+    continue-on-segment-failure: false
+    min-commits-per-segment: ${ONBOARDING_PERF_MIN_COMMITS_PER_SEGMENT:10}
+    max-commits-per-segment: ${ONBOARDING_PERF_MAX_COMMITS_PER_SEGMENT:250}
+    t-episodes-per-segment: ${ONBOARDING_PERF_EPISODES_PER_SEGMENT:5}
+    max-segment-retries: ${ONBOARDING_PERF_MAX_SEGMENT_RETRIES:2}
+    handoff-max-chars: ${ONBOARDING_PERF_HANDOFF_MAX_CHARS:2048}
+    embedding-version: ${ONBOARDING_PERF_EMBEDDING_VERSION:perf-v1}
+    embedding-model-id: ${ONBOARDING_PERF_EMBEDDING_MODEL:nomic-embed-text}
+  perf:
+    repo-url: ${ONBOARDING_PERF_REPO_URL:https://github.com/spring-projects/spring-petclinic.git}
+    branch: ${ONBOARDING_PERF_REPO_BRANCH:main}
+    clone-depth: ${ONBOARDING_PERF_CLONE_DEPTH:250}
+    max-commit-depth: ${ONBOARDING_PERF_MAX_COMMIT_DEPTH:250}
+    max-commit-diffs: ${ONBOARDING_PERF_MAX_COMMIT_DIFFS:500}
+    max-runtime-seconds: ${ONBOARDING_PERF_MAX_RUNTIME_SECONDS:1800}
+    min-embedded-commit-diffs: ${ONBOARDING_PERF_MIN_EMBEDDED_COMMIT_DIFFS:25}
+
+# Real embedding provider settings for perf profile.
+# Override with env vars to match your model server endpoint.
+model-server-request:
+  default-embedding-model: ${ONBOARDING_PERF_EMBEDDING_MODEL:nomic-embed-text}
+  embedding: &model_server_request
+    request-uri: ${ONBOARDING_PERF_MODEL_SERVER_HOST:localhost}
+    request-port: ${ONBOARDING_PERF_MODEL_SERVER_PORT:11434}
+    request-path: ${ONBOARDING_PERF_MODEL_SERVER_EMBEDDING_PATH:/api/embeddings}
+    request-scheme: ${ONBOARDING_PERF_MODEL_SERVER_SCHEME:http}
+    max-requests-per-minute: ${ONBOARDING_PERF_MODEL_SERVER_MAX_RPM:120}
+    max-byte-length: ${ONBOARDING_PERF_MODEL_SERVER_MAX_BYTES:10000}
+    headers: {}
+    retry-parameters:
+      num-retries: ${ONBOARDING_PERF_MODEL_SERVER_NUM_RETRIES:3}
+    model-name: ${ONBOARDING_PERF_EMBEDDING_MODEL:nomic-embed-text}
+  rerank:
+    <<: *model_server_request
+    request-path: ${ONBOARDING_PERF_MODEL_SERVER_RERANK_PATH:/api/rerank}
+  validation:
+    <<: *model_server_request
+    request-path: ${ONBOARDING_PERF_MODEL_SERVER_CHAT_PATH:/api/chat/completions}
+  initial-code:
+    <<: *model_server_request
+    request-path: ${ONBOARDING_PERF_MODEL_SERVER_CHAT_PATH:/api/chat/completions}
+  codegen:
+    <<: *model_server_request
+    request-path: ${ONBOARDING_PERF_MODEL_SERVER_CHAT_PATH:/api/chat/completions}
+  toolset:
+    <<: *model_server_request
+    request-path: ${ONBOARDING_PERF_MODEL_SERVER_CHAT_PATH:/api/chat/completions}
+
+spring:
+  docker:
+    compose:
+      enabled: true
+      skip:
+        in-tests: false

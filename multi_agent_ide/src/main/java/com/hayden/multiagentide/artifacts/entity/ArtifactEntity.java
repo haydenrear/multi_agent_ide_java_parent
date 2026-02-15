@@ -24,8 +24,7 @@ import java.util.List;
     @Index(name = "idx_parent_key", columnList = "parentKey"),
     @Index(name = "idx_execution_key", columnList = "executionKey"),
     @Index(name = "idx_artifact_type", columnList = "artifactType"),
-    @Index(name = "idx_content_hash", columnList = "contentHash"),
-    @Index(name = "idx_created_at", columnList = "createdAt")
+    @Index(name = "idx_content_hash", columnList = "contentHash")
 })
 @Getter
 @Setter
@@ -58,7 +57,7 @@ public class ArtifactEntity extends JpaHibernateAuditedIded {
     @Column(nullable = false, length = 30_000)
     private String artifactType;
 
-    @Column(nullable = false, length = 30_000)
+    @Column(length = 30_000)
     private String referencedArtifactKey;
 
     /**

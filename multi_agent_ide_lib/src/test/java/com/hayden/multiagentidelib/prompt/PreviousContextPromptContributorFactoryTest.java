@@ -5,6 +5,7 @@ import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.PreviousContext;
 import com.hayden.multiagentidelib.prompt.contributor.PreviousContextPromptContributorFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -29,7 +30,7 @@ class PreviousContextPromptContributorFactoryTest {
                 .thenReturn(AgentModels.DiscoveryOrchestratorRequest.builder().build());
 
         var created = p.create(context);
-        var f = created.getFirst().contribute(context);
+        var f = Assertions.assertDoesNotThrow(() -> created.getFirst().contribute(context));
         log.info("{}", f);
     }
 

@@ -54,7 +54,9 @@ public class PreviousContextPromptContributorFactory implements PromptContributo
             String template = template();
             return template
                     .replace("{{current_request}}", NodeMappings.displayName(context.currentRequest().getClass()))
-                    .replace("{{previous_request}}", Optional.ofNullable(DISPLAY_NAMES.get(context.previousRequest().getClass())).orElse("No previous request found"))
+                    .replace("{{previous_request}}", Optional.ofNullable(context.previousContext())
+                            .flatMap(c -> Optional.ofNullable(DISPLAY_NAMES.get(c.getClass())))
+                            .orElse("No previous request found"))
                     .replace("{{previous_context}}", prev.prettyPrint());
         }
 

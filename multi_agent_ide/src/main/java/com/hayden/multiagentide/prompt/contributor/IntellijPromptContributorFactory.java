@@ -1,20 +1,34 @@
-package com.hayden.multiagentidelib.prompt.contributor;
+package com.hayden.multiagentide.prompt.contributor;
 
+import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Component
+@RequiredArgsConstructor
 public class IntellijPromptContributorFactory implements PromptContributorFactory {
+
+
+    private final McpToolObjectRegistrar registrar;
+
+    public boolean include() {
+        return this.registrar.tool("intellij").isPresent();
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {
+        if (!include())
+            return new ArrayList<>();
+
         if (context == null) {
             return List.of();
         }

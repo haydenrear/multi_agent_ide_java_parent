@@ -28,7 +28,7 @@ public class AddMemoryToolCallDecorator implements LlmCallDecorator {
     }
 
     @Override
-    public LlmCallContext decorate(LlmCallContext promptContext) {
+    public <T> LlmCallContext<T> decorate(LlmCallContext<T> promptContext) {
         var t = withHindsight(promptContext);
 
         return promptContext.toBuilder()
