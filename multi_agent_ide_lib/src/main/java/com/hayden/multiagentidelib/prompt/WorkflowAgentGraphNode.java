@@ -1,13 +1,8 @@
 package com.hayden.multiagentidelib.prompt;
 
-import com.hayden.multiagentidelib.agent.AgentModels;
-
-import java.lang.reflect.Field;
 import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Represents a node in the workflow agent graph.
@@ -113,52 +108,6 @@ public interface WorkflowAgentGraphNode {
 
         // Default
         return "Route to " + fieldType.getSimpleName();
-    }
-
-    /**
-     * Map of request types to their corresponding routing types
-     */
-    static Map<Class<?>, Class<?>> getRequestToRoutingMap() {
-        Map<Class<?>, Class<?>> map = new LinkedHashMap<>();
-        
-        // Main orchestrator
-        map.put(AgentModels.OrchestratorRequest.class, AgentModels.OrchestratorRouting.class);
-        map.put(AgentModels.OrchestratorCollectorRequest.class, AgentModels.OrchestratorCollectorRouting.class);
-        
-        // Discovery phase
-        map.put(AgentModels.DiscoveryOrchestratorRequest.class, AgentModels.DiscoveryOrchestratorRouting.class);
-        map.put(AgentModels.DiscoveryAgentRequest.class, AgentModels.DiscoveryAgentRouting.class);
-        map.put(AgentModels.DiscoveryAgentRequests.class, AgentModels.DiscoveryAgentDispatchRouting.class);
-        map.put(AgentModels.DiscoveryCollectorRequest.class, AgentModels.DiscoveryCollectorRouting.class);
-        
-        // Planning phase
-        map.put(AgentModels.PlanningOrchestratorRequest.class, AgentModels.PlanningOrchestratorRouting.class);
-        map.put(AgentModels.PlanningAgentRequest.class, AgentModels.PlanningAgentRouting.class);
-        map.put(AgentModels.PlanningAgentRequests.class, AgentModels.PlanningAgentDispatchRouting.class);
-        map.put(AgentModels.PlanningCollectorRequest.class, AgentModels.PlanningCollectorRouting.class);
-        
-        // Ticket phase
-        map.put(AgentModels.TicketOrchestratorRequest.class, AgentModels.TicketOrchestratorRouting.class);
-        map.put(AgentModels.TicketAgentRequest.class, AgentModels.TicketAgentRouting.class);
-        map.put(AgentModels.TicketAgentRequests.class, AgentModels.TicketAgentDispatchRouting.class);
-        map.put(AgentModels.TicketCollectorRequest.class, AgentModels.TicketCollectorRouting.class);
-        
-        // Review and Merger
-        map.put(AgentModels.ReviewRequest.class, AgentModels.ReviewRouting.class);
-        map.put(AgentModels.MergerRequest.class, AgentModels.MergerRouting.class);
-
-        // Context manager
-        map.put(AgentModels.ContextManagerRequest.class, AgentModels.ContextManagerResultRouting.class);
-        // Context manager
-        map.put(AgentModels.InterruptRequest.OrchestratorInterruptRequest.class, AgentModels.OrchestratorRouting.class);
-        map.put(AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest.class, AgentModels.DiscoveryOrchestratorRouting.class);
-        map.put(AgentModels.InterruptRequest.PlanningOrchestratorInterruptRequest.class, AgentModels.PlanningOrchestratorRouting.class);
-        map.put(AgentModels.InterruptRequest.TicketOrchestratorInterruptRequest.class, AgentModels.TicketOrchestratorRouting.class);
-        map.put(AgentModels.InterruptRequest.TicketAgentInterruptRequest.class, AgentModels.TicketAgentRouting.class);
-        map.put(AgentModels.InterruptRequest.PlanningAgentInterruptRequest.class, AgentModels.PlanningAgentRouting.class);
-        map.put(AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest.class, AgentModels.DiscoveryAgentRouting.class);
-
-        return map;
     }
 
     /**

@@ -49,6 +49,10 @@ public class CliEventFormatter {
                 case Events.ResolveInterruptEvent e -> format(args, "INTERRUPT", e, "message=" + summarize(args, e.toAddMessage()));
                 case Events.StopAgentEvent e -> format(args, "ACTION", e, "node=" + e.nodeId());
                 case Events.AddMessageEvent e -> format(args, "MESSAGE", e, "message=" + summarize(args, e.toAddMessage()));
+                case Events.InterruptRequestEvent e -> format(args, "INTERRUPT", e,
+                        "source=" + summarize(args, e.sourceAgentType())
+                                + " reroute=" + summarize(args, e.rerouteToAgentType())
+                                + " reason=" + summarize(args, e.reason()));
                 case Events.WorktreeCreatedEvent e -> formatWorktreeCreated(normalizedArgs, e);
                 case Events.WorktreeBranchedEvent e -> formatWorktreeBranched(normalizedArgs, e);
                 case Events.WorktreeMergedEvent e -> formatWorktreeMerged(normalizedArgs, e);

@@ -1,7 +1,6 @@
 package com.hayden.multiagentidelib.prompt.contributor;
 
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
@@ -526,7 +525,7 @@ public class WeAreHerePromptContributor implements PromptContributor {
         }
 
         // Add loop detection warning
-        Map<Class<?>, Class<?>> requestToRouting = WorkflowAgentGraphNode.getRequestToRoutingMap();
+        Map<Class<?>, Class<? extends AgentModels.Routing>> requestToRouting = NodeMappings.REQUEST_TO_ROUTING;
         for (Class<?> requestType : requestToRouting.keySet()) {
             long count = context.blackboardHistory().countType(requestType);
             if (count >= 2) {
@@ -552,7 +551,7 @@ public class WeAreHerePromptContributor implements PromptContributor {
         }
 
         Class<?> requestType = context.currentRequest().getClass();
-        Map<Class<?>, Class<?>> requestToRouting = WorkflowAgentGraphNode.getRequestToRoutingMap();
+        Map<Class<?>, Class<? extends AgentModels.Routing>> requestToRouting = NodeMappings.REQUEST_TO_ROUTING;
 
         Class<?> routingType = requestToRouting.get(requestType);
         if (routingType == null) {

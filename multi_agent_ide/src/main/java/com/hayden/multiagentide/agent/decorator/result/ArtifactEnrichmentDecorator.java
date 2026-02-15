@@ -182,6 +182,23 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .collectorRequest(enrichRequest(routing.collectorRequest(), operationContext))
                             .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
+            case AgentModels.InterruptRouting routing ->
+                    (T) routing.toBuilder()
+                            .orchestratorRequest(enrichRequest(routing.orchestratorRequest(), operationContext))
+                            .discoveryOrchestratorRequest(enrichRequest(routing.discoveryOrchestratorRequest(), operationContext))
+                            .planningOrchestratorRequest(enrichRequest(routing.planningOrchestratorRequest(), operationContext))
+                            .ticketOrchestratorRequest(enrichRequest(routing.ticketOrchestratorRequest(), operationContext))
+                            .reviewRequest(enrichRequest(routing.reviewRequest(), operationContext))
+                            .mergerRequest(enrichRequest(routing.mergerRequest(), operationContext))
+                            .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
+                            .orchestratorCollectorRequest(enrichRequest(routing.orchestratorCollectorRequest(), operationContext))
+                            .discoveryCollectorRequest(enrichRequest(routing.discoveryCollectorRequest(), operationContext))
+                            .planningCollectorRequest(enrichRequest(routing.planningCollectorRequest(), operationContext))
+                            .ticketCollectorRequest(enrichRequest(routing.ticketCollectorRequest(), operationContext))
+                            .discoveryAgentRequests(enrichRequest(routing.discoveryAgentRequests(), operationContext))
+                            .planningAgentRequests(enrichRequest(routing.planningAgentRequests(), operationContext))
+                            .ticketAgentRequests(enrichRequest(routing.ticketAgentRequests(), operationContext))
+                            .build();
         };
     }
 

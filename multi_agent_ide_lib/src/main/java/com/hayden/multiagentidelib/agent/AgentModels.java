@@ -2403,7 +2403,55 @@ public interface AgentModels {
             TicketAgentDispatchRouting,
             ReviewRouting,
             MergerRouting,
-            ContextManagerResultRouting {}
+            ContextManagerResultRouting,
+            InterruptRouting {}
+
+    @Builder(toBuilder=true)
+    @JsonClassDescription("Unified interrupt routing result. Exactly one field should be non-null.")
+    record InterruptRouting(
+            @OrchestratorRoute
+            @JsonPropertyDescription("Return to orchestrator.")
+            OrchestratorRequest orchestratorRequest,
+            @DiscoveryRoute
+            @JsonPropertyDescription("Return to discovery orchestrator.")
+            DiscoveryOrchestratorRequest discoveryOrchestratorRequest,
+            @PlanningRoute
+            @JsonPropertyDescription("Return to planning orchestrator.")
+            PlanningOrchestratorRequest planningOrchestratorRequest,
+            @TicketRoute
+            @JsonPropertyDescription("Return to ticket orchestrator.")
+            TicketOrchestratorRequest ticketOrchestratorRequest,
+            @ReviewRoute
+            @JsonPropertyDescription("Return to review agent.")
+            ReviewRequest reviewRequest,
+            @MergerRoute
+            @JsonPropertyDescription("Return to merger agent.")
+            MergerRequest mergerRequest,
+            @ContextManagerRoute
+            @JsonPropertyDescription("Return to context manager.")
+            ContextManagerRoutingRequest contextManagerRequest,
+            @OrchestratorCollectorRoute
+            @JsonPropertyDescription("Return to orchestrator collector.")
+            OrchestratorCollectorRequest orchestratorCollectorRequest,
+            @DiscoveryCollectorRoute
+            @JsonPropertyDescription("Return to discovery collector.")
+            DiscoveryCollectorRequest discoveryCollectorRequest,
+            @PlanningCollectorRoute
+            @JsonPropertyDescription("Return to planning collector.")
+            PlanningCollectorRequest planningCollectorRequest,
+            @TicketCollectorRoute
+            @JsonPropertyDescription("Return to ticket collector.")
+            TicketCollectorRequest ticketCollectorRequest,
+            @DiscoveryDispatchRoute
+            @JsonPropertyDescription("Return to discovery dispatch node.")
+            DiscoveryAgentRequests discoveryAgentRequests,
+            @PlanningDispatchRoute
+            @JsonPropertyDescription("Return to planning dispatch node.")
+            PlanningAgentRequests planningAgentRequests,
+            @TicketDispatchRoute
+            @JsonPropertyDescription("Return to ticket dispatch node.")
+            TicketAgentRequests ticketAgentRequests
+    ) implements Routing {}
 
     /**
      * Routing type for orchestrator - routes to interrupt, collector, or discovery orchestrator.

@@ -1,8 +1,8 @@
+logging.config: classpath:logback-multi-agent-ide-test-console.xml
+
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 1s
-
-
 
 # Artifact persistence configuration for tests
 artifacts:

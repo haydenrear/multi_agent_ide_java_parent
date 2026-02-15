@@ -73,6 +73,7 @@ public interface AgentInterfaces {
     String ACTION_PLANNING_COLLECTOR = "planning-collector";
     String ACTION_TICKET_COLLECTOR = "ticket-collector";
     String ACTION_ORCHESTRATOR = "orchestrator";
+    String ACTION_UNIFIED_INTERRUPT = "unified-interrupt";
     String ACTION_ORCHESTRATOR_INTERRUPT = "orchestrator-interrupt";
     String ACTION_DISCOVERY_ORCHESTRATOR = "discovery-orchestrator";
     String ACTION_DISCOVERY_DISPATCH = "discovery-dispatch";
@@ -107,6 +108,7 @@ public interface AgentInterfaces {
     String METHOD_CONSOLIDATE_PLANS_INTO_TICKETS = "consolidatePlansIntoTickets";
     String METHOD_CONSOLIDATE_TICKET_RESULTS = "consolidateTicketResults";
     String METHOD_COORDINATE_WORKFLOW = "coordinateWorkflow";
+    String METHOD_HANDLE_UNIFIED_INTERRUPT = "handleUnifiedInterrupt";
     String METHOD_HANDLE_ORCHESTRATOR_INTERRUPT = "handleOrchestratorInterrupt";
     String METHOD_KICK_OFF_ANY_NUMBER_OF_AGENTS_FOR_CODE_SEARCH = "kickOffAnyNumberOfAgentsForCodeSearch";
     String METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS = "dispatchDiscoveryAgentRequests";
@@ -507,84 +509,6 @@ public interface AgentInterfaces {
             );
         }
 
-
-        @Action(canRerun = true, cost = 1)
-        public AgentModels.ContextManagerResultRouting handleContextManagerInterrupt(
-                @NotNull AgentModels.InterruptRequest.ContextManagerInterruptRequest request,
-                OperationContext context
-        ) {
-            AgentModels.ContextManagerRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.ContextManagerRequest.class);
-
-            if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Context manager request not found - cannot recover from interrupt.",
-                        METHOD_HANDLE_CONTEXT_MANAGER_INTERRUPT,
-                        AgentModels.InterruptRequest.ContextManagerInterruptRequest.class,
-                        1
-                );
-            }
-
-            request = AgentInterfaces.decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_CONTEXT_MANAGER_INTERRUPT,
-                    METHOD_HANDLE_CONTEXT_MANAGER_INTERRUPT,
-                    lastRequest
-            );
-
-            String reason = firstNonBlank(
-                    request.reason(),
-                    request.contextForDecision(),
-                    request.contextFindings()
-            );
-
-            Map<String, Object> model = Map.of("reason", reason);
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.CONTEXT_MANAGER,
-                    lastRequest,
-                    lastRequest,
-                    request,
-                    context,
-                    ACTION_CONTEXT_MANAGER_INTERRUPT,
-                    METHOD_HANDLE_CONTEXT_MANAGER_INTERRUPT,
-                    TEMPLATE_WORKFLOW_CONTEXT_MANAGER_INTERRUPT,
-                    model
-            );
-
-            AgentModels.ContextManagerResultRouting resumed = interruptService.handleInterrupt(
-                    context,
-                    request,
-                    workflowGraphService.requireOrchestrator(context),
-                    TEMPLATE_WORKFLOW_CONTEXT_MANAGER_INTERRUPT,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.CONTEXT_MANAGER,
-                            lastRequest,
-                            lastRequest,
-                            request,
-                            context,
-                            ACTION_CONTEXT_MANAGER_INTERRUPT,
-                            METHOD_HANDLE_CONTEXT_MANAGER_INTERRUPT,
-                            TEMPLATE_WORKFLOW_CONTEXT_MANAGER_INTERRUPT,
-                            ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools))
-                    ),
-                    AgentModels.ContextManagerResultRouting.class
-            );
-
-            return AgentInterfaces.decorateRouting(
-                    resumed,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_CONTEXT_MANAGER_INTERRUPT,
-                    lastRequest
-            );
-        }
-
         @Action(canRerun = true, cost = 2)
         public AgentModels.ContextManagerRequest routeToContextManager(
                 AgentModels.ContextManagerRoutingRequest request,
@@ -756,6 +680,306 @@ public interface AgentInterfaces {
                     multiAgentAgentName(),
                     actionName,
                     methodName
+            );
+        }
+
+        @Action(canRerun = true, cost = 1)
+        public AgentModels.InterruptRouting handleUnifiedInterrupt(
+                AgentModels.InterruptRequest request,
+                OperationContext context
+        ) {
+            InterruptRouteConfig routeConfig = resolveInterruptRouteConfig(request, context);
+            if (routeConfig == null || routeConfig.lastRequest() == null) {
+                throw AgentInterfaces.degenerateLoop(
+                        eventBus,
+                        context,
+                        "Unable to resolve unified interrupt route.",
+                        METHOD_HANDLE_UNIFIED_INTERRUPT,
+                        request != null ? request.getClass() : AgentModels.InterruptRequest.class,
+                        1
+                );
+            }
+
+            AgentModels.InterruptRequest decoratedRequest = AgentInterfaces.decorateRequest(
+                    request,
+                    context,
+                    requestDecorators,
+                    multiAgentAgentName(),
+                    ACTION_UNIFIED_INTERRUPT,
+                    METHOD_HANDLE_UNIFIED_INTERRUPT,
+                    routeConfig.lastRequest()
+            );
+
+            PromptContext promptContext = buildPromptContext(
+                    routeConfig.agentType(),
+                    routeConfig.lastRequest(),
+                    routeConfig.lastRequest(),
+                    decoratedRequest,
+                    context,
+                    ACTION_UNIFIED_INTERRUPT,
+                    METHOD_HANDLE_UNIFIED_INTERRUPT,
+                    routeConfig.templateName(),
+                    routeConfig.model()
+            );
+
+            AgentModels.InterruptRouting routing = interruptService.handleInterrupt(
+                    context,
+                    decoratedRequest,
+                    routeConfig.originNode(),
+                    routeConfig.templateName(),
+                    promptContext,
+                    routeConfig.model(),
+                    routeConfig.toolContext(),
+                    AgentModels.InterruptRouting.class
+            );
+
+            return AgentInterfaces.decorateRouting(
+                    routing,
+                    context,
+                    resultDecorators,
+                    multiAgentAgentName(),
+                    ACTION_UNIFIED_INTERRUPT,
+                    METHOD_HANDLE_UNIFIED_INTERRUPT,
+                    routeConfig.lastRequest()
+            );
+        }
+
+        private record InterruptRouteConfig(
+                AgentType agentType,
+                AgentModels.AgentRequest lastRequest,
+                GraphNode originNode,
+                String templateName,
+                Map<String, Object> model,
+                ToolContext toolContext
+        ) {}
+
+        private InterruptRouteConfig resolveInterruptRouteConfig(
+                AgentModels.InterruptRequest request,
+                OperationContext context
+        ) {
+            return switch (request) {
+                case AgentModels.InterruptRequest.OrchestratorInterruptRequest ignored -> {
+                    AgentModels.OrchestratorRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.ORCHESTRATOR,
+                            lastRequest,
+                            workflowGraphService.requireOrchestrator(context),
+                            TEMPLATE_WORKFLOW_ORCHESTRATOR,
+                            mapGoalAndPhase(lastRequest != null ? lastRequest.goal() : null, lastRequest != null ? lastRequest.phase() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.OrchestratorCollectorInterruptRequest ignored -> {
+                    AgentModels.OrchestratorCollectorRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorCollectorRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.ORCHESTRATOR_COLLECTOR,
+                            lastRequest,
+                            workflowGraphService.requireOrchestratorCollector(context),
+                            TEMPLATE_WORKFLOW_ORCHESTRATOR_COLLECTOR,
+                            mapGoalAndPhase(lastRequest != null ? lastRequest.goal() : null, lastRequest != null ? lastRequest.phase() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest ignored -> {
+                    AgentModels.DiscoveryOrchestratorRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryOrchestratorRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.DISCOVERY_ORCHESTRATOR,
+                            lastRequest,
+                            workflowGraphService.requireDiscoveryOrchestrator(context),
+                            TEMPLATE_WORKFLOW_DISCOVERY_ORCHESTRATOR,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.DiscoveryCollectorInterruptRequest ignored -> {
+                    AgentModels.DiscoveryCollectorRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryCollectorRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.DISCOVERY_COLLECTOR,
+                            lastRequest,
+                            workflowGraphService.requireDiscoveryCollector(context),
+                            TEMPLATE_WORKFLOW_DISCOVERY_COLLECTOR,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.PlanningOrchestratorInterruptRequest ignored -> {
+                    AgentModels.PlanningOrchestratorRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningOrchestratorRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.PLANNING_ORCHESTRATOR,
+                            lastRequest,
+                            workflowGraphService.requirePlanningOrchestrator(context),
+                            TEMPLATE_WORKFLOW_PLANNING_ORCHESTRATOR,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.PlanningCollectorInterruptRequest ignored -> {
+                    AgentModels.PlanningCollectorRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningCollectorRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.PLANNING_COLLECTOR,
+                            lastRequest,
+                            workflowGraphService.requirePlanningCollector(context),
+                            TEMPLATE_WORKFLOW_PLANNING_COLLECTOR,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.TicketOrchestratorInterruptRequest ignored -> {
+                    AgentModels.TicketOrchestratorRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.TICKET_ORCHESTRATOR,
+                            lastRequest,
+                            workflowGraphService.requireTicketOrchestrator(context),
+                            TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.TicketCollectorInterruptRequest ignored -> {
+                    AgentModels.TicketCollectorRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.TicketCollectorRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.TICKET_COLLECTOR,
+                            lastRequest,
+                            workflowGraphService.requireTicketCollector(context),
+                            TEMPLATE_WORKFLOW_TICKET_COLLECTOR,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.ReviewInterruptRequest ignored -> {
+                    AgentModels.ReviewRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.ReviewRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.REVIEW_AGENT,
+                            lastRequest,
+                            workflowGraphService.requireReviewNode(context),
+                            TEMPLATE_WORKFLOW_REVIEW,
+                            mapReview(lastRequest),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.MergerInterruptRequest ignored -> {
+                    AgentModels.MergerRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.MergerRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.MERGER_AGENT,
+                            lastRequest,
+                            workflowGraphService.requireMergeNode(context),
+                            TEMPLATE_WORKFLOW_MERGER,
+                            mapMerge(lastRequest),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.ContextManagerInterruptRequest cmRequest -> {
+                    AgentModels.ContextManagerRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.ContextManagerRequest.class);
+                    Map<String, Object> model = Map.of(
+                            "reason",
+                            firstNonBlank(cmRequest.reason(), cmRequest.contextForDecision(), cmRequest.contextFindings())
+                    );
+                    yield new InterruptRouteConfig(
+                            AgentType.CONTEXT_MANAGER,
+                            lastRequest,
+                            workflowGraphService.requireOrchestrator(context),
+                            TEMPLATE_WORKFLOW_CONTEXT_MANAGER_INTERRUPT,
+                            model,
+                            ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools))
+                    );
+                }
+                case AgentModels.InterruptRequest.DiscoveryAgentDispatchInterruptRequest ignored -> {
+                    AgentModels.DiscoveryAgentRequests lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryAgentRequests.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.DISCOVERY_AGENT_DISPATCH,
+                            lastRequest,
+                            workflowGraphService.requireDiscoveryOrchestrator(context),
+                            TEMPLATE_WORKFLOW_DISCOVERY_DISPATCH,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.PlanningAgentDispatchInterruptRequest ignored -> {
+                    AgentModels.PlanningAgentRequests lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningAgentRequests.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.PLANNING_AGENT_DISPATCH,
+                            lastRequest,
+                            workflowGraphService.requirePlanningOrchestrator(context),
+                            TEMPLATE_WORKFLOW_PLANNING_DISPATCH,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.TicketAgentDispatchInterruptRequest ignored -> {
+                    AgentModels.TicketAgentRequests lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.TicketAgentRequests.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.TICKET_AGENT_DISPATCH,
+                            lastRequest,
+                            workflowGraphService.requireTicketOrchestrator(context),
+                            TEMPLATE_WORKFLOW_TICKET_DISPATCH,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest discoveryAgentInterruptRequest -> null;
+                case AgentModels.InterruptRequest.PlanningAgentInterruptRequest planningAgentInterruptRequest -> null;
+                case AgentModels.InterruptRequest.TicketAgentInterruptRequest ticketAgentInterruptRequest -> null;
+                case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest questionAnswerInterruptRequest -> null;
+            };
+        }
+
+        private static Map<String, Object> mapGoalAndPhase(String goal, String phase) {
+            Map<String, Object> model = new HashMap<>();
+            Optional.ofNullable(goal).ifPresent(g -> model.put("goal", g));
+            Optional.ofNullable(phase).ifPresent(p -> model.put("phase", p));
+            return model;
+        }
+
+        private static Map<String, Object> mapGoal(String goal) {
+            Map<String, Object> model = new HashMap<>();
+            Optional.ofNullable(goal).ifPresent(g -> model.put("goal", g));
+            return model;
+        }
+
+        private static Map<String, Object> mapReview(AgentModels.ReviewRequest request) {
+            if (request == null) {
+                return Map.of();
+            }
+            return Map.of(
+                    "content", request.content(),
+                    "criteria", request.criteria(),
+                    "returnRoute", renderReturnRoute(
+                            request.returnToOrchestratorCollector(),
+                            request.returnToDiscoveryCollector(),
+                            request.returnToPlanningCollector(),
+                            request.returnToTicketCollector()
+                    )
+            );
+        }
+
+        private static Map<String, Object> mapMerge(AgentModels.MergerRequest request) {
+            if (request == null) {
+                return Map.of();
+            }
+            return Map.of(
+                    "mergeContext", request.mergeContext(),
+                    "mergeSummary", request.mergeSummary(),
+                    "conflictFiles", request.conflictFiles(),
+                    "returnRoute", renderReturnRoute(
+                            request.returnToOrchestratorCollector(),
+                            request.returnToDiscoveryCollector(),
+                            request.returnToPlanningCollector(),
+                            request.returnToTicketCollector()
+                    )
             );
         }
 
@@ -1077,70 +1301,6 @@ public interface AgentInterfaces {
         }
 
 
-        @Action(canRerun = true, cost = 1)
-        public AgentModels.OrchestratorRequest handleOrchestratorInterrupt(
-                AgentModels.InterruptRequest.OrchestratorInterruptRequest request,
-                OperationContext context
-        ) {
-            OrchestratorNode originNode = workflowGraphService.requireOrchestrator(context);
-            AgentModels.OrchestratorRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
-            if (lastRequest == null) {
-                workflowGraphService.emitErrorEvent(
-                        originNode,
-                        "Orchestrator request not found - cannot recover from interrupt."
-                );
-                throw AgentInterfaces.degenerateLoop(eventBus, context, "Found strange situation where OrchestratorRequest not found. Impossible state.",
-                        METHOD_HANDLE_ORCHESTRATOR_INTERRUPT, AgentModels.InterruptRequest.OrchestratorInterruptRequest.class, 1);
-            }
-            request = AgentInterfaces.decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_ORCHESTRATOR_INTERRUPT,
-                    METHOD_HANDLE_ORCHESTRATOR_INTERRUPT,
-                    lastRequest
-            );
-            Map<String, Object> model = new HashMap<>();
-
-            Optional.ofNullable(lastRequest.goal())
-                    .ifPresent(g -> model.put("goal", g));
-            Optional.ofNullable(lastRequest.phase())
-                    .ifPresent(g -> model.put("phase", g));
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.ORCHESTRATOR,
-                    lastRequest,
-                    lastRequest,
-                    request,
-                    context,
-                    ACTION_ORCHESTRATOR_INTERRUPT,
-                    METHOD_HANDLE_ORCHESTRATOR_INTERRUPT,
-                    TEMPLATE_WORKFLOW_ORCHESTRATOR,
-                    model
-            );
-            var resumed = interruptService.handleInterrupt(
-                    context,
-                    request,
-                    originNode,
-                    TEMPLATE_WORKFLOW_ORCHESTRATOR,
-                    promptContext,
-                    model,
-                    AgentModels.OrchestratorRequest.class
-            );
-            return AgentInterfaces.decorateRequestResult(
-                    resumed,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_ORCHESTRATOR_INTERRUPT,
-                    METHOD_HANDLE_ORCHESTRATOR_INTERRUPT,
-                    lastRequest
-            );
-        }
-
-
         @Action(canRerun = true)
         public AgentModels.DiscoveryOrchestratorRouting kickOffAnyNumberOfAgentsForCodeSearch(
                 AgentModels.DiscoveryOrchestratorRequest input,
@@ -1319,68 +1479,6 @@ public interface AgentInterfaces {
                     multiAgentAgentName(),
                     ACTION_DISCOVERY_DISPATCH,
                     METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
-                    lastRequest
-            );
-        }
-
-        @Action(canRerun = true, cost = 1.0)
-        public AgentModels.DiscoveryOrchestratorRequest handleDiscoveryInterrupt(
-                AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest request,
-                OperationContext context
-        ) {
-            DiscoveryOrchestratorNode originNode = workflowGraphService.requireDiscoveryOrchestrator(context);
-            AgentModels.DiscoveryOrchestratorRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryOrchestratorRequest.class);
-            if (lastRequest == null) {
-                workflowGraphService.emitErrorEvent(
-                        originNode,
-                        "Discovery orchestrator request not found - cannot recover from interrupt."
-                );
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Discovery orchestrator request not found - cannot recover from interrupt.",
-                        METHOD_HANDLE_DISCOVERY_INTERRUPT,
-                        AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest.class,
-                        1
-                );
-            }
-            request = AgentInterfaces.decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_INTERRUPT,
-                    METHOD_HANDLE_DISCOVERY_INTERRUPT,
-                    lastRequest
-            );
-            Map<String, Object> model = Map.of("goal", lastRequest.goal());
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.DISCOVERY_ORCHESTRATOR,
-                    lastRequest,
-                    lastRequest,
-                    request,
-                    context,
-                    ACTION_DISCOVERY_INTERRUPT,
-                    METHOD_HANDLE_DISCOVERY_INTERRUPT,
-                    TEMPLATE_WORKFLOW_DISCOVERY_ORCHESTRATOR,
-                    model
-            );
-            var routing = interruptService.handleInterrupt(
-                    context,
-                    request,
-                    originNode,
-                    TEMPLATE_WORKFLOW_DISCOVERY_ORCHESTRATOR,
-                    promptContext,
-                    model,
-                    AgentModels.DiscoveryOrchestratorRequest.class
-            );
-            return AgentInterfaces.decorateRequestResult(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_INTERRUPT,
-                    METHOD_HANDLE_DISCOVERY_INTERRUPT,
                     lastRequest
             );
         }
@@ -1579,76 +1677,6 @@ public interface AgentInterfaces {
                     multiAgentAgentName(),
                     ACTION_PLANNING_DISPATCH,
                     METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
-                    lastRequest
-            );
-        }
-
-        @Action(canRerun = true, cost = 1.0)
-        public AgentModels.PlanningOrchestratorRequest handlePlanningInterrupt(
-                AgentModels.InterruptRequest.PlanningOrchestratorInterruptRequest request,
-                OperationContext context
-        ) {
-            PlanningOrchestratorNode originNode = workflowGraphService.requirePlanningOrchestrator(context);
-
-            AgentModels.PlanningOrchestratorRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningOrchestratorRequest.class);
-
-            if (lastRequest == null) {
-                workflowGraphService.emitErrorEvent(
-                        originNode,
-                        "Planning orchestrator request not found - cannot recover from interrupt."
-                );
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Planning orchestrator request not found - cannot recover from interrupt.",
-                        METHOD_HANDLE_PLANNING_INTERRUPT,
-                        AgentModels.InterruptRequest.PlanningOrchestratorInterruptRequest.class,
-                        1
-                );
-            }
-            request = AgentInterfaces.decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_INTERRUPT,
-                    METHOD_HANDLE_PLANNING_INTERRUPT,
-                    lastRequest
-            );
-
-            Map<String, Object> model = new HashMap<>();
-
-            Optional.ofNullable(lastRequest.goal())
-                    .ifPresent(g -> model.put("goal", g));
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.PLANNING_ORCHESTRATOR,
-                    lastRequest,
-                    lastRequest,
-                    request,
-                    context,
-                    ACTION_PLANNING_INTERRUPT,
-                    METHOD_HANDLE_PLANNING_INTERRUPT,
-                    TEMPLATE_WORKFLOW_PLANNING_ORCHESTRATOR,
-                    model
-            );
-            var routing = interruptService.handleInterrupt(
-                    context,
-                    request,
-                    originNode,
-                    TEMPLATE_WORKFLOW_PLANNING_ORCHESTRATOR,
-                    promptContext,
-                    model,
-                    AgentModels.PlanningOrchestratorRequest.class
-            );
-
-
-            return AgentInterfaces.decorateRequestResult(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_INTERRUPT,
-                    METHOD_HANDLE_PLANNING_INTERRUPT,
                     lastRequest
             );
         }
@@ -1870,69 +1898,6 @@ public interface AgentInterfaces {
             );
         }
 
-        @Action(canRerun = true, cost = 1.0)
-        public AgentModels.TicketOrchestratorRequest handleTicketInterrupt(
-                AgentModels.InterruptRequest.TicketOrchestratorInterruptRequest request,
-                OperationContext context
-        ) {
-            TicketOrchestratorNode originNode = workflowGraphService.requireTicketOrchestrator(context);
-            AgentModels.TicketOrchestratorRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
-            if (lastRequest == null) {
-                workflowGraphService.emitErrorEvent(
-                        originNode,
-                        "Ticket orchestrator request not found - cannot recover from interrupt."
-                );
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Ticket orchestrator request not found - cannot recover from interrupt.",
-                        METHOD_HANDLE_TICKET_INTERRUPT,
-                        AgentModels.InterruptRequest.TicketOrchestratorInterruptRequest.class,
-                        1
-                );
-            }
-            request = AgentInterfaces.decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_INTERRUPT,
-                    METHOD_HANDLE_TICKET_INTERRUPT,
-                    lastRequest
-            );
-            Map<String, Object> model = Map.of(
-                    "goal", lastRequest.goal()
-            );
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.TICKET_ORCHESTRATOR,
-                    lastRequest,
-                    lastRequest,
-                    request,
-                    context,
-                    ACTION_TICKET_INTERRUPT,
-                    METHOD_HANDLE_TICKET_INTERRUPT,
-                    TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR,
-                    model
-            );
-            var routing = interruptService.handleInterrupt(
-                    context,
-                    request,
-                    originNode,
-                    TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR,
-                    promptContext,
-                    model,
-                    AgentModels.TicketOrchestratorRequest.class
-            );
-            return AgentInterfaces.decorateRequestResult(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_INTERRUPT,
-                    METHOD_HANDLE_TICKET_INTERRUPT,
-                    lastRequest
-            );
-        }
-
         @Action(canRerun = true)
         public AgentModels.MergerRouting performMerge(
                 AgentModels.MergerRequest input,
@@ -2083,78 +2048,6 @@ public interface AgentInterfaces {
                     multiAgentAgentName(),
                     ACTION_REVIEW_AGENT,
                     METHOD_PERFORM_REVIEW,
-                    lastRequest
-            );
-        }
-
-        @Action(canRerun = true, cost = 1.0)
-        public AgentModels.ReviewRouting handleReviewInterrupt(
-                AgentModels.InterruptRequest.ReviewInterruptRequest request,
-                OperationContext context
-        ) {
-            ReviewNode originNode = workflowGraphService.requireReviewNode(context);
-            AgentModels.ReviewRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.ReviewRequest.class);
-            if (lastRequest == null) {
-                workflowGraphService.emitErrorEvent(
-                        originNode,
-                        "Review request not found - cannot recover from interrupt."
-                );
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Review request not found - cannot recover from interrupt.",
-                        METHOD_HANDLE_REVIEW_INTERRUPT,
-                        AgentModels.InterruptRequest.ReviewInterruptRequest.class,
-                        1
-                );
-            }
-            request = AgentInterfaces.decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_REVIEW_INTERRUPT,
-                    METHOD_HANDLE_REVIEW_INTERRUPT,
-                    lastRequest
-            );
-            String returnRoute = renderReturnRoute(
-                    lastRequest.returnToOrchestratorCollector(),
-                    lastRequest.returnToDiscoveryCollector(),
-                    lastRequest.returnToPlanningCollector(),
-                    lastRequest.returnToTicketCollector()
-            );
-            Map<String, Object> model = Map.of(
-                    "content", lastRequest.content(),
-                    "criteria", lastRequest.criteria(),
-                    "returnRoute", returnRoute
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.REVIEW_AGENT,
-                    lastRequest,
-                    lastRequest,
-                    request,
-                    context,
-                    ACTION_REVIEW_INTERRUPT,
-                    METHOD_HANDLE_REVIEW_INTERRUPT,
-                    TEMPLATE_WORKFLOW_REVIEW,
-                    model
-            );
-            var routing = interruptService.handleInterrupt(
-                    context,
-                    request,
-                    originNode,
-                    TEMPLATE_WORKFLOW_REVIEW,
-                    promptContext,
-                    model,
-                    AgentModels.ReviewRouting.class
-            );
-            return AgentInterfaces.decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_REVIEW_INTERRUPT,
-                    METHOD_HANDLE_REVIEW_INTERRUPT,
                     lastRequest
             );
         }
@@ -2417,79 +2310,6 @@ public interface AgentInterfaces {
                     AGENT_NAME_NONE,
                     ACTION_NONE,
                     METHOD_NONE,
-                    lastRequest
-            );
-        }
-
-        @Action(canRerun = true, cost = 1.0)
-        public AgentModels.MergerRouting handleMergerInterrupt(
-                AgentModels.InterruptRequest.MergerInterruptRequest request,
-                OperationContext context
-        ) {
-            MergeNode originNode = workflowGraphService.requireMergeNode(context);
-            AgentModels.MergerRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.MergerRequest.class);
-            if (lastRequest == null) {
-                workflowGraphService.emitErrorEvent(
-                        originNode,
-                        "Merger request not found - cannot recover from interrupt."
-                );
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Merger request not found - cannot recover from interrupt.",
-                        METHOD_HANDLE_MERGER_INTERRUPT,
-                        AgentModels.InterruptRequest.MergerInterruptRequest.class,
-                        1
-                );
-            }
-            request = AgentInterfaces.decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_MERGER_INTERRUPT,
-                    METHOD_HANDLE_MERGER_INTERRUPT,
-                    lastRequest
-            );
-            String returnRoute = renderReturnRoute(
-                    lastRequest.returnToOrchestratorCollector(),
-                    lastRequest.returnToDiscoveryCollector(),
-                    lastRequest.returnToPlanningCollector(),
-                    lastRequest.returnToTicketCollector()
-            );
-            Map<String, Object> model = Map.of(
-                    "mergeContext", lastRequest.mergeContext(),
-                    "mergeSummary", lastRequest.mergeSummary(),
-                    "conflictFiles", lastRequest.conflictFiles(),
-                    "returnRoute", returnRoute
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.MERGER_AGENT,
-                    lastRequest,
-                    lastRequest,
-                    request,
-                    context,
-                    ACTION_MERGER_INTERRUPT,
-                    METHOD_HANDLE_MERGER_INTERRUPT,
-                    TEMPLATE_WORKFLOW_MERGER,
-                    model
-            );
-            var routing = interruptService.handleInterrupt(
-                    context,
-                    request,
-                    originNode,
-                    TEMPLATE_WORKFLOW_MERGER,
-                    promptContext,
-                    model,
-                    AgentModels.MergerRouting.class
-            );
-            return AgentInterfaces.decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_MERGER_INTERRUPT,
-                    METHOD_HANDLE_MERGER_INTERRUPT,
                     lastRequest
             );
         }

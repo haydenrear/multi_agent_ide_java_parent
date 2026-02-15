@@ -429,6 +429,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             case Events.ResumeEvent ignored -> buildTargets(event.nodeId(), null);
             case Events.ResolveInterruptEvent ignored -> buildTargets(event.nodeId(), null);
             case Events.AddMessageEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.InterruptRequestEvent ignored -> buildTargets(event.nodeId(), null);
             case Events.NodeStatusChangedEvent ignored -> buildTargets(event.nodeId(), null);
             case Events.NodeErrorEvent ignored -> buildTargets(event.nodeId(), null);
             case Events.NodeBranchedEvent nodeBranched -> buildTargets(event.nodeId(), nodeBranched.originalNodeId());

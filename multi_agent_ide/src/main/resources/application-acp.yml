@@ -1,3 +1,5 @@
+logging.config: classpath:logback-multi-agent-ide.xml
+
 multi-agent-embabel:
   chat-model.provider: acp
   acp:

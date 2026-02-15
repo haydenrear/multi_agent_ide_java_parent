@@ -1,5 +1,3 @@
-logging.config: classpath:logback-multi-agent-ide.xml
-
 env-props:
   project-dir: {{PROJ_DIR}}
   home-dir: {{HOME_DIR}}

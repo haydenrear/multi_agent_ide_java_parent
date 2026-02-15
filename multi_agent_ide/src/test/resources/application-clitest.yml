@@ -1,4 +1,4 @@
-logging.config: classpath:logback-multi-agent-ide.xml
+logging.config: classpath:logback-multi-agent-test-console.xml
 spring:
   main:
     allow-bean-definition-overriding: true

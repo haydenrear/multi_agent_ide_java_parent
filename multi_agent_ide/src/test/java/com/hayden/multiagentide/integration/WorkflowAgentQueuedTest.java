@@ -244,14 +244,16 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             var output = permissionGate.getInterruptPending(t -> t.getType() == Events.InterruptType.PAUSE && Objects.equals(t.getReason(), "User requested pause"));
 
             assertThat(output).isNotNull();
-            verify(workflowGraphService).handleOrchestratorInterrupt(any(),
-                    argThat(req -> req.type() == Events.InterruptType.PAUSE));
+            verify(workflowAgent).handleUnifiedInterrupt(
+                    argThat(req -> req.type() == Events.InterruptType.PAUSE),
+                    any()
+            );
 
             var ordered = inOrder(
                     workflowAgent
             );
             ordered.verify(workflowAgent).coordinateWorkflow(any(), any());
-            ordered.verify(workflowAgent).handleOrchestratorInterrupt(any(), any());
+            ordered.verify(workflowAgent).handleUnifiedInterrupt(any(), any());
 
             verify(computationGraphOrchestrator, atLeastOnce()).emitStatusChangeEvent(any(), any(), any(), any());
             queuedLlmRunner.assertAllConsumed();
@@ -283,8 +285,10 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     .until(() -> permissionGate.isInterruptPending(
                             t -> t.getType() == Events.InterruptType.PAUSE && Objects.equals(t.getReason(), "User requested pause will continue")));
 
-            verify(workflowGraphService).handleOrchestratorInterrupt(any(),
-                    argThat(req -> req.type() == Events.InterruptType.PAUSE));
+            verify(workflowAgent).handleUnifiedInterrupt(
+                    argThat(req -> req.type() == Events.InterruptType.PAUSE),
+                    any()
+            );
 
             var output = permissionGate.getInterruptPending(t -> t.getType() == Events.InterruptType.PAUSE && Objects.equals(t.getReason(), "User requested pause will continue"));
 
@@ -486,6 +490,51 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             assertThat(workflowFuture.get()).isNotNull();
             queuedLlmRunner.assertAllConsumed();
         }
+        @SneakyThrows
+        @Test
+        void handle_planningAgent_interruptRequest() {
+            // Verifies that after human resolves the interrupt with feedback notes,
+            // those notes are passed through to the LLM as interruptFeedback and the
+            // workflow continues to completion.
+            var contextId = seedOrchestrator().value();
+
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                    .interruptRequest(AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
+                            .type(Events.InterruptType.HUMAN_REVIEW)
+                            .reason("Needs human sign-off")
+                            .build())
+                    .build());
+
+            orchestratorRequestThenDiscovery("Feedback task");
+
+            enqueueDiscoveryToEndWithPlanningAgentInterrupt("Feedback task");
+
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Feedback task", "DISCOVERY"))
+            ));
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(() -> permissionGate.isInterruptPending(
+                            t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                                    && Objects.equals(t.getReason(), "Needs human sign-off")));
+
+            var pendingInterrupt = permissionGate.getInterruptPending(
+                    t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                            && Objects.equals(t.getReason(), "Needs human sign-off"));
+            assertThat(pendingInterrupt).isNotNull();
+
+            // Resolve with specific feedback
+            permissionGate.resolveInterrupt(
+                    pendingInterrupt.getInterruptId(),
+                    "approved",
+                    "Approved with note: use event sourcing pattern",
+                    (AgentModels.ReviewAgentResult) null);
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+        }
 
         @SneakyThrows
         @Test
@@ -536,9 +585,11 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             assertThat(result).isNotNull();
             assertThat(result.getStatus()).isEqualTo(com.embabel.agent.core.AgentProcessStatusCode.COMPLETED);
 
-            // Verify the orchestrator interrupt handler was invoked
-            verify(workflowGraphService).handleOrchestratorInterrupt(any(),
-                    argThat(req -> req.type() == Events.InterruptType.HUMAN_REVIEW));
+            // Verify unified interrupt handler was invoked
+            verify(workflowAgent).handleUnifiedInterrupt(
+                    argThat(req -> req.type() == Events.InterruptType.HUMAN_REVIEW),
+                    any()
+            );
 
             queuedLlmRunner.assertAllConsumed();
         }
@@ -920,10 +971,18 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         discoveryOnly(goal);
         enqueuePlanningToCompletion(goal);
     }
+
+    private void enqueueDiscoveryToEndWithPlanningAgentInterrupt(String goal) {
+        discoveryOnly(goal);
+        enqueuePlanningToCompletionWithPlanningAgentInterrupt(goal);
+    }
+
     private void orchestratorRequestThenDiscovery(String goal) {
         queuedLlmRunner.enqueue(
-                AgentModels.OrchestratorRequest.builder()
-                        .goal(goal)
+                AgentModels.InterruptRouting.builder()
+                        .orchestratorRequest(AgentModels.OrchestratorRequest.builder()
+                                .goal(goal)
+                                .build())
                         .build());
         queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
                 .discoveryOrchestratorRequest(
@@ -990,6 +1049,14 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         finalOrchestratorCollector();
     }
 
+    private void enqueuePlanningToCompletionWithPlanningAgentInterrupt(String goal) {
+        planningOnlyWithPlanningAgentInterrupt(goal);
+
+        ticketsOnly(goal);
+
+        finalOrchestratorCollector();
+    }
+
     private void finalOrchestratorCollector() {
         queuedLlmRunner.enqueue(AgentModels.OrchestratorCollectorRouting.builder()
                 .collectorResult(AgentModels.OrchestratorCollectorResult.builder()
@@ -1035,6 +1102,48 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                                 .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
                                 .rationale("Advance to orchestrator collector")
                                 .requestedPhase("COMPLETE")
+                                .build())
+                        .build())
+                .build());
+    }
+
+    private void planningOnlyWithPlanningAgentInterrupt(String goal) {
+        queuedLlmRunner.enqueue(AgentModels.PlanningOrchestratorRouting.builder()
+                .agentRequests(AgentModels.PlanningAgentRequests.builder()
+                        .requests(List.of(
+                                AgentModels.PlanningAgentRequest.builder()
+                                        .goal(goal)
+                                        .build()
+                        ))
+                        .build())
+                .build());
+
+        queuedLlmRunner.enqueue(AgentModels.PlanningAgentRouting.builder()
+                .interruptRequest(AgentModels.InterruptRequest.PlanningAgentInterruptRequest.builder()
+                        .reason("hello!")
+                        .build())
+                .build());
+
+        queuedLlmRunner.enqueue(AgentModels.PlanningAgentRouting.builder()
+                .agentResult(AgentModels.PlanningAgentResult.builder()
+                        .output("Plan output")
+                        .build())
+                .build());
+
+        queuedLlmRunner.enqueue(AgentModels.PlanningAgentDispatchRouting.builder()
+                .planningCollectorRequest(AgentModels.PlanningCollectorRequest.builder()
+                        .goal(goal)
+                        .planningResults("planning-results")
+                        .build())
+                .build());
+
+        queuedLlmRunner.enqueue(AgentModels.PlanningCollectorRouting.builder()
+                .collectorResult(AgentModels.PlanningCollectorResult.builder()
+                        .consolidatedOutput("Planning complete")
+                        .collectorDecision(AgentModels.CollectorDecision.builder()
+                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
+                                .rationale("Advance to tickets")
+                                .requestedPhase("TICKETS")
                                 .build())
                         .build())
                 .build());

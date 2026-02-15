@@ -151,6 +151,17 @@ public interface Events {
                         line("timestamp", e.timestamp()),
                         line("nodeId", e.nodeId()),
                         block("toAddMessage", e.toAddMessage()));
+                case InterruptRequestEvent e -> formatEvent("Interrupt Request Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sourceAgentType", e.sourceAgentType()),
+                        line("rerouteToAgentType", e.rerouteToAgentType()),
+                        line("interruptType", e.interruptType()),
+                        block("reason", e.reason()),
+                        list("choices", e.choices()),
+                        list("confirmationItems", e.confirmationItems()),
+                        block("contextForDecision", e.contextForDecision()));
                 case NodeStatusChangedEvent e -> formatEvent("Node Status Changed Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
@@ -579,6 +590,35 @@ public interface Events {
         @Override
         public String eventType() {
             return "ADD_MESSAGE_EVENT";
+        }
+    }
+
+    record StructuredChoice(
+            String label,
+            String value,
+            String description
+    ) {}
+
+    record ConfirmationItem(
+            String id,
+            String prompt
+    ) {}
+
+    record InterruptRequestEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String sourceAgentType,
+            String rerouteToAgentType,
+            InterruptType interruptType,
+            String reason,
+            List<StructuredChoice> choices,
+            List<ConfirmationItem> confirmationItems,
+            String contextForDecision
+    ) implements AgentEvent {
+        @Override
+        public String eventType() {
+            return "INTERRUPT_REQUEST_EVENT";
         }
     }
 

@@ -53,6 +53,8 @@ public class AgentEventListener implements EventListener {
             case Events.AddMessageEvent nodeAddedEvent -> {
                 doAgentRunner(nodeAddedEvent);
             }
+            case Events.InterruptRequestEvent interruptRequestEvent -> {
+            }
             case Events.NodeAddedEvent nodeAddedEvent -> {
                 handleNodeAdded(nodeAddedEvent);
             }
