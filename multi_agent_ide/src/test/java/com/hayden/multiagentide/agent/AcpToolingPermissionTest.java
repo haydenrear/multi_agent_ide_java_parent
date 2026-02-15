@@ -91,7 +91,7 @@ class AcpToolingPermissionTest {
 
     @AfterEach
     void tearDown() {
-        EventBus.Process.remove();
+        EventBus.Process.set(null);
     }
 
     @Test
