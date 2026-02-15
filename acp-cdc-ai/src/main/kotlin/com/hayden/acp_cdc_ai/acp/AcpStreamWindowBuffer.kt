@@ -29,25 +29,25 @@ class AcpStreamWindowBuffer(private val eventBus: EventBus) {
 
     private val streamWindows = ConcurrentHashMap<StreamKey, StreamWindow>()
 
-    fun appendStreamWindow(memoryId: Any?, type: StreamWindowType, content: ContentBlock, parent: ArtifactKey) {
+    fun appendStreamWindow(memoryId: Any?, type: StreamWindowType, content: ContentBlock, parent: ArtifactKey, chatKey: ArtifactKey) {
         val text = extractText(content) ?: return
         val nodeId = memoryId?.toString() ?: "unknown"
         val key = StreamKey(nodeId, type)
-        val window = streamWindows.computeIfAbsent(key) { createStreamWindow(nodeId, type, parent) }
+        val window = streamWindows.computeIfAbsent(key) { createStreamWindow(nodeId, type, parent, chatKey) }
         window.appendText(text)
     }
 
-    fun appendStreamWindow(memoryId: Any?, type: StreamWindowType, text: String, parent: ArtifactKey) {
+    fun appendStreamWindow(memoryId: Any?, type: StreamWindowType, text: String, parent: ArtifactKey, chatKey: ArtifactKey) {
         val nodeId = memoryId?.toString() ?: "unknown"
         val key = StreamKey(nodeId, type)
-        val window = streamWindows.computeIfAbsent(key) { createStreamWindow(nodeId, type, parent) }
+        val window = streamWindows.computeIfAbsent(key) { createStreamWindow(nodeId, type, parent, chatKey) }
         window.appendText(text)
     }
 
-    fun appendEventWindow(memoryId: Any?, type: StreamWindowType, event: Events.GraphEvent, parent: ArtifactKey) {
+    fun appendEventWindow(memoryId: Any?, type: StreamWindowType, event: Events.GraphEvent, parent: ArtifactKey, chatKey: ArtifactKey) {
         val nodeId = memoryId?.toString() ?: "unknown"
         val key = StreamKey(nodeId, type)
-        val window = streamWindows.computeIfAbsent(key) { createStreamWindow(nodeId, type, parent) }
+        val window = streamWindows.computeIfAbsent(key) { createStreamWindow(nodeId, type, parent, chatKey) }
         window.appendEvent(event)
     }
 
@@ -72,14 +72,14 @@ class AcpStreamWindowBuffer(private val eventBus: EventBus) {
         return window.flush(isFinal)
     }
 
-    private fun createStreamWindow(nodeId: String, type: StreamWindowType, parent: ArtifactKey): StreamWindow = when (type) {
-        StreamWindowType.MESSAGE -> AgentStreamWindow(nodeId, eventBus, parent)
-        StreamWindowType.THOUGHT -> EventStreamWindow(nodeId, type, eventBus, parent)
-        StreamWindowType.TOOL_CALL -> EventStreamWindow(nodeId, type, eventBus, parent)
-        StreamWindowType.PLAN -> EventStreamWindow(nodeId, type, eventBus, parent)
-        StreamWindowType.USER_MESSAGE -> EventStreamWindow(nodeId, type, eventBus, parent)
-        StreamWindowType.CURRENT_MODE -> EventStreamWindow(nodeId, type, eventBus, parent)
-        StreamWindowType.AVAILABLE_COMMANDS -> EventStreamWindow(nodeId, type, eventBus, parent)
+    private fun createStreamWindow(nodeId: String, type: StreamWindowType, parent: ArtifactKey, chatKey: ArtifactKey): StreamWindow = when (type) {
+        StreamWindowType.MESSAGE -> AgentStreamWindow(nodeId, eventBus, parent, chatKey)
+        StreamWindowType.THOUGHT -> EventStreamWindow(nodeId, type, eventBus, parent, chatKey)
+        StreamWindowType.TOOL_CALL -> EventStreamWindow(nodeId, type, eventBus, parent, chatKey)
+        StreamWindowType.PLAN -> EventStreamWindow(nodeId, type, eventBus, parent, chatKey)
+        StreamWindowType.USER_MESSAGE -> EventStreamWindow(nodeId, type, eventBus, parent, chatKey)
+        StreamWindowType.CURRENT_MODE -> EventStreamWindow(nodeId, type, eventBus, parent, chatKey)
+        StreamWindowType.AVAILABLE_COMMANDS -> EventStreamWindow(nodeId, type, eventBus, parent, chatKey)
     }
 
     interface StreamWindow {
@@ -92,7 +92,8 @@ class AcpStreamWindowBuffer(private val eventBus: EventBus) {
         private val nodeId: String,
         private val type: StreamWindowType,
         private val eventBus: EventBus,
-        private val artifactKey: ArtifactKey
+        private val artifactKey: ArtifactKey,
+        private val chatKey: ArtifactKey
     ) : StreamWindow {
         private val buffer = StringBuilder()
         private var tokenCount = 0
@@ -118,6 +119,7 @@ class AcpStreamWindowBuffer(private val eventBus: EventBus) {
                         UUID.randomUUID().toString(),
                         Instant.now(),
                         artifactKey.createChild().value,
+                        chatKey,
                         content,
                         tokenCount,
                         isFinal
@@ -142,7 +144,8 @@ class AcpStreamWindowBuffer(private val eventBus: EventBus) {
     private class AgentStreamWindow(
         private val nodeId: String,
         private val eventBus: EventBus,
-        private val artifactKey: ArtifactKey
+        private val artifactKey: ArtifactKey,
+        private val chatKey: ArtifactKey
     ) : StreamWindow {
         private val buffer = StringBuilder()
         private var tokenCount = 0
@@ -165,6 +168,7 @@ class AcpStreamWindowBuffer(private val eventBus: EventBus) {
                     UUID.randomUUID().toString(),
                     Instant.now(),
                     artifactKey.createChild().value,
+                    chatKey,
                     content,
                     tokenCount,
                     isFinal

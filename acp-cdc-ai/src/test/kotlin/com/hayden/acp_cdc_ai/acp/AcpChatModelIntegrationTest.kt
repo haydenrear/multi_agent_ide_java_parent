@@ -179,11 +179,11 @@ class AcpChatModelIntegrationTest {
     }
 
     private fun setMemoryId(sessionId: String) {
-        EventBus.agentProcess.set(EventBus.AgentNodeKey(sessionId))
+        EventBus.Process.set(EventBus.AgentNodeKey(sessionId))
     }
 
     private fun clearMemoryId() {
-        EventBus.agentProcess.remove()
+        EventBus.Process.remove()
     }
 
     @Nested

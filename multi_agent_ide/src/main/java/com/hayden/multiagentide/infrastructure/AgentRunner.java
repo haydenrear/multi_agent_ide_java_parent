@@ -43,8 +43,8 @@ public class AgentRunner {
         addMessageToAgent(addMessageEvent.toAddMessage(), addMessageEvent.nodeId());
     }
 
-    private void addMessageToAgent(String input, String agentProcessId) {
-        llmOutputChannel.send(new MessageOutputChannelEvent(agentProcessId, new UserMessage(input)));
+    private void addMessageToAgent(String input, String nodeId) {
+        llmOutputChannel.send(new MessageOutputChannelEvent(nodeId, new UserMessage(input)));
     }
 
     public void runOnAgent(AgentDispatchArgs d) {

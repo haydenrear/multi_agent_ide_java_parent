@@ -35,11 +35,12 @@ class AcpSessionManager {
         val client: Client,
         val session: ClientSession,
         val streamWindows: AcpStreamWindowBuffer = AcpStreamWindowBuffer(eventBus),
-        val messageParent: ArtifactKey
+        val messageParent: ArtifactKey,
+        val chatModelKey: ArtifactKey,
     ) {
 
         init {
-            eventBus.publish(Events.ChatSessionCreatedEvent(UUID.randomUUID().toString(), Instant.now(), messageParent.value))
+            eventBus.publish(Events.ChatSessionCreatedEvent(UUID.randomUUID().toString(), Instant.now(), messageParent.value, chatModelKey))
         }
 
         suspend fun prompt(content: List<ContentBlock>, _meta: JsonElement? = null): Flow<Event> = session.prompt(content, _meta)
@@ -48,19 +49,19 @@ class AcpSessionManager {
             memoryId: Any?,
             type: AcpStreamWindowBuffer.StreamWindowType,
             content: ContentBlock
-        ) = streamWindows.appendStreamWindow(memoryId, type, content, messageParent)
+        ) = streamWindows.appendStreamWindow(memoryId, type, content, messageParent, chatModelKey)
 
         fun appendStreamWindow(
             memoryId: Any?,
             type: AcpStreamWindowBuffer.StreamWindowType,
             content: String
-        ) = streamWindows.appendStreamWindow(memoryId, type, content, messageParent)
+        ) = streamWindows.appendStreamWindow(memoryId, type, content, messageParent, chatModelKey)
 
         fun appendEventWindow(
             memoryId: Any?,
             type: AcpStreamWindowBuffer.StreamWindowType,
             event: Events.GraphEvent
-        ) = streamWindows.appendEventWindow(memoryId, type, event, messageParent)
+        ) = streamWindows.appendEventWindow(memoryId, type, event, messageParent, chatModelKey)
 
         fun flushWindows(memoryId: Any?) = streamWindows.flushWindows(memoryId)
 

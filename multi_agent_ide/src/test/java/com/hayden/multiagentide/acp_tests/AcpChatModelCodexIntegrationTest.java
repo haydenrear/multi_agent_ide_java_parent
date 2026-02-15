@@ -152,7 +152,8 @@ class AcpChatModelCodexIntegrationTest {
                     .withFailMessage("Hindsight could not be reached.")
                     .isPresent();
 
-            return context.ai().withDefaultLlm()
+            return context.ai()
+                    .withFirstAvailableLlmOf("acp-chat-model", context.getAgentProcess().getId())
                     .withId("hello!")
 //                    .withToolObjects(deepwiki.get())
                     .withToolObjects(hindsight.get())

@@ -309,12 +309,9 @@ public class AcpTooling implements ToolCarrier {
 
             if (permissionGate != null) {
                 String requestId = shellId;
-                String originNodeId = Optional.ofNullable(EventBus.agentProcess.get())
-                        .map(EventBus.AgentNodeKey::id)
-                        .orElse(StringUtils.hasText(sessionId) ? sessionId : "unknown");
                 RequestPermissionResponse response = permissionGate.awaitPermissionSync(
                         requestId,
-                        originNodeId,
+                        sessionId,
                         shellId
                 );
                 if (!(response.getOutcome() instanceof RequestPermissionOutcome.Selected)) {

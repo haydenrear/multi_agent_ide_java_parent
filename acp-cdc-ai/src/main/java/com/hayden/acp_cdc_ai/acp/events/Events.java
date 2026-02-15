@@ -250,6 +250,7 @@ public interface Events {
                         line("nodeId", e.nodeId()),
                         block("reason", e.reason()));
                 case ChatSessionCreatedEvent e -> formatEvent("Chat Session Created Event", e.eventType(),
+                        line("chatSessionId / agentNodeId (for sending messages to this chat)", e.chatModelId.value()),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
                         line("nodeId", e.nodeId()));
@@ -851,7 +852,8 @@ public interface Events {
     record ChatSessionCreatedEvent(
             String eventId,
             Instant timestamp,
-            String nodeId
+            String nodeId,
+            ArtifactKey chatModelId
     ) implements Events.GraphEvent {
         @Override
         public String eventType() {
@@ -882,6 +884,7 @@ public interface Events {
             String eventId,
             Instant timestamp,
             String nodeId,
+            ArtifactKey chatKey,
             String deltaContent,
             int tokenCount,
             boolean isFinal
@@ -896,6 +899,7 @@ public interface Events {
             String eventId,
             Instant timestamp,
             String nodeId,
+            ArtifactKey chatKey,
             String deltaContent,
             int tokenCount,
             boolean isFinal
@@ -910,6 +914,7 @@ public interface Events {
             String eventId,
             Instant timestamp,
             String nodeId,
+            ArtifactKey chatKey,
             String toolCallId,
             String title,
             String kind,

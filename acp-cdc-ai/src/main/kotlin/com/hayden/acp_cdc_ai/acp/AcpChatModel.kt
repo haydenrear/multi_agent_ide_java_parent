@@ -10,13 +10,12 @@ import com.agentclientprotocol.transport.Transport
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
 import com.hayden.acp_cdc_ai.acp.config.McpProperties
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
-import com.hayden.acp_cdc_ai.acp.events.EventBus
-import com.hayden.utilitymodule.nullable.mapNullable
-import com.hayden.utilitymodule.nullable.or
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository
 import com.hayden.acp_cdc_ai.sandbox.SandboxTranslation
 import com.hayden.acp_cdc_ai.sandbox.SandboxTranslationRegistry
+import com.hayden.utilitymodule.nullable.mapNullable
+import com.hayden.utilitymodule.nullable.or
 import io.modelcontextprotocol.server.IdeMcpAsyncServer.TOOL_ALLOWLIST_HEADER
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,28 +49,9 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.collections.List
-import kotlin.collections.emptyList
-import kotlin.collections.forEach
-import kotlin.collections.isNotEmpty
-import kotlin.collections.joinToString
-import kotlin.collections.last
-import kotlin.collections.listOf
-import kotlin.collections.mapNotNull
-import kotlin.collections.mutableListOf
-import kotlin.collections.mutableSetOf
-import kotlin.collections.orEmpty
-import kotlin.collections.plus
-import kotlin.collections.set
-import kotlin.collections.toMutableList
 import kotlin.io.path.readLines
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
-import kotlin.text.StringBuilder
-import kotlin.text.equals
-import kotlin.text.isNotEmpty
-import kotlin.text.isNullOrBlank
-import kotlin.text.trim
 
 /**
  * ACP-backed ChatModel implementation using the agentclientprotocol SDK.
@@ -108,7 +88,7 @@ class AcpChatModel(
 
     override fun stream(prompt: Prompt): Flux<ChatResponse> {
         log.info("Received request - {}.", prompt)
-        return performStream(prompt, resolveMemoryId())
+        return performStream(prompt, resolveMemoryId(prompt))
     }
 
     fun performStream(messages: Prompt, memoryId: Any?): Flux<ChatResponse> {
@@ -124,26 +104,27 @@ class AcpChatModel(
 
     fun doChat(chatRequest: Prompt?): ChatResponse {
         val request = requireNotNull(chatRequest) { "chatRequest must not be null" }
-        val memoryId = resolveMemoryId()
+        val memoryId = resolveMemoryId(chatRequest)
+        val hasSession = sessionExists(memoryId)
         val sessionContext = getOrCreateSession(memoryId, chatRequest)
-        val messages = resolveToSendMessages(chatRequest)
+        val messages = resolveToSendMessages(chatRequest, hasSession)
         return invokeChat(Prompt.builder().messages(messages).chatOptions(chatRequest.options).build(), sessionContext, memoryId)
     }
 
-    fun resolveToSendMessages(messages: Prompt): List<Message> {
-        val memoryId = resolveMemoryId()
-        val hasSession = sessionExists(memoryId)
-        return if (hasSession) {
-            listOf(messages.instructions.last())
-        } else {
-            resolveMessages(messages, memoryId)
-        }
+    fun resolveToSendMessages(messages: Prompt, hasSession: Boolean): List<Message> {
+        val memoryId = resolveMemoryId(messages)
+//        return if (hasSession) {
+//            messages.instructions
+//        } else {
+            return resolveMessages(messages, memoryId)
+//        }
     }
 
     suspend fun streamChat(prompt: Prompt, memoryId: Any?): Flow<Generation>  {
+        val hasSession = sessionExists(memoryId)
         val session = getOrCreateSession(memoryId, prompt)
 
-        val messages = resolveToSendMessages(prompt)
+        val messages = resolveToSendMessages(prompt, hasSession)
 
         val content = listOf(ContentBlock.Text(formatPromptMessages(Prompt.builder().messages(messages).chatOptions(prompt.options).build())))
 
@@ -218,8 +199,8 @@ class AcpChatModel(
         return if (history.isNotEmpty()) history else chatRequest.instructions
     }
 
-    private fun resolveMemoryId(): Any? {
-        return EventBus.agentProcess.get()?.id
+    private fun resolveMemoryId(chatRequest: Prompt): Any? {
+        return chatRequest.options?.model ?: ArtifactKey.createRoot().value
     }
 
     private fun getOrCreateSession(memoryId: Any?, chatRequest: Prompt?): AcpSessionManager.AcpSessionContext {
@@ -348,16 +329,18 @@ class AcpChatModel(
 
             val sessionParams = SessionCreationParameters(cwd, mcpSyncServers.toList())
 
-            val session=  client.newSession(sessionParams)
-                { _, _ -> AcpSessionOperations(permissionGate)}
+            val chatKey = memoryId
+                .mapNullable { ArtifactKey(it.toString()) }
+                .or { ArtifactKey.createRoot() }
+                ?: ArtifactKey.createRoot()
 
-            val messageParent =
-                memoryId.mapNullable { ArtifactKey(it.toString()).createChild() }
-                    ?.or { ArtifactKey.createRoot() }
-                    ?: ArtifactKey.createRoot()
+            val messageParent = chatKey.createChild()
+
+            val session=  client.newSession(sessionParams)
+             { _, _ -> AcpSessionOperations(permissionGate, chatKey.value) }
+
             sessionManager.AcpSessionContext(scope, transport, protocol, client, session,
-                messageParent= messageParent
-            )
+                messageParent= messageParent, chatModelKey = chatKey)
 
         } catch (ex: Exception) {
             throw IllegalStateException("Failed to initialize ACP session", ex)
@@ -446,7 +429,8 @@ class AcpChatModel(
     }
 
     private class AcpSessionOperations(
-        private val permissionGate: IPermissionGate
+        private val permissionGate: IPermissionGate,
+        private val originNodeId: String
     ) : ClientSessionOperations {
 
         private val activeTerminals = ConcurrentHashMap<String, Process>()
@@ -457,7 +441,6 @@ class AcpChatModel(
             _meta: JsonElement?
         ): RequestPermissionResponse {
             val requestId = toolCall.toolCallId.value
-            val originNodeId = EventBus.agentProcess.get()?.id ?: "unknown"
             permissionGate.publishRequest(requestId, originNodeId, toolCall, permissions, _meta)
             return permissionGate.awaitResponse(requestId)
         }

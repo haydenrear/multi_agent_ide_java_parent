@@ -65,12 +65,14 @@ fun parseGenerationsFromAcpEvent(event: Event, sessionContext: AcpSessionManager
             }
             is SessionUpdate.ToolCall -> {
                 val flushed = sessionContext.flushOtherWindows(memoryId, AcpStreamWindowBuffer.StreamWindowType.TOOL_CALL)
-                sessionContext.appendEventWindow(memoryId, AcpStreamWindowBuffer.StreamWindowType.TOOL_CALL, buildToolCallEvent(memoryId, update, "START", sessionContext.messageParent))
+                sessionContext.appendEventWindow(memoryId, AcpStreamWindowBuffer.StreamWindowType.TOOL_CALL, buildToolCallEvent(memoryId, update, "START",
+                    sessionContext.messageParent, sessionContext.chatModelKey))
                 flushed
             }
             is SessionUpdate.ToolCallUpdate -> {
                 val flushed = sessionContext.flushOtherWindows(memoryId, AcpStreamWindowBuffer.StreamWindowType.TOOL_CALL)
-                sessionContext.appendEventWindow(memoryId, AcpStreamWindowBuffer.StreamWindowType.TOOL_CALL, buildToolCallUpdateEvent(memoryId, update, sessionContext.messageParent))
+                sessionContext.appendEventWindow(memoryId, AcpStreamWindowBuffer.StreamWindowType.TOOL_CALL, buildToolCallUpdateEvent(memoryId, update, sessionContext.messageParent,
+                    sessionContext.chatModelKey))
                 flushed
             }
         }
@@ -79,12 +81,13 @@ fun parseGenerationsFromAcpEvent(event: Event, sessionContext: AcpSessionManager
     }
 
 private fun buildToolCallEvent(memoryId: Any?, update: SessionUpdate.ToolCall, phase: String,
-                               parent: ArtifactKey): Events.ToolCallEvent {
+                               parent: ArtifactKey, chatKey: ArtifactKey): Events.ToolCallEvent {
     val nodeId = parent.createChild().value
     return Events.ToolCallEvent(
         UUID.randomUUID().toString(),
         Instant.now(),
         nodeId,
+        chatKey,
         update.toolCallId.value,
         update.title,
         update.kind?.name,
@@ -98,7 +101,7 @@ private fun buildToolCallEvent(memoryId: Any?, update: SessionUpdate.ToolCall, p
 }
 
 private fun buildToolCallUpdateEvent(memoryId: Any?, update: SessionUpdate.ToolCallUpdate,
-                                     parent: ArtifactKey): Events.ToolCallEvent {
+                                     parent: ArtifactKey, chatKey: ArtifactKey): Events.ToolCallEvent {
     val phase = when (update.status) {
         ToolCallStatus.COMPLETED -> "RESULT"
         ToolCallStatus.FAILED -> "RESULT"
@@ -111,6 +114,7 @@ private fun buildToolCallUpdateEvent(memoryId: Any?, update: SessionUpdate.ToolC
         UUID.randomUUID().toString(),
         Instant.now(),
         nodeId,
+        chatKey,
         update.toolCallId.value,
         update.title ?: "tool_call",
         update.kind?.name,

@@ -1,6 +1,7 @@
 package com.hayden.acp_cdc_ai.acp.events;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Event bus for publishing and subscribing to graph events.
@@ -8,7 +9,7 @@ import java.util.List;
  */
 public interface EventBus {
 
-    ThreadLocal<AgentNodeKey> agentProcess = new ThreadLocal<>();
+    ThreadLocal<AgentNodeKey> Process = new InheritableThreadLocal<>();
 
     /**
      * Subscribe a listener to events.

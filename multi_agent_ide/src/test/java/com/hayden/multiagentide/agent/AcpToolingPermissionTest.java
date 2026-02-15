@@ -86,12 +86,12 @@ class AcpToolingPermissionTest {
         acpTooling = new AcpTooling(requestContextRepository, new ObjectMapper());
         acpTooling.setPermissionGate(permissionGateAdapter);
 
-        EventBus.agentProcess.set(new EventBus.AgentNodeKey(ArtifactKey.createRoot().value()));
+        EventBus.Process.set(new EventBus.AgentNodeKey(ArtifactKey.createRoot().value()));
     }
 
     @AfterEach
     void tearDown() {
-        EventBus.agentProcess.remove();
+        EventBus.Process.remove();
     }
 
     @Test

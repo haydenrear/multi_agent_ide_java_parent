@@ -60,20 +60,20 @@ public class AgentLifecycleHandler {
                 }
                 if (event instanceof AgentProcessFinishedEvent) {
                     if (prev == null)
-                        EventBus.agentProcess.remove();
+                        EventBus.Process.remove();
                     else
-                        EventBus.agentProcess.set(prev);
+                        EventBus.Process.set(prev);
                 }
             }
 
             private static EventBus.AgentNodeKey setAgentKey(AbstractAgentProcessEvent creation) {
-                var prev = EventBus.agentProcess.get();
+                var prev = EventBus.Process.get();
                 var ar = BlackboardHistory.getLastFromHistory(creation.getAgentProcess(), AgentModels.AgentRequest.class);
 
                 if (ar == null || ar.key() == null || ar.key().value() == null)
-                    EventBus.agentProcess.set(new EventBus.AgentNodeKey(creation.getProcessId()));
+                    EventBus.Process.set(new EventBus.AgentNodeKey(creation.getProcessId()));
                 else
-                    EventBus.agentProcess.set(new EventBus.AgentNodeKey(ar.key().value()));
+                    EventBus.Process.set(new EventBus.AgentNodeKey(ar.key().value()));
 
                 return prev;
             }
