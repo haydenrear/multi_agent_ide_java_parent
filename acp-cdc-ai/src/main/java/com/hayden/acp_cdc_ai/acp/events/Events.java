@@ -1097,10 +1097,10 @@ public interface Events {
 
     // ============ TUI EVENTS ============
 
-    sealed interface TuiEvent {
+    sealed interface UiEvent {
     }
 
-    sealed interface TuiInteractionEvent extends TuiEvent
+    sealed interface UiInteractionEvent extends UiEvent
             permits
             EventStreamMoveSelection,
             EventStreamScroll,
@@ -1119,7 +1119,7 @@ public interface Events {
             FocusSessionList {
     }
 
-    sealed interface TuiSystemEvent extends TuiEvent
+    sealed interface UiSystemEvent extends UiEvent
             permits
             EventStreamAppended,
             EventStreamTrimmed,
@@ -1132,7 +1132,7 @@ public interface Events {
             Instant timestamp,
             String nodeId,
             String sessionId,
-            TuiInteractionEvent tuiEvent
+            UiInteractionEvent tuiEvent
     ) implements GraphEvent {
         @Override
         public String eventType() {
@@ -1145,7 +1145,7 @@ public interface Events {
             Instant timestamp,
             String nodeId,
             String sessionId,
-            TuiSystemEvent tuiEvent
+            UiSystemEvent tuiEvent
     ) implements GraphEvent {
         @Override
         public String eventType() {
@@ -1156,103 +1156,103 @@ public interface Events {
     record EventStreamMoveSelection(
             int delta,
             int newSelectedIndex
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record EventStreamScroll(
             int delta,
             int newScrollOffset
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record EventStreamOpenDetail(
             String eventId
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record EventStreamCloseDetail(
             String eventId
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record FocusChatInput(
             String previousFocus
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record FocusEventStream(
             String previousFocus
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record ChatInputChanged(
             String text,
             int cursorPosition
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record ChatInputSubmitted(
             String text
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record ChatSearchOpened(
             String initialQuery
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record ChatSearchQueryChanged(
             String query,
             int cursorPosition
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record ChatSearchResultNavigate(
             int delta,
             int resultIndex
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record ChatSearchClosed(
             String query
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record SessionSelected(
             String sessionId
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record SessionCreated(
             String sessionId
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record FocusSessionList(
             String previousFocus
-    ) implements TuiInteractionEvent {
+    ) implements UiInteractionEvent {
     }
 
     record EventStreamAppended(
             String graphEventId,
             int rowIndex
-    ) implements TuiSystemEvent {
+    ) implements UiSystemEvent {
     }
 
     record EventStreamTrimmed(
             int removedCount
-    ) implements TuiSystemEvent {
+    ) implements UiSystemEvent {
     }
 
     record ChatMessageAppended(
             String messageId,
             int rowIndex
-    ) implements TuiSystemEvent {
+    ) implements UiSystemEvent {
     }
 
     record ChatHistoryTrimmed(
             int removedCount
-    ) implements TuiSystemEvent {
+    ) implements UiSystemEvent {
     }
 
     record UiStateSnapshot(

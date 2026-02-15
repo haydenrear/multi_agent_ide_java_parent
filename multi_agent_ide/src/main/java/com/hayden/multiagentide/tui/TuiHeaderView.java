@@ -1,5 +1,8 @@
 package com.hayden.multiagentide.tui;
 
+import com.hayden.multiagentide.ui.state.UiFocus;
+import com.hayden.multiagentide.ui.state.UiSessionState;
+import com.hayden.multiagentide.ui.state.UiState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.shell.component.view.control.BoxView;
 import org.springframework.shell.component.view.screen.Screen;
@@ -14,20 +17,20 @@ class TuiHeaderView extends BoxView {
 
     private final Path initialRepoPath;
     private String sessionId = "";
-    private TuiState state = null;
-    private TuiSessionState sessionState;
+    private UiState state = null;
+    private UiSessionState sessionState;
 
     TuiHeaderView(Path initialRepoPath) {
         this.initialRepoPath = initialRepoPath;
-        this.sessionState = TuiSessionState.initial(initialRepoPath);
+        this.sessionState = UiSessionState.initial(initialRepoPath);
         setShowBorder(true);
     }
 
-    void update(TuiState state, String sessionId, TuiSessionState sessionState) {
+    void update(UiState state, String sessionId, UiSessionState sessionState) {
         this.state = state;
         this.sessionId = sessionId == null ? "" : sessionId;
         Path repo = sessionState != null && sessionState.repo() != null ? sessionState.repo() : initialRepoPath;
-        this.sessionState = sessionState == null ? TuiSessionState.initial(repo) : sessionState;
+        this.sessionState = sessionState == null ? UiSessionState.initial(repo) : sessionState;
     }
 
     @Override
@@ -38,7 +41,7 @@ class TuiHeaderView extends BoxView {
         int width = TuiTextLayout.safeContentWidth(inner.width());
         int y = inner.y();
 
-        String focus = state == null || state.focus() == null ? TuiFocus.CHAT_INPUT.name() : state.focus().name();
+        String focus = state == null || state.focus() == null ? UiFocus.CHAT_INPUT.name() : state.focus().name();
         String topLine = "events=" + sessionState.events().size() + " selected=" + sessionState.selectedIndex() + " focus=" + focus;
         String repoLine = "repo=" + abbreviate(sessionState.repo() == null ? "none" : sessionState.repo().toString(), width - 12);
         String keyLine = "Tab focus  Ctrl+S sessions  Ctrl+E events  Ctrl+F search  Ctrl+N new";

@@ -1,5 +1,7 @@
 package com.hayden.multiagentide.tui;
 
+import com.hayden.multiagentide.ui.state.UiSessionState;
+import com.hayden.multiagentide.ui.state.UiState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.shell.component.view.control.GridView;
 import org.springframework.shell.component.view.control.View;
@@ -21,8 +23,8 @@ class TuiSessionView extends GridView {
     private final TuiMessageStreamView messageStreamView;
     private final TuiChatView chatView;
 
-    private TuiState state = null;
-    private TuiSessionState sessionState;
+    private UiState state = null;
+    private UiSessionState sessionState;
 
     TuiSessionView(String sessionId, Path initialRepoPath, TuiMessageStreamView messageStreamView) {
         this.sessionId = sessionId;
@@ -30,7 +32,7 @@ class TuiSessionView extends GridView {
         this.headerView = new TuiHeaderView(initialRepoPath);
         this.messageStreamView = messageStreamView;
         this.chatView = new TuiChatView(initialRepoPath);
-        this.sessionState = TuiSessionState.initial(initialRepoPath);
+        this.sessionState = UiSessionState.initial(initialRepoPath);
 
         setShowBorders(false);
         setColumnSize(0);
@@ -41,10 +43,10 @@ class TuiSessionView extends GridView {
         addItem(chatView, 2, 0, 1, 1, 0, 0);
     }
 
-    void update(TuiState state, TuiSessionState sessionState) {
+    void update(UiState state, UiSessionState sessionState) {
         this.state = state;
         Path repo = sessionState != null && sessionState.repo() != null ? sessionState.repo() : initialRepoPath;
-        this.sessionState = sessionState == null ? TuiSessionState.initial(repo) : sessionState;
+        this.sessionState = sessionState == null ? UiSessionState.initial(repo) : sessionState;
         this.headerView.update(this.state, sessionId, this.sessionState);
         this.messageStreamView.update(this.state, this.sessionState);
         this.chatView.update(this.state, this.sessionState);
@@ -58,7 +60,7 @@ class TuiSessionView extends GridView {
         return messageStreamView.selectedEventId();
     }
 
-    TuiSessionState sessionState() {
+    UiSessionState sessionState() {
         return sessionState;
     }
 

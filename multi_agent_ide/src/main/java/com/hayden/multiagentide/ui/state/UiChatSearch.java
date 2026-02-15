@@ -1,20 +1,20 @@
-package com.hayden.multiagentide.tui;
+package com.hayden.multiagentide.ui.state;
 
 import java.util.List;
 
-public record TuiChatSearch(
+public record UiChatSearch(
         boolean active,
         String query,
         List<Integer> resultIndices,
         int selectedResultIndex
 ) {
-    public TuiChatSearch {
+    public UiChatSearch {
         if (resultIndices == null) {
             resultIndices = List.of();
         }
     }
 
-    public static TuiChatSearch inactive() {
-        return new TuiChatSearch(false, "", List.of(), -1);
+    public static UiChatSearch inactive() {
+        return new UiChatSearch(false, "", List.of(), -1);
     }
 }

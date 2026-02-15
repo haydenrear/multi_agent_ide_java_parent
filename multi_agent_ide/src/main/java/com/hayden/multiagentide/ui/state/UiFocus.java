@@ -1,6 +1,6 @@
-package com.hayden.multiagentide.tui;
+package com.hayden.multiagentide.ui.state;
 
-public enum TuiFocus {
+public enum UiFocus {
     SESSION_LIST,
     EVENT_STREAM,
     CHAT_INPUT,

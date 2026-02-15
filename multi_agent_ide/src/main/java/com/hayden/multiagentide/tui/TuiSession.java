@@ -7,6 +7,12 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.cli.CliEventFormatter;
 import com.hayden.multiagentide.repository.EventStreamRepository;
+import com.hayden.multiagentide.ui.state.UiFocus;
+import com.hayden.multiagentide.ui.state.UiSessionState;
+import com.hayden.multiagentide.ui.state.UiState;
+import com.hayden.multiagentide.ui.state.UiViewport;
+import com.hayden.multiagentide.ui.shared.SharedUiInteractionService;
+import com.hayden.multiagentide.ui.shared.UiActionCommand;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jline.terminal.Terminal;
@@ -14,7 +20,6 @@ import org.jline.terminal.Size;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
-import org.springframework.messaging.support.GenericMessage;
 import org.springframework.shell.component.view.TerminalUI;
 import org.springframework.shell.component.view.TerminalUIBuilder;
 import org.springframework.shell.component.view.control.View;
@@ -27,7 +32,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -46,10 +50,10 @@ public class TuiSession implements EventListener {
     private final IPermissionGate permissionGateAdapter;
     private final CliEventFormatter eventFormatter;
     private final Terminal terminal;
+    private final SharedUiInteractionService sharedUiInteractionService;
 
     private final Object stateLock = new Object();
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private final TuiStateReducer reducer = new TuiStateReducer();
     private static final int DEFAULT_COLUMNS = 80;
     private static final int DEFAULT_ROWS = 24;
 
@@ -63,7 +67,7 @@ public class TuiSession implements EventListener {
 
     private TerminalUI terminalUi;
     private TuiTerminalView rootView;
-    private TuiState state;
+    private UiState state;
     private final Map<String, Boolean> startedSessions = new LinkedHashMap<>();
     private volatile int eventListHeight = 10;
 
@@ -222,8 +226,13 @@ public class TuiSession implements EventListener {
 
         Events.AddMessageEvent queuedMessage;
         synchronized (stateLock) {
-            TuiViewport viewport = new TuiViewport(Math.max(1, eventListHeight));
-            state = reducer.reduce(state, event, viewport, resolveSessionId(event));
+            UiViewport viewport = new UiViewport(Math.max(1, eventListHeight));
+            state = sharedUiInteractionService.reduce(
+                    state,
+                    event,
+                    viewport,
+                    sharedUiInteractionService.resolveNodeId(event, activeSessionId)
+            );
             queuedMessage = resolveInteractionMessage(event);
         }
 
@@ -272,27 +281,27 @@ public class TuiSession implements EventListener {
                 activeNodeId = activeSessionId;
                 startedSessions.put(activeSessionId, false);
             }
-            Map<String, TuiSessionState> sessions = new LinkedHashMap<>();
-            TuiSessionState initial = TuiSessionState.initial(resolveDefaultRepoPath());
+            Map<String, UiSessionState> sessions = new LinkedHashMap<>();
+            UiSessionState initial = UiSessionState.initial(resolveDefaultRepoPath());
             sessions.put(activeSessionId, initial);
-            state = TuiState.initial(shellSessionId, activeSessionId, List.of(activeSessionId), sessions, initial.repo());
+            state = UiState.initial(shellSessionId, activeSessionId, List.of(activeSessionId), sessions, initial.repo());
         }
     }
 
-    private TuiState snapshotState() {
+    private UiState snapshotState() {
         synchronized (stateLock) {
             return state;
         }
     }
 
-    private TuiSessionState activeSessionState() {
+    private UiSessionState activeSessionState() {
         if (state == null || state.activeSessionId() == null) {
-            return TuiSessionState.initial(resolveDefaultRepoPath());
+            return UiSessionState.initial(resolveDefaultRepoPath());
         }
-        return state.sessions().getOrDefault(state.activeSessionId(), TuiSessionState.initial(resolveDefaultRepoPath()));
+        return state.sessions().getOrDefault(state.activeSessionId(), UiSessionState.initial(resolveDefaultRepoPath()));
     }
 
-    private void publishInteraction(Events.TuiInteractionEvent event) {
+    private void publishInteraction(Events.UiInteractionEvent event) {
         String nodeId = (activeNodeId == null || activeNodeId.isBlank())
                 ? (activeSessionId == null ? shellSessionId : activeSessionId)
                 : activeNodeId;
@@ -308,6 +317,10 @@ public class TuiSession implements EventListener {
                 event
         );
         eventBus.publish(graphEvent);
+    }
+
+    private void publishInteraction(UiActionCommand command) {
+        publishInteraction(sharedUiInteractionService.toInteractionEvent(command));
     }
 
     private Events.AddMessageEvent resolveInteractionMessage(Events.GraphEvent event) {
@@ -352,8 +365,8 @@ public class TuiSession implements EventListener {
             return;
         }
 
-        Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState existing = sessions.getOrDefault(sessionIdToReplace, TuiSessionState.initial(resolveDefaultRepoPath()));
+        Map<String, UiSessionState> sessions = new LinkedHashMap<>(state.sessions());
+        UiSessionState existing = sessions.getOrDefault(sessionIdToReplace, UiSessionState.initial(resolveDefaultRepoPath()));
         sessions.remove(sessionIdToReplace);
         sessions.put(startedNodeId, existing);
 
@@ -374,7 +387,7 @@ public class TuiSession implements EventListener {
                 .activeSessionId(startedNodeId)
                 .sessionOrder(List.copyOf(order))
                 .sessions(sessions)
-                .focus(TuiFocus.CHAT_INPUT)
+                .focus(UiFocus.CHAT_INPUT)
                 .build();
     }
 
@@ -394,7 +407,7 @@ public class TuiSession implements EventListener {
 
     private String resolveRepoForSession(String sessionId) {
         if (state != null && sessionId != null) {
-            TuiSessionState sessionState = state.sessions().get(sessionId);
+            UiSessionState sessionState = state.sessions().get(sessionId);
             if (sessionState != null && sessionState.repo() != null) {
                 return sessionState.repo().toString();
             }
@@ -528,7 +541,7 @@ public class TuiSession implements EventListener {
         startedSessions.put(newSessionId, false);
         publishInteraction(new Events.SessionCreated(newSessionId));
         publishInteraction(new Events.SessionSelected(newSessionId));
-        publishInteraction(new Events.FocusChatInput(TuiFocus.SESSION_LIST.name()));
+        publishInteraction(new Events.FocusChatInput(UiFocus.SESSION_LIST.name()));
     }
 
     private final class ViewController implements TuiTerminalView.Controller {
@@ -541,15 +554,15 @@ public class TuiSession implements EventListener {
                     requestRedraw();
                     return;
                 }
-                if (state.focus() == TuiFocus.SESSION_LIST) {
+                if (state.focus() == UiFocus.SESSION_LIST) {
                     moveSessionSelection(delta);
                     return;
                 }
-                if (state.focus() == TuiFocus.CHAT_SEARCH) {
+                if (state.focus() == UiFocus.CHAT_SEARCH) {
                     publishInteraction(new Events.ChatSearchResultNavigate(delta, activeSessionState().chatSearch().selectedResultIndex()));
                     return;
                 }
-                if (state.focus() == TuiFocus.EVENT_STREAM) {
+                if (state.focus() == UiFocus.EVENT_STREAM) {
                     int target = activeSessionState().selectedIndex() + delta;
                     publishInteraction(new Events.EventStreamMoveSelection(delta, target));
                     return;
@@ -561,7 +574,7 @@ public class TuiSession implements EventListener {
         @Override
         public void scrollList(int delta) {
             synchronized (stateLock) {
-                if (state.focus() != TuiFocus.EVENT_STREAM) {
+                if (state.focus() != UiFocus.EVENT_STREAM) {
                     return;
                 }
                 int target = activeSessionState().scrollOffset() + delta;
@@ -572,21 +585,21 @@ public class TuiSession implements EventListener {
         @Override
         public void handleEnter() {
             synchronized (stateLock) {
-                if (state.focus() == TuiFocus.CHAT_INPUT) {
+                if (state.focus() == UiFocus.CHAT_INPUT) {
                     publishInteraction(new Events.ChatInputSubmitted(activeSessionState().chatInput()));
                     publishInteraction(new Events.ChatInputChanged("", 0));
                     return;
                 }
-                if (state.focus() == TuiFocus.SESSION_LIST) {
+                if (state.focus() == UiFocus.SESSION_LIST) {
                     publishInteraction(new Events.SessionSelected(state.activeSessionId()));
                     return;
                 }
-                if (state.focus() == TuiFocus.CHAT_SEARCH) {
+                if (state.focus() == UiFocus.CHAT_SEARCH) {
                     publishInteraction(new Events.ChatSearchResultNavigate(1, activeSessionState().chatSearch().selectedResultIndex()));
                     return;
                 }
-                if (state.focus() == TuiFocus.EVENT_STREAM) {
-                    TuiSessionState sessionState = activeSessionState();
+                if (state.focus() == UiFocus.EVENT_STREAM) {
+                    UiSessionState sessionState = activeSessionState();
                     if (!sessionState.events().isEmpty()) {
                         Events.GraphEvent selected = sessionState.events().get(sessionState.selectedIndex());
                         publishInteraction(new Events.EventStreamOpenDetail(selected.eventId()));
@@ -598,12 +611,12 @@ public class TuiSession implements EventListener {
         @Override
         public void handleBackspace() {
             synchronized (stateLock) {
-                TuiSessionState sessionState = activeSessionState();
+                UiSessionState sessionState = activeSessionState();
                 if (sessionState.detailOpen()) {
                     publishInteraction(new Events.EventStreamCloseDetail(sessionState.detailEventId()));
                     return;
                 }
-                if (state.focus() == TuiFocus.CHAT_INPUT) {
+                if (state.focus() == UiFocus.CHAT_INPUT) {
                     String text = sessionState.chatInput();
                     if (!text.isEmpty()) {
                         String next = text.substring(0, text.length() - 1);
@@ -611,7 +624,7 @@ public class TuiSession implements EventListener {
                     }
                     return;
                 }
-                if (state.focus() == TuiFocus.CHAT_SEARCH && sessionState.chatSearch().active()) {
+                if (state.focus() == UiFocus.CHAT_SEARCH && sessionState.chatSearch().active()) {
                     String query = sessionState.chatSearch().query();
                     if (!query.isEmpty()) {
                         String next = query.substring(0, query.length() - 1);
@@ -624,12 +637,12 @@ public class TuiSession implements EventListener {
         @Override
         public void handleEscape() {
             synchronized (stateLock) {
-                TuiSessionState sessionState = activeSessionState();
+                UiSessionState sessionState = activeSessionState();
                 if (sessionState.detailOpen()) {
                     publishInteraction(new Events.EventStreamCloseDetail(sessionState.detailEventId()));
                     return;
                 }
-                if (state.focus() == TuiFocus.CHAT_SEARCH && sessionState.chatSearch().active()) {
+                if (state.focus() == UiFocus.CHAT_SEARCH && sessionState.chatSearch().active()) {
                     publishInteraction(new Events.ChatSearchClosed(sessionState.chatSearch().query()));
                 }
             }
@@ -638,7 +651,7 @@ public class TuiSession implements EventListener {
         @Override
         public void toggleFocus() {
             synchronized (stateLock) {
-                if (state.focus() == TuiFocus.EVENT_STREAM || state.focus() == TuiFocus.SESSION_LIST) {
+                if (state.focus() == UiFocus.EVENT_STREAM || state.focus() == UiFocus.SESSION_LIST) {
                     publishInteraction(new Events.FocusChatInput(state.focus().name()));
                 } else {
                     publishInteraction(new Events.FocusEventStream(state.focus().name()));
@@ -677,12 +690,12 @@ public class TuiSession implements EventListener {
         @Override
         public void handlePrintable(char ch) {
             synchronized (stateLock) {
-                if (state.focus() == TuiFocus.CHAT_INPUT) {
+                if (state.focus() == UiFocus.CHAT_INPUT) {
                     String next = activeSessionState().chatInput() + ch;
                     publishInteraction(new Events.ChatInputChanged(next, next.length()));
                     return;
                 }
-                if (state.focus() == TuiFocus.CHAT_SEARCH) {
+                if (state.focus() == UiFocus.CHAT_SEARCH) {
                     String next = activeSessionState().chatSearch().query() + ch;
                     publishInteraction(new Events.ChatSearchQueryChanged(next, next.length()));
                 }
@@ -699,7 +712,7 @@ public class TuiSession implements EventListener {
         }
     }
 
-    public TuiState snapshotForTests() {
+    public UiState snapshotForTests() {
         synchronized (stateLock) {
             return state;
         }

@@ -1,16 +1,15 @@
-package com.hayden.multiagentide.tui;
+package com.hayden.multiagentide.ui.state;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class TuiStateReducer {
+public class UiStateReducer {
 
-    public TuiState reduce(TuiState state, Events.GraphEvent event, TuiViewport viewport, String sessionId) {
+    public UiState reduce(UiState state, Events.GraphEvent event, UiViewport viewport, String sessionId) {
         if (event instanceof Events.TuiInteractionGraphEvent interaction) {
             return applyInteraction(state, interaction.tuiEvent(), viewport);
         }
@@ -20,9 +19,9 @@ public class TuiStateReducer {
         return appendGraphEvent(state, event, viewport, sessionId);
     }
 
-    private TuiState appendGraphEvent(TuiState state, Events.GraphEvent event, TuiViewport viewport, String sessionId) {
-        Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState sessionState = sessions.getOrDefault(sessionId, initialSessionFromState(state));
+    private UiState appendGraphEvent(UiState state, Events.GraphEvent event, UiViewport viewport, String sessionId) {
+        Map<String, UiSessionState> sessions = new LinkedHashMap<>(state.sessions());
+        UiSessionState sessionState = sessions.getOrDefault(sessionId, initialSessionFromState(state));
         List<Events.GraphEvent> updated = new ArrayList<>(sessionState.events());
         updated.add(event);
 
@@ -37,7 +36,7 @@ public class TuiStateReducer {
             }
         }
 
-        TuiSessionState updatedSession = sessionState.toBuilder()
+        UiSessionState updatedSession = sessionState.toBuilder()
                 .events(List.copyOf(updated))
                 .selectedIndex(clampIndex(newSelected, updated.size()))
                 .scrollOffset(Math.max(0, newScroll))
@@ -54,16 +53,16 @@ public class TuiStateReducer {
                 .build();
     }
 
-    private TuiState applySystemEvent(TuiState state, Events.TuiSystemEvent event) {
+    private UiState applySystemEvent(UiState state, Events.UiSystemEvent event) {
         return state;
     }
 
-    private TuiState applyInteraction(TuiState state, Events.TuiInteractionEvent event, TuiViewport viewport) {
+    private UiState applyInteraction(UiState state, Events.UiInteractionEvent event, UiViewport viewport) {
         if (state.activeSessionId() == null || state.activeSessionId().isBlank()) {
             return state;
         }
-        Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), initialSessionFromState(state));
+        Map<String, UiSessionState> sessions = new LinkedHashMap<>(state.sessions());
+        UiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), initialSessionFromState(state));
         return switch (event) {
             case Events.EventStreamMoveSelection e -> {
                 int target = clampIndex(e.newSelectedIndex(), sessionState.events().size());
@@ -92,15 +91,15 @@ public class TuiStateReducer {
                     .build();
             case Events.FocusChatInput e -> state.toBuilder()
                     .sessions(sessions)
-                    .focus(TuiFocus.CHAT_INPUT)
+                    .focus(UiFocus.CHAT_INPUT)
                     .build();
             case Events.FocusEventStream e -> state.toBuilder()
                     .sessions(sessions)
-                    .focus(TuiFocus.EVENT_STREAM)
+                    .focus(UiFocus.EVENT_STREAM)
                     .build();
             case Events.FocusSessionList e -> state.toBuilder()
                     .sessions(sessions)
-                    .focus(TuiFocus.SESSION_LIST)
+                    .focus(UiFocus.SESSION_LIST)
                     .build();
             case Events.ChatInputChanged e -> state.toBuilder()
                     .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
@@ -114,17 +113,17 @@ public class TuiStateReducer {
                     .build();
             case Events.ChatSearchOpened e -> state.toBuilder()
                     .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
-                            .chatSearch(new TuiChatSearch(true, e.initialQuery(), List.of(), -1))
+                            .chatSearch(new UiChatSearch(true, e.initialQuery(), List.of(), -1))
                             .build()))
-                    .focus(TuiFocus.CHAT_SEARCH)
+                    .focus(UiFocus.CHAT_SEARCH)
                     .build();
             case Events.ChatSearchQueryChanged e -> applySearchQueryChange(state, e.query(), viewport);
             case Events.ChatSearchResultNavigate e -> applySearchNavigation(state, e.delta(), viewport);
             case Events.ChatSearchClosed e -> state.toBuilder()
                     .sessions(updateSession(sessions, state.activeSessionId(), sessionState.toBuilder()
-                            .chatSearch(TuiChatSearch.inactive())
+                            .chatSearch(UiChatSearch.inactive())
                             .build()))
-                    .focus(TuiFocus.EVENT_STREAM)
+                    .focus(UiFocus.EVENT_STREAM)
                     .build();
             case Events.SessionSelected e -> state.toBuilder()
                     .activeSessionId(e.sessionId())
@@ -132,7 +131,7 @@ public class TuiStateReducer {
                     .sessions(ensureSessionExists(state, sessions, e.sessionId()))
                     .build();
             case Events.SessionCreated e -> {
-                Map<String, TuiSessionState> updatedSessions = new LinkedHashMap<>(sessions);
+                Map<String, UiSessionState> updatedSessions = new LinkedHashMap<>(sessions);
                 if (!updatedSessions.containsKey(e.sessionId())) {
                     updatedSessions.put(e.sessionId(), initialSessionFromState(state));
                 }
@@ -149,9 +148,9 @@ public class TuiStateReducer {
         };
     }
 
-    private TuiState applySearchQueryChange(TuiState state, String query, TuiViewport viewport) {
-        Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), initialSessionFromState(state));
+    private UiState applySearchQueryChange(UiState state, String query, UiViewport viewport) {
+        Map<String, UiSessionState> sessions = new LinkedHashMap<>(state.sessions());
+        UiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), initialSessionFromState(state));
         String trimmed = query == null ? "" : query.trim();
         List<Integer> results = new ArrayList<>();
         if (!trimmed.isBlank()) {
@@ -179,16 +178,16 @@ public class TuiStateReducer {
                         .selectedIndex(selectedEventIndex)
                         .scrollOffset(scroll)
                         .autoFollow(false)
-                        .chatSearch(new TuiChatSearch(true, trimmed, List.copyOf(results), selectedResultIndex))
+                        .chatSearch(new UiChatSearch(true, trimmed, List.copyOf(results), selectedResultIndex))
                         .build()))
-                .focus(TuiFocus.CHAT_SEARCH)
+                .focus(UiFocus.CHAT_SEARCH)
                 .build();
     }
 
-    private TuiState applySearchNavigation(TuiState state, int delta, TuiViewport viewport) {
-        Map<String, TuiSessionState> sessions = new LinkedHashMap<>(state.sessions());
-        TuiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), initialSessionFromState(state));
-        TuiChatSearch search = sessionState.chatSearch();
+    private UiState applySearchNavigation(UiState state, int delta, UiViewport viewport) {
+        Map<String, UiSessionState> sessions = new LinkedHashMap<>(state.sessions());
+        UiSessionState sessionState = sessions.getOrDefault(state.activeSessionId(), initialSessionFromState(state));
+        UiChatSearch search = sessionState.chatSearch();
         if (!search.active() || search.resultIndices().isEmpty()) {
             return state;
         }
@@ -208,16 +207,16 @@ public class TuiStateReducer {
                         .selectedIndex(selectedEventIndex)
                         .scrollOffset(scroll)
                         .autoFollow(false)
-                        .chatSearch(new TuiChatSearch(true, search.query(), search.resultIndices(), next))
+                        .chatSearch(new UiChatSearch(true, search.query(), search.resultIndices(), next))
                         .build()))
-                .focus(TuiFocus.CHAT_SEARCH)
+                .focus(UiFocus.CHAT_SEARCH)
                 .build();
     }
 
-    private TuiState stateWithSelection(
-            TuiState state,
-            Map<String, TuiSessionState> sessions,
-            TuiSessionState sessionState,
+    private UiState stateWithSelection(
+            UiState state,
+            Map<String, UiSessionState> sessions,
+            UiSessionState sessionState,
             int selected,
             int scroll,
             boolean autoFollow
@@ -231,8 +230,8 @@ public class TuiStateReducer {
                 .build();
     }
 
-    private Map<String, TuiSessionState> updateSession(Map<String, TuiSessionState> sessions, String sessionId, TuiSessionState state) {
-        Map<String, TuiSessionState> updated = new LinkedHashMap<>(sessions);
+    private Map<String, UiSessionState> updateSession(Map<String, UiSessionState> sessions, String sessionId, UiSessionState state) {
+        Map<String, UiSessionState> updated = new LinkedHashMap<>(sessions);
         if (sessionId != null) {
             updated.put(sessionId, state);
         }
@@ -247,23 +246,23 @@ public class TuiStateReducer {
         return List.copyOf(updated);
     }
 
-    private Map<String, TuiSessionState> ensureSessionExists(TuiState state, Map<String, TuiSessionState> sessions, String sessionId) {
-        Map<String, TuiSessionState> updated = new LinkedHashMap<>(sessions);
+    private Map<String, UiSessionState> ensureSessionExists(UiState state, Map<String, UiSessionState> sessions, String sessionId) {
+        Map<String, UiSessionState> updated = new LinkedHashMap<>(sessions);
         if (sessionId != null && !updated.containsKey(sessionId)) {
             updated.put(sessionId, initialSessionFromState(state));
         }
         return updated;
     }
 
-    private TuiSessionState initialSessionFromState(TuiState state) {
+    private UiSessionState initialSessionFromState(UiState state) {
         if (state == null || state.activeSessionId() == null) {
-            return TuiSessionState.initial(state.repo());
+            return UiSessionState.initial(state.repo());
         }
-        TuiSessionState active = state.sessions().get(state.activeSessionId());
+        UiSessionState active = state.sessions().get(state.activeSessionId());
         if (active != null && active.repo() != null) {
-            return TuiSessionState.initial(active.repo());
+            return UiSessionState.initial(active.repo());
         }
-        return TuiSessionState.initial(state.repo());
+        return UiSessionState.initial(state.repo());
     }
 
     private int adjustScrollForSelection(int selectedIndex, int scrollOffset, int height) {

@@ -1,5 +1,8 @@
 package com.hayden.multiagentide.tui;
 
+import com.hayden.multiagentide.ui.state.UiFocus;
+import com.hayden.multiagentide.ui.state.UiSessionState;
+import com.hayden.multiagentide.ui.state.UiState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.shell.component.view.control.InputView;
 import org.springframework.shell.component.view.event.KeyHandler;
@@ -14,19 +17,19 @@ import java.util.List;
 class TuiChatView extends InputView {
 
     private final Path initialRepoPath;
-    private TuiState state = null;
-    private TuiSessionState sessionState;
+    private UiState state = null;
+    private UiSessionState sessionState;
 
     TuiChatView(Path initialRepoPath) {
         this.initialRepoPath = initialRepoPath;
-        this.sessionState = TuiSessionState.initial(initialRepoPath);
+        this.sessionState = UiSessionState.initial(initialRepoPath);
         setShowBorder(true);
     }
 
-    void update(TuiState state, TuiSessionState sessionState) {
+    void update(UiState state, UiSessionState sessionState) {
         this.state = state;
         Path repo = sessionState != null && sessionState.repo() != null ? sessionState.repo() : initialRepoPath;
-        this.sessionState = sessionState == null ? TuiSessionState.initial(repo) : sessionState;
+        this.sessionState = sessionState == null ? UiSessionState.initial(repo) : sessionState;
     }
 
     int requiredHeight(int width) {
@@ -51,7 +54,7 @@ class TuiChatView extends InputView {
     @Override
     protected void drawInternal(Screen screen) {
         ChatLine chatLine = resolveChatLine();
-        if (state != null && state.focus() == TuiFocus.CHAT_SEARCH) {
+        if (state != null && state.focus() == UiFocus.CHAT_SEARCH) {
             setTitle("Search");
         } else {
             setTitle("Chat");
@@ -91,14 +94,14 @@ class TuiChatView extends InputView {
     }
 
     private ChatLine resolveChatLine() {
-        if (state != null && state.focus() == TuiFocus.CHAT_SEARCH && sessionState.chatSearch().active()) {
+        if (state != null && state.focus() == UiFocus.CHAT_SEARCH && sessionState.chatSearch().active()) {
             return new ChatLine("Search> ", sessionState.chatSearch().query());
         }
         return new ChatLine("Chat> ", sessionState.chatInput());
     }
 
     private boolean isChatFocused() {
-        return state != null && (state.focus() == TuiFocus.CHAT_INPUT || state.focus() == TuiFocus.CHAT_SEARCH);
+        return state != null && (state.focus() == UiFocus.CHAT_INPUT || state.focus() == UiFocus.CHAT_SEARCH);
     }
 
     private record ChatLine(String prompt, String value) {

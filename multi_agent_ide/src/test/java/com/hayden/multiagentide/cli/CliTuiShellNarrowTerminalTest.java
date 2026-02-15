@@ -9,7 +9,7 @@ import com.hayden.multiagentide.controller.OrchestrationController;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.repository.InMemoryEventStreamRepository;
 import com.hayden.multiagentide.tui.TuiSession;
-import com.hayden.multiagentide.tui.TuiState;
+import com.hayden.multiagentide.ui.state.UiState;
 import com.hayden.utilitymodule.config.EnvConfigProps;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -134,16 +134,16 @@ class CliTuiShellNarrowTerminalTest {
         return String.join("\n", session.screen().lines());
     }
 
-    private void awaitState(Predicate<TuiState> condition) {
+    private void awaitState(Predicate<UiState> condition) {
         long deadline = System.currentTimeMillis() + 10000;
         while (System.currentTimeMillis() < deadline) {
-            TuiState state = tuiSession.snapshotForTests();
+            UiState state = tuiSession.snapshotForTests();
             if (state != null && condition.test(state)) {
                 return;
             }
             sleep(25);
         }
-        fail("Timed out waiting for TuiState condition");
+        fail("Timed out waiting for UiState condition");
     }
 
     private static void sleep(long millis) {

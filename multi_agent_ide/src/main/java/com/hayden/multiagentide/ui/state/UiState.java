@@ -1,4 +1,4 @@
-package com.hayden.multiagentide.tui;
+package com.hayden.multiagentide.ui.state;
 
 import lombok.Builder;
 
@@ -7,20 +7,20 @@ import java.util.List;
 import java.util.Map;
 
 @Builder(toBuilder = true)
-public record TuiState(
+public record UiState(
         String sessionId,
         String activeSessionId,
         List<String> sessionOrder,
-        Map<String, TuiSessionState> sessions,
-        TuiFocus focus,
+        Map<String, UiSessionState> sessions,
+        UiFocus focus,
         int chatScrollOffset,
         Path repo
 ) {
-    public TuiState {
+    public UiState {
         if (repo == null)
             throw new IllegalArgumentException("");
         if (focus == null) {
-            focus = TuiFocus.CHAT_INPUT;
+            focus = UiFocus.CHAT_INPUT;
         }
         if (sessionOrder == null) {
             sessionOrder = List.of();
@@ -30,14 +30,14 @@ public record TuiState(
         }
     }
 
-    public static TuiState initial(String sessionId, String activeSessionId, List<String> sessionOrder, Map<String, TuiSessionState> sessions,
+    public static UiState initial(String sessionId, String activeSessionId, List<String> sessionOrder, Map<String, UiSessionState> sessions,
                                    Path repo) {
-        return TuiState.builder()
+        return UiState.builder()
                 .sessionId(sessionId)
                 .activeSessionId(activeSessionId)
                 .sessionOrder(sessionOrder)
                 .sessions(sessions)
-                .focus(TuiFocus.CHAT_INPUT)
+                .focus(UiFocus.CHAT_INPUT)
                 .chatScrollOffset(0)
                 .repo(repo)
                 .build();

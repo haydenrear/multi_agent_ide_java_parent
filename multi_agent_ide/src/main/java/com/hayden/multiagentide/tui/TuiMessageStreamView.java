@@ -2,6 +2,9 @@ package com.hayden.multiagentide.tui;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.cli.CliEventFormatter;
+import com.hayden.multiagentide.ui.state.UiFocus;
+import com.hayden.multiagentide.ui.state.UiSessionState;
+import com.hayden.multiagentide.ui.state.UiState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.shell.component.view.control.GridView;
 import org.springframework.shell.component.view.control.ListView;
@@ -40,15 +43,15 @@ class TuiMessageStreamView extends GridView {
     private final ListView<EventLine> eventList;
     private final Path initialRepoPath;
 
-    private TuiState state = null;
-    private TuiSessionState sessionState;
+    private UiState state = null;
+    private UiSessionState sessionState;
     private int visibleRows = 1;
 
     TuiMessageStreamView(CliEventFormatter formatter, Path initialRepoPath) {
         this.formatter = formatter;
         this.initialRepoPath = initialRepoPath;
         this.eventList = new ListView<>(ListView.ItemStyle.NOCHECK);
-        this.sessionState = TuiSessionState.initial(initialRepoPath);
+        this.sessionState = UiSessionState.initial(initialRepoPath);
 
         setShowBorder(true);
         setRowSize(0);
@@ -60,10 +63,10 @@ class TuiMessageStreamView extends GridView {
         addItem(eventList, 0, 0, 1, 1, 0, 0);
     }
 
-    void update(TuiState state, TuiSessionState sessionState) {
+    void update(UiState state, UiSessionState sessionState) {
         this.state = state;
         Path repo = sessionState != null && sessionState.repo() != null ? sessionState.repo() : initialRepoPath;
-        this.sessionState = sessionState == null ? TuiSessionState.initial(repo) : sessionState;
+        this.sessionState = sessionState == null ? UiSessionState.initial(repo) : sessionState;
     }
 
     int visibleRows() {
@@ -96,7 +99,7 @@ class TuiMessageStreamView extends GridView {
     protected void drawInternal(Screen screen) {
 
         String title = "Events total=" + sessionState.events().size();
-        if (state != null && state.focus() == TuiFocus.EVENT_STREAM) {
+        if (state != null && state.focus() == UiFocus.EVENT_STREAM) {
             title += " (focus)";
         }
         setTitle(title);

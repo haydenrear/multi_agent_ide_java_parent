@@ -3,6 +3,9 @@ package com.hayden.multiagentide.tui;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.cli.CliEventFormatter;
 import com.hayden.multiagentide.repository.EventStreamRepository;
+import com.hayden.multiagentide.ui.state.UiFocus;
+import com.hayden.multiagentide.ui.state.UiSessionState;
+import com.hayden.multiagentide.ui.state.UiState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.shell.component.view.control.*;
 import org.springframework.shell.component.view.event.KeyEvent;
@@ -91,7 +94,7 @@ class TuiTerminalView extends GridView {
     private static final int MIN_MODAL_WIDTH = 50;
     private static final int MIN_MODAL_HEIGHT = 12;
 
-    private final Supplier<TuiState> stateSupplier;
+    private final Supplier<UiState> stateSupplier;
     private final CliEventFormatter formatter;
     private final EventStreamRepository eventStreamRepository;
     private final Path initialRepoPath;
@@ -112,7 +115,7 @@ class TuiTerminalView extends GridView {
     private DialogView activeDialogView;
 
     TuiTerminalView(
-            Supplier<TuiState> stateSupplier,
+            Supplier<UiState> stateSupplier,
             CliEventFormatter formatter,
             EventStreamRepository eventStreamRepository,
             Path initialRepoPath,
@@ -177,7 +180,7 @@ class TuiTerminalView extends GridView {
 
     @Override
     protected void drawInternal(Screen screen) {
-        TuiState state = stateSupplier.get();
+        UiState state = stateSupplier.get();
         if (state == null) {
             super.drawInternal(screen);
             return;
@@ -185,9 +188,9 @@ class TuiTerminalView extends GridView {
 
 
         String sessionId = resolveActiveSessionId(state);
-        TuiSessionState sessionState = resolveSessionState(state, sessionId);
+        UiSessionState sessionState = resolveSessionState(state, sessionId);
 
-        sessionMenu.setTitle(state.focus() == TuiFocus.SESSION_LIST ? "Sessions (focus)" : "Sessions");
+        sessionMenu.setTitle(state.focus() == UiFocus.SESSION_LIST ? "Sessions (focus)" : "Sessions");
         List<MenuView.MenuItem> menuItems = buildSessionMenuItems(state, sessionId);
         sessionMenu.setItems(menuItems);
         ensureConfigured(sessionMenu);
@@ -208,7 +211,7 @@ class TuiTerminalView extends GridView {
     }
 
     private TuiSessionView newSessionView(String sessionId) {
-        TuiState state = stateSupplier.get();
+        UiState state = stateSupplier.get();
         Path repoPath = resolveRepoPath(state, sessionId);
         TuiSessionView sessionView = new TuiSessionView(sessionId, repoPath, new TuiMessageStreamView(formatter, repoPath));
         for (View view : sessionView.allViews()) {
@@ -227,7 +230,7 @@ class TuiTerminalView extends GridView {
         configuredViews.put(view, Boolean.TRUE);
     }
 
-    private List<MenuView.MenuItem> buildSessionMenuItems(TuiState state, String selectedSessionId) {
+    private List<MenuView.MenuItem> buildSessionMenuItems(UiState state, String selectedSessionId) {
         List<MenuView.MenuItem> items = new ArrayList<>();
         for (String sessionId : state.sessionOrder()) {
             boolean selected = sessionId.equals(selectedSessionId);
@@ -262,7 +265,7 @@ class TuiTerminalView extends GridView {
         activeSessionView = sessionView;
     }
 
-    private void syncDetailModal(TuiSessionState sessionState) {
+    private void syncDetailModal(UiSessionState sessionState) {
         if (!sessionState.detailOpen() || sessionState.detailEventId() == null || sessionState.detailEventId().isBlank()) {
             closeModal();
             return;
@@ -316,7 +319,7 @@ class TuiTerminalView extends GridView {
         }
     }
 
-    private String resolveDetailText(TuiSessionState sessionState, String eventId) {
+    private String resolveDetailText(UiSessionState sessionState, String eventId) {
         Optional<Events.GraphEvent> fromRepository = eventStreamRepository.findById(eventId);
         if (fromRepository.isPresent()) {
             return formatDetail(fromRepository.get());
@@ -486,7 +489,7 @@ class TuiTerminalView extends GridView {
         return !Character.isISOControl(ch);
     }
 
-    private String resolveActiveSessionId(TuiState state) {
+    private String resolveActiveSessionId(UiState state) {
         if (state.activeSessionId() != null && !state.activeSessionId().isBlank()) {
             activeSessionId = state.activeSessionId();
             return state.activeSessionId();
@@ -498,16 +501,16 @@ class TuiTerminalView extends GridView {
         return activeSessionId;
     }
 
-    private TuiSessionState resolveSessionState(TuiState state, String sessionId) {
+    private UiSessionState resolveSessionState(UiState state, String sessionId) {
         if (sessionId == null || sessionId.isBlank()) {
-            return TuiSessionState.initial(resolveRepoPath(state, sessionId));
+            return UiSessionState.initial(resolveRepoPath(state, sessionId));
         }
-        return state.sessions().getOrDefault(sessionId, TuiSessionState.initial(resolveRepoPath(state, sessionId)));
+        return state.sessions().getOrDefault(sessionId, UiSessionState.initial(resolveRepoPath(state, sessionId)));
     }
 
-    private Path resolveRepoPath(TuiState state, String sessionId) {
+    private Path resolveRepoPath(UiState state, String sessionId) {
         if (state != null && sessionId != null && !sessionId.isBlank()) {
-            TuiSessionState sessionState = state.sessions().get(sessionId);
+            UiSessionState sessionState = state.sessions().get(sessionId);
             if (sessionState != null && sessionState.repo() != null) {
                 return sessionState.repo();
             }

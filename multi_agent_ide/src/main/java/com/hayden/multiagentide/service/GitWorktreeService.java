@@ -1302,18 +1302,20 @@ public class GitWorktreeService implements WorktreeService {
 
     // ======== PRIVATE HELPERS ========
 
-    private void cloneRepository(String repositoryUrl, Path worktreePath, String baseBranch) throws GitAPIException, IOException {
+    public static void cloneRepository(String repositoryUrl, Path worktreePath, String baseBranch) throws GitAPIException, IOException {
         try(Repository build = RepoUtil.findRepo(Paths.get(repositoryUrl))) {
             CloneCommand clone = Git.cloneRepository()
                     .setURI(build.getDirectory().toString())
-                    .setDirectory(worktreePath.toFile())
-                    .setCloneSubmodules(true);
+                    .setDirectory(worktreePath.toFile());
 
             try (
                     Git git = clone.call()
             ) {
+                RepoUtil.runGitCommand(Paths.get(repositoryUrl), List.of("submodule", "update", "--init", "--recursive"));
                 if (baseBranch != null && !baseBranch.isBlank() && !Objects.equals(git.getRepository().getBranch(), baseBranch)) {
                     git.checkout().setName(baseBranch).call();
+
+                    RepoUtil.runGitCommand(Paths.get(repositoryUrl), List.of("submodule", "foreach", "--recursive", "git", "reset", "--hard", "||", "true"));
                 }
             }
         }

@@ -5,10 +5,12 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.AgentContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import org.jspecify.annotations.NonNull;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 
+@Component
 public class CliEventFormatter {
 
     private static final int MAX_FIELD_LENGTH = 160;

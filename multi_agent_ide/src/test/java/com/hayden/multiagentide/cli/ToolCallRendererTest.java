@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.cli;
 
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.cli.CliEventFormatter.CliEventArgs;
 import org.junit.jupiter.api.Nested;
@@ -22,7 +23,7 @@ class ToolCallRendererTest {
     private static Events.ToolCallEvent toolCall(String title, String phase, String status,
                                                   Object rawInput, Object rawOutput) {
         return new Events.ToolCallEvent(
-                "evt-1", Instant.now(), "node-1", "tc-1",
+                "evt-1", Instant.now(), "node-1",  ArtifactKey.createRoot(),"tc-1",
                 title, "function", status, phase,
                 List.of(), List.of(),
                 rawInput, rawOutput

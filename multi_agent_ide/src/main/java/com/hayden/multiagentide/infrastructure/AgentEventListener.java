@@ -1,10 +1,13 @@
 package com.hayden.multiagentide.infrastructure;
 
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
+import java.time.Instant;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +33,10 @@ public class AgentEventListener implements EventListener {
     @Lazy
     @Autowired
     private AgentRunner agentRunner;
+
+    @Lazy
+    @Autowired
+    private EventBus eventBus;
 
     @Override
     public String listenerId() {
@@ -181,6 +188,7 @@ public class AgentEventListener implements EventListener {
         } catch (Exception e) {
             log.error("Failed to execute agent for node: {} ({}) during dispatch",
                     node.title(), nodeId, e);
+            publishNodeError(node, e);
         }
     }
 
@@ -210,7 +218,33 @@ public class AgentEventListener implements EventListener {
         } catch (Exception e) {
             log.error("Failed to execute agent for node: {} ({}) during dispatch",
                     node.title(), nodeId, e);
+            publishNodeError(node, e);
         }
+    }
+
+    private void publishNodeError(GraphNode node, Exception exception) {
+        Throwable root = rootCause(exception);
+        String message = root.getMessage();
+        String detail = (message == null || message.isBlank())
+                ? root.getClass().getSimpleName()
+                : root.getClass().getSimpleName() + ": " + message;
+
+        eventBus.publish(new Events.NodeErrorEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                node.nodeId(),
+                node.title(),
+                node.nodeType(),
+                detail
+        ));
+    }
+
+    private Throwable rootCause(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     @Override
