@@ -147,6 +147,7 @@ public class MultiAgentEmbabelConfig {
                     model = switch (options.getModelSelectionCriteria()) {
                         case FallbackByNameModelSelectionCriteria f ->
                                 f.getNames().getLast();
+                        default -> options.getModel();
                     };
                 }
                 var tc = ToolCallingChatOptions.builder()

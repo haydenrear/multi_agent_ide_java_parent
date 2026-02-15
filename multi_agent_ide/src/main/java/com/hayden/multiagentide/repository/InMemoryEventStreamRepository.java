@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 @Slf4j
 @Component
@@ -58,5 +59,14 @@ public class InMemoryEventStreamRepository implements EventStreamRepository {
                     log.info("Found last matching {}:{}, {}", t.getClass(), t.nodeId(), t);
                     return t;
                 });
+    }
+
+    @Override
+    public <T extends Events.GraphEvent> Stream<T> getAllMatching(Class<T> v, Predicate<T> toMatch) {
+        return events.values().stream()
+                .flatMap(Collection::stream)
+                .filter(gn -> gn.getClass().equals(v) || v.isAssignableFrom(gn.getClass()))
+                .map(ge -> (T) ge)
+                .filter(toMatch);
     }
 }
