@@ -1,14 +1,16 @@
-package com.hayden.multiagentidelib.prompt.contributor;
+package com.hayden.multiagentide.prompt.contributor;
 
-import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.Set;
-
 @Component
+@RequiredArgsConstructor
 public class EpisodicMemoryPromptContributor implements PromptContributor {
+
+    private final McpToolObjectRegistrar registrar;
 
     @Override
     public String name() {
@@ -16,7 +18,7 @@ public class EpisodicMemoryPromptContributor implements PromptContributor {
     }
 
     public boolean include(PromptContext promptContext) {
-        return true;
+        return this.registrar.tool("hindsight").isPresent();
     }
 
     @Override

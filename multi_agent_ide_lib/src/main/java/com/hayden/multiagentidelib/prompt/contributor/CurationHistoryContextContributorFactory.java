@@ -55,6 +55,41 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             files modified, test results, and verification status.
             """;
 
+    static final String DISCOVERY_ORCHESTRATOR_RESULT_HEADER = """
+            ## Discovery Orchestrator Result
+            Orchestrator output for discovery-phase delegation and synthesis.
+            """;
+
+    static final String PLANNING_ORCHESTRATOR_RESULT_HEADER = """
+            ## Planning Orchestrator Result
+            Orchestrator output for planning-phase delegation and synthesis.
+            """;
+
+    static final String TICKET_ORCHESTRATOR_RESULT_HEADER = """
+            ## Ticket Orchestrator Result
+            Orchestrator output for ticket-phase execution coordination.
+            """;
+
+    static final String ORCHESTRATOR_AGENT_RESULT_HEADER = """
+            ## Orchestrator Agent Result
+            Top-level orchestrator output coordinating multi-phase workflow progress.
+            """;
+
+    static final String ORCHESTRATOR_COLLECTOR_RESULT_HEADER = """
+            ## Orchestrator Collector Result
+            Consolidated workflow-level collector output spanning discovery, planning, and ticket phases.
+            """;
+
+    static final String REVIEW_AGENT_RESULT_HEADER = """
+            ## Review Agent Result
+            Review agent assessment and feedback captured during workflow execution.
+            """;
+
+    static final String MERGER_AGENT_RESULT_HEADER = """
+            ## Merger Agent Result
+            Merge assessment and conflict-resolution guidance from the merger agent.
+            """;
+
     // --- Phase classification for binder insertion ---
 
     private enum Phase {
@@ -68,6 +103,89 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         OTHER
     }
 
+    private enum AllowedHistoryType {
+        DISCOVERY_COLLECTOR_RESULT,
+        DISCOVERY_AGENT_RESULT,
+        DISCOVERY_ORCHESTRATOR_RESULT,
+        PLANNING_COLLECTOR_RESULT,
+        PLANNING_AGENT_RESULT,
+        PLANNING_ORCHESTRATOR_RESULT,
+        TICKET_COLLECTOR_RESULT,
+        TICKET_AGENT_RESULT,
+        TICKET_ORCHESTRATOR_RESULT,
+        ORCHESTRATOR_AGENT_RESULT,
+        ORCHESTRATOR_COLLECTOR_RESULT,
+        REVIEW_AGENT_RESULT,
+        MERGER_AGENT_RESULT,
+        INTERRUPT_REQUEST
+    }
+
+    private enum CurationType {
+        DISCOVERY,
+        PLANNING,
+        TICKET
+    }
+
+    private static final class CurationOverrides {
+        private UpstreamContext.DiscoveryCollectorContext discovery;
+        private UpstreamContext.PlanningCollectorContext planning;
+        private UpstreamContext.TicketCollectorContext ticket;
+
+        private void setDiscovery(UpstreamContext.DiscoveryCollectorContext discovery) {
+            if (discovery != null) {
+                this.discovery = discovery;
+            }
+        }
+
+        private void setPlanning(UpstreamContext.PlanningCollectorContext planning) {
+            if (planning != null) {
+                this.planning = planning;
+            }
+        }
+
+        private void setTicket(UpstreamContext.TicketCollectorContext ticket) {
+            if (ticket != null) {
+                this.ticket = ticket;
+            }
+        }
+
+        private boolean hasDiscovery() {
+            return discovery != null;
+        }
+
+        private boolean hasPlanning() {
+            return planning != null;
+        }
+
+        private boolean hasTicket() {
+            return ticket != null;
+        }
+
+        private UpstreamContext.DiscoveryCollectorContext discovery() {
+            return discovery;
+        }
+
+        private UpstreamContext.PlanningCollectorContext planning() {
+            return planning;
+        }
+
+        private UpstreamContext.TicketCollectorContext ticket() {
+            return ticket;
+        }
+
+        private UpstreamContext.DiscoveryCollectorContext discoveryOr(UpstreamContext.DiscoveryCollectorContext fromHistory) {
+            return discovery != null ? discovery : fromHistory;
+        }
+
+        private UpstreamContext.PlanningCollectorContext planningOr(UpstreamContext.PlanningCollectorContext fromHistory) {
+            return planning != null ? planning : fromHistory;
+        }
+
+        private UpstreamContext.TicketCollectorContext ticketOr(UpstreamContext.TicketCollectorContext fromHistory) {
+            return ticket != null ? ticket : fromHistory;
+        }
+    }
+
     @Override
     public List<PromptContributor> create(PromptContext context) {
         if (context == null || context.currentRequest() == null) {
@@ -79,11 +197,11 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             return List.of();
         }
 
-        // Step 1: Determine which types are allowed for the current request,
+        // Step 1: Determine which history payloads are relevant for this request,
         // and collect any curation overrides from the request itself.
-        Set<Class<?>> allowedTypes = new HashSet<>();
-        Map<Class<?>, Object> curationOverrides = new HashMap<>();
-        populateAllowedTypes(context.currentRequest(), allowedTypes, curationOverrides, bh);
+        EnumSet<AllowedHistoryType> allowedTypes = EnumSet.noneOf(AllowedHistoryType.class);
+        CurationOverrides curationOverrides = new CurationOverrides();
+        populateAllowedTypes(context.currentRequest(), allowedTypes, curationOverrides);
 
         if (allowedTypes.isEmpty()) {
             return List.of();
@@ -96,15 +214,14 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         Phase lastPhase = null;
         int interruptIndex = 0;
 
-        // Track which curation overrides have been emitted (so we emit them at the right
-        // temporal position instead of the history entry).
-        Set<Class<?>> emittedOverrides = new HashSet<>();
+        // Track which request-level curation overrides have already been emitted.
+        EnumSet<CurationType> emittedOverrides = EnumSet.noneOf(CurationType.class);
 
-        // Track which history-based curations we've emitted so we don't duplicate
-        // when the override was already used.
-        Set<Class<?>> emittedCurationTypes = new HashSet<>();
+        // Track which curation phases have already been emitted from history.
+        EnumSet<CurationType> emittedCurationTypes = EnumSet.noneOf(CurationType.class);
 
-        for (BlackboardHistory.Entry entry : entries) {
+        for (int i = 0; i < entries.size(); i++) {
+            BlackboardHistory.Entry entry = entries.get(i);
             if (!(entry instanceof BlackboardHistory.DefaultEntry de)) {
                 continue;
             }
@@ -112,187 +229,221 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             if (input == null) {
                 continue;
             }
-            Class<?> inputType = de.inputType();
 
-            // --- Collector results: extract the curation context from them ---
-            if (AgentModels.DiscoveryCollectorResult.class.equals(inputType)
-                    && allowedTypes.contains(AgentModels.DiscoveryCollectorResult.class)) {
-                var result = (AgentModels.DiscoveryCollectorResult) input;
-                var curation = result.discoveryCollectorContext();
-                if (curation != null && !emittedCurationTypes.contains(UpstreamContext.DiscoveryCollectorContext.class)) {
-                    // Use override if available, otherwise history
-                    var toEmit = curationOverrides.containsKey(UpstreamContext.DiscoveryCollectorContext.class)
-                            ? (UpstreamContext.DiscoveryCollectorContext) curationOverrides.get(UpstreamContext.DiscoveryCollectorContext.class)
-                            : curation;
-                    Phase newPhase = Phase.DISCOVERY_CURATION;
-                    String binder = binderText(lastPhase, newPhase);
-                    if (binder != null) {
-                        contributors.add(new NarrativeBinderContributor(
-                                "binder-%s-to-%s".formatted(lastPhase, newPhase).toLowerCase(),
-                                binder, BASE_PRIORITY + seq++));
+            if (input instanceof AgentModels.AgentResult result) {
+                switch (result) {
+                    case AgentModels.DiscoveryCollectorResult discoveryCollectorResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.DISCOVERY_COLLECTOR_RESULT)
+                                && !emittedCurationTypes.contains(CurationType.DISCOVERY)
+                                && discoveryCollectorResult.discoveryCollectorContext() != null) {
+                            var toEmit = curationOverrides.discoveryOr(discoveryCollectorResult.discoveryCollectorContext());
+                            Phase newPhase = Phase.DISCOVERY_CURATION;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+                            contributors.add(new DataCurationContributor("curation-discovery-curation",
+                                    DISCOVERY_CURATION_HEADER, toEmit, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                            emittedCurationTypes.add(CurationType.DISCOVERY);
+                            if (curationOverrides.hasDiscovery()) {
+                                emittedOverrides.add(CurationType.DISCOVERY);
+                            }
+                        }
                     }
-                    contributors.add(new DataCurationContributor("curation-discovery-curation", DISCOVERY_CURATION_HEADER, toEmit, BASE_PRIORITY + seq++));
-                    lastPhase = newPhase;
-                    emittedCurationTypes.add(UpstreamContext.DiscoveryCollectorContext.class);
-                    emittedOverrides.add(UpstreamContext.DiscoveryCollectorContext.class);
-                }
-                continue;
-            }
-
-            if (AgentModels.PlanningCollectorResult.class.equals(inputType)
-                    && allowedTypes.contains(AgentModels.PlanningCollectorResult.class)) {
-                var result = (AgentModels.PlanningCollectorResult) input;
-                var curation = result.planningCuration();
-                if (curation != null && !emittedCurationTypes.contains(UpstreamContext.PlanningCollectorContext.class)) {
-                    var toEmit = curationOverrides.containsKey(UpstreamContext.PlanningCollectorContext.class)
-                            ? (UpstreamContext.PlanningCollectorContext) curationOverrides.get(UpstreamContext.PlanningCollectorContext.class)
-                            : curation;
-                    Phase newPhase = Phase.PLANNING_CURATION;
-                    String binder = binderText(lastPhase, newPhase);
-                    if (binder != null) {
-                        contributors.add(new NarrativeBinderContributor(
-                                "binder-%s-to-%s".formatted(lastPhase, newPhase).toLowerCase(),
-                                binder, BASE_PRIORITY + seq++));
+                    case AgentModels.PlanningCollectorResult planningCollectorResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.PLANNING_COLLECTOR_RESULT)
+                                && !emittedCurationTypes.contains(CurationType.PLANNING)
+                                && planningCollectorResult.planningCuration() != null) {
+                            var toEmit = curationOverrides.planningOr(planningCollectorResult.planningCuration());
+                            Phase newPhase = Phase.PLANNING_CURATION;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+                            contributors.add(new DataCurationContributor("curation-planning-curation",
+                                    PLANNING_CURATION_HEADER, toEmit, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                            emittedCurationTypes.add(CurationType.PLANNING);
+                            if (curationOverrides.hasPlanning()) {
+                                emittedOverrides.add(CurationType.PLANNING);
+                            }
+                        }
                     }
-                    contributors.add(new DataCurationContributor("curation-planning-curation", PLANNING_CURATION_HEADER, toEmit, BASE_PRIORITY + seq++));
-                    lastPhase = newPhase;
-                    emittedCurationTypes.add(UpstreamContext.PlanningCollectorContext.class);
-                    emittedOverrides.add(UpstreamContext.PlanningCollectorContext.class);
-                }
-                continue;
-            }
-
-            if (AgentModels.TicketCollectorResult.class.equals(inputType)
-                    && allowedTypes.contains(AgentModels.TicketCollectorResult.class)) {
-                var result = (AgentModels.TicketCollectorResult) input;
-                var curation = result.ticketCuration();
-                if (curation != null && !emittedCurationTypes.contains(UpstreamContext.TicketCollectorContext.class)) {
-                    var toEmit = curationOverrides.containsKey(UpstreamContext.TicketCollectorContext.class)
-                            ? (UpstreamContext.TicketCollectorContext) curationOverrides.get(UpstreamContext.TicketCollectorContext.class)
-                            : curation;
-                    Phase newPhase = Phase.TICKET_CURATION;
-                    String binder = binderText(lastPhase, newPhase);
-                    if (binder != null) {
-                        contributors.add(new NarrativeBinderContributor(
-                                "binder-%s-to-%s".formatted(lastPhase, newPhase).toLowerCase(),
-                                binder, BASE_PRIORITY + seq++));
+                    case AgentModels.TicketCollectorResult ticketCollectorResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.TICKET_COLLECTOR_RESULT)
+                                && !emittedCurationTypes.contains(CurationType.TICKET)
+                                && ticketCollectorResult.ticketCuration() != null) {
+                            var toEmit = curationOverrides.ticketOr(ticketCollectorResult.ticketCuration());
+                            Phase newPhase = Phase.TICKET_CURATION;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+                            contributors.add(new DataCurationContributor("curation-ticket-curation",
+                                    TICKET_CURATION_HEADER, toEmit, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                            emittedCurationTypes.add(CurationType.TICKET);
+                            if (curationOverrides.hasTicket()) {
+                                emittedOverrides.add(CurationType.TICKET);
+                            }
+                        }
                     }
-                    contributors.add(new DataCurationContributor("curation-ticket-curation", TICKET_CURATION_HEADER, toEmit, BASE_PRIORITY + seq++));
-                    lastPhase = newPhase;
-                    emittedCurationTypes.add(UpstreamContext.TicketCollectorContext.class);
-                    emittedOverrides.add(UpstreamContext.TicketCollectorContext.class);
-                }
-                continue;
-            }
-
-            // --- Agent results ---
-            if (AgentModels.DiscoveryAgentResult.class.equals(inputType)
-                    && allowedTypes.contains(AgentModels.DiscoveryAgentResult.class)) {
-                var result = (AgentModels.DiscoveryAgentResult) input;
-                if (result.report() != null) {
-                    Phase newPhase = Phase.DISCOVERY_AGENT;
-                    String binder = binderText(lastPhase, newPhase);
-                    if (binder != null) {
-                        contributors.add(new NarrativeBinderContributor(
-                                "binder-%s-to-%s-%d".formatted(lastPhase, newPhase, seq).toLowerCase(),
-                                binder, BASE_PRIORITY + seq++));
+                    case AgentModels.DiscoveryAgentResult discoveryAgentResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.DISCOVERY_AGENT_RESULT)
+                                && hasRenderableOutput(discoveryAgentResult)) {
+                            Phase newPhase = Phase.DISCOVERY_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-%s-%d".formatted(lastPhase, newPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-discovery-report",
+                                    DISCOVERY_AGENT_REPORT_HEADER, discoveryAgentResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
                     }
-                    contributors.add(new DataCurationContributor("curation-discovery-report", DISCOVERY_AGENT_REPORT_HEADER, result, BASE_PRIORITY + seq++));
-                    lastPhase = newPhase;
+                    case AgentModels.PlanningAgentResult planningAgentResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.PLANNING_AGENT_RESULT)
+                                && hasRenderableOutput(planningAgentResult)) {
+                            Phase newPhase = Phase.PLANNING_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-%s-%d".formatted(lastPhase, newPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-planning-result",
+                                    PLANNING_AGENT_RESULT_HEADER, planningAgentResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
+                    case AgentModels.TicketAgentResult ticketAgentResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.TICKET_AGENT_RESULT)
+                                && hasRenderableOutput(ticketAgentResult)) {
+                            Phase newPhase = Phase.TICKET_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-%s-%d".formatted(lastPhase, newPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-ticket-result",
+                                    TICKET_AGENT_RESULT_HEADER, ticketAgentResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
+                    case AgentModels.DiscoveryOrchestratorResult discoveryOrchestratorResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.DISCOVERY_ORCHESTRATOR_RESULT)
+                                && hasRenderableOutput(discoveryOrchestratorResult)) {
+                            Phase newPhase = Phase.DISCOVERY_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-discovery-orchestrator-%d".formatted(lastPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-discovery-orchestrator-result",
+                                    DISCOVERY_ORCHESTRATOR_RESULT_HEADER, discoveryOrchestratorResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
+                    case AgentModels.PlanningOrchestratorResult planningOrchestratorResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.PLANNING_ORCHESTRATOR_RESULT)
+                                && hasRenderableOutput(planningOrchestratorResult)) {
+                            Phase newPhase = Phase.PLANNING_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-planning-orchestrator-%d".formatted(lastPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-planning-orchestrator-result",
+                                    PLANNING_ORCHESTRATOR_RESULT_HEADER, planningOrchestratorResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
+                    case AgentModels.TicketOrchestratorResult ticketOrchestratorResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.TICKET_ORCHESTRATOR_RESULT)
+                                && hasRenderableOutput(ticketOrchestratorResult)) {
+                            Phase newPhase = Phase.TICKET_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-ticket-orchestrator-%d".formatted(lastPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-ticket-orchestrator-result",
+                                    TICKET_ORCHESTRATOR_RESULT_HEADER, ticketOrchestratorResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
+                    case AgentModels.OrchestratorAgentResult orchestratorAgentResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.ORCHESTRATOR_AGENT_RESULT)
+                                && hasRenderableOutput(orchestratorAgentResult)) {
+                            Phase newPhase = Phase.OTHER;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-orchestrator-agent-%d".formatted(lastPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-orchestrator-agent-result",
+                                    ORCHESTRATOR_AGENT_RESULT_HEADER, orchestratorAgentResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
+                    case AgentModels.OrchestratorCollectorResult orchestratorCollectorResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.ORCHESTRATOR_COLLECTOR_RESULT)
+                                && hasRenderableOutput(orchestratorCollectorResult)) {
+                            Phase newPhase = Phase.OTHER;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-orchestrator-collector-%d".formatted(lastPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-orchestrator-collector-result",
+                                    ORCHESTRATOR_COLLECTOR_RESULT_HEADER, orchestratorCollectorResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
+                    case AgentModels.ReviewAgentResult reviewAgentResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.REVIEW_AGENT_RESULT)
+                                && hasRenderableOutput(reviewAgentResult)) {
+                            Phase newPhase = Phase.OTHER;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-review-agent-%d".formatted(lastPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-review-agent-result",
+                                    REVIEW_AGENT_RESULT_HEADER, reviewAgentResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
+                    case AgentModels.MergerAgentResult mergerAgentResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.MERGER_AGENT_RESULT)
+                                && hasRenderableOutput(mergerAgentResult)) {
+                            Phase newPhase = Phase.OTHER;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-merger-agent-%d".formatted(lastPhase, seq), seq);
+                            contributors.add(new DataCurationContributor("curation-merger-agent-result",
+                                    MERGER_AGENT_RESULT_HEADER, mergerAgentResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
                 }
-                continue;
             }
 
-            if (AgentModels.PlanningAgentResult.class.equals(inputType)
-                    && allowedTypes.contains(AgentModels.PlanningAgentResult.class)) {
-                var result = (AgentModels.PlanningAgentResult) input;
-                Phase newPhase = Phase.PLANNING_AGENT;
-                String binder = binderText(lastPhase, newPhase);
-                if (binder != null) {
-                    contributors.add(new NarrativeBinderContributor(
-                            "binder-%s-to-%s-%d".formatted(lastPhase, newPhase, seq).toLowerCase(),
-                            binder, BASE_PRIORITY + seq++));
+            if (input instanceof AgentModels.AgentRequest req) {
+                switch (req) {
+                    case AgentModels.InterruptRequest interrupt -> {
+                        if (allowedTypes.contains(AllowedHistoryType.INTERRUPT_REQUEST)) {
+                            String resolution = findResolutionAfter(entries, i);
+                            Phase newPhase = Phase.INTERRUPT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                                    "binder-%s-to-interrupt-%d".formatted(lastPhase, seq), seq);
+                            interruptIndex++;
+                            contributors.add(new InterruptResolutionContributor(
+                                    new InterruptResolutionEntry(interrupt, de.timestamp(), resolution, null),
+                                    interruptIndex, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
+                    default -> {
+                    }
                 }
-                contributors.add(new DataCurationContributor("curation-planning-result", PLANNING_AGENT_RESULT_HEADER, result, BASE_PRIORITY + seq++));
-                lastPhase = newPhase;
-                continue;
-            }
-
-            if (AgentModels.TicketAgentResult.class.equals(inputType)
-                    && allowedTypes.contains(AgentModels.TicketAgentResult.class)) {
-                var result = (AgentModels.TicketAgentResult) input;
-                Phase newPhase = Phase.TICKET_AGENT;
-                String binder = binderText(lastPhase, newPhase);
-                if (binder != null) {
-                    contributors.add(new NarrativeBinderContributor(
-                            "binder-%s-to-%s-%d".formatted(lastPhase, newPhase, seq).toLowerCase(),
-                            binder, BASE_PRIORITY + seq++));
-                }
-                contributors.add(new DataCurationContributor("curation-ticket-result", TICKET_AGENT_RESULT_HEADER, result, BASE_PRIORITY + seq++));
-                lastPhase = newPhase;
-                continue;
-            }
-
-            // --- Interrupt requests: pair with the next resolution ---
-            if (AgentModels.InterruptRequest.class.isAssignableFrom(inputType)
-                    && allowedTypes.contains(AgentModels.InterruptRequest.class)) {
-                var interrupt = (AgentModels.InterruptRequest) input;
-                String resolution = findResolutionAfter(entries, entries.indexOf(entry));
-                Phase newPhase = Phase.INTERRUPT;
-                String binder = binderText(lastPhase, newPhase);
-                if (binder != null) {
-                    contributors.add(new NarrativeBinderContributor(
-                            "binder-%s-to-interrupt-%d".formatted(lastPhase, seq).toLowerCase(),
-                            binder, BASE_PRIORITY + seq++));
-                }
-                interruptIndex++;
-                contributors.add(new InterruptResolutionContributor(
-                        new InterruptResolutionEntry(interrupt, de.timestamp(), resolution, null),
-                        interruptIndex, BASE_PRIORITY + seq++));
-                lastPhase = newPhase;
             }
         }
 
         // Emit any curation overrides that weren't found in history (e.g., passed on the request
         // but no corresponding collector result in history yet).
-        for (var override : curationOverrides.entrySet()) {
-            if (emittedOverrides.contains(override.getKey())) {
-                continue;
-            }
-            if (override.getKey().equals(UpstreamContext.DiscoveryCollectorContext.class)
-                    && override.getValue() instanceof UpstreamContext.DiscoveryCollectorContext dc) {
-                Phase newPhase = Phase.DISCOVERY_CURATION;
-                String binder = binderText(lastPhase, newPhase);
-                if (binder != null) {
-                    contributors.add(new NarrativeBinderContributor(
-                            "binder-%s-to-%s".formatted(lastPhase, newPhase).toLowerCase(),
-                            binder, BASE_PRIORITY + seq++));
-                }
-                contributors.add(new DataCurationContributor("curation-discovery-curation", DISCOVERY_CURATION_HEADER, dc, BASE_PRIORITY + seq++));
-                lastPhase = newPhase;
-            } else if (override.getKey().equals(UpstreamContext.PlanningCollectorContext.class)
-                    && override.getValue() instanceof UpstreamContext.PlanningCollectorContext pc) {
-                Phase newPhase = Phase.PLANNING_CURATION;
-                String binder = binderText(lastPhase, newPhase);
-                if (binder != null) {
-                    contributors.add(new NarrativeBinderContributor(
-                            "binder-%s-to-%s".formatted(lastPhase, newPhase).toLowerCase(),
-                            binder, BASE_PRIORITY + seq++));
-                }
-                contributors.add(new DataCurationContributor("curation-planning-curation", PLANNING_CURATION_HEADER, pc, BASE_PRIORITY + seq++));
-                lastPhase = newPhase;
-            } else if (override.getKey().equals(UpstreamContext.TicketCollectorContext.class)
-                    && override.getValue() instanceof UpstreamContext.TicketCollectorContext tc) {
-                Phase newPhase = Phase.TICKET_CURATION;
-                String binder = binderText(lastPhase, newPhase);
-                if (binder != null) {
-                    contributors.add(new NarrativeBinderContributor(
-                            "binder-%s-to-%s".formatted(lastPhase, newPhase).toLowerCase(),
-                            binder, BASE_PRIORITY + seq++));
-                }
-                contributors.add(new DataCurationContributor("curation-ticket-curation", TICKET_CURATION_HEADER, tc, BASE_PRIORITY + seq++));
-                lastPhase = newPhase;
-            }
+        if (!emittedOverrides.contains(CurationType.DISCOVERY) && curationOverrides.hasDiscovery()) {
+            Phase newPhase = Phase.DISCOVERY_CURATION;
+            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+            contributors.add(new DataCurationContributor("curation-discovery-curation",
+                    DISCOVERY_CURATION_HEADER, curationOverrides.discovery(), BASE_PRIORITY + seq++));
+            lastPhase = newPhase;
+        }
+
+        if (!emittedOverrides.contains(CurationType.PLANNING) && curationOverrides.hasPlanning()) {
+            Phase newPhase = Phase.PLANNING_CURATION;
+            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+            contributors.add(new DataCurationContributor("curation-planning-curation",
+                    PLANNING_CURATION_HEADER, curationOverrides.planning(), BASE_PRIORITY + seq++));
+            lastPhase = newPhase;
+        }
+
+        if (!emittedOverrides.contains(CurationType.TICKET) && curationOverrides.hasTicket()) {
+            Phase newPhase = Phase.TICKET_CURATION;
+            seq = maybeAddBinder(contributors, lastPhase, newPhase,
+                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+            contributors.add(new DataCurationContributor("curation-ticket-curation",
+                    TICKET_CURATION_HEADER, curationOverrides.ticket(), BASE_PRIORITY + seq++));
+            lastPhase = newPhase;
         }
 
         if (contributors.isEmpty()) {
@@ -309,123 +460,24 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
     // Allowed-types population (preserves the original switch semantics)
     // -----------------------------------------------------------------------
 
-    private void populateAllowedTypes(AgentModels.AgentRequest request,
-                                      Set<Class<?>> allowed,
-                                      Map<Class<?>, Object> overrides,
-                                      BlackboardHistory bh) {
+    private void populateAllowedTypes(Object requestInput,
+                                      EnumSet<AllowedHistoryType> allowed,
+                                      CurationOverrides overrides) {
+        if (!(requestInput instanceof AgentModels.AgentRequest request)) {
+            return;
+        }
+
         switch (request) {
-            case AgentModels.DiscoveryOrchestratorRequest ignored ->
-                    addAllTypes(allowed);
             case AgentModels.DiscoveryAgentRequest ignored ->
+                    addAllTypes(allowed);
+            case AgentModels.DiscoveryOrchestratorRequest ignored ->
                     addAllTypes(allowed);
             case AgentModels.DiscoveryAgentRequests ignored ->
                     addAllTypes(allowed);
-
-            case AgentModels.DiscoveryCollectorRequest ignored -> {
-                allowed.add(AgentModels.DiscoveryAgentResult.class);
-                allowed.add(AgentModels.PlanningCollectorResult.class);
-                allowed.add(AgentModels.PlanningAgentResult.class);
-                allowed.add(AgentModels.TicketCollectorResult.class);
-                allowed.add(AgentModels.TicketAgentResult.class);
-                allowed.add(AgentModels.InterruptRequest.class);
-            }
-
-            case AgentModels.PlanningOrchestratorRequest req -> {
-                addAllTypes(allowed);
-                if (req.discoveryCuration() != null)
-                    overrides.put(UpstreamContext.DiscoveryCollectorContext.class, req.discoveryCuration());
-            }
-
-            case AgentModels.PlanningAgentRequest req -> {
-                addAllTypes(allowed);
-                if (req.discoveryCuration() != null)
-                    overrides.put(UpstreamContext.DiscoveryCollectorContext.class, req.discoveryCuration());
-            }
-
             case AgentModels.PlanningAgentRequests ignored ->
                     addAllTypes(allowed);
-
-            case AgentModels.PlanningCollectorRequest req -> {
-                allowed.add(AgentModels.DiscoveryCollectorResult.class);
-                allowed.add(AgentModels.DiscoveryAgentResult.class);
-                allowed.add(AgentModels.PlanningAgentResult.class);
-                allowed.add(AgentModels.TicketCollectorResult.class);
-                allowed.add(AgentModels.TicketAgentResult.class);
-                allowed.add(AgentModels.InterruptRequest.class);
-                if (req.discoveryCuration() != null)
-                    overrides.put(UpstreamContext.DiscoveryCollectorContext.class, req.discoveryCuration());
-            }
-
-            case AgentModels.TicketOrchestratorRequest req -> {
-                addAllTypes(allowed);
-                if (req.discoveryCuration() != null)
-                    overrides.put(UpstreamContext.DiscoveryCollectorContext.class, req.discoveryCuration());
-                if (req.planningCuration() != null)
-                    overrides.put(UpstreamContext.PlanningCollectorContext.class, req.planningCuration());
-            }
-
-            case AgentModels.TicketAgentRequest req -> {
-                addAllTypes(allowed);
-                if (req.discoveryCuration() != null)
-                    overrides.put(UpstreamContext.DiscoveryCollectorContext.class, req.discoveryCuration());
-                if (req.planningCuration() != null)
-                    overrides.put(UpstreamContext.PlanningCollectorContext.class, req.planningCuration());
-            }
-
             case AgentModels.TicketAgentRequests ignored ->
                     addAllTypes(allowed);
-
-            case AgentModels.TicketCollectorRequest req -> {
-                addAllTypes(allowed);
-                if (req.discoveryCuration() != null)
-                    overrides.put(UpstreamContext.DiscoveryCollectorContext.class, req.discoveryCuration());
-                if (req.planningCuration() != null)
-                    overrides.put(UpstreamContext.PlanningCollectorContext.class, req.planningCuration());
-            }
-
-            case AgentModels.OrchestratorCollectorRequest req -> {
-                addAllTypes(allowed);
-                if (req.discoveryCuration() != null)
-                    overrides.put(UpstreamContext.DiscoveryCollectorContext.class, req.discoveryCuration());
-                if (req.planningCuration() != null)
-                    overrides.put(UpstreamContext.PlanningCollectorContext.class, req.planningCuration());
-                if (req.ticketCuration() != null)
-                    overrides.put(UpstreamContext.TicketCollectorContext.class, req.ticketCuration());
-            }
-
-            case AgentModels.OrchestratorRequest req -> {
-                addAllTypes(allowed);
-                if (req.discoveryCuration() != null)
-                    overrides.put(UpstreamContext.DiscoveryCollectorContext.class, req.discoveryCuration());
-                if (req.planningCuration() != null)
-                    overrides.put(UpstreamContext.PlanningCollectorContext.class, req.planningCuration());
-                if (req.ticketCuration() != null)
-                    overrides.put(UpstreamContext.TicketCollectorContext.class, req.ticketCuration());
-            }
-
-            case AgentModels.DiscoveryAgentResults ignored -> {
-                allowed.add(AgentModels.DiscoveryAgentResult.class);
-                allowed.add(AgentModels.InterruptRequest.class);
-            }
-
-            case AgentModels.PlanningAgentResults ignored -> {
-                allowed.add(AgentModels.DiscoveryCollectorResult.class);
-                allowed.add(AgentModels.DiscoveryAgentResult.class);
-                allowed.add(AgentModels.DiscoveryAgentResults.class);
-                allowed.add(AgentModels.PlanningAgentResult.class);
-                allowed.add(AgentModels.InterruptRequest.class);
-            }
-
-            case AgentModels.TicketAgentResults ignored -> {
-                allowed.add(AgentModels.DiscoveryCollectorResult.class);
-                allowed.add(AgentModels.DiscoveryAgentResult.class);
-                allowed.add(AgentModels.DiscoveryAgentResults.class);
-                allowed.add(AgentModels.PlanningCollectorResult.class);
-                allowed.add(AgentModels.PlanningAgentResult.class);
-                allowed.add(AgentModels.TicketAgentResult.class);
-                allowed.add(AgentModels.InterruptRequest.class);
-            }
-
             case AgentModels.ContextManagerRequest ignored ->
                     addAllTypes(allowed);
             case AgentModels.ContextManagerRoutingRequest ignored ->
@@ -436,17 +488,140 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     addAllTypes(allowed);
             case AgentModels.InterruptRequest ignored ->
                     addAllTypes(allowed);
+
+            case AgentModels.DiscoveryCollectorRequest ignored -> {
+                allow(allowed,
+                        AllowedHistoryType.DISCOVERY_AGENT_RESULT,
+                        AllowedHistoryType.PLANNING_COLLECTOR_RESULT,
+                        AllowedHistoryType.PLANNING_AGENT_RESULT,
+                        AllowedHistoryType.TICKET_COLLECTOR_RESULT,
+                        AllowedHistoryType.TICKET_AGENT_RESULT,
+                        AllowedHistoryType.INTERRUPT_REQUEST);
+            }
+
+            case AgentModels.PlanningOrchestratorRequest req -> {
+                addAllTypes(allowed);
+                overrides.setDiscovery(req.discoveryCuration());
+            }
+
+            case AgentModels.PlanningAgentRequest req -> {
+                addAllTypes(allowed);
+                overrides.setDiscovery(req.discoveryCuration());
+            }
+
+            case AgentModels.PlanningCollectorRequest req -> {
+                allow(allowed,
+                        AllowedHistoryType.DISCOVERY_COLLECTOR_RESULT,
+                        AllowedHistoryType.DISCOVERY_AGENT_RESULT,
+                        AllowedHistoryType.PLANNING_AGENT_RESULT,
+                        AllowedHistoryType.TICKET_COLLECTOR_RESULT,
+                        AllowedHistoryType.TICKET_AGENT_RESULT,
+                        AllowedHistoryType.INTERRUPT_REQUEST);
+                overrides.setDiscovery(req.discoveryCuration());
+            }
+
+            case AgentModels.TicketOrchestratorRequest req -> {
+                addAllTypes(allowed);
+                overrides.setDiscovery(req.discoveryCuration());
+                overrides.setPlanning(req.planningCuration());
+            }
+
+            case AgentModels.TicketAgentRequest req -> {
+                addAllTypes(allowed);
+                overrides.setDiscovery(req.discoveryCuration());
+                overrides.setPlanning(req.planningCuration());
+            }
+
+            case AgentModels.TicketCollectorRequest req -> {
+                addAllTypes(allowed);
+                overrides.setDiscovery(req.discoveryCuration());
+                overrides.setPlanning(req.planningCuration());
+            }
+
+            case AgentModels.OrchestratorCollectorRequest req -> {
+                addAllTypes(allowed);
+                overrides.setDiscovery(req.discoveryCuration());
+                overrides.setPlanning(req.planningCuration());
+                overrides.setTicket(req.ticketCuration());
+            }
+
+            case AgentModels.OrchestratorRequest req -> {
+                addAllTypes(allowed);
+                overrides.setDiscovery(req.discoveryCuration());
+                overrides.setPlanning(req.planningCuration());
+                overrides.setTicket(req.ticketCuration());
+            }
+
+            case AgentModels.DiscoveryAgentResults ignored -> {
+                allow(allowed,
+                        AllowedHistoryType.DISCOVERY_AGENT_RESULT,
+                        AllowedHistoryType.INTERRUPT_REQUEST);
+            }
+
+            case AgentModels.PlanningAgentResults ignored -> {
+                allow(allowed,
+                        AllowedHistoryType.DISCOVERY_COLLECTOR_RESULT,
+                        AllowedHistoryType.DISCOVERY_AGENT_RESULT,
+                        AllowedHistoryType.PLANNING_AGENT_RESULT,
+                        AllowedHistoryType.INTERRUPT_REQUEST);
+            }
+
+            case AgentModels.TicketAgentResults ignored -> {
+                allow(allowed,
+                        AllowedHistoryType.DISCOVERY_COLLECTOR_RESULT,
+                        AllowedHistoryType.DISCOVERY_AGENT_RESULT,
+                        AllowedHistoryType.PLANNING_COLLECTOR_RESULT,
+                        AllowedHistoryType.PLANNING_AGENT_RESULT,
+                        AllowedHistoryType.TICKET_AGENT_RESULT,
+                        AllowedHistoryType.INTERRUPT_REQUEST);
+            }
         }
+
+        // Include all result variants so AgentResult matching stays exhaustive.
+        addSupplementaryResultTypes(allowed);
     }
 
-    private void addAllTypes(Set<Class<?>> allowed) {
-        allowed.add(AgentModels.DiscoveryCollectorResult.class);
-        allowed.add(AgentModels.DiscoveryAgentResult.class);
-        allowed.add(AgentModels.PlanningCollectorResult.class);
-        allowed.add(AgentModels.PlanningAgentResult.class);
-        allowed.add(AgentModels.TicketCollectorResult.class);
-        allowed.add(AgentModels.TicketAgentResult.class);
-        allowed.add(AgentModels.InterruptRequest.class);
+    private static boolean hasRenderableOutput(AgentContext data) {
+        if (data == null) {
+            return false;
+        }
+        String rendered = data.prettyPrint();
+        return rendered != null && !rendered.isBlank();
+    }
+
+    private int maybeAddBinder(List<PromptContributor> contributors,
+                               Phase lastPhase,
+                               Phase newPhase,
+                               String binderName,
+                               int seq) {
+        String binder = binderText(lastPhase, newPhase);
+        if (binder == null) {
+            return seq;
+        }
+        contributors.add(new NarrativeBinderContributor(
+                binderName.toLowerCase(Locale.ROOT),
+                binder,
+                BASE_PRIORITY + seq++));
+        return seq;
+    }
+
+    private void addAllTypes(EnumSet<AllowedHistoryType> allowed) {
+        allowed.addAll(EnumSet.allOf(AllowedHistoryType.class));
+    }
+
+    private static void allow(EnumSet<AllowedHistoryType> allowed, AllowedHistoryType... types) {
+        Collections.addAll(allowed, types);
+    }
+
+    private void addSupplementaryResultTypes(EnumSet<AllowedHistoryType> allowed) {
+        allow(allowed,
+                AllowedHistoryType.DISCOVERY_ORCHESTRATOR_RESULT,
+                AllowedHistoryType.PLANNING_ORCHESTRATOR_RESULT,
+                AllowedHistoryType.TICKET_ORCHESTRATOR_RESULT,
+                AllowedHistoryType.ORCHESTRATOR_AGENT_RESULT,
+                AllowedHistoryType.ORCHESTRATOR_COLLECTOR_RESULT,
+                AllowedHistoryType.REVIEW_AGENT_RESULT,
+                AllowedHistoryType.MERGER_AGENT_RESULT);
     }
 
     // -----------------------------------------------------------------------

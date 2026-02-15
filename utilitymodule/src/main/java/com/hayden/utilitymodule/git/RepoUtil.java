@@ -11,10 +11,12 @@ import com.hayden.utilitymodule.result.agg.AggregateError;
 import com.hayden.utilitymodule.result.error.SingleError;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.jgit.api.DiffCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.errors.*;
 import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.*;
@@ -27,8 +29,10 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.NotTreeFilter;
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
+import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.eclipse.jgit.util.FS;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -394,7 +398,7 @@ public interface RepoUtil {
         return repo;
     }
 
-    private static Result<String, RepoUtilError> runGitCommand(Path repoPath, List<String> args) {
+    static Result<String, RepoUtilError> runGitCommand(Path repoPath, List<String> args) {
         List<String> command = new ArrayList<>();
         command.add("git");
         command.add("-C");
@@ -533,19 +537,47 @@ public interface RepoUtil {
             var p = git.getRepository().resolve("%s^{tree}".formatted(parentHash));
             newTree.reset(reader, p);
             Path parent = git.getRepository().getDirectory().toPath().getParent();
-            var diffEntries = git.diff().setOldTree(oldTree).setNewTree(newTree)
-                    .setPathFilter(
-                            NotTreeFilter.create(
-                                    OrTreeFilter.create(
-                                            excludePattern.stream()
-                                                    .map(w -> new WildcardPathFilter(w, parent))
-                                                    .toArray(WildcardPathFilter[]::new))
-                            ))
+            DiffCommand diffCommand = git.diff().setOldTree(oldTree).setNewTree(newTree);
+            diffCommand = buildFilter(excludePattern, parent, diffCommand);
+            var diffEntries = diffCommand
                     .setContextLines(0).call();
             return Result.ok(diffEntries);
         } catch (GitAPIException | IOException e) {
             return Result.err(new RepoUtilError(e.getMessage()));
         }
+    }
+
+    static DiffFormatter buildFilter(Set<String> excludePattern, Path parent, DiffFormatter diffCommand) {
+        var pathFilter = buildFilter(excludePattern, parent);
+        DiffFormatter finalDiffCommand = diffCommand;
+        return pathFilter
+                .map(d -> {
+                    finalDiffCommand.setPathFilter(d);
+                    return finalDiffCommand;
+                })
+                .orElse(diffCommand);
+    }
+
+    static DiffCommand buildFilter(Set<String> excludePattern, Path parent, DiffCommand diffCommand) {
+        var pathFilter = buildFilter(excludePattern, parent);
+        DiffCommand finalDiffCommand = diffCommand;
+        return pathFilter
+                .map(finalDiffCommand::setPathFilter)
+                .orElse(diffCommand);
+    }
+
+    static Optional<TreeFilter> buildFilter(Set<String> excludePattern, Path parent) {
+        if (excludePattern.isEmpty())
+            return Optional.empty();
+        if (excludePattern.size() == 1)
+            return Optional.of(NotTreeFilter.create(new WildcardPathFilter(excludePattern.stream().findAny().get(), parent)));
+
+
+        return Optional.of(NotTreeFilter.create(
+                OrTreeFilter.create(
+                        excludePattern.stream()
+                                .map(w -> new WildcardPathFilter(w, parent))
+                                .toArray(WildcardPathFilter[]::new))));
     }
 
 
