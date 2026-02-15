@@ -13,7 +13,7 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-@SpringBootTest(classes = {StripedLockAspect.class, DynamicMcpToolCallbackProvider.class})
+@SpringBootTest(classes = {StripedLockAspect.class, DynamicMcpToolCallbackProvider.class, RequiredProtocolProperties.class})
 @EnableAspectJAutoProxy
 @ExtendWith(SpringExtension.class)
 class DynamicMcpToolCallbackProviderTest {

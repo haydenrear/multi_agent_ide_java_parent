@@ -9,6 +9,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -28,7 +29,10 @@ public class McpToolObjectRegistrar {
 
     private final RequiredProtocolProperties requiredProtocolProperties;
 
-    private final ObjectMapper objectMapper;
+    @Autowired(required = false)
+    private ObjectMapper objectMapper = new ObjectMapper();
+
+
 
     private AtomicBoolean b = new AtomicBoolean(false);
 

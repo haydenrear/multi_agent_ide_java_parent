@@ -22,7 +22,9 @@ dependencies {
     implementation("com.agentclientprotocol:acp:0.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.9.0")
     implementation("com.ag-ui.community:kotlin-core-jvm:0.2.4")
-    implementation("com.embabel.agent:embabel-agent-starter-openai:0.3.2-SNAPSHOT")
+    implementation("com.embabel.agent:embabel-agent-starter:0.3.3-SNAPSHOT")
+    implementation("com.embabel.agent:embabel-agent-api:0.3.3-SNAPSHOT")
+    implementation("com.embabel.agent:embabel-agent-common:0.3.3-SNAPSHOT")
     implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")
     implementation("org.jspecify:jspecify:1.0.0")
     implementation(project(":commit-diff-context"))
@@ -132,15 +134,19 @@ tasks.register<Copy>("testAcpClient") {
 }
 
 tasks.compileJava {
-    dependsOn("processYmlFiles")
+    dependsOn("processYmlFiles", "processXmlFiles")
 }
 tasks.test {
     if (project.findProperty("profile") == "integration") {
         include("**/integration/**")
+    } else if (project.findProperty("profile") == "perf") {
+        include("**/perf/**")
     } else if (project.findProperty("profile") == "acp-integration") {
         include("**/acp_tests/**")
+    } else if (project.findProperty("profile") == "shell-integration") {
+        include("**/cli/**")
     } else {
-        exclude("**/acp_tests/**", "**/integration/**")
+        exclude("**/acp_tests/**", "**/integration/**", "**/perf/**", "**/cli/**")
     }
 
     dependsOn("processYmlFiles")

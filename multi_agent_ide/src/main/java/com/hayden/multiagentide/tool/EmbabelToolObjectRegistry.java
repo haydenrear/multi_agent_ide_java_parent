@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Component
-class EmbabelToolObjectRegistry implements EmbabelToolObjectProvider {
+public class EmbabelToolObjectRegistry implements EmbabelToolObjectProvider {
 
     Map<String, LazyToolObjectRegistration> toolObjectMap = new ConcurrentHashMap<>();
 

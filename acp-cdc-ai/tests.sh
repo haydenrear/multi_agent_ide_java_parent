@@ -1,2 +1,2 @@
 ./gradlew test
-./gradlew test -Pprofile=integration
+./gradlew test -Pprofile=acp-integration

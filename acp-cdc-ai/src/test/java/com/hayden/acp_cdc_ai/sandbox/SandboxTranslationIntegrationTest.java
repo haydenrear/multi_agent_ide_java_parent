@@ -233,7 +233,7 @@ class SandboxTranslationIntegrationTest {
 
             // Goose uses -w for working directory
             // Goose sets GOOSE_MODE env var
-            assertThat(result.env()).containsEntry("GOOSE_MODE", "auto");
+            assertThat(result.env()).containsEntry("GOOSE_MODE", "smart");
             // Goose doesn't have --sandbox or --add-dir
             assertThat(result.args()).doesNotContain("--sandbox");
             assertThat(result.args()).doesNotContain("--add-dir");
