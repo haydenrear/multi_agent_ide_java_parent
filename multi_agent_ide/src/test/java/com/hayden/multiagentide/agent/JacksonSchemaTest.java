@@ -20,6 +20,15 @@ public class JacksonSchemaTest {
         var schema = f.getJsonSchema();
 
         log.info("{}", schema);
+
+        var o = new FilteringJacksonOutputConverter<>(
+                AgentModels.OrchestratorRouting.class,
+                new ObjectMapper(),
+                new FilteringJacksonOutputConverter.JacksonPropertyFilter.SkipAnnotation(SkipPropertyFilter.class));
+
+        schema = o.getJsonSchema();
+
+        log.info("{}", schema);
     }
 
 }

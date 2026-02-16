@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Map(String,String)": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "MergeDescriptor": {
+      "type": "object",
+      "properties": {
+        "conflictFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "errorMessage": {
+          "type": "string"
+        },
+        "mainWorktreeMergeResult": {
+          "$ref": "#/$defs/MergeResult"
+        },
+        "mergeDirection": {
+          "type": "string",
+          "enum": [
+            "TRUNK_TO_CHILD",
+            "CHILD_TO_TRUNK",
+            "WORKTREE_TO_SOURCE"
+          ]
+        },
+        "submoduleMergeResults": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "childWorktreePath": {
+                "type": "string"
+              },
+              "mergeResult": {
+                "$ref": "#/$defs/MergeResult"
+              },
+              "parentWorktreePath": {
+                "type": "string"
+              },
+              "pointerUpdated": {
+                "type": "boolean"
+              },
+              "submoduleName": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "successful": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MergeResult": {
+      "type": "object",
+      "properties": {
+        "childWorktreeId": {
+          "type": "string"
+        },
+        "childWorktreePath": {
+          "type": "string"
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "baseContent": {
+                "type": "string"
+              },
+              "conflictType": {
+                "type": "string"
+              },
+              "filePath": {
+                "type": "string"
+              },
+              "oursContent": {
+                "type": "string"
+              },
+              "submodulePath": {
+                "type": "string"
+              },
+              "theirsContent": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "mergeCommitHash": {
+          "type": "string"
+        },
+        "mergeId": {
+          "type": "string"
+        },
+        "mergeMessage": {
+          "type": "string"
+        },
+        "mergedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parentWorktreeId": {
+          "type": "string"
+        },
+        "parentWorktreePath": {
+          "type": "string"
+        },
+        "submoduleUpdates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "newCommitHash": {
+                "type": "string"
+              },
+              "oldCommitHash": {
+                "type": "string"
+              },
+              "requiresResolution": {
+                "type": "boolean"
+              },
+              "submoduleName": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "successful": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "properties": {
+    "collectorRequest": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "goal": {
+              "type": "string",
+              "description": "Workflow goal statement."
+            },
+            "mergeDescriptor": {
+              "$ref": "#/$defs/MergeDescriptor",
+              "description": "Merge descriptor from final merge to source repository."
+            },
+            "phase": {
+              "type": "string",
+              "description": "Current workflow phase."
+            }
+          },
+          "description": "Orchestrator collector request to finalize workflow outputs.",
+          "additionalProperties": false
+        },
+        {
+          "description": "Route to orchestrator collector for finalization."
+        }
+      ]
+    },
+    "contextManagerRequest": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "missingContextDescription": {
+              "type": "string",
+              "description": "Specific description of what information is missing."
+            },
+            "reason": {
+              "type": "string",
+              "description": "Clear explanation of what context you need blackboard intra-agent context."
+            },
+            "suggestedSources": {
+              "type": "string",
+              "description": "Optional hints about which agent or phase might have the needed context."
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "INTROSPECT_AGENT_CONTEXT",
+                "PROCEED"
+              ],
+              "description": "Type of context reconstruction to request."
+            }
+          },
+          "description": "Lightweight request to route to the context manager.",
+          "additionalProperties": false
+        },
+        {
+          "description": "Route to context manager for context reconstruction."
+        }
+      ]
+    },
+    "discoveryOrchestratorRequest": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "feedback": {
+              "type": "string",
+              "description": "Provide any feedback from interrupt requests."
+            },
+            "goal": {
+              "type": "string",
+              "description": "Workflow goal statement."
+            }
+          },
+          "description": "Request for the discovery orchestrator to partition and dispatch discovery work.",
+          "additionalProperties": false
+        },
+        {
+          "description": "Route to discovery orchestrator."
+        }
+      ]
+    },
+    "interruptRequest": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "choices": {
+              "description": "Structured decision choices for the controller.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "choiceId": {
+                    "type": "string",
+                    "description": "Stable identifier for this choice."
+                  },
+                  "context": {
+                    "type": "string",
+                    "description": "Additional context for the decision."
+                  },
+                  "options": {
+                    "$ref": "#/$defs/Map(String,String)",
+                    "description": "Options map with keys A/B/C/CUSTOM."
+                  },
+                  "question": {
+                    "type": "string",
+                    "description": "Decision question posed to the controller."
+                  },
+                  "recommended": {
+                    "type": "string",
+                    "description": "Recommended option key if applicable."
+                  }
+                },
+                "description": "Multiple-choice decision with optional write-in.",
+                "additionalProperties": false
+              }
+            },
+            "confirmationItems": {
+              "description": "Yes/no confirmations required for continuation.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "confirmationId": {
+                    "type": "string",
+                    "description": "Stable identifier for this confirmation."
+                  },
+                  "context": {
+                    "type": "string",
+                    "description": "Additional context for the confirmation."
+                  },
+                  "defaultValue": {
+                    "type": "boolean",
+                    "description": "Default value when unspecified."
+                  },
+                  "impactIfNo": {
+                    "type": "string",
+                    "description": "Impact if the confirmation is denied."
+                  },
+                  "statement": {
+                    "type": "string",
+                    "description": "Confirmation statement to approve or deny."
+                  }
+                },
+                "description": "Yes/no confirmation item for interrupt decisions.",
+                "additionalProperties": false
+              }
+            },
+            "contextForDecision": {
+              "type": "string",
+              "description": "Concise context needed to make the decision."
+            },
+            "goal": {
+              "type": "string",
+              "description": "Workflow goal statement."
+            },
+            "phase": {
+              "type": "string",
+              "description": "Current workflow phase (DISCOVERY, PLANNING, TICKETS, COMPLETE)."
+            },
+            "reason": {
+              "type": "string",
+              "description": "Natural language explanation of the uncertainty."
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "HUMAN_REVIEW",
+                "AGENT_REVIEW",
+                "PAUSE",
+                "STOP",
+                "BRANCH",
+                "PRUNE"
+              ],
+              "description": "Interrupt type (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)."
+            },
+            "workflowContext": {
+              "type": "string",
+              "description": "High-level workflow context or state summary."
+            }
+          },
+          "description": "Interrupt request for orchestrator-level workflow steering.",
+          "additionalProperties": false
+        },
+        {
+          "description": "Interrupt request for orchestration decisions."
+        }
+      ]
+    }
+  },
+  "description": "Routing result for the orchestrator.",
+  "additionalProperties": false
+}

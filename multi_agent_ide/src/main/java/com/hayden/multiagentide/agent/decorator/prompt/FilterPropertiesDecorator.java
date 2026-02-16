@@ -67,7 +67,8 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
         for (Class<? extends Annotation> annotation : toFilter) {
             operations = operations.withAnnotationFilter(annotation);
         }
-        return ctx.toBuilder().templateOperations(operations).build();
+
+        return ctx.toBuilder().templateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class)).build();
     }
 
     private <T> Class<? extends Annotation> resolveTargetRoute(LlmCallContext<T> ctx) {
