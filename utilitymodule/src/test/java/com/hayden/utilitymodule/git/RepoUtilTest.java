@@ -20,6 +20,14 @@ import static org.junit.jupiter.api.Assertions.*;
 class RepoUtilTest {
 
     @Test
+    void doTest() {
+        var f = RepoUtil.updateSubmodulesRecursively(Path.of("/Users/hayde/.multi-agent-ide/worktrees/f"));
+        var unwrapped = f.unwrap();
+        assertThat(unwrapped.size()).isNotZero();
+
+    }
+
+    @Test
     void initGit() throws IOException {
         var newTemp = Files.createTempDirectory("repo-util");
         RepoUtil.initGit(newTemp.resolve(".git"))

@@ -21,7 +21,7 @@ import static com.hayden.acp_cdc_ai.acp.AcpChatModel.MCP_SESSION_HEADER;
 
 /**
  * Tool definitions for Context Manager agent operations over BlackboardHistory.
- * These tools enable deliberate context reconstruction and history navigation.
+ * These tools enable deliberate context reconstruction and blackboard history navigation.
  */
 @Slf4j
 @Component
@@ -34,12 +34,12 @@ public class ContextManagerTools implements ToolCarrier {
     private final AgentPlatform agentPlatform;
 
     /**
-     * Result of a history trace operation
+     * Result of a blackboard history trace operation
      */
     public record HistoryTraceResult(
             @JsonPropertyDescription("Status of the operation")
             String status,
-            @JsonPropertyDescription("List of history entries for the specified action/agent")
+            @JsonPropertyDescription("List of blackboard history entries for the specified action/agent")
             List<HistoryEntryView> entries,
             @JsonPropertyDescription("Total number of entries found")
             int totalCount,
@@ -48,12 +48,12 @@ public class ContextManagerTools implements ToolCarrier {
     ) {}
 
     /**
-     * Result of a history listing operation
+     * Result of a blackboard history listing operation
      */
     public record HistoryListingResult(
             @JsonPropertyDescription("Status of the operation")
             String status,
-            @JsonPropertyDescription("List of history entries in the page")
+            @JsonPropertyDescription("List of blackboard history entries in the page")
             List<HistoryEntryView> entries,
             @JsonPropertyDescription("Total number of entries available")
             int totalCount,
@@ -68,12 +68,12 @@ public class ContextManagerTools implements ToolCarrier {
     ) {}
 
     /**
-     * Result of a history search operation
+     * Result of a blackboard history search operation
      */
     public record HistorySearchResult(
             @JsonPropertyDescription("Status of the operation")
             String status,
-            @JsonPropertyDescription("Matching history entries")
+            @JsonPropertyDescription("Matching blackboard history entries")
             List<HistoryEntryView> matches,
             @JsonPropertyDescription("Total number of matches")
             int matchCount,
@@ -84,19 +84,19 @@ public class ContextManagerTools implements ToolCarrier {
     ) {}
 
     /**
-     * Result of retrieving a specific history item
+     * Result of retrieving a specific blackboard history item
      */
     public record HistoryItemResult(
             @JsonPropertyDescription("Status of the operation")
             String status,
-            @JsonPropertyDescription("The requested history entry")
+            @JsonPropertyDescription("The requested blackboard history entry")
             HistoryEntryView entry,
             @JsonPropertyDescription("Error message if operation failed")
             String error
     ) {}
 
     /**
-     * Result of adding a note to history
+     * Result of adding a note to blackboard history
      */
     public record HistoryNoteResult(
             @JsonPropertyDescription("Status of the operation")
@@ -132,10 +132,10 @@ public class ContextManagerTools implements ToolCarrier {
     ) {}
 
     /**
-     * Simplified view of a history entry for tool responses
+     * Simplified view of a blackboard history entry for tool responses
      */
     public record HistoryEntryView(
-            @JsonPropertyDescription("Entry index in history")
+            @JsonPropertyDescription("Entry index in blackboard history")
             int index,
             @JsonPropertyDescription("When the entry was created")
             Instant timestamp,
@@ -167,11 +167,11 @@ public class ContextManagerTools implements ToolCarrier {
     ) {}
 
     /**
-     * Retrieve the ordered history of events for a specific action or agent execution.
+     * Retrieve the ordered blackboard history of events for a specific action or agent execution.
      * Used to understand what actually happened during a step.
      */
-    @org.springframework.ai.tool.annotation.Tool(description = "Retrieve ordered history for a specific action")
-    public HistoryTraceResult traceHistory(
+    @org.springframework.ai.tool.annotation.Tool(description = "Retrieve ordered blackboard history for a specific action from the blackboard history")
+    public HistoryTraceResult traceBlackboardHistory(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
             @JsonPropertyDescription("Action name to filter by (optional) - accepts regex also.")
@@ -228,8 +228,8 @@ public class ContextManagerTools implements ToolCarrier {
      * Traverse BlackboardHistory incrementally with pagination support.
      * Enables scanning backward or forward through long workflows.
      */
-    @org.springframework.ai.tool.annotation.Tool(description = "List history entries with pagination")
-    public HistoryListingResult listHistory(
+    @org.springframework.ai.tool.annotation.Tool(description = "List blackboard history entries with pagination")
+    public HistoryListingResult listBlackboardHistory(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
             @JsonPropertyDescription("Number of entries to skip (offset)")
@@ -293,8 +293,8 @@ public class ContextManagerTools implements ToolCarrier {
      * Search across BlackboardHistory contents.
      * Used to locate relevant prior decisions, errors, or artifacts.
      */
-    @org.springframework.ai.tool.annotation.Tool(description = "Search history entries by content")
-    public HistorySearchResult searchHistory(
+    @org.springframework.ai.tool.annotation.Tool(description = "Search blackboard history entries by content")
+    public HistorySearchResult searchBlackboardHistory(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
             @JsonPropertyDescription("Search query string")
@@ -371,7 +371,7 @@ public class ContextManagerTools implements ToolCarrier {
      * Page through message events stored under a message entry.
      */
     @org.springframework.ai.tool.annotation.Tool(description = "Page through message events for a specific entry")
-    public MessagePageResult listMessageEvents(
+    public MessagePageResult listMessageEventsFromBlackboardHistory(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
             @JsonPropertyDescription("Message entry id from listHistory")
@@ -392,11 +392,11 @@ public class ContextManagerTools implements ToolCarrier {
             var c = getCurrentHistory(sessionId);
 
             if (c == null)
-                return new MessagePageResult("error", entryId, List.of(), 0, 0, 0, false, "No history available");
+                return new MessagePageResult("error", entryId, List.of(), 0, 0, 0, false, "No blackboard history available");
 
             return c.fromHistory(history -> {
                 if (history == null) {
-                    return new MessagePageResult("error", entryId, List.of(), 0, 0, 0, false, "No history available");
+                    return new MessagePageResult("error", entryId, List.of(), 0, 0, 0, false, "No blackboard history available");
                 }
 
                 BlackboardHistory.MessageEntry messageEntry = resolveMessageEntry(history, entryId);
@@ -430,11 +430,11 @@ public class ContextManagerTools implements ToolCarrier {
     }
 
     /**
-     * Fetch a specific history entry by index.
+     * Fetch a specific blackboard history entry by index.
      * Used when context creation references earlier events explicitly.
      */
-    @org.springframework.ai.tool.annotation.Tool(description = "Retrieve a specific history entry by index")
-    public HistoryItemResult getHistoryItem(
+    @org.springframework.ai.tool.annotation.Tool(description = "Retrieve a specific blackboard history entry by index")
+    public HistoryItemResult getHistoryItemFromBlackboardHistory(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
             @JsonPropertyDescription("Zero-based index of the entry to retrieve")
@@ -447,11 +447,11 @@ public class ContextManagerTools implements ToolCarrier {
             var c = getCurrentHistory(sessionId);
 
             if (c == null)
-                return new HistoryItemResult("error", null, "No history available");
+                return new HistoryItemResult("error", null, "No blackboard history available");
 
             return c.fromHistory(history -> {
                 if (history == null) {
-                    return new HistoryItemResult("error", null, "No history available");
+                    return new HistoryItemResult("error", null, "No blackboard history available");
                 }
 
                 if (index < 0 || index >= history.entries().size()) {
@@ -473,11 +473,11 @@ public class ContextManagerTools implements ToolCarrier {
      * Attach notes to BlackboardHistory entries.
      * Used to explain inclusion, exclusion, minimization, or routing rationale.
      */
-    @org.springframework.ai.tool.annotation.Tool(description = "Add a note/annotation to history entries")
-    public HistoryNoteResult addHistoryNote(
+    @org.springframework.ai.tool.annotation.Tool(description = "Add a note/annotation to blackboard history entries")
+    public HistoryNoteResult addNoteToBlackboardHistory(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
-            @JsonPropertyDescription("Indices of history entries this note references")
+            @JsonPropertyDescription("Indices of blackboard history entries this note references")
             List<Integer> entryIndices,
             @JsonPropertyDescription("Note content explaining reasoning or classification")
             String noteContent,
@@ -495,12 +495,12 @@ public class ContextManagerTools implements ToolCarrier {
             var c = getCurrentHistory(sessionId);
 
             if (c == null)
-                return new HistoryNoteResult("error", null, null, "No history available");
+                return new HistoryNoteResult("error", null, null, "No blackboard history available");
 
             return c.fromHistory(history -> {
                 if (history == null) {
                     log.error("History was non-existent");
-                    return new HistoryNoteResult("error", null, null, "No history available");
+                    return new HistoryNoteResult("error", null, null, "No blackboard history available");
                 }
 
                 // Validate indices

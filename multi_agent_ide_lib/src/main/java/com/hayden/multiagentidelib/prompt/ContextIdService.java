@@ -9,14 +9,15 @@ import org.springframework.stereotype.Service;
 public class ContextIdService {
 
     public ArtifactKey generate(String workflowRunId, AgentType agentType, Artifact.AgentModel parent) {
+        if (parent != null && parent.key() != null) {
+            return parent.key().createChild();
+        }
+
         if (workflowRunId != null && ArtifactKey.isValid(workflowRunId)) {
             return new ArtifactKey(workflowRunId).createChild();
         }
 
-        if (parent == null)
-            return ArtifactKey.createRoot();
-
-        return parent.key().createChild();
+        return ArtifactKey.createRoot();
     }
 
     public ArtifactKey generate(String workflowRunId, AgentType agentType) {

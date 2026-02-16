@@ -668,11 +668,26 @@ public class RequestEnrichment {
 
     private AgentModels.DiscoveryAgentRequests enrichDiscoveryAgentRequests(
             AgentModels.DiscoveryAgentRequests req, OperationContext context, Artifact.AgentModel parent) {
+        log.info("enrichDiscoveryAgentRequests: BEFORE enrichment | containerContextId={} | childCount={} | parentKey={}",
+                req.contextId() != null ? req.contextId().value() : "null",
+                req.requests() != null ? req.requests().size() : 0,
+                parent != null && parent.key() != null ? parent.key().value() : "null");
         AgentModels.DiscoveryAgentRequests built = req.toBuilder()
                 .contextId(resolveContextId(context, req, parent))
                 .build();
-        return built
+        log.info("enrichDiscoveryAgentRequests: AFTER container enrichment | containerContextId={}", 
+                built.contextId() != null ? built.contextId().value() : "null");
+        AgentModels.DiscoveryAgentRequests result = (AgentModels.DiscoveryAgentRequests) built
                 .withChildren(enrichChildren(built.children(), context, built));
+        if (result.requests() != null) {
+            for (int i = 0; i < result.requests().size(); i++) {
+                var child = result.requests().get(i);
+                log.info("enrichDiscoveryAgentRequests: CHILD[{}] contextId={} | subdomain={}",
+                        i, child.contextId() != null ? child.contextId().value() : "null",
+                        child.subdomainFocus());
+            }
+        }
+        return result;
     }
 
     private AgentModels.PlanningAgentRequests enrichPlanningAgentRequests(
@@ -762,8 +777,15 @@ public class RequestEnrichment {
             return null;
         }
 
+        String requestType = currentRequest.getClass().getSimpleName();
+        String parentKey = parent != null && parent.key() != null ? parent.key().value() : "null";
+        String workflowRunId = resolveWorkflowRunId(context);
+
         if (shouldCreateNewSession(currentRequest)) {
-            return contextIdService.generate(resolveWorkflowRunId(context), null, parent);
+            ArtifactKey newKey = contextIdService.generate(workflowRunId, null, parent);
+            log.info("resolveContextId: NEW SESSION for {} | parentKey={} | workflowRunId={} | generatedKey={}",
+                    requestType, parentKey, workflowRunId, newKey != null ? newKey.value() : "null");
+            return newKey;
         }
 
         // For orchestrators, collectors, and dispatchers: try to recycle previous contextId
@@ -773,12 +795,15 @@ public class RequestEnrichment {
         if (history != null) {
             ArtifactKey recycled = findPreviousContextId(history, currentRequest);
             if (recycled != null) {
-                log.debug("Recycling contextId {} for request type {}", recycled.value(), currentRequest.getClass().getSimpleName());
+                log.info("resolveContextId: RECYCLED for {} | recycledKey={}", requestType, recycled.value());
                 return recycled;
             }
         }
 
-        return contextIdService.generate(resolveWorkflowRunId(context), null, parent);
+        ArtifactKey fallbackKey = contextIdService.generate(workflowRunId, null, parent);
+        log.info("resolveContextId: FALLBACK (no previous) for {} | parentKey={} | workflowRunId={} | generatedKey={}",
+                requestType, parentKey, workflowRunId, fallbackKey != null ? fallbackKey.value() : "null");
+        return fallbackKey;
     }
 
     /**

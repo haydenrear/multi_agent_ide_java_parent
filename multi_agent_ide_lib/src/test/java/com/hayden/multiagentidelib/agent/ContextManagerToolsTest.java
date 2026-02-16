@@ -24,7 +24,7 @@ class ContextManagerToolsTest {
 
     @Test
     @DisplayName("listHistory returns message entry id and listMessageEvents pages events")
-    void listHistoryAndMessagePaging() {
+    void listBlackboardHistoryAndMessagePaging() {
         InMemoryBlackboard blackboard = new InMemoryBlackboard();
         BlackboardHistory history = buildHistory();
         blackboard.addObject(history);
@@ -37,7 +37,7 @@ class ContextManagerToolsTest {
 
         ContextManagerTools tools = new ContextManagerTools(platform);
 
-        ContextManagerTools.HistoryListingResult listing = tools.listHistory(
+        ContextManagerTools.HistoryListingResult listing = tools.listBlackboardHistory(
                 "session-1",
                 0,
                 10,
@@ -51,7 +51,7 @@ class ContextManagerToolsTest {
         assertThat(listing.entries().get(1).inputType()).isEqualTo("MessageEventPage");
         assertThat(listing.entries().get(1).inputSummary()).contains("messages:1");
 
-        ContextManagerTools.MessagePageResult page = tools.listMessageEvents(
+        ContextManagerTools.MessagePageResult page = tools.listMessageEventsFromBlackboardHistory(
                 "session-1",
                 "messages:1",
                 0,
@@ -66,7 +66,7 @@ class ContextManagerToolsTest {
 
     @Test
     @DisplayName("searchHistory can scope to message entry id")
-    void searchHistoryScopedToMessageEntry() {
+    void searchBlackboardHistoryScopedToMessageEntry() {
         InMemoryBlackboard blackboard = new InMemoryBlackboard();
         BlackboardHistory history = buildHistory();
         blackboard.addObject(history);
@@ -79,7 +79,7 @@ class ContextManagerToolsTest {
 
         ContextManagerTools tools = new ContextManagerTools(platform);
 
-        ContextManagerTools.HistorySearchResult result = tools.searchHistory(
+        ContextManagerTools.HistorySearchResult result = tools.searchBlackboardHistory(
                 "session-2",
                 "hello",
                 10,
@@ -93,11 +93,11 @@ class ContextManagerToolsTest {
 
     @Test
     @DisplayName("listHistory fails without session id")
-    void listHistoryRequiresSessionId() {
+    void listBlackboardHistoryRequiresSessionId() {
         AgentPlatform platform = mock(AgentPlatform.class);
         ContextManagerTools tools = new ContextManagerTools(platform);
 
-        ContextManagerTools.HistoryListingResult listing = tools.listHistory(
+        ContextManagerTools.HistoryListingResult listing = tools.listBlackboardHistory(
                 null,
                 0,
                 10,

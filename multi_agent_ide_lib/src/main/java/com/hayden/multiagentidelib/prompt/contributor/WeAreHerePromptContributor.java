@@ -331,14 +331,12 @@ public class WeAreHerePromptContributor implements PromptContributor {
     }
 
     private static final String INTERRUPT_GUIDANCE = """
-
         **Interrupt guidance:** If uncertain, emit an `interruptRequest`. You may emit interrupts multiple times if more context is needed.
         Include `reason`, `contextForDecision`, `choices`, `confirmationItems`, and the agent-specific interrupt context fields.
         """;
 
     private static final String CONTEXT_MANAGER_GUIDANCE = """
-
-        **Context guidance:** To request context reconstruction, set `contextManagerRequest`
+        **Context guidance:** If you are missing context from other agents and wish to reconstruct context using shared blackboard history, set `contextManagerRequest`
         with a `ContextManagerRoutingRequest` (provide `reason` and `type`).
         """;
 

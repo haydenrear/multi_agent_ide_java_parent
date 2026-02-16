@@ -3,13 +3,11 @@ package com.hayden.multiagentidelib.prompt.contributor;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 
-import java.util.Optional;
-
 /**
  * Utility for resolving where the context manager should route back to, based on the
  * blackboard history. Delegates to {@link NodeMappings} for the type-to-field-name mapping.
  *
- * <p>Used by both {@link ContextManagerReturnRoutePromptContributorFactory} and
+ * <p>Used by both {@link ContextManagerPromptContributorFactory} and
  * {@link InterruptLoopBreakerPromptContributorFactory}.</p>
  */
 public final class ContextManagerReturnRoutes {
@@ -37,22 +35,7 @@ public final class ContextManagerReturnRoutes {
      * Finds the last non-context-manager, non-interrupt request from the blackboard history.
      */
     public static AgentModels.AgentRequest findLastNonContextManagerRequest(BlackboardHistory history) {
-        if (history == null) {
-            return null;
-        }
-        return history.getValue(entry -> {
-            Object input = switch (entry) {
-                case BlackboardHistory.DefaultEntry defaultEntry -> defaultEntry.input();
-                case BlackboardHistory.MessageEntry ignored -> null;
-            };
-            if (input instanceof AgentModels.AgentRequest agentRequest
-                    && !(agentRequest instanceof AgentModels.ContextManagerRoutingRequest)
-                    && !(agentRequest instanceof AgentModels.ContextManagerRequest)
-                    && !(agentRequest instanceof AgentModels.InterruptRequest)) {
-                return Optional.of(agentRequest);
-            }
-            return Optional.empty();
-        }).orElse(null);
+        return BlackboardHistory.findLastNonContextRequest(history);
     }
 
     /**

@@ -4,6 +4,7 @@ import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -17,26 +18,29 @@ import java.util.List;
  * <p>If no previous agent can be identified, it instructs routing back to the orchestrator
  * with a clearly defined goal derived from the current context.</p>
  */
+@Slf4j
 @Component
-public class ContextManagerReturnRoutePromptContributorFactory implements PromptContributorFactory {
+public class ContextManagerPromptContributorFactory implements PromptContributorFactory {
 
     @Override
     public List<PromptContributor> create(PromptContext context) {
-        if (context == null || context.currentRequest() == null || context.blackboardHistory() == null) {
+        AgentModels.AgentRequest agentRequest = context.currentRequest();
+        if (context == null || agentRequest == null || context.blackboardHistory() == null) {
             return List.of();
         }
 
-        if (!(context.currentRequest() instanceof AgentModels.ContextManagerRequest)) {
+        if (!(agentRequest instanceof AgentModels.ContextManagerRequest req)) {
             return List.of();
         }
 
         AgentModels.AgentRequest lastAgent = ContextManagerReturnRoutes
-                .findLastNonContextManagerRequest(context.blackboardHistory());
+                        .findLastNonContextManagerRequest(context.blackboardHistory());
 
         if (lastAgent != null) {
             ContextManagerReturnRoutes.ReturnRouteMapping mapping =
                     ContextManagerReturnRoutes.findMapping(lastAgent.getClass());
             if (mapping != null) {
+                log.error("Didn't find mapping for return route in context manager return route prompt: {}.", lastAgent.getClass());
                 return List.of(new ContextManagerReturnRoutePromptContributor(mapping, lastAgent));
             }
         }
@@ -56,6 +60,9 @@ public class ContextManagerReturnRoutePromptContributorFactory implements Prompt
                 The last active agent before the Context Manager was invoked was \
                 **{{display_name}}** (`{{request_type}}`).
                 
+                {{reason}}
+                {{type}}
+                
                 ### Previous Agent Context
                 {{agent_context}}
                 
@@ -67,6 +74,26 @@ public class ContextManagerReturnRoutePromptContributorFactory implements Prompt
                 
                 Do not route to a different agent unless you have a strong reason. The workflow \
                 expects to return to the agent that requested context.
+                
+                ### Return Route Instructions
+                
+                You have been routed to from this agent because you possess a unique set of tools to provide context \
+                across all agent sessions. This is provided through your blackboard history tools. The blackboard history \
+                is the shared context where all agent messages are saved, across the entire multi-agent process. You are then \
+                provided a mechanism to search through this blackboard history with your blackboard history tools, and that means \
+                you have a unique ability to provide context across agents.  \
+                
+                Please use your tools to search the history of all agent sessions, identify additional context information relative to the \
+                goal and the agent's responsibilities, and then provide that information in the return value. \
+                When you do this, it will route back to that agent with that information you provided, so make sure \
+                to provide as much relevant information from the blackboard history as possible. \
+                
+                In particular, you can use that memory tool as a starting point for searching through agent messages and \
+                structured responses. You can use your memory tool to reflect on those agent's experiences, and then perform \
+                a search based on the result, or you can simply perform searches over the BlackboardHistory over particular agents. \
+                Then, based on your results about the goal, where in the process we are, and what information was provided and missing \
+                in the context, you provide all that information to the agent in their structured response, along with any information \
+                that already existed. \
                 """;
 
         @Override
@@ -81,19 +108,25 @@ public class ContextManagerReturnRoutePromptContributorFactory implements Prompt
 
         @Override
         public String contribute(PromptContext context) {
-            String agentContext = lastAgent.prettyPrintInterruptContinuation();
+            String agentContext = lastAgent.prettyPrint();
             if (agentContext == null || agentContext.isBlank()) {
-                agentContext = lastAgent.prettyPrint();
+                agentContext = lastAgent.prettyPrintInterruptContinuation();
             }
             if (agentContext == null || agentContext.isBlank()) {
                 agentContext = "(No detailed context available)";
+            }
+
+            if (!(context.currentRequest() instanceof AgentModels.ContextManagerRequest r)) {
+                return "";
             }
 
             return TEMPLATE
                     .replace("{{display_name}}", mapping.displayName())
                     .replace("{{request_type}}", mapping.requestType().getSimpleName())
                     .replace("{{field_name}}", mapping.fieldName())
-                    .replace("{{agent_context}}", agentContext.trim());
+                    .replace("{{agent_context}}", agentContext.trim())
+                    .replace("{{reason}}", "Reason routing to context manager: " + r.reason())
+                    .replace("{{type}}", "Context manager request type: " + r.type().name());
         }
 
         @Override

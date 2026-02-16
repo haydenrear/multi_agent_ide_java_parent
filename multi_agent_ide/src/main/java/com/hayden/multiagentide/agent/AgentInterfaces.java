@@ -46,7 +46,6 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
-import java.util.function.Predicate;
 
 /**
  * Embabel @Agent definition for multi-agent IDE.
@@ -284,11 +283,15 @@ public interface AgentInterfaces {
                     .filter(StringUtils::isNotBlank)
                     .orElse("No history available");
 
-            AgentModels.AgentRequest lastRequest = findLastRequest(
+            AgentModels.AgentRequest anyLastRequest = BlackboardHistory.findLastRequest(
                     history,
-                    a -> !(a instanceof AgentModels.InterruptRequest)
-                            && !(a instanceof AgentModels.ContextManagerRequest)
-                            && !(a instanceof AgentModels.ContextManagerRoutingRequest));
+                    a -> a instanceof AgentModels.AgentRequest);
+
+            if (anyLastRequest instanceof AgentModels.ContextManagerRequest c) {
+//                TODO: this should probably route for human/agent review - in that case.
+            }
+
+            AgentModels.AgentRequest lastRequest = BlackboardHistory.findLastNonContextRequest(history);
 
             AgentModels.ContextManagerRequest request = AgentModels.ContextManagerRequest.builder()
                     .reason(STUCK_HANDLER)
@@ -365,6 +368,63 @@ public interface AgentInterfaces {
             );
         }
 
+        @Action(canRerun = true, cost = 2)
+        public AgentModels.ContextManagerRequest routeToContextManager(
+                AgentModels.ContextManagerRoutingRequest request,
+                OperationContext context
+        ) {
+            BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+            AgentModels.AgentRequest lastRequest = BlackboardHistory.findLastNonContextRequest(history);
+
+            if (lastRequest == null) {
+                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                        "Upstream request not found - cannot route to context manager.",
+                        METHOD_ROUTE_TO_CONTEXT_MANAGER,
+                        AgentModels.ContextManagerRoutingRequest.class,
+                        1
+                );
+            }
+
+            request = AgentInterfaces.decorateRequest(
+                    request,
+                    context,
+                    requestDecorators,
+                    multiAgentAgentName(),
+                    ACTION_CONTEXT_MANAGER_ROUTE,
+                    METHOD_ROUTE_TO_CONTEXT_MANAGER,
+                    lastRequest
+            );
+
+            AgentModels.ContextManagerRequest contextManagerRequest = AgentModels.ContextManagerRequest.builder()
+                    .reason(request != null ? request.reason() : "%s routed to context manager, but did not provide reason.".formatted(Optional.ofNullable(lastRequest).map(a -> a.getClass().getName()).orElse("Unknown agent")))
+                    .type(Optional.ofNullable(request)
+                            .flatMap(r -> Optional.ofNullable(r.type()))
+                            .orElse(AgentModels.ContextManagerRequestType.INTROSPECT_AGENT_CONTEXT))
+                    .build()
+                    .addRequest(lastRequest);
+
+            contextManagerRequest = AgentInterfaces.decorateRequest(
+                    contextManagerRequest,
+                    context,
+                    requestDecorators,
+                    AGENT_NAME_NONE,
+                    ACTION_CONTEXT_MANAGER_ROUTE,
+                    METHOD_ROUTE_TO_CONTEXT_MANAGER,
+                    lastRequest
+            );
+
+            return AgentInterfaces.decorateRequestResult(
+                    contextManagerRequest,
+                    context,
+                    resultDecorators,
+                    multiAgentAgentName(),
+                    ACTION_CONTEXT_MANAGER_ROUTE,
+                    METHOD_ROUTE_TO_CONTEXT_MANAGER,
+                    lastRequest
+            );
+        }
+
+
         @Action(canRerun = true, cost = 1)
         public AgentModels.ContextManagerResultRouting contextManagerRequest(
                 AgentModels.ContextManagerRequest request,
@@ -377,11 +437,15 @@ public interface AgentInterfaces {
                     .map(BlackboardHistory::summary)
                     .orElse("No history available");
 
-            AgentModels.AgentRequest lastRequest = findLastRequest(
+            AgentModels.AgentRequest anyLastRequest = BlackboardHistory.findLastRequest(
                     history,
-                    a -> !(a instanceof AgentModels.InterruptRequest)
-                            && !(a instanceof AgentModels.ContextManagerRequest)
-                            && !(a instanceof AgentModels.ContextManagerRoutingRequest));
+                    a -> a instanceof AgentModels.AgentRequest);
+
+            if (anyLastRequest instanceof AgentModels.ContextManagerRequest c) {
+//                TODO: this should probably route for human/agent review - in that case.
+            }
+
+            AgentModels.AgentRequest lastRequest = BlackboardHistory.findLastNonContextRequest(history);
 
             request = decorateRequest(
                     request,
@@ -399,6 +463,7 @@ public interface AgentInterfaces {
 
             Optional.ofNullable(request.goal())
                     .ifPresent(g -> model.put("goal", g));
+
             PromptContext promptContext = buildPromptContext(
                     AgentType.CONTEXT_MANAGER,
                     request,
@@ -507,108 +572,6 @@ public interface AgentInterfaces {
                     METHOD_COORDINATE_WORKFLOW,
                     lastRequest
             );
-        }
-
-        @Action(canRerun = true, cost = 2)
-        public AgentModels.ContextManagerRequest routeToContextManager(
-                AgentModels.ContextManagerRoutingRequest request,
-                OperationContext context
-        ) {
-            BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
-            AgentModels.AgentRequest lastRequest = findLastNonContextRequest(history);
-            if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Upstream request not found - cannot route to context manager.",
-                        METHOD_ROUTE_TO_CONTEXT_MANAGER,
-                        AgentModels.ContextManagerRoutingRequest.class,
-                        1
-                );
-            }
-
-            request = AgentInterfaces.decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_CONTEXT_MANAGER_ROUTE,
-                    METHOD_ROUTE_TO_CONTEXT_MANAGER,
-                    lastRequest
-            );
-
-            AgentModels.ContextManagerRequest contextManagerRequest = AgentModels.ContextManagerRequest.builder()
-                    .reason(request != null ? request.reason() : "%s routed to context manager, but did not provide reason.".formatted(Optional.ofNullable(lastRequest).map(a -> a.getClass().getName()).orElse("Unknown agent")))
-                    .type(Optional.ofNullable(request)
-                            .flatMap(r -> Optional.ofNullable(r.type()))
-                            .orElse(AgentModels.ContextManagerRequestType.INTROSPECT_AGENT_CONTEXT))
-                    .build()
-                    .addRequest(lastRequest);
-
-            contextManagerRequest = AgentInterfaces.decorateRequest(
-                    contextManagerRequest,
-                    context,
-                    requestDecorators,
-                    AGENT_NAME_NONE,
-                    ACTION_CONTEXT_MANAGER_ROUTE,
-                    METHOD_ROUTE_TO_CONTEXT_MANAGER,
-                    lastRequest
-            );
-
-            return AgentInterfaces.decorateRequestResult(
-                    contextManagerRequest,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_CONTEXT_MANAGER_ROUTE,
-                    METHOD_ROUTE_TO_CONTEXT_MANAGER,
-                    lastRequest
-            );
-        }
-
-        private AgentModels.AgentRequest findLastRequest(BlackboardHistory bh,
-                                                         Predicate<AgentModels.AgentRequest> r) {
-            if (bh == null)
-                return null;
-
-            return bh.fromHistory(history -> {
-                if (history == null || history.entries() == null) {
-                    return null;
-                }
-                List<BlackboardHistory.Entry> entries = history.entries();
-                for (int i = entries.size() - 1; i >= 0; i--) {
-                    BlackboardHistory.Entry entry = entries.get(i);
-                    if (entry == null) {
-                        continue;
-                    }
-                    Object input = switch (entry) {
-                        case BlackboardHistory.DefaultEntry defaultEntry ->
-                                defaultEntry.input();
-                        case BlackboardHistory.MessageEntry ignored ->
-                                null;
-                    };
-                    if (input instanceof AgentModels.AgentRequest agentRequest && r.test(agentRequest)) {
-                        return agentRequest;
-                    }
-                }
-                return null;
-            });
-        }
-
-        private AgentModels.AgentRequest findLastNonContextRequest(BlackboardHistory history) {
-            return history.getValue(entry -> {
-                        Object input = switch (entry) {
-                            case BlackboardHistory.DefaultEntry defaultEntry ->
-                                    defaultEntry.input();
-                            case BlackboardHistory.MessageEntry ignored ->
-                                    null;
-                        };
-                        if (input instanceof AgentModels.AgentRequest agentRequest
-                                && !(agentRequest instanceof AgentModels.ContextManagerRoutingRequest)
-                                && !(agentRequest instanceof AgentModels.ContextManagerRequest)) {
-                            return Optional.of(agentRequest);
-                        }
-                        return Optional.empty();
-                    })
-                    .orElse(null);
         }
 
         private OperationContext buildStuckHandlerContext(AgentProcess agentProcess) {
@@ -1401,10 +1364,19 @@ public interface AgentInterfaces {
             var discoveryDispatchAgent = context.agentPlatform().agents()
                     .stream().filter(a -> Objects.equals(a.getName(), AgentInterfaces.WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT))
                     .findAny().orElse(null);
+            log.info("dispatchDiscoveryAgentRequests: container contextId={} | requestCount={}",
+                    input.contextId() != null ? input.contextId().value() : "null",
+                    input.requests() != null ? input.requests().size() : 0);
+            int idx = 0;
             for (AgentModels.DiscoveryAgentRequest request : input.requests()) {
                 if (request == null) {
                     continue;
                 }
+
+                log.info("dispatchDiscoveryAgentRequests: DISPATCHING child[{}] | childContextId={} | subdomain={}",
+                        idx, request.contextId() != null ? request.contextId().value() : "null",
+                        request.subdomainFocus());
+                idx++;
 
                 context.addObject(input);
 
@@ -2476,7 +2448,7 @@ public interface AgentInterfaces {
             AgentModels.TicketAgentRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketAgentRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
+                throw AgentInterfaces.degenerateLoop(eventBus, context,
                         "Ticket agent request not found - cannot record ticket agent result.",
                         METHOD_RAN_TICKET_AGENT_RESULT,
                         AgentModels.TicketAgentResult.class,
@@ -2719,7 +2691,7 @@ public interface AgentInterfaces {
             AgentModels.PlanningAgentRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningAgentRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
+                throw AgentInterfaces.degenerateLoop(eventBus, context,
                         "Planning agent request not found - cannot record planning agent result.",
                         METHOD_RAN_PLANNING_AGENT,
                         AgentModels.PlanningAgentResult.class,
@@ -3027,7 +2999,7 @@ public interface AgentInterfaces {
             AgentModels.DiscoveryAgentRequests lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryAgentRequests.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
+                throw AgentInterfaces.degenerateLoop(eventBus, context,
                         "Discovery agent request not found - cannot run discovery agent.",
                         METHOD_RUN_DISCOVERY_AGENT,
                         AgentModels.DiscoveryAgentRequest.class,
@@ -3050,6 +3022,12 @@ public interface AgentInterfaces {
                     "subdomainFocus", input.subdomainFocus()
             );
 
+            org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DiscoveryDispatchSubagent.class);
+            log.info("runDiscoveryAgent: input contextId={} | lastRequest(container) contextId={} | subdomain={}",
+                    input.contextId() != null ? input.contextId().value() : "null",
+                    lastRequest.contextId() != null ? lastRequest.contextId().value() : "null",
+                    input.subdomainFocus());
+
             PromptContext promptContext = buildPromptContext(
                     AgentType.DISCOVERY_AGENT,
                     input,
@@ -3061,6 +3039,10 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
                     model
             );
+
+            log.info("runDiscoveryAgent: promptContext.currentRequest().contextId()={}",
+                    promptContext.currentRequest() != null && promptContext.currentRequest().contextId() != null
+                            ? promptContext.currentRequest().contextId().value() : "null");
 
             AgentModels.DiscoveryAgentRouting routing = llmRunner.runWithTemplate(
                     TEMPLATE_WORKFLOW_DISCOVERY_AGENT,

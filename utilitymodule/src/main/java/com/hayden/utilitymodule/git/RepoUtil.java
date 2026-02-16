@@ -308,6 +308,8 @@ public interface RepoUtil {
     }
 
     private static Result<List<String>, RepoUtilAggregateError> updateSubmodulesRecursively(Repository repo) {
+        RepoUtil.runGitCommand(repo.getDirectory().toPath(), List.of("submodule", "update", "--init", "--recursive"));
+        RepoUtil.runGitCommand(repo.getDirectory().toPath(), List.of("submodule", "foreach", "--recursive", "git reset --hard || true"));
         return updateSubmodulesRecursively(repo, "");
     }
 
@@ -315,8 +317,7 @@ public interface RepoUtil {
         List<String> updated = new ArrayList<>();
         Set<RepoUtilError> errs = new HashSet<>();
         try (Git git = new Git(repo)) {
-            git.submoduleInit().call();
-            git.submoduleUpdate().call();
+
 
             try (SubmoduleWalk walk = SubmoduleWalk.forIndex(repo)) {
                 try {
@@ -345,8 +346,6 @@ public interface RepoUtil {
             } catch (IOException e) {
                 errs.add(new RepoUtilError("Failed to get index on repo %s: %s".formatted(repo.getDirectory(), e.getMessage())));
             }
-        } catch (GitAPIException e) {
-            errs.add(new RepoUtilError("Failed to call git submodule on repo %s: %s".formatted(repo.getDirectory(), e.getMessage())));
         }
 
         return Result.from(updated, new RepoUtilAggregateError(errs));
@@ -401,10 +400,9 @@ public interface RepoUtil {
     static Result<String, RepoUtilError> runGitCommand(Path repoPath, List<String> args) {
         List<String> command = new ArrayList<>();
         command.add("git");
-        command.add("-C");
-        command.add(repoPath.toString());
         command.addAll(args);
-        ProcessBuilder pb = new ProcessBuilder(command);
+        ProcessBuilder pb = new ProcessBuilder(command)
+                .directory(repoPath.endsWith(".git") ? repoPath.getParent().toFile() : repoPath.toFile());
         pb.redirectErrorStream(true);
         StringBuilder output = new StringBuilder();
         try {

@@ -12,6 +12,7 @@ import org.jspecify.annotations.Nullable;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -31,6 +32,44 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
 
     private volatile WorkflowGraphState state;
     private volatile History history;
+
+    public static AgentModels.AgentRequest findLastRequest(BlackboardHistory bh,
+                                                       Predicate<AgentModels.AgentRequest> r) {
+        if (bh == null)
+            return null;
+
+        return bh.fromHistory(history -> {
+            if (history == null || history.entries() == null) {
+                return null;
+            }
+            List<Entry> entries = history.entries();
+            for (int i = entries.size() - 1; i >= 0; i--) {
+                Entry entry = entries.get(i);
+                if (entry == null) {
+                    continue;
+                }
+                Object input = switch (entry) {
+                    case DefaultEntry defaultEntry ->
+                            defaultEntry.input();
+                    case MessageEntry ignored ->
+                            null;
+                };
+                if (input instanceof AgentModels.AgentRequest agentRequest && r.test(agentRequest)) {
+                    return agentRequest;
+                }
+            }
+            return null;
+        });
+    }
+
+    public static AgentModels.@Nullable AgentRequest findLastNonContextRequest(BlackboardHistory history) {
+        AgentModels.AgentRequest lastRequest = findLastRequest(
+                history,
+                a -> !(a instanceof AgentModels.InterruptRequest)
+                        && !(a instanceof AgentModels.ContextManagerRequest)
+                        && !(a instanceof AgentModels.ContextManagerRoutingRequest));
+        return lastRequest;
+    }
 
     /**
      * Tracks a single historical blackboard state entry.

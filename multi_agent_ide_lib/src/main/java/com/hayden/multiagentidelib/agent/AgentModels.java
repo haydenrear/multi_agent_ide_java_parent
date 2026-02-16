@@ -4445,6 +4445,7 @@ public interface AgentModels {
         }
     }
 
+
     @Builder(toBuilder=true)
     @JsonClassDescription("Routing result for the context manager agent.")
     record ContextManagerResultRouting(
@@ -4487,9 +4488,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Route to discovery agent requests.")
             DiscoveryAgentRequests discoveryAgentRequests,
             @JsonPropertyDescription("Route to discovery agent results.")
-            DiscoveryAgentResults discoveryAgentResults,
-            @JsonPropertyDescription("Route to context orchestrator.")
-            ContextManagerRoutingRequest contextOrchestratorRequest
+            DiscoveryAgentResults discoveryAgentResults
     ) implements Routing {
     }
 

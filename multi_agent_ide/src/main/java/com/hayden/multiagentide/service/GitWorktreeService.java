@@ -39,6 +39,11 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 
 /**
  * Git-based implementation of WorktreeService using git worktree commands.
@@ -50,6 +55,10 @@ public class GitWorktreeService implements WorktreeService {
 
     private final WorktreeRepository worktreeRepository;
     private final String baseWorktreesPath;
+
+    @Lazy
+    @Autowired
+    private EventBus eventBus;
 
     public GitWorktreeService(
             WorktreeRepository worktreeRepository,
@@ -1314,8 +1323,7 @@ public class GitWorktreeService implements WorktreeService {
                 RepoUtil.runGitCommand(Paths.get(repositoryUrl), List.of("submodule", "update", "--init", "--recursive"));
                 if (baseBranch != null && !baseBranch.isBlank() && !Objects.equals(git.getRepository().getBranch(), baseBranch)) {
                     git.checkout().setName(baseBranch).call();
-
-                    RepoUtil.runGitCommand(Paths.get(repositoryUrl), List.of("submodule", "foreach", "--recursive", "git", "reset", "--hard", "||", "true"));
+                    RepoUtil.runGitCommand(Paths.get(repositoryUrl), List.of("submodule", "foreach", "--recursive", "git reset --hard || true"));
                 }
             }
         }
@@ -1438,15 +1446,23 @@ public class GitWorktreeService implements WorktreeService {
             if (submodulePath == null || submodulePath.isBlank()) {
                 continue;
             }
-            SubmoduleWorktreeContext context = createSubmoduleWorktree(
-                    submodulePath,
-                    submodulePath,
-                    parentWorktreeId,
-                    parentWorktreePath,
-                    nodeId,
-                    parentBranch
-            );
-            contexts.add(context);
+            try {
+                SubmoduleWorktreeContext context = createSubmoduleWorktree(
+                        submodulePath,
+                        submodulePath,
+                        parentWorktreeId,
+                        parentWorktreePath,
+                        nodeId,
+                        parentBranch
+                );
+                contexts.add(context);
+            } catch (Exception e) {
+                log.warn("Skipping submodule '{}': {}", submodulePath, e.getMessage());
+                eventBus.publish(Events.NodeErrorEvent.err(
+                        "Failed to initialize submodule '%s': %s".formatted(submodulePath, e.getMessage()),
+                        new ArtifactKey(nodeId)
+                ));
+            }
         }
         return contexts;
     }
