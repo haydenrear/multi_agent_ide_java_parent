@@ -106,6 +106,9 @@ management:
 embabel:
   agent:
     platform:
+      llm-operations:
+        prompts:
+          default-timeout: 20m
       scanning:
         bean: false
         annotation: false
