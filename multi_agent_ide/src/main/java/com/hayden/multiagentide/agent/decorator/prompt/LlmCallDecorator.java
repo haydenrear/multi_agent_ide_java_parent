@@ -6,6 +6,7 @@ import com.embabel.agent.api.common.nested.TemplateOperations;
 import com.hayden.multiagentide.tool.ToolContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import lombok.Builder;
+import lombok.With;
 
 import java.util.Map;
 
@@ -16,6 +17,7 @@ public interface LlmCallDecorator {
     }
 
     @Builder(toBuilder = true)
+    @With
     record LlmCallContext<T>(
             PromptContext promptContext,
             ToolContext tcc,

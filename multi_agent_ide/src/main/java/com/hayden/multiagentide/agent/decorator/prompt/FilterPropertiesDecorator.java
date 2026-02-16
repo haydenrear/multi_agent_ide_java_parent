@@ -49,26 +49,28 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
 
     @Override
     public <T> LlmCallContext<T> decorate(LlmCallContext<T> ctx) {
-        if (ctx == null || ctx.promptContext() == null || ctx.templateOperations() == null) {
+        var operations = ctx.templateOperations();
+        if (ctx == null || ctx.templateOperations() == null)
             return ctx;
+        if (ctx.promptContext() == null) {
+            return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
         }
         if (!(ctx.promptContext().currentRequest() instanceof AgentModels.InterruptRequest)) {
-            return ctx;
+            return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
         }
 
         Class<? extends Annotation> targetRoute = resolveTargetRoute(ctx);
         if (targetRoute == null) {
-            return ctx;
+            return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
         }
 
-        var operations = ctx.templateOperations();
         Set<Class<? extends Annotation>> toFilter = new LinkedHashSet<>(ALL_INTERRUPT_ROUTE_ANNOTATIONS);
         toFilter.remove(targetRoute);
         for (Class<? extends Annotation> annotation : toFilter) {
             operations = operations.withAnnotationFilter(annotation);
         }
 
-        return ctx.toBuilder().templateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class)).build();
+        return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
     }
 
     private <T> Class<? extends Annotation> resolveTargetRoute(LlmCallContext<T> ctx) {
