@@ -63,7 +63,7 @@ public class GooseSandboxStrategy implements SandboxTranslationStrategy {
 
         // Set permission mode to auto for automated workflows
         // Options: auto (no approval), approve (ask for all), smart_approve (ask for risky), chat (no tools)
-        env.put("GOOSE_MODE", "smart");
+        env.put("GOOSE_MODE", "smart_approve");
 
         // Set working directory if not already specified and path exists
         Path mainPathObj = Paths.get(mainPath);

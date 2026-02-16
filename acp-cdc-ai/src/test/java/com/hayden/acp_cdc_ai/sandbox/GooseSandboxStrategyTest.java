@@ -84,11 +84,11 @@ class GooseSandboxStrategyTest {
         }
 
         @Test
-        @DisplayName("should set GOOSE_MODE env to smart")
+        @DisplayName("should set GOOSE_MODE env to smart_approve")
         void shouldSetGooseModeEnv() {
             SandboxTranslation result = strategy.translate(contextWithExistingPath, Collections.emptyList());
             
-            assertThat(result.env()).containsEntry("GOOSE_MODE", "smart");
+            assertThat(result.env()).containsEntry("GOOSE_MODE", "smart_approve");
         }
 
         @Test
@@ -124,7 +124,7 @@ class GooseSandboxStrategyTest {
             SandboxTranslation result = strategy.translate(contextWithExistingPath, acpArgs);
             
             // GOOSE_MODE should always be set
-            assertThat(result.env()).containsEntry("GOOSE_MODE", "smart");
+            assertThat(result.env()).containsEntry("GOOSE_MODE", "smart_approve");
         }
 
         @Test
