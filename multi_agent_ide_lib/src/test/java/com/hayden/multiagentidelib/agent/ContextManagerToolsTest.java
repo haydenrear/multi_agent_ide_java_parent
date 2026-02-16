@@ -123,6 +123,7 @@ class ContextManagerToolsTest {
                 "evt-1",
                 Instant.now(),
                 "node-1",
+                ArtifactKey.createRoot(),
                 "hello",
                 5,
                 false
@@ -131,6 +132,7 @@ class ContextManagerToolsTest {
                 "evt-2",
                 Instant.now(),
                 "node-1",
+                ArtifactKey.createRoot(),
                 "world",
                 5,
                 true

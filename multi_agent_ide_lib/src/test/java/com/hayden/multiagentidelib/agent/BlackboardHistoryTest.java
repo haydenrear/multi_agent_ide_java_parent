@@ -3,6 +3,7 @@ package com.hayden.multiagentidelib.agent;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.ProcessContext;
 import com.embabel.agent.core.ProcessOptions;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.acp_cdc_ai.acp.events.Events;
@@ -72,6 +73,7 @@ class BlackboardHistoryTest {
                 "evt-1",
                 Instant.now(),
                 "node-2",
+                ArtifactKey.createRoot(),
                 "hello",
                 3,
                 false
