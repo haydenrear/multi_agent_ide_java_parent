@@ -129,9 +129,9 @@ tasks.register<Copy>("copyToolGateway") {
     rename { "mcp-tool-gateway.jar" }
 }
 
-tasks.register<Copy>("testAcpClient") {
-    dependsOn(project(":test-acp-client").tasks.named("build"))
-}
+//tasks.register<Copy>("testAcpClient") {
+//    dependsOn(project(":test-acp-client").tasks.named("build"))
+//}
 
 tasks.compileJava {
     dependsOn("processYmlFiles", "processXmlFiles")

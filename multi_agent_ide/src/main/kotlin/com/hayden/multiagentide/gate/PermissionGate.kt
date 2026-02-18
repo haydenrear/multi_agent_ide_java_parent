@@ -117,12 +117,12 @@ class PermissionGate(
         meta: JsonElement? = null
     ): IPermissionGate.PendingPermissionRequest {
         return pendingRequests.computeIfAbsent(requestId, {it ->
-            try {
-                orchestrator.addChildNodeAndEmitEvent(originNodeId, permissionNode)
-            } catch (ex: Exception) {
-                log.error("Could not add child node and emit event", ex)
-                graphRepository.save(permissionNode)
-            }
+//            try {
+//                orchestrator.addChildNodeAndEmitEvent(originNodeId, permissionNode)
+//            } catch (ex: Exception) {
+//                log.error("Could not add child node and emit event", ex)
+//                graphRepository.save(permissionNode)
+//            }
 
             val deferred = CompletableDeferred<RequestPermissionResponse>()
             val pending = IPermissionGate.PendingPermissionRequest(

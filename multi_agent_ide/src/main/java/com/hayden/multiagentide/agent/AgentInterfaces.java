@@ -1401,6 +1401,7 @@ public interface AgentInterfaces {
                     d,
                     context,
                     resultsRequestDecorators,
+                    requestDecorators,
                     multiAgentAgentName(),
                     ACTION_DISCOVERY_DISPATCH,
                     METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
@@ -1484,8 +1485,7 @@ public interface AgentInterfaces {
 
             Optional.ofNullable(input.goal())
                     .ifPresent(p -> model.put("goal", p));
-            Optional.ofNullable(input.goal())
-                    .ifPresent(p -> model.put("phase", p));
+            model.put("phase", "PLANNING");
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.PLANNING_ORCHESTRATOR,
@@ -1589,18 +1589,9 @@ public interface AgentInterfaces {
                     planningAgentResults,
                     context,
                     resultsRequestDecorators,
+                    requestDecorators,
                     multiAgentAgentName(),
                     ACTION_PLANNING_DISPATCH,
-                    METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
-                    lastRequest
-            );
-
-            planningAgentResults = AgentInterfaces.decorateRequest(
-                    planningAgentResults,
-                    context,
-                    requestDecorators,
-                    AGENT_NAME_PLANNING_AGENT_DISPATCH,
-                    ACTION_PLANNING_AGENT_POST_DISPATCH,
                     METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
                     lastRequest
             );
@@ -1815,6 +1806,7 @@ public interface AgentInterfaces {
                     ticketAgentResults,
                     context,
                     resultsRequestDecorators,
+                    requestDecorators,
                     multiAgentAgentName(),
                     ACTION_TICKET_DISPATCH,
                     METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
@@ -2121,6 +2113,7 @@ public interface AgentInterfaces {
             AgentModels.DiscoveryCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
                 case ROUTE_BACK -> {
                     AgentModels.DiscoveryOrchestratorRequest discoveryRequest = AgentModels.DiscoveryOrchestratorRequest.builder()
+//                            TODO: fix this
                             .goal(request.consolidatedOutput())
                             .build();
                     yield AgentModels.DiscoveryCollectorRouting.builder()
@@ -2130,6 +2123,7 @@ public interface AgentInterfaces {
                 case ADVANCE_PHASE -> {
                     // Pass the discovery curation directly to planning orchestrator
                     AgentModels.PlanningOrchestratorRequest planningRequest = AgentModels.PlanningOrchestratorRequest.builder()
+//                            TODO: fix this
                             .goal(request.consolidatedOutput())
                             .discoveryCuration(request.discoveryCollectorContext())
                             .build();
@@ -2139,6 +2133,7 @@ public interface AgentInterfaces {
                 }
                 case STOP -> {
                     AgentModels.OrchestratorRequest orchestratorRequest = AgentModels.OrchestratorRequest.builder()
+//                            TODO: fix this
                             .goal(request.consolidatedOutput())
                             .phase(request.collectorDecision().requestedPhase())
                             .discoveryCuration(request.discoveryCollectorContext())
@@ -3290,6 +3285,7 @@ public interface AgentInterfaces {
             T resultsRequest,
             OperationContext context,
             List<? extends ResultsRequestDecorator> decorators,
+            List<? extends RequestDecorator> r,
             String agentName,
             String actionName,
             String methodName,
@@ -3308,6 +3304,13 @@ public interface AgentInterfaces {
                 .toList();
         T decorated = resultsRequest;
         for (ResultsRequestDecorator decorator : sortedDecorators) {
+            decorated = decorator.decorate(decorated, decoratorContext);
+        }
+        List<? extends RequestDecorator> sortedRequest = r.stream()
+                .filter(d -> d != null)
+                .sorted(Comparator.comparingInt(RequestDecorator::order))
+                .toList();
+        for (RequestDecorator decorator : sortedRequest) {
             decorated = decorator.decorate(decorated, decoratorContext);
         }
         return decorated;

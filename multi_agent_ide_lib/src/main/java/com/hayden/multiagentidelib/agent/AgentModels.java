@@ -5,6 +5,9 @@ import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.hayden.multiagentidelib.model.MergeResult;
+import com.hayden.multiagentidelib.model.merge.AgentMergeStatus;
+import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.template.ConsolidationTemplate;
 import com.hayden.multiagentidelib.template.DelegationTemplate;
 import com.hayden.multiagentidelib.template.DiscoveryReport;
@@ -77,6 +80,52 @@ public interface AgentModels {
             ReviewRequest,
             ResultsRequest
     {
+
+//        @JsonIgnore
+//        default String phase() {
+//            return switch(this)  {
+//                case ContextManagerRequest contextManagerRequest ->
+//                        null;
+//                case ContextManagerRoutingRequest contextManagerRoutingRequest ->
+//                        null;
+//                case DiscoveryAgentRequest discoveryAgentRequest ->
+//                        null;
+//                case DiscoveryAgentRequests discoveryAgentRequests ->
+//                        null;
+//                case DiscoveryCollectorRequest discoveryCollectorRequest ->
+//                        null;
+//                case DiscoveryOrchestratorRequest discoveryOrchestratorRequest ->
+//                        null;
+//                case InterruptRequest interruptRequest ->
+//                        null;
+//                case MergerRequest mergerRequest ->
+//                        null;
+//                case OrchestratorCollectorRequest orchestratorCollectorRequest ->
+//                        null;
+//                case OrchestratorRequest orchestratorRequest ->
+//                        null;
+//                case PlanningAgentRequest planningAgentRequest ->
+//                        null;
+//                case PlanningAgentRequests planningAgentRequests ->
+//                        null;
+//                case PlanningCollectorRequest planningCollectorRequest ->
+//                        null;
+//                case PlanningOrchestratorRequest planningOrchestratorRequest ->
+//                        null;
+//                case ResultsRequest resultsRequest ->
+//                        null;
+//                case ReviewRequest reviewRequest ->
+//                        null;
+//                case TicketAgentRequest ticketAgentRequest ->
+//                        null;
+//                case TicketAgentRequests ticketAgentRequests ->
+//                        null;
+//                case TicketCollectorRequest ticketCollectorRequest ->
+//                        null;
+//                case TicketOrchestratorRequest ticketOrchestratorRequest ->
+//                        null;
+//            };
+//        }
 
         WorktreeSandboxContext worktreeContext();
 
@@ -1724,7 +1773,7 @@ public interface AgentModels {
             appendPrettyMap(builder, "\t\tMetadata", main.metadata());
         }
 
-        List<com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext> submodules = context.submoduleWorktrees();
+        List<SubmoduleWorktreeContext> submodules = context.submoduleWorktrees();
         builder.append("\tSubmodule Worktrees:\n");
         if (submodules == null || submodules.isEmpty()) {
             builder.append("\t\t(none)\n");
@@ -1752,7 +1801,7 @@ public interface AgentModels {
         }
     }
 
-    private static void appendPrettyMergeResult(StringBuilder builder, String label, com.hayden.multiagentidelib.model.MergeResult mergeResult) {
+    private static void appendPrettyMergeResult(StringBuilder builder, String label, MergeResult mergeResult) {
         builder.append(label).append(":\n");
         if (mergeResult == null) {
             builder.append("\t(none)\n");
@@ -1860,17 +1909,17 @@ public interface AgentModels {
         }
     }
 
-    private static void appendPrettyMergeStatuses(StringBuilder builder, List<com.hayden.multiagentidelib.model.merge.AgentMergeStatus> statuses) {
+    private static void appendPrettyMergeStatuses(StringBuilder builder, List<AgentMergeStatus> statuses) {
         if (statuses == null || statuses.isEmpty()) {
             builder.append("\t\t(none)\n");
             return;
         }
-        for (com.hayden.multiagentidelib.model.merge.AgentMergeStatus status : statuses) {
+        for (AgentMergeStatus status : statuses) {
             appendPrettyMergeStatus(builder, status, 2);
         }
     }
 
-    private static void appendPrettyMergeStatus(StringBuilder builder, com.hayden.multiagentidelib.model.merge.AgentMergeStatus status, int tabDepth) {
+    private static void appendPrettyMergeStatus(StringBuilder builder, AgentMergeStatus status, int tabDepth) {
         String indent = "\t".repeat(tabDepth);
         if (status == null) {
             builder.append(indent).append("- (none)\n");
@@ -2878,7 +2927,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Discovery agent result payload.")
             DiscoveryAgentResult agentResult,
             @JsonPropertyDescription("Optional route to planning orchestrator.")
-            AgentModels.PlanningOrchestratorRequest planningOrchestratorRequest,
+            PlanningOrchestratorRequest planningOrchestratorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
@@ -3771,7 +3820,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Route back to ticket orchestrator.")
             TicketOrchestratorRequest ticketRequest,
             @JsonPropertyDescription("Route to orchestrator collector.")
-            AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest,
+            OrchestratorCollectorRequest orchestratorCollectorRequest,
             @JsonPropertyDescription("Route to review agent.")
             ReviewRequest reviewRequest,
             @JsonPropertyDescription("Route to merger agent.")

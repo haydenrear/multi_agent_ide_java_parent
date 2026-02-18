@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.orchestration;
 
+import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.*;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
@@ -25,6 +26,7 @@ public class ComputationGraphOrchestrator {
 
     private final GraphRepository graphRepository;
     private final WorktreeRepository worktreeRepository;
+    private final EventStreamRepository eventStreamRepository;
 
     private EventBus eventBus;
 
