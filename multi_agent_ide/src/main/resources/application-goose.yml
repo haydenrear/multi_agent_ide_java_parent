@@ -6,10 +6,11 @@ multi-agent-embabel:
   acp:
     transport: stdio
     command: goose acp
-    args: ${ACP_ARGS:}
+    args: ${ACP_ARGS:--extensions developer}
     working-directory: ${ACP_WORKING_DIR:}
-#    will throw an error if your on mac for some security ring
     env:
+      #    will throw an error if your on mac for some security ring
+#      HOME: {{PROJECT_DIR}}/configs
       GOOSE_MODE: smart_approve
       GOOSE_DISABLE_SUBAGENTS: true
 
@@ -19,9 +20,9 @@ spring:
 
 acp.mcp:
   http:
-#    - name: deepwiki
-#      url: https://mcp.deepwiki.com/mcp
-#      headers:
+    #    - name: deepwiki
+    #      url: https://mcp.deepwiki.com/mcp
+    #      headers:
     - name: hindsight
       url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
       headers:
