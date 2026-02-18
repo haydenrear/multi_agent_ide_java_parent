@@ -90,18 +90,10 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             Merge assessment and conflict-resolution guidance from the merger agent.
             """;
 
-    // --- Phase classification for binder insertion ---
-
-    private enum Phase {
-        DISCOVERY_CURATION,
-        DISCOVERY_AGENT,
-        PLANNING_CURATION,
-        PLANNING_AGENT,
-        TICKET_CURATION,
-        TICKET_AGENT,
-        INTERRUPT,
-        OTHER
-    }
+    static final String CURRENT_PHASE_HEADER = """
+            ## Request Context
+            Current request context in this step. Route using exactly one non-null routing field.
+            """;
 
     private enum AllowedHistoryType {
         DISCOVERY_COLLECTOR_RESULT,
@@ -211,7 +203,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         List<BlackboardHistory.Entry> entries = bh.copyOfEntries();
         List<PromptContributor> contributors = new ArrayList<>();
         int seq = 0;
-        Phase lastPhase = null;
+        AgentModels.CurationPhase lastPhase = null;
         int interruptIndex = 0;
 
         // Track which request-level curation overrides have already been emitted.
@@ -237,9 +229,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                                 && !emittedCurationTypes.contains(CurationType.DISCOVERY)
                                 && discoveryCollectorResult.discoveryCollectorContext() != null) {
                             var toEmit = curationOverrides.discoveryOr(discoveryCollectorResult.discoveryCollectorContext());
-                            Phase newPhase = Phase.DISCOVERY_CURATION;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.DISCOVERY_CURATION;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-discovery-curation",
                                     DISCOVERY_CURATION_HEADER, toEmit, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -254,9 +245,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                                 && !emittedCurationTypes.contains(CurationType.PLANNING)
                                 && planningCollectorResult.planningCuration() != null) {
                             var toEmit = curationOverrides.planningOr(planningCollectorResult.planningCuration());
-                            Phase newPhase = Phase.PLANNING_CURATION;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.PLANNING_CURATION;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-planning-curation",
                                     PLANNING_CURATION_HEADER, toEmit, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -271,9 +261,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                                 && !emittedCurationTypes.contains(CurationType.TICKET)
                                 && ticketCollectorResult.ticketCuration() != null) {
                             var toEmit = curationOverrides.ticketOr(ticketCollectorResult.ticketCuration());
-                            Phase newPhase = Phase.TICKET_CURATION;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.TICKET_CURATION;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-ticket-curation",
                                     TICKET_CURATION_HEADER, toEmit, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -286,9 +275,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.DiscoveryAgentResult discoveryAgentResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.DISCOVERY_AGENT_RESULT)
                                 && hasRenderableOutput(discoveryAgentResult)) {
-                            Phase newPhase = Phase.DISCOVERY_AGENT;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-%s-%d".formatted(lastPhase, newPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.DISCOVERY_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-discovery-report",
                                     DISCOVERY_AGENT_REPORT_HEADER, discoveryAgentResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -297,9 +285,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.PlanningAgentResult planningAgentResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.PLANNING_AGENT_RESULT)
                                 && hasRenderableOutput(planningAgentResult)) {
-                            Phase newPhase = Phase.PLANNING_AGENT;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-%s-%d".formatted(lastPhase, newPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.PLANNING_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-planning-result",
                                     PLANNING_AGENT_RESULT_HEADER, planningAgentResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -308,9 +295,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.TicketAgentResult ticketAgentResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.TICKET_AGENT_RESULT)
                                 && hasRenderableOutput(ticketAgentResult)) {
-                            Phase newPhase = Phase.TICKET_AGENT;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-%s-%d".formatted(lastPhase, newPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.TICKET_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-ticket-result",
                                     TICKET_AGENT_RESULT_HEADER, ticketAgentResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -319,9 +305,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.DiscoveryOrchestratorResult discoveryOrchestratorResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.DISCOVERY_ORCHESTRATOR_RESULT)
                                 && hasRenderableOutput(discoveryOrchestratorResult)) {
-                            Phase newPhase = Phase.DISCOVERY_AGENT;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-discovery-orchestrator-%d".formatted(lastPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.DISCOVERY_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-discovery-orchestrator-result",
                                     DISCOVERY_ORCHESTRATOR_RESULT_HEADER, discoveryOrchestratorResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -330,9 +315,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.PlanningOrchestratorResult planningOrchestratorResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.PLANNING_ORCHESTRATOR_RESULT)
                                 && hasRenderableOutput(planningOrchestratorResult)) {
-                            Phase newPhase = Phase.PLANNING_AGENT;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-planning-orchestrator-%d".formatted(lastPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.PLANNING_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-planning-orchestrator-result",
                                     PLANNING_ORCHESTRATOR_RESULT_HEADER, planningOrchestratorResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -341,9 +325,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.TicketOrchestratorResult ticketOrchestratorResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.TICKET_ORCHESTRATOR_RESULT)
                                 && hasRenderableOutput(ticketOrchestratorResult)) {
-                            Phase newPhase = Phase.TICKET_AGENT;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-ticket-orchestrator-%d".formatted(lastPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.TICKET_AGENT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-ticket-orchestrator-result",
                                     TICKET_ORCHESTRATOR_RESULT_HEADER, ticketOrchestratorResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -352,9 +335,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.OrchestratorAgentResult orchestratorAgentResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.ORCHESTRATOR_AGENT_RESULT)
                                 && hasRenderableOutput(orchestratorAgentResult)) {
-                            Phase newPhase = Phase.OTHER;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-orchestrator-agent-%d".formatted(lastPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.OTHER;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-orchestrator-agent-result",
                                     ORCHESTRATOR_AGENT_RESULT_HEADER, orchestratorAgentResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -363,9 +345,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.OrchestratorCollectorResult orchestratorCollectorResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.ORCHESTRATOR_COLLECTOR_RESULT)
                                 && hasRenderableOutput(orchestratorCollectorResult)) {
-                            Phase newPhase = Phase.OTHER;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-orchestrator-collector-%d".formatted(lastPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.OTHER;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-orchestrator-collector-result",
                                     ORCHESTRATOR_COLLECTOR_RESULT_HEADER, orchestratorCollectorResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -374,9 +355,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.ReviewAgentResult reviewAgentResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.REVIEW_AGENT_RESULT)
                                 && hasRenderableOutput(reviewAgentResult)) {
-                            Phase newPhase = Phase.OTHER;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-review-agent-%d".formatted(lastPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.OTHER;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-review-agent-result",
                                     REVIEW_AGENT_RESULT_HEADER, reviewAgentResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -385,9 +365,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.MergerAgentResult mergerAgentResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.MERGER_AGENT_RESULT)
                                 && hasRenderableOutput(mergerAgentResult)) {
-                            Phase newPhase = Phase.OTHER;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-merger-agent-%d".formatted(lastPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.OTHER;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             contributors.add(new DataCurationContributor("curation-merger-agent-result",
                                     MERGER_AGENT_RESULT_HEADER, mergerAgentResult, BASE_PRIORITY + seq++));
                             lastPhase = newPhase;
@@ -401,9 +380,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.InterruptRequest interrupt -> {
                         if (allowedTypes.contains(AllowedHistoryType.INTERRUPT_REQUEST)) {
                             String resolution = findResolutionAfter(entries, i);
-                            Phase newPhase = Phase.INTERRUPT;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                                    "binder-%s-to-interrupt-%d".formatted(lastPhase, seq), seq);
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.INTERRUPT;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
                             interruptIndex++;
                             contributors.add(new InterruptResolutionContributor(
                                     new InterruptResolutionEntry(interrupt, de.timestamp(), resolution, null),
@@ -412,6 +390,16 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                         }
                     }
                     default -> {
+                        if (hasRenderableRequest(req)) {
+                            AgentModels.CurationPhase newPhase = req.curationPhaseExtraction();
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
+                            contributors.add(new RequestContextContributor(
+                                    requestContributorName(req),
+                                    req,
+                                    de.actionName(),
+                                    BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
                     }
                 }
             }
@@ -420,27 +408,24 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         // Emit any curation overrides that weren't found in history (e.g., passed on the request
         // but no corresponding collector result in history yet).
         if (!emittedOverrides.contains(CurationType.DISCOVERY) && curationOverrides.hasDiscovery()) {
-            Phase newPhase = Phase.DISCOVERY_CURATION;
-            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.DISCOVERY_CURATION;
+            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
             contributors.add(new DataCurationContributor("curation-discovery-curation",
                     DISCOVERY_CURATION_HEADER, curationOverrides.discovery(), BASE_PRIORITY + seq++));
             lastPhase = newPhase;
         }
 
         if (!emittedOverrides.contains(CurationType.PLANNING) && curationOverrides.hasPlanning()) {
-            Phase newPhase = Phase.PLANNING_CURATION;
-            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.PLANNING_CURATION;
+            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
             contributors.add(new DataCurationContributor("curation-planning-curation",
                     PLANNING_CURATION_HEADER, curationOverrides.planning(), BASE_PRIORITY + seq++));
             lastPhase = newPhase;
         }
 
         if (!emittedOverrides.contains(CurationType.TICKET) && curationOverrides.hasTicket()) {
-            Phase newPhase = Phase.TICKET_CURATION;
-            seq = maybeAddBinder(contributors, lastPhase, newPhase,
-                    "binder-%s-to-%s".formatted(lastPhase, newPhase), seq);
+            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.TICKET_CURATION;
+            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
             contributors.add(new DataCurationContributor("curation-ticket-curation",
                     TICKET_CURATION_HEADER, curationOverrides.ticket(), BASE_PRIORITY + seq++));
             lastPhase = newPhase;
@@ -590,19 +575,29 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
     }
 
     private int maybeAddBinder(List<PromptContributor> contributors,
-                               Phase lastPhase,
-                               Phase newPhase,
-                               String binderName,
+                               AgentModels.CurationPhase lastPhase,
+                               AgentModels.CurationPhase newPhase,
                                int seq) {
         String binder = binderText(lastPhase, newPhase);
         if (binder == null) {
             return seq;
         }
         contributors.add(new NarrativeBinderContributor(
-                binderName.toLowerCase(Locale.ROOT),
+                binderNameFor(lastPhase, newPhase),
                 binder,
                 BASE_PRIORITY + seq++));
         return seq;
+    }
+
+    private static String binderNameFor(AgentModels.CurationPhase from, AgentModels.CurationPhase to) {
+        return "curation-binder-%s-to-%s".formatted(
+                from == null ? "start" : from.name().toLowerCase(Locale.ROOT),
+                to == null ? "none" : to.name().toLowerCase(Locale.ROOT));
+    }
+
+    private static String requestContributorName(AgentModels.AgentRequest request) {
+        return "curation-request-context-%s".formatted(
+                request.getClass().getSimpleName().toLowerCase(Locale.ROOT));
     }
 
     private void addAllTypes(EnumSet<AllowedHistoryType> allowed) {
@@ -622,6 +617,17 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                 AllowedHistoryType.ORCHESTRATOR_COLLECTOR_RESULT,
                 AllowedHistoryType.REVIEW_AGENT_RESULT,
                 AllowedHistoryType.MERGER_AGENT_RESULT);
+    }
+
+    private static boolean hasRenderableRequest(AgentModels.AgentRequest request) {
+        if (request == null) {
+            return false;
+        }
+        String rendered = request.prettyPrintInterruptContinuation();
+        if (rendered == null || rendered.isBlank()) {
+            rendered = request.prettyPrint();
+        }
+        return rendered != null && !rendered.isBlank();
     }
 
     // -----------------------------------------------------------------------
@@ -647,7 +653,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
     // Binder text based on phase transitions
     // -----------------------------------------------------------------------
 
-    private static String binderText(Phase from, Phase to) {
+    private static String binderText(AgentModels.CurationPhase from, AgentModels.CurationPhase to) {
         if (from == null) {
             return null;
         }
@@ -656,15 +662,15 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         }
 
         // Interrupt transitions
-        if (to == Phase.INTERRUPT) {
+        if (to == AgentModels.CurationPhase.INTERRUPT) {
             return "At this point in the workflow, clarification or review was needed:";
         }
-        if (from == Phase.INTERRUPT) {
+        if (from == AgentModels.CurationPhase.INTERRUPT) {
             return "With the feedback incorporated, the workflow continued:";
         }
 
         // Discovery → Discovery agent reports
-        if (from == Phase.DISCOVERY_CURATION && to == Phase.DISCOVERY_AGENT) {
+        if (from == AgentModels.CurationPhase.DISCOVERY_CURATION && to == AgentModels.CurationPhase.DISCOVERY_AGENT) {
             return """
                     Following the discovery curation above, individual discovery agents each produced \
                     detailed reports with their specific findings. These reports informed the consolidated \
@@ -672,8 +678,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         }
 
         // Discovery → Planning
-        if ((from == Phase.DISCOVERY_CURATION || from == Phase.DISCOVERY_AGENT) &&
-                (to == Phase.PLANNING_CURATION || to == Phase.PLANNING_AGENT)) {
+        if ((from == AgentModels.CurationPhase.DISCOVERY_CURATION || from == AgentModels.CurationPhase.DISCOVERY_AGENT) &&
+                (to == AgentModels.CurationPhase.PLANNING_CURATION || to == AgentModels.CurationPhase.PLANNING_AGENT)) {
             return """
                     With discovery complete, the workflow advanced to the planning phase. The planning \
                     process used the discovery findings above to formulate implementation strategies, \
@@ -681,7 +687,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         }
 
         // Planning → Planning agent results
-        if (from == Phase.PLANNING_CURATION && to == Phase.PLANNING_AGENT) {
+        if (from == AgentModels.CurationPhase.PLANNING_CURATION && to == AgentModels.CurationPhase.PLANNING_AGENT) {
             return """
                     The following individual planning agent results contain the detailed tickets, \
                     architecture decisions, and implementation strategies that were synthesized into \
@@ -689,37 +695,37 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         }
 
         // Planning → Ticket
-        if ((from == Phase.PLANNING_CURATION || from == Phase.PLANNING_AGENT) &&
-                (to == Phase.TICKET_CURATION || to == Phase.TICKET_AGENT)) {
+        if ((from == AgentModels.CurationPhase.PLANNING_CURATION || from == AgentModels.CurationPhase.PLANNING_AGENT) &&
+                (to == AgentModels.CurationPhase.TICKET_CURATION || to == AgentModels.CurationPhase.TICKET_AGENT)) {
             return """
                     After planning was finalized, ticket execution began. Ticket agents worked on \
                     implementing the planned changes, running tests, and verifying results:""";
         }
 
         // Ticket curation → Ticket agent results
-        if (from == Phase.TICKET_CURATION && to == Phase.TICKET_AGENT) {
+        if (from == AgentModels.CurationPhase.TICKET_CURATION && to == AgentModels.CurationPhase.TICKET_AGENT) {
             return """
                     The individual ticket execution results below detail what each ticket agent \
                     accomplished, including files modified, test outcomes, and verification status:""";
         }
 
         // Re-run: going back to an earlier phase
-        if ((from == Phase.TICKET_CURATION || from == Phase.TICKET_AGENT) &&
-                (to == Phase.DISCOVERY_CURATION || to == Phase.DISCOVERY_AGENT)) {
+        if ((from == AgentModels.CurationPhase.TICKET_CURATION || from == AgentModels.CurationPhase.TICKET_AGENT) &&
+                (to == AgentModels.CurationPhase.DISCOVERY_CURATION || to == AgentModels.CurationPhase.DISCOVERY_AGENT)) {
             return """
                     The workflow looped back to re-run discovery with the accumulated context from \
                     the previous iteration:""";
         }
 
-        if ((from == Phase.TICKET_CURATION || from == Phase.TICKET_AGENT) &&
-                (to == Phase.PLANNING_CURATION || to == Phase.PLANNING_AGENT)) {
+        if ((from == AgentModels.CurationPhase.TICKET_CURATION || from == AgentModels.CurationPhase.TICKET_AGENT) &&
+                (to == AgentModels.CurationPhase.PLANNING_CURATION || to == AgentModels.CurationPhase.PLANNING_AGENT)) {
             return """
                     The workflow looped back to re-run planning with the accumulated context from \
                     ticket execution:""";
         }
 
-        if ((from == Phase.PLANNING_CURATION || from == Phase.PLANNING_AGENT) &&
-                (to == Phase.DISCOVERY_CURATION || to == Phase.DISCOVERY_AGENT)) {
+        if ((from == AgentModels.CurationPhase.PLANNING_CURATION || from == AgentModels.CurationPhase.PLANNING_AGENT) &&
+                (to == AgentModels.CurationPhase.DISCOVERY_CURATION || to == AgentModels.CurationPhase.DISCOVERY_AGENT)) {
             return """
                     The workflow looped back to re-run discovery with the accumulated context from \
                     the previous planning iteration:""";
@@ -806,6 +812,60 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         @Override
         public String template() {
             return TEMPLATE;
+        }
+
+        @Override
+        public int priority() {
+            return contributorPriority;
+        }
+    }
+
+    record RequestContextContributor(
+            String contributorName,
+            AgentModels.AgentRequest request,
+            String actionName,
+            int contributorPriority
+    ) implements PromptContributor {
+
+        @Override
+        public String name() {
+            return contributorName;
+        }
+
+        @Override
+        public boolean include(PromptContext ctx) {
+            return request != null;
+        }
+
+        @Override
+        public String contribute(PromptContext ctx) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(CURRENT_PHASE_HEADER.trim()).append("\n");
+            if (actionName != null && !actionName.isBlank()) {
+                sb.append("Action: ").append(actionName).append("\n");
+            }
+            sb.append("Now, you are in this phase: ").append(request.phaseExtraction()).append("\n");
+            String extractedGoal = request.goalExtraction();
+            if (extractedGoal != null && !extractedGoal.isBlank()) {
+                sb.append("Goal extraction: ").append(extractedGoal.trim()).append("\n");
+            }
+            sb.append("Current request type: ").append(request.getClass().getSimpleName()).append("\n");
+            sb.append("Routing guardrails: ").append(request.routeGuardrailsExtraction()).append("\n");
+            String summary = request.prettyPrintInterruptContinuation();
+            if (summary == null || summary.isBlank()) {
+                summary = request.prettyPrint();
+            }
+            if (summary != null && !summary.isBlank()) {
+                sb.append("Request details: ").append(summary.replace("\n", " | ")).append("\n");
+            }
+            return sb.toString().trim();
+        }
+
+        @Override
+        public String template() {
+            return CURRENT_PHASE_HEADER.trim()
+                    + "\nCurrent request type: " + request.getClass().getSimpleName()
+                    + "\nRouting guardrails: " + request.routeGuardrailsExtraction();
         }
 
         @Override

@@ -36,6 +36,18 @@ public interface AgentModels {
         RESULT_HANDOFF
     }
 
+    enum CurationPhase {
+        ORCHESTRATION,
+        DISCOVERY_CURATION,
+        DISCOVERY_AGENT,
+        PLANNING_CURATION,
+        PLANNING_AGENT,
+        TICKET_CURATION,
+        TICKET_AGENT,
+        INTERRUPT,
+        OTHER
+    }
+
     sealed interface AgentResult extends AgentContext
             permits DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
 
@@ -81,51 +93,174 @@ public interface AgentModels {
             ResultsRequest
     {
 
-//        @JsonIgnore
-//        default String phase() {
-//            return switch(this)  {
-//                case ContextManagerRequest contextManagerRequest ->
-//                        null;
-//                case ContextManagerRoutingRequest contextManagerRoutingRequest ->
-//                        null;
-//                case DiscoveryAgentRequest discoveryAgentRequest ->
-//                        null;
-//                case DiscoveryAgentRequests discoveryAgentRequests ->
-//                        null;
-//                case DiscoveryCollectorRequest discoveryCollectorRequest ->
-//                        null;
-//                case DiscoveryOrchestratorRequest discoveryOrchestratorRequest ->
-//                        null;
-//                case InterruptRequest interruptRequest ->
-//                        null;
-//                case MergerRequest mergerRequest ->
-//                        null;
-//                case OrchestratorCollectorRequest orchestratorCollectorRequest ->
-//                        null;
-//                case OrchestratorRequest orchestratorRequest ->
-//                        null;
-//                case PlanningAgentRequest planningAgentRequest ->
-//                        null;
-//                case PlanningAgentRequests planningAgentRequests ->
-//                        null;
-//                case PlanningCollectorRequest planningCollectorRequest ->
-//                        null;
-//                case PlanningOrchestratorRequest planningOrchestratorRequest ->
-//                        null;
-//                case ResultsRequest resultsRequest ->
-//                        null;
-//                case ReviewRequest reviewRequest ->
-//                        null;
-//                case TicketAgentRequest ticketAgentRequest ->
-//                        null;
-//                case TicketAgentRequests ticketAgentRequests ->
-//                        null;
-//                case TicketCollectorRequest ticketCollectorRequest ->
-//                        null;
-//                case TicketOrchestratorRequest ticketOrchestratorRequest ->
-//                        null;
-//            };
-//        }
+        @JsonIgnore
+        default String goalExtraction() {
+            return switch (this) {
+                case OrchestratorRequest r -> r.goal();
+                case OrchestratorCollectorRequest r -> r.goal();
+                case DiscoveryOrchestratorRequest r -> r.goal();
+                case DiscoveryAgentRequest r -> r.goal();
+                case DiscoveryAgentRequests r -> r.goal();
+                case DiscoveryCollectorRequest r -> r.goal();
+                case PlanningOrchestratorRequest r -> r.goal();
+                case PlanningAgentRequest r -> r.goal();
+                case PlanningAgentRequests r -> r.goal();
+                case PlanningCollectorRequest r -> r.goal();
+                case TicketOrchestratorRequest r -> r.goal();
+                case TicketAgentRequest r -> r.ticketDetails();
+                case TicketAgentRequests r -> r.goal();
+                case TicketCollectorRequest r -> r.goal();
+                case ContextManagerRequest r -> r.goal();
+                case ContextManagerRoutingRequest r -> r.reason();
+                case InterruptRequest.OrchestratorInterruptRequest r -> r.reason();
+                case InterruptRequest.OrchestratorCollectorInterruptRequest r -> r.reason();
+                case InterruptRequest.DiscoveryOrchestratorInterruptRequest r -> r.reason();
+                case InterruptRequest.DiscoveryAgentInterruptRequest r -> r.reason();
+                case InterruptRequest.DiscoveryCollectorInterruptRequest r -> r.reason();
+                case InterruptRequest.DiscoveryAgentDispatchInterruptRequest r -> r.reason();
+                case InterruptRequest.PlanningOrchestratorInterruptRequest r -> r.reason();
+                case InterruptRequest.PlanningAgentInterruptRequest r -> r.reason();
+                case InterruptRequest.PlanningCollectorInterruptRequest r -> r.reason();
+                case InterruptRequest.PlanningAgentDispatchInterruptRequest r -> r.reason();
+                case InterruptRequest.TicketOrchestratorInterruptRequest r -> r.reason();
+                case InterruptRequest.TicketAgentInterruptRequest r -> r.reason();
+                case InterruptRequest.TicketCollectorInterruptRequest r -> r.reason();
+                case InterruptRequest.TicketAgentDispatchInterruptRequest r -> r.reason();
+                case InterruptRequest.ReviewInterruptRequest r -> r.reason();
+                case InterruptRequest.MergerInterruptRequest r -> r.reason();
+                case InterruptRequest.ContextManagerInterruptRequest r -> r.reason();
+                case InterruptRequest.QuestionAnswerInterruptRequest r -> r.reason();
+                case MergerRequest r -> r.mergeContext();
+                case ReviewRequest r -> r.content();
+                case DiscoveryAgentResults ignored -> null;
+                case PlanningAgentResults ignored -> null;
+                case TicketAgentResults ignored -> null;
+            };
+        }
+
+        @JsonIgnore
+        default String phaseExtraction() {
+            return switch (this) {
+                case OrchestratorRequest r -> phaseOrFallback(r.phase(), "ORCHESTRATOR");
+                case OrchestratorCollectorRequest r -> phaseOrFallback(r.phase(), "ORCHESTRATOR_COLLECTOR");
+                case DiscoveryOrchestratorRequest ignored -> "DISCOVERY_ORCHESTRATOR";
+                case DiscoveryAgentRequests ignored -> "DISCOVERY_DISPATCH";
+                case DiscoveryAgentRequest ignored -> "DISCOVERY_AGENT";
+                case DiscoveryCollectorRequest ignored -> "DISCOVERY_COLLECTOR";
+                case PlanningOrchestratorRequest ignored -> "PLANNING_ORCHESTRATOR";
+                case PlanningAgentRequests ignored -> "PLANNING_DISPATCH";
+                case PlanningAgentRequest ignored -> "PLANNING_AGENT";
+                case PlanningCollectorRequest ignored -> "PLANNING_COLLECTOR";
+                case TicketOrchestratorRequest ignored -> "TICKET_ORCHESTRATOR";
+                case TicketAgentRequests ignored -> "TICKET_DISPATCH";
+                case TicketAgentRequest ignored -> "TICKET_AGENT";
+                case TicketCollectorRequest ignored -> "TICKET_COLLECTOR";
+                case ContextManagerRequest ignored -> "CONTEXT_MANAGER";
+                case ContextManagerRoutingRequest ignored -> "CONTEXT_MANAGER_ROUTING";
+                case InterruptRequest.OrchestratorInterruptRequest ignored -> "ORCHESTRATOR_INTERRUPT";
+                case InterruptRequest.OrchestratorCollectorInterruptRequest ignored -> "ORCHESTRATOR_COLLECTOR_INTERRUPT";
+                case InterruptRequest.DiscoveryOrchestratorInterruptRequest ignored -> "DISCOVERY_ORCHESTRATOR_INTERRUPT";
+                case InterruptRequest.DiscoveryAgentInterruptRequest ignored -> "DISCOVERY_AGENT_INTERRUPT";
+                case InterruptRequest.DiscoveryCollectorInterruptRequest ignored -> "DISCOVERY_COLLECTOR_INTERRUPT";
+                case InterruptRequest.DiscoveryAgentDispatchInterruptRequest ignored -> "DISCOVERY_DISPATCH_INTERRUPT";
+                case InterruptRequest.PlanningOrchestratorInterruptRequest ignored -> "PLANNING_ORCHESTRATOR_INTERRUPT";
+                case InterruptRequest.PlanningAgentInterruptRequest ignored -> "PLANNING_AGENT_INTERRUPT";
+                case InterruptRequest.PlanningCollectorInterruptRequest ignored -> "PLANNING_COLLECTOR_INTERRUPT";
+                case InterruptRequest.PlanningAgentDispatchInterruptRequest ignored -> "PLANNING_DISPATCH_INTERRUPT";
+                case InterruptRequest.TicketOrchestratorInterruptRequest ignored -> "TICKET_ORCHESTRATOR_INTERRUPT";
+                case InterruptRequest.TicketAgentInterruptRequest ignored -> "TICKET_AGENT_INTERRUPT";
+                case InterruptRequest.TicketCollectorInterruptRequest ignored -> "TICKET_COLLECTOR_INTERRUPT";
+                case InterruptRequest.TicketAgentDispatchInterruptRequest ignored -> "TICKET_DISPATCH_INTERRUPT";
+                case InterruptRequest.ReviewInterruptRequest ignored -> "REVIEW_INTERRUPT";
+                case InterruptRequest.MergerInterruptRequest ignored -> "MERGER_INTERRUPT";
+                case InterruptRequest.ContextManagerInterruptRequest ignored -> "CONTEXT_MANAGER_INTERRUPT";
+                case InterruptRequest.QuestionAnswerInterruptRequest ignored -> "QUESTION_ANSWER_INTERRUPT";
+                case MergerRequest ignored -> "MERGER";
+                case ReviewRequest ignored -> "REVIEW";
+                case DiscoveryAgentResults ignored -> "DISCOVERY_RESULTS";
+                case PlanningAgentResults ignored -> "PLANNING_RESULTS";
+                case TicketAgentResults ignored -> "TICKET_RESULTS";
+            };
+        }
+
+        @JsonIgnore
+        default CurationPhase curationPhaseExtraction() {
+            return switch (this) {
+                case DiscoveryCollectorRequest ignored -> CurationPhase.DISCOVERY_CURATION;
+                case PlanningCollectorRequest ignored -> CurationPhase.PLANNING_CURATION;
+                case TicketCollectorRequest ignored -> CurationPhase.TICKET_CURATION;
+                case DiscoveryOrchestratorRequest ignored -> CurationPhase.DISCOVERY_AGENT;
+                case DiscoveryAgentRequest ignored -> CurationPhase.DISCOVERY_AGENT;
+                case DiscoveryAgentRequests ignored -> CurationPhase.DISCOVERY_AGENT;
+                case DiscoveryAgentResults ignored -> CurationPhase.DISCOVERY_AGENT;
+                case PlanningOrchestratorRequest ignored -> CurationPhase.PLANNING_AGENT;
+                case PlanningAgentRequest ignored -> CurationPhase.PLANNING_AGENT;
+                case PlanningAgentRequests ignored -> CurationPhase.PLANNING_AGENT;
+                case PlanningAgentResults ignored -> CurationPhase.PLANNING_AGENT;
+                case TicketOrchestratorRequest ignored -> CurationPhase.TICKET_AGENT;
+                case TicketAgentRequest ignored -> CurationPhase.TICKET_AGENT;
+                case TicketAgentRequests ignored -> CurationPhase.TICKET_AGENT;
+                case TicketAgentResults ignored -> CurationPhase.TICKET_AGENT;
+                case InterruptRequest ignored -> CurationPhase.INTERRUPT;
+                case OrchestratorRequest ignored -> CurationPhase.OTHER;
+                case OrchestratorCollectorRequest ignored -> CurationPhase.OTHER;
+                case ContextManagerRequest ignored -> CurationPhase.OTHER;
+                case ContextManagerRoutingRequest ignored -> CurationPhase.OTHER;
+                case MergerRequest r -> curationPhaseFromReturnTo(
+                        r.returnToTicketCollector(),
+                        r.returnToPlanningCollector(),
+                        r.returnToDiscoveryCollector(),
+                        r.returnToOrchestratorCollector());
+                case ReviewRequest r -> curationPhaseFromReturnTo(
+                        r.returnToTicketCollector(),
+                        r.returnToPlanningCollector(),
+                        r.returnToDiscoveryCollector(),
+                        r.returnToOrchestratorCollector());
+            };
+        }
+
+        @JsonIgnore
+        default String routeGuardrailsExtraction() {
+            return switch (this) {
+                case DiscoveryCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE -> planningRequest, ROUTE_BACK -> discoveryRequest, STOP -> orchestratorRequest.";
+                case PlanningCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE -> ticketOrchestratorRequest, ROUTE_BACK -> planningRequest, STOP -> orchestratorCollectorRequest.";
+                case TicketCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE -> orchestratorCollectorRequest, ROUTE_BACK -> ticketRequest, STOP -> orchestratorCollectorRequest.";
+                case OrchestratorCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE -> complete, ROUTE_BACK -> orchestratorRequest, STOP -> collectorResult.";
+                case ContextManagerRequest ignored -> "Return exactly one non-null returnTo* route based on recovered context.";
+                case ContextManagerRoutingRequest ignored -> "Set context manager reason/type and route to context manager request.";
+                default -> "Set exactly one non-null route field that matches the next intended node.";
+            };
+        }
+
+        @JsonIgnore
+        private static String phaseOrFallback(String phase, String fallback) {
+            if (phase == null || phase.isBlank()) {
+                return fallback;
+            }
+            return phase.trim();
+        }
+
+        @JsonIgnore
+        private static CurationPhase curationPhaseFromReturnTo(
+                TicketCollectorRequest returnToTicketCollector,
+                PlanningCollectorRequest returnToPlanningCollector,
+                DiscoveryCollectorRequest returnToDiscoveryCollector,
+                OrchestratorCollectorRequest returnToOrchestratorCollector
+        ) {
+            if (returnToTicketCollector != null) {
+                return CurationPhase.TICKET_AGENT;
+            }
+            if (returnToPlanningCollector != null) {
+                return CurationPhase.PLANNING_AGENT;
+            }
+            if (returnToDiscoveryCollector != null) {
+                return CurationPhase.DISCOVERY_AGENT;
+            }
+            if (returnToOrchestratorCollector != null) {
+                return CurationPhase.ORCHESTRATION;
+            }
+            return CurationPhase.OTHER;
+        }
 
         WorktreeSandboxContext worktreeContext();
 
