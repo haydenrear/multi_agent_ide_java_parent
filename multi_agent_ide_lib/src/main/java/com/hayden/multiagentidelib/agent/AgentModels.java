@@ -3061,13 +3061,11 @@ public interface AgentModels {
             InterruptRequest.DiscoveryAgentInterruptRequest interruptRequest,
             @JsonPropertyDescription("Discovery agent result payload.")
             DiscoveryAgentResult agentResult,
-            @JsonPropertyDescription("Optional route to planning orchestrator.")
-            PlanningOrchestratorRequest planningOrchestratorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
         public DiscoveryAgentRouting(InterruptRequest.DiscoveryAgentInterruptRequest interruptRequest, DiscoveryAgentResult agentResult) {
-            this(interruptRequest, agentResult, null, null);
+            this(interruptRequest, agentResult, null);
         }
     }
 

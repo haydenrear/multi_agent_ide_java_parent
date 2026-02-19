@@ -56,8 +56,10 @@ public class BlackboardRoutingPlanner extends AbstractConditionPlanner {
             return null;
         }
 
+        String routedFrom = null;
         // If the last result is a Routing record, extract the first non-null field as the routed request
         if (lastResult instanceof AgentModels.Routing) {
+            routedFrom = lastResult.getClass().getSimpleName();
             var routed = extractFirstNonNullComponent(lastResult);
             if (routed == null) {
                 log.warn("Routing record {} has no non-null components", lastResult.getClass().getSimpleName());
@@ -101,7 +103,18 @@ public class BlackboardRoutingPlanner extends AbstractConditionPlanner {
             }
         }
 
-        log.debug("No action found matching blackboard entry type {}", lastResult.getClass().getName());
+        List<String> actionInputs = actions.stream()
+                .filter(MultiTransformationAction.class::isInstance)
+                .map(MultiTransformationAction.class::cast)
+                .map(action -> action.getName() + ":" + action.getInputs())
+                .toList();
+        if (routedFrom != null) {
+            log.warn("No action found for routed request {} from {}. Available action bindings: {}",
+                    lastResult.getClass().getName(), routedFrom, actionInputs);
+        } else {
+            log.warn("No action found matching blackboard entry type {}. Available action bindings: {}",
+                    lastResult.getClass().getName(), actionInputs);
+        }
         return null;
     }
 

@@ -1477,7 +1477,7 @@ public class GitWorktreeService implements WorktreeService {
                 log.warn("Skipping submodule '{}': {}", submodulePath, e.getMessage());
                 eventBus.publish(Events.NodeErrorEvent.err(
                         "Failed to initialize submodule '%s': %s".formatted(submodulePath, e.getMessage()),
-                        new ArtifactKey(nodeId)
+                        getKey(nodeId)
                 ));
             }
         }
@@ -1817,8 +1817,17 @@ public class GitWorktreeService implements WorktreeService {
                 "Worktree merge failure: " + reason + " | child=" + result.childWorktreeId()
                         + " parent=" + result.parentWorktreeId()
                         + " conflicts=" + (result.conflicts() != null ? result.conflicts().size() : 0),
-                new ArtifactKey(nodeId)
+                getKey(nodeId)
         ));
+    }
+
+    private static ArtifactKey getKey(String nodeId) {
+        try {
+            return new ArtifactKey(nodeId);
+        } catch (IllegalArgumentException e) {
+            log.error("Error - could not create artifact key for {} when trying to push merge failure event.", nodeId);
+            return ArtifactKey.createRoot();
+        }
     }
 
     private void emitMergeLifecycleEvent(

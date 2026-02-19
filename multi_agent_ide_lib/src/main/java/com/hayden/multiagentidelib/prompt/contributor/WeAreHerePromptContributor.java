@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 /**
  * Prompt contributor that shows the agent where it is in the workflow graph,
  * what the history of execution has been, and what the available routing options mean.
- * 
+ *
  * This contributor uses a static template with placeholders for dynamic content,
  * ensuring the template hash remains stable across executions.
  */
@@ -23,16 +23,16 @@ public class WeAreHerePromptContributor implements PromptContributor {
 
     private static final String CURRENT_MARKER = ">>> YOU ARE HERE <<<";
     private static final String VISITED_MARKER = "[visited]";
-    
+
     /**
      * Static template with placeholders for dynamic content.
      * Placeholders use Jinja2-style syntax: {{ variable_name }}
      */
     private static final String TEMPLATE = """
         ## Workflow Position
-        
+
         ### Workflow Graph
-        
+
         ```
         {{ node_orchestrator }}
             │ (returns OrchestratorRouting)
@@ -57,16 +57,15 @@ public class WeAreHerePromptContributor implements PromptContributor {
         {{ node_discovery_agents }}
             │ (each agent returns DiscoveryAgentRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
-            ├─▶ If agentResult → Discovery results
-            ├─▶ If planningOrchestratorRequest → Planning Orchestrator
+            ├─▶ If agentResult → Discovery results (include enough findings/context for collector to decide ADVANCE_PHASE vs ROUTE_BACK)
             └─▶ If contextManagerRequest → Context Manager
             ▼
         {{ node_discovery_collector }}
             │ (returns DiscoveryCollectorRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
             ├─▶ If collectorResult → handleDiscoveryCollectorBranch
-            │     ├─▶ discoveryRequest (ROUTE_BACK)
-            │     └─▶ planningRequest (ADVANCE_PHASE)
+            │     ├─▶ discoveryRequest (ROUTE_BACK: return to Discovery Orchestrator)
+            │     └─▶ planningRequest (ADVANCE_PHASE: advance to Planning Orchestrator)
             ├─▶ If orchestratorRequest → Orchestrator
             ├─▶ If discoveryRequest → Discovery Orchestrator
             ├─▶ If planningRequest → Planning Orchestrator
@@ -98,10 +97,10 @@ public class WeAreHerePromptContributor implements PromptContributor {
             │ (returns PlanningCollectorRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
             ├─▶ If collectorResult → handlePlanningCollectorBranch
-            │     ├─▶ planningRequest (ROUTE_BACK)
-            │     └─▶ ticketOrchestratorRequest (ADVANCE_PHASE)
+            │     ├─▶ planningRequest (ROUTE_BACK: return to Planning Orchestrator)
+            │     └─▶ ticketOrchestratorRequest (ADVANCE_PHASE: advance to Ticket Orchestrator)
             ├─▶ If planningRequest → Planning Orchestrator
-            ├─▶ If ticketOrchestratorRequest → Ticket Orchestrator
+            ├─▶ If ticketOrchestratorRequest → Ticket Orchestrator (prefer to use the ADVANCE_PHASE instead)
             ├─▶ If discoveryOrchestratorRequest → Discovery Orchestrator
             ├─▶ If orchestratorCollectorRequest → Orchestrator Collector
             ├─▶ If reviewRequest → Review Agent
@@ -131,10 +130,10 @@ public class WeAreHerePromptContributor implements PromptContributor {
             │ (returns TicketCollectorRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
             ├─▶ If collectorResult → handleTicketCollectorBranch
-            │     ├─▶ ticketRequest (ROUTE_BACK)
-            │     └─▶ orchestratorCollectorRequest (ADVANCE_PHASE)
+            │     ├─▶ ticketRequest (ROUTE_BACK: return to Ticket Orchestrator)
+            │     └─▶ orchestratorCollectorRequest (ADVANCE_PHASE: advance to final Orchestrator Collector)
             ├─▶ If ticketRequest → Ticket Orchestrator
-            ├─▶ If orchestratorCollectorRequest → Orchestrator Collector
+            ├─▶ If orchestratorCollectorRequest → Orchestrator Collector (prefer to use the ADVANCE_PHASE instead)
             ├─▶ If reviewRequest → Review Agent
             ├─▶ If mergerRequest → Merger Agent
             └─▶ If contextManagerRequest → Context Manager
@@ -154,11 +153,11 @@ public class WeAreHerePromptContributor implements PromptContributor {
             └─▶ If contextManagerRequest → Context Manager
             ▼
           COMPLETE
-        
+
         ─────────────────────────────────────────────────────────────────────────────
         SIDE NODES (can be reached from collectors and route back to collectors)
         ─────────────────────────────────────────────────────────────────────────────
-        
+
         {{ node_review }}
             │ (returns ReviewRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
@@ -168,7 +167,7 @@ public class WeAreHerePromptContributor implements PromptContributor {
             ├─▶ If planningCollectorRequest → Planning Collector
             ├─▶ If ticketCollectorRequest → Ticket Collector
             └─▶ If contextManagerRequest → Context Manager
-        
+
         {{ node_merger }}
             │ (returns MergerRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
@@ -178,7 +177,7 @@ public class WeAreHerePromptContributor implements PromptContributor {
             ├─▶ If planningCollectorRequest → Planning Collector
             ├─▶ If ticketCollectorRequest → Ticket Collector
             └─▶ If contextManagerRequest → Context Manager
-        
+
         {{ node_context_manager }}
             │ (returns ContextManagerResultRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
@@ -203,13 +202,13 @@ public class WeAreHerePromptContributor implements PromptContributor {
             ├─▶ If discoveryAgentResults → Discovery Agent Results
             └─▶ If contextOrchestratorRequest → Context Manager (recursive)
         ```
-        
+
         ### Execution History
-        
+
         {{ execution_history }}
-        
+
         ### Available Routing Options
-        
+
         {{ routing_options }}
         """;
 
@@ -236,16 +235,18 @@ public class WeAreHerePromptContributor implements PromptContributor {
         templates.put(AgentModels.DiscoveryCollectorRequest.class, """
             **Branching behavior when `collectorResult` is set:**
             - Framework calls `handleDiscoveryCollectorBranch` which interprets the decision
-            - ADVANCE_PHASE → handler sets `planningRequest`
-            - ROUTE_BACK → handler sets `discoveryRequest`
+            - ADVANCE_PHASE → handler sets `planningRequest` (advance to Planning Orchestrator)
+            - ROUTE_BACK → handler sets `discoveryRequest` (return to Discovery Orchestrator)
+            - STOP is allowed for explicit termination paths when emitted by collector logic
 
             **Most common:** Use `collectorResult` for standard flow control.""");
 
         templates.put(AgentModels.PlanningCollectorRequest.class, """
             **Branching behavior when `collectorResult` is set:**
             - Framework calls `handlePlanningCollectorBranch` which interprets the decision
-            - ADVANCE_PHASE → handler sets `ticketOrchestratorRequest`
-            - ROUTE_BACK → handler sets `planningRequest`
+            - ADVANCE_PHASE → handler sets `ticketOrchestratorRequest` (advance to Ticket Orchestrator)
+            - ROUTE_BACK → handler sets `planningRequest` (return to Planning Orchestrator)
+            - STOP is allowed for explicit termination paths when emitted by collector logic
 
             **Most common:** Use `collectorResult` for standard flow control.""");
 
@@ -261,8 +262,9 @@ public class WeAreHerePromptContributor implements PromptContributor {
         templates.put(AgentModels.TicketCollectorRequest.class, """
             **Branching behavior when `collectorResult` is set:**
             - Framework calls `handleTicketCollectorBranch` which interprets the decision
-            - ADVANCE_PHASE → handler sets `orchestratorCollectorRequest`
-            - ROUTE_BACK → handler sets `ticketRequest`
+            - ADVANCE_PHASE → handler sets `orchestratorCollectorRequest` (advance to final Orchestrator Collector)
+            - ROUTE_BACK → handler sets `ticketRequest` (return to Ticket Orchestrator)
+            - STOP is allowed for explicit termination paths when emitted by collector logic
 
             **Most common:** Use `collectorResult` for standard flow control.""");
 
@@ -275,13 +277,17 @@ public class WeAreHerePromptContributor implements PromptContributor {
             **Most common:** Use `collectorResult` with ADVANCE_PHASE for workflow completion.""");
 
         templates.put(AgentModels.DiscoveryAgentRequest.class, """
-            **Happy path:** Set `agentResult` with your discovery findings.""");
+            **Happy path:** Set `agentResult` with your discovery findings and clear next-step signal
+            in the report content (what is complete, what is missing, and what should happen next).
+            Discovery agents do not route directly to planning; dispatch+collector handle phase advancement.""");
 
         templates.put(AgentModels.PlanningAgentRequest.class, """
-            **Happy path:** Set `agentResult` with your planning tickets.""");
+            **Happy path:** Set `agentResult` with planning tickets and an explicit completion signal
+            (ready for ticket phase vs needs more planning context). Phase advancement is handled by collector routing.""");
 
         templates.put(AgentModels.TicketAgentRequest.class, """
-            **Happy path:** Set `agentResult` with your implementation results.""");
+            **Happy path:** Set `agentResult` with implementation results plus merge/readiness context
+            so the collector can choose advance vs route-back without ambiguity.""");
 
         templates.put(AgentModels.DiscoveryAgentResults.class, """
             **Happy path:** Set `collectorRequest` to consolidate discovery results.""");
@@ -377,9 +383,9 @@ public class WeAreHerePromptContributor implements PromptContributor {
      */
     private Map<String, Object> buildRuntimeArgs(PromptContext context) {
         Map<String, Object> args = new HashMap<>();
-        
-        Class<?> currentRequestType = context.currentRequest() != null 
-                ? context.currentRequest().getClass() 
+
+        Class<?> currentRequestType = context.currentRequest() != null
+                ? context.currentRequest().getClass()
                 : null;
         List<Class<?>> visitedTypes = getVisitedTypes(context);
 

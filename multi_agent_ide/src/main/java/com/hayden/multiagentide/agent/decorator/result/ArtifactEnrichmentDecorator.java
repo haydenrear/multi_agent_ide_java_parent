@@ -60,7 +60,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                     (T) routing.toBuilder()
                             .interruptRequest(enrichRequest(routing.interruptRequest(), operationContext))
                             .agentResult(enrichResult(routing.agentResult(), operationContext))
-                            .planningOrchestratorRequest(enrichRequest(routing.planningOrchestratorRequest(), operationContext))
                             .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
             case AgentModels.DiscoveryCollectorRouting routing ->
