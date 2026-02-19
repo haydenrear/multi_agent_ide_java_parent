@@ -24,6 +24,9 @@ Return exactly ONE of:
 20. **contextOrchestratorRequest** - Route to Context Orchestrator
 21. **interruptRequest** - Pause for human or agent review
 
+Use these routes only after you have recovered the specific missing context. Prefer returning to the
+requesting agent's expected return route instead of selecting a new workflow path.
+
 The ContextManagerRequest includes all possible return routes (may be null):
   - returnToOrchestrator, returnToOrchestratorCollector
   - returnToDiscoveryOrchestrator, returnToDiscoveryCollector
@@ -36,5 +39,6 @@ The ContextManagerRequest includes all possible return routes (may be null):
   - returnToContextOrchestrator
 - Exactly one `returnTo*` field should be non-null in the ContextManagerRequest.
 - Do NOT set any `previousContext` fields; the framework populates those automatically.
+- Context Manager is for targeted context recovery from agent history, not broad workflow rerouting.
 
 {% include "workflow/_interrupt_guidance.jinja" %}

@@ -903,8 +903,9 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     .build());
 
             queuedLlmRunner.enqueue(AgentModels.PlanningCollectorRouting.builder()
-                    .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                    .orchestratorRequest(AgentModels.OrchestratorRequest.builder()
                             .goal("Incomplete context")
+                            .phase("DISCOVERY")
                             .build())
                     .build());
 

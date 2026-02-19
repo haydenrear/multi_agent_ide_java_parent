@@ -1,8 +1,15 @@
 Consolidate the workflow results and provide a routing decision.
 
 Happy path guidance:
-- This is the final consolidation step; only route back if you explicitly need another phase.
-- Prefer returning collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "COMPLETE".
+- This is the final consolidation step.
+- Validate whether the ticket implementation is complete against the stated goal and acceptance context.
+- If complete, return collectorResult and set collectorDecision.decisionType = ADVANCE_PHASE with requestedPhase = "COMPLETE".
+- If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest.
+- If you believe ROUTE_BACK is required, first emit interruptRequest explaining why; only ROUTE_BACK after clarification confirms it.
+- Route back only when there is a concrete, unresolved gap that requires another phase - make sure to include the unresolved gap
+  as well as all the current goal - please do not simply replace with the unresolved gap. Instead, widen the goal to include the
+  unresolved gap.
+- Only set contextManagerRequest when you need specific missing context from another agent chat/history.
 
 {% include "workflow/_interrupt_guidance.jinja" %}
 

@@ -63,7 +63,7 @@ public class InterruptController {
                 interruptId,
                 request.resolutionType(),
                 message,
-                (AgentModels.ReviewAgentResult) null
+                request.reviewResult()
         );
         if (!resolved) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Interrupt request not found");
@@ -99,7 +99,8 @@ public class InterruptController {
     public record InterruptResolution(
             String originNodeId,
             String resolutionType,
-            String resolutionNotes
+            String resolutionNotes,
+            AgentModels.ReviewAgentResult reviewResult
     ) {
     }
 

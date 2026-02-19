@@ -7,5 +7,6 @@ Goal: {{ goal }}
 
 ## Guidance
 
-- Use the reconstructed context to choose the most relevant downstream agent.
-- Prefer the agent that can act directly on the missing or clarified information.
+- Route to Context Manager only when a requesting agent needs specific missing context from another agent chat/history.
+- Use the reconstructed context to route back to the requesting/return agent so it can continue its own work.
+- Do not use Context Manager as a general rerouting mechanism.

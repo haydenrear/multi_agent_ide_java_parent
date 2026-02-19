@@ -32,6 +32,13 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             PlanningDispatchRoute.class,
             TicketDispatchRoute.class
     );
+    private static final Set<Class<? extends Annotation>> REVIEW_MERGER_RETURN_ROUTE_ANNOTATIONS = Set.of(
+            OrchestratorCollectorRoute.class,
+            DiscoveryCollectorRoute.class,
+            PlanningCollectorRoute.class,
+            TicketCollectorRoute.class,
+            ContextManagerRoute.class
+    );
 
     private final ConcurrentMap<String, Events.InterruptRequestEvent> interruptEvents = new ConcurrentHashMap<>();
 
@@ -53,6 +60,22 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
         if (ctx == null || ctx.templateOperations() == null)
             return ctx;
         if (ctx.promptContext() == null) {
+            return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
+        }
+        if (ctx.promptContext().currentRequest() instanceof AgentModels.ReviewRequest
+                || ctx.promptContext().currentRequest() instanceof AgentModels.MergerRequest) {
+            Class<? extends Annotation> targetRoute = resolveReviewMergerTargetRoute(ctx.promptContext().currentRequest());
+            if (targetRoute == null) {
+                return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
+            }
+
+            Set<Class<? extends Annotation>> toFilter = new LinkedHashSet<>(REVIEW_MERGER_RETURN_ROUTE_ANNOTATIONS);
+            toFilter.remove(targetRoute);
+            toFilter.remove(ContextManagerRoute.class);
+            for (Class<? extends Annotation> annotation : toFilter) {
+                operations = operations.withAnnotationFilter(annotation);
+            }
+
             return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
         }
         if (!(ctx.promptContext().currentRequest() instanceof AgentModels.InterruptRequest)) {
@@ -151,5 +174,42 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case TICKET_AGENT_DISPATCH -> TicketDispatchRoute.class;
             case ALL, DISCOVERY_AGENT, PLANNING_AGENT, TICKET_AGENT -> null;
         };
+    }
+
+    private static Class<? extends Annotation> resolveReviewMergerTargetRoute(AgentModels.AgentRequest request) {
+        return switch (request) {
+            case AgentModels.ReviewRequest reviewRequest -> routeFromCollectorRequest(
+                    reviewRequest.returnToOrchestratorCollector(),
+                    reviewRequest.returnToDiscoveryCollector(),
+                    reviewRequest.returnToPlanningCollector(),
+                    reviewRequest.returnToTicketCollector());
+            case AgentModels.MergerRequest mergerRequest -> routeFromCollectorRequest(
+                    mergerRequest.returnToOrchestratorCollector(),
+                    mergerRequest.returnToDiscoveryCollector(),
+                    mergerRequest.returnToPlanningCollector(),
+                    mergerRequest.returnToTicketCollector());
+            default -> null;
+        };
+    }
+
+    private static Class<? extends Annotation> routeFromCollectorRequest(
+            AgentModels.OrchestratorCollectorRequest returnToOrchestratorCollector,
+            AgentModels.DiscoveryCollectorRequest returnToDiscoveryCollector,
+            AgentModels.PlanningCollectorRequest returnToPlanningCollector,
+            AgentModels.TicketCollectorRequest returnToTicketCollector
+    ) {
+        if (returnToOrchestratorCollector != null) {
+            return OrchestratorCollectorRoute.class;
+        }
+        if (returnToDiscoveryCollector != null) {
+            return DiscoveryCollectorRoute.class;
+        }
+        if (returnToPlanningCollector != null) {
+            return PlanningCollectorRoute.class;
+        }
+        if (returnToTicketCollector != null) {
+            return TicketCollectorRoute.class;
+        }
+        return null;
     }
 }

@@ -17,4 +17,6 @@ Create a unified discovery document with:
 {% include "workflow/_collector_base.jinja" %}
 
 Happy path: return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "PLANNING".
-Do NOT route directly to planningRequest unless explicitly looping or branching; use collectorResult so the branch handler advances the workflow.
+If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest.
+If you believe ROUTE_BACK is required, first emit interruptRequest explaining why; only ROUTE_BACK after clarification confirms it.
+Only set contextManagerRequest when you need specific missing context from another agent chat/history.

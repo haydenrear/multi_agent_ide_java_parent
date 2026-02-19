@@ -92,10 +92,11 @@ public class RouteToContextManagerPromptContributorFactory implements PromptCont
                 4. Reconstruct context from multiple sources and consolidate it for your use
     
                 ### Important
-    
-                - Only route to Context Manager when you genuinely need context from previous execution
+
+                - Only route to Context Manager when you genuinely need specific missing context from another agent chat/history
                 - Be specific about what information you need so the Context Manager can retrieve it efficiently
                 - The Context Manager will reconstruct the needed context and route back to continue your work
+                - Do not use Context Manager as a general rerouting mechanism; use orchestrator routing for normal phase transitions
                 """;
 
         @Override

@@ -74,6 +74,7 @@ public class ContextManagerPromptContributorFactory implements PromptContributor
                 
                 Do not route to a different agent unless you have a strong reason. The workflow \
                 expects to return to the agent that requested context.
+                Context manager should be used for targeted cross-agent context recovery, not general rerouting.
                 
                 ### Return Route Instructions
                 
@@ -155,6 +156,7 @@ public class ContextManagerPromptContributorFactory implements PromptContributor
                 - Include any relevant context from your tools in the goal description
                 
                 This ensures the workflow resumes with clear direction rather than getting stuck.
+                Context manager should be used for targeted cross-agent context recovery, not general rerouting.
                 """;
 
         @Override
