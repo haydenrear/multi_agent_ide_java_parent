@@ -51,7 +51,7 @@ public class WeAreHerePromptContributor implements PromptContributor {
         {{ node_discovery_agent_dispatch }}
             │ (returns DiscoveryAgentDispatchRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
-            ├─▶ If collectorRequest → Discovery Collector
+            ├─▶ If collectorRequest → Discovery Collector (primary forward path; consolidate all discovery agent outputs)
             └─▶ If contextManagerRequest → Context Manager
             ▼
         {{ node_discovery_agents }}
@@ -84,7 +84,7 @@ public class WeAreHerePromptContributor implements PromptContributor {
         {{ node_planning_agent_dispatch }}
             │ (returns PlanningAgentDispatchRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
-            ├─▶ If planningCollectorRequest → Planning Collector
+            ├─▶ If planningCollectorRequest → Planning Collector (primary forward path; consolidate all planning agent outputs)
             └─▶ If contextManagerRequest → Context Manager
             ▼
         {{ node_planning_agents }}
@@ -117,7 +117,7 @@ public class WeAreHerePromptContributor implements PromptContributor {
         {{ node_ticket_agent_dispatch }}
             │ (returns TicketAgentDispatchRouting)
             ├─▶ If interruptRequest → Interrupt (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP)
-            ├─▶ If ticketCollectorRequest → Ticket Collector
+            ├─▶ If ticketCollectorRequest → Ticket Collector (primary forward path; consolidate all ticket agent outputs)
             └─▶ If contextManagerRequest → Context Manager
             ▼
         {{ node_ticket_agents }}
@@ -322,16 +322,22 @@ public class WeAreHerePromptContributor implements PromptContributor {
             **Happy path:** Route to the agent that can most directly act on the reconstructed context.""");
 
         templates.put(AgentModels.DiscoveryAgentRequests.class, """
-            This is an intermediate dispatch state - the framework will collect results and route to
-            `DiscoveryAgentDispatchRouting` which typically routes to `Discovery Collector`.""");
+            This is an intermediate dispatch state.
+            **Default forward progress:** set `collectorRequest` in `DiscoveryAgentDispatchRouting`.
+            That request should consolidate all discovery agent outputs into a single discovery collector input
+            so the collector can choose ADVANCE_PHASE vs ROUTE_BACK.""");
 
         templates.put(AgentModels.PlanningAgentRequests.class, """
-            This is an intermediate dispatch state - the framework will collect results and route to
-            `PlanningAgentDispatchRouting` which typically routes to `Planning Collector`.""");
+            This is an intermediate dispatch state.
+            **Default forward progress:** set `planningCollectorRequest` in `PlanningAgentDispatchRouting`.
+            That request should consolidate all planning agent outputs into one planning collector input
+            so the collector can choose ADVANCE_PHASE vs ROUTE_BACK.""");
 
         templates.put(AgentModels.TicketAgentRequests.class, """
-            This is an intermediate dispatch state - the framework will collect results and route to
-            `TicketAgentDispatchRouting` which typically routes to `Ticket Collector`.""");
+            This is an intermediate dispatch state.
+            **Default forward progress:** set `ticketCollectorRequest` in `TicketAgentDispatchRouting`.
+            That request should consolidate all ticket agent outputs into one ticket collector input
+            so the collector can choose ADVANCE_PHASE vs ROUTE_BACK.""");
 
         return Collections.unmodifiableMap(templates);
     }
