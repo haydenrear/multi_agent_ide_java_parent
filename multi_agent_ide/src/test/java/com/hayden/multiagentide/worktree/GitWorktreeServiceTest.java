@@ -1,7 +1,13 @@
 package com.hayden.multiagentide.worktree;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verify;
 
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentide.repository.WorktreeRepository;
@@ -17,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @SpringBootTest(properties = "multiagentide.worktrees.base-path=${java.io.tmpdir}/multi-agent-ide-test-worktrees")
 class GitWorktreeServiceTest extends AgentTestBase {
@@ -29,6 +36,9 @@ class GitWorktreeServiceTest extends AgentTestBase {
 
     @Autowired
     private WorktreeRepository worktreeRepository;
+
+    @MockitoSpyBean
+    private EventBus eventBus;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -88,6 +98,28 @@ class GitWorktreeServiceTest extends AgentTestBase {
         SubmoduleWorktreeContext submoduleWorktree = submodules.getFirst();
         assertThat(Files.exists(submoduleWorktree.worktreePath())).isTrue();
         assertThat(submoduleWorktree.parentWorktreeId()).isEqualTo(mainWorktree.worktreeId());
+    }
+
+    @Test
+    void mergeWorktreesPublishesMergeEvents() throws Exception {
+        Path repoDir = Files.createTempDirectory("merge-repo");
+        initRepo(repoDir);
+        commitFile(repoDir, "README.md", "base", "init");
+
+        MainWorktreeContext parent = gitWorktreeService.createMainWorktree(
+                repoDir.toString(), "main", "main-parent", "node-parent");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                repoDir.toString(), "main", "main-child", "node-child");
+
+        commitFile(child.worktreePath(), "README.md", "child change", "child update");
+        MergeResult result = gitWorktreeService.mergeWorktrees(child.worktreeId(), parent.worktreeId());
+
+        assertThat(result.successful()).isTrue();
+        verify(eventBus, atLeastOnce()).publish(argThat(event ->
+                event instanceof Events.WorktreeMergedEvent merged
+                        && merged.childWorktreeId().equals(child.worktreeId())
+                        && merged.parentWorktreeId().equals(parent.worktreeId())
+        ));
     }
 
     private void initRepo(Path repoDir) throws Exception {
