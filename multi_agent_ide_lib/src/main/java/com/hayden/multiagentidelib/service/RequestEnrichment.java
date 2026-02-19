@@ -437,7 +437,21 @@ public class RequestEnrichment {
     }
 
     private <T extends Artifact.AgentModel> T enrichAgentModel(T input, OperationContext context, Artifact.AgentModel parent) {
-        return withEnrichedChildren(input, input.children(), context);
+        if (input == null) {
+            return null;
+        }
+
+        T enriched = input;
+        if (enriched.key() == null) {
+            ArtifactKey generatedKey = contextIdService.generate(resolveWorkflowRunId(context), null, parent);
+            if (generatedKey != null) {
+                enriched = (T) enriched.withContextId(generatedKey);
+                log.debug("Assigned missing nested model contextId for {} -> {}",
+                        input.getClass().getSimpleName(), generatedKey.value());
+            }
+        }
+
+        return withEnrichedChildren(enriched, enriched.children(), context);
     }
 
     private AgentModels.InterruptRequest enrichInterruptRequest(
