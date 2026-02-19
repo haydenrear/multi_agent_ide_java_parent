@@ -3054,8 +3054,6 @@ public interface AgentModels {
             DiscoveryAgentRequests agentRequests,
             @JsonPropertyDescription("Route to discovery collector.")
             DiscoveryCollectorRequest collectorRequest,
-            @JsonPropertyDescription("Route to discovery orchestrator.")
-            DiscoveryOrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
