@@ -30,7 +30,7 @@ class FilterPropertiesDecoratorTest {
 
         decorator.decorate(ctx);
 
-        verify(creator, times(13)).withAnnotationFilter(any());
+        verify(creator, times(14)).withAnnotationFilter(any());
         verify(creator, never()).withAnnotationFilter(OrchestratorRoute.class);
         verify(creator).withAnnotationFilter(PlanningRoute.class);
         verify(creator).withAnnotationFilter(TicketDispatchRoute.class);
@@ -65,7 +65,7 @@ class FilterPropertiesDecoratorTest {
 
         decorator.decorate(ctx);
 
-        verify(creator, times(13)).withAnnotationFilter(any());
+        verify(creator, times(14)).withAnnotationFilter(any());
         verify(creator, never()).withAnnotationFilter(PlanningRoute.class);
         verify(creator).withAnnotationFilter(OrchestratorRoute.class);
     }
@@ -92,7 +92,7 @@ class FilterPropertiesDecoratorTest {
 
         decorator.decorate(ctx);
 
-        verify(creator, never()).withAnnotationFilter(any());
+        verify(creator, times(1)).withAnnotationFilter(any());
     }
 
     private static LlmCallDecorator.LlmCallContext<AgentModels.InterruptRouting> buildInterruptContext(

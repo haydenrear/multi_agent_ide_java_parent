@@ -1,6 +1,6 @@
 env-props:
-  project-dir: { { PROJ_DIR } }
-  home-dir: { { HOME_DIR } }
+  project-dir: {{PROJ_DIR}}
+  home-dir: {{HOME_DIR}}
 
 spring:
   session:

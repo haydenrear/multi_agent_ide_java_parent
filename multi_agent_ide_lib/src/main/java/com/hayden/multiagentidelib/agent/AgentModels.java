@@ -294,17 +294,17 @@ public interface AgentModels {
             DiscoveryAgentResults,
             PlanningAgentResults,
             TicketAgentResults {
-        
+
         /**
          * The merge aggregation after child→trunk merges.
          */
         MergeAggregation mergeAggregation();
-        
+
         /**
          * Return a copy with merge aggregation set.
          */
         <T extends ResultsRequest> T withMergeAggregation(MergeAggregation aggregation);
-        
+
         /**
          * Get the list of child agent results.
          */
@@ -3591,7 +3591,9 @@ public interface AgentModels {
         @Override
         public String prettyPrintInterruptContinuation() {
             var g = goal == null || goal.isBlank() ? "Goal: (none)" : "Goal: " + goal.trim();
-            var f = StringUtils.isNotBlank(feedback) ? "Interrupt Feedback Resolutions (none)" : "Interrupt Feedback Resolutions: " + feedback.trim();
+            var f = StringUtils.isBlank(feedback)
+                ? "Interrupt Feedback Resolutions (none)"
+                : "Interrupt Feedback Resolutions: " + feedback.trim();
             return g + "\n" + f;
         }
 
@@ -4752,12 +4754,12 @@ public interface AgentModels {
             appendPrettyText(builder, "Planning Agent Results", AgentModels.serializeResults(planningAgentResults));
             return builder.toString().trim();
         }
-        
+
         @Override
         public ResultsRequest withMergeAggregation(MergeAggregation aggregation) {
             return this.toBuilder().mergeAggregation(aggregation).build();
         }
-        
+
         @Override
         public List<? extends AgentResult> childResults() {
             return planningAgentResults != null ? planningAgentResults : List.of();
@@ -4840,12 +4842,12 @@ public interface AgentModels {
             appendPrettyText(builder, "Ticket Agent Results", AgentModels.serializeResults(ticketAgentResults));
             return builder.toString().trim();
         }
-        
+
         @Override
         public ResultsRequest withMergeAggregation(MergeAggregation aggregation) {
             return this.toBuilder().mergeAggregation(aggregation).build();
         }
-        
+
         @Override
         public List<? extends AgentResult> childResults() {
             return ticketAgentResults != null ? ticketAgentResults : List.of();
@@ -4928,12 +4930,12 @@ public interface AgentModels {
             appendPrettyText(builder, "Discovery Agent Results", AgentModels.serializeResults(result));
             return builder.toString().trim();
         }
-        
+
         @Override
         public ResultsRequest withMergeAggregation(MergeAggregation aggregation) {
             return this.toBuilder().mergeAggregation(aggregation).build();
         }
-        
+
         @Override
         public List<? extends AgentResult> childResults() {
             return result != null ? result : List.of();

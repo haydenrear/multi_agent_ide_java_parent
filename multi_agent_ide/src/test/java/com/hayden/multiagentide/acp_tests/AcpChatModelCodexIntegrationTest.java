@@ -33,6 +33,7 @@ import com.hayden.acp_cdc_ai.acp.AcpChatModel;
 import com.hayden.utilitymodule.config.EnvConfigProps;
 import com.hayden.utilitymodule.io.FileUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -78,7 +80,7 @@ class AcpChatModelCodexIntegrationTest {
 
     @Autowired
     private AgentTools guiEvent;
-    @Autowired
+    @Autowired(required = false)
     private AcpTooling fileSystemTools;
     @Autowired
     private EnvConfigProps envConfigProps;
@@ -110,7 +112,9 @@ class AcpChatModelCodexIntegrationTest {
 
         private final AgentTools guiEvent;
 
-        private final AcpTooling fileSystemTools;
+        @Autowired(required = false)
+        @Setter
+        private AcpTooling fileSystemTools;
 
 //        @Action
 //        @AchievesGoal(description = "finishes the test")
@@ -152,21 +156,25 @@ class AcpChatModelCodexIntegrationTest {
                     .withFailMessage("Hindsight could not be reached.")
                     .isPresent();
 
-            return context.ai()
+            var c = context.ai()
                     .withFirstAvailableLlmOf("acp-chat-model", context.getAgentProcess().getId())
                     .withId("hello!")
 //                    .withToolObjects(deepwiki.get())
-                    .withToolObjects(hindsight.get())
 //                    .withToolObject(new ToolObject(guiEvent))
-                    .withToolObject(new ToolObject(fileSystemTools))
-                    .createObject(input.request, ResultValue.class);
+                    .withToolObjects(hindsight.orElse(new ArrayList<>()));
+
+            if (fileSystemTools != null)
+                c = c.withToolObject(fileSystemTools);
+
+            return c.createObject(input.request, ResultValue.class);
         }
 
     }
 
     @BeforeEach
     public void before() {
-        TestAgent agentInterface = new TestAgent(toolObjectRegistry, guiEvent, fileSystemTools);
+        TestAgent agentInterface = new TestAgent(toolObjectRegistry, guiEvent);
+        agentInterface.setFileSystemTools(fileSystemTools);
         Optional.ofNullable(agentMetadataReader.createAgentMetadata(agentInterface))
                 .ifPresentOrElse(agentPlatform::deploy, () -> log.error("Error deploying {} - could not create agent metadata.", agentInterface));
     }
