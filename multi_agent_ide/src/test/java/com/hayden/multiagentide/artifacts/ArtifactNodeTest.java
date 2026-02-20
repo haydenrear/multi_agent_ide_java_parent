@@ -167,8 +167,8 @@ class ArtifactNodeTest {
     class HashDeduplication {
         
         @Test
-        @DisplayName("addArtifact with duplicate hash returns DUPLICATE_HASH")
-        void addArtifactWithDuplicateHashReturnsDuplicateHash() {
+        @DisplayName("addArtifact with duplicate hash still adds distinct key")
+        void addArtifactWithDuplicateHashStillAddsDistinctKey() {
             String sharedHash = "abc123def456";
             
             ArtifactKey firstChildKey = rootKey.createChild();
@@ -182,8 +182,8 @@ class ArtifactNodeTest {
             rootNode.addArtifact(firstChild);
             ArtifactNode.AddResult result = rootNode.addArtifact(secondChild);
             
-            assertThat(result).isEqualTo(ArtifactNode.AddResult.DUPLICATE_HASH);
-            assertThat(rootNode.getChildren()).hasSize(1);
+            assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
+            assertThat(rootNode.getChildren()).hasSize(2);
         }
         
         @Test
@@ -325,8 +325,8 @@ class ArtifactNodeTest {
         }
         
         @Test
-        @DisplayName("duplicate PromptTemplateVersion hash is deduplicated")
-        void duplicateTemplateHashIsDeduplicated() {
+        @DisplayName("duplicate PromptTemplateVersion hash is accepted for distinct key")
+        void duplicateTemplateHashIsAcceptedForDistinctKey() {
             String sharedHash = "template-hash-shared";
             
             ArtifactKey firstKey = rootKey.createChild();
@@ -350,7 +350,7 @@ class ArtifactNodeTest {
             rootNode.addArtifact(first);
             ArtifactNode.AddResult result = rootNode.addArtifact(second);
             
-            assertThat(result).isEqualTo(ArtifactNode.AddResult.DUPLICATE_HASH);
+            assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
         }
     }
     

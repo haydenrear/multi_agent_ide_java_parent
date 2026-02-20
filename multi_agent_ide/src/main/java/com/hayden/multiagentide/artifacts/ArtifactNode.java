@@ -22,7 +22,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Invariants:
  * - Messages come in order (no level skipping)
  * - Never remove nodes
- * - Deduplication happens via content hash comparison among siblings
+ * - Duplicate keys are rejected, but duplicate content hashes are allowed
+ *   so every emitted key path can still receive descendants
  */
 @Slf4j
 public class ArtifactNode {
@@ -69,7 +70,7 @@ public class ArtifactNode {
      * building the tree structure within the Artifact model.
      *
      * @param artifact The artifact to add
-     * @return AddResult indicating success, duplicate key, or duplicate hash
+     * @return AddResult indicating success, duplicate key, or missing parent
      */
     public AddResult addArtifact(Artifact artifact) {
         ArtifactKey key = artifact.artifactKey();
@@ -104,7 +105,8 @@ public class ArtifactNode {
 
     /**
      * Adds a child artifact to this node.
-     * Checks for duplicate keys and duplicate hashes among siblings.
+     * Checks for duplicate keys among siblings.
+     * Duplicate hashes are intentionally allowed so key paths are not dropped.
      * Also adds the artifact to this node's artifact's children list.
      */
     private AddResult addChild(Artifact childArtifact) {
@@ -116,11 +118,10 @@ public class ArtifactNode {
             return AddResult.DUPLICATE_KEY;
         }
 
-        // Check for duplicate hash among siblings
+        // Keep duplicate-hash visibility, but do not reject the node.
         Optional<String> contentHash = childArtifact.contentHash();
         if (contentHash.isPresent() && childContentHashes.contains(contentHash.get())) {
-            log.debug("Duplicate hash rejected for key {}: {}", keyValue, contentHash.get());
-            return AddResult.DUPLICATE_HASH;
+            log.debug("Duplicate hash accepted for key {}: {}", keyValue, contentHash.get());
         }
 
         // Add the child node to our trie structure
@@ -233,7 +234,7 @@ public class ArtifactNode {
         ADDED,
         /** An artifact with this key already exists */
         DUPLICATE_KEY,
-        /** A sibling with the same content hash already exists */
+        /** Legacy: duplicate hashes are now accepted to preserve key paths */
         DUPLICATE_HASH,
         /** The parent node for this artifact was not found */
         PARENT_NOT_FOUND

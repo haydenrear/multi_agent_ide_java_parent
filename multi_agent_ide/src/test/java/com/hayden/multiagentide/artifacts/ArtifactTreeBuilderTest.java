@@ -110,8 +110,8 @@ class ArtifactTreeBuilderTest {
         }
         
         @Test
-        @DisplayName("addArtifact deduplicates by hash among siblings")
-        void addArtifactDeduplicatesByHash() {
+        @DisplayName("addArtifact allows duplicate hash among siblings when key differs")
+        void addArtifactAllowsDuplicateHashAmongSiblingsWhenKeyDiffers() {
             treeBuilder.addArtifact(executionKey, rootArtifact);
             
             String sharedHash = "shared-content-hash";
@@ -128,8 +128,8 @@ class ArtifactTreeBuilderTest {
             boolean secondAdded = treeBuilder.addArtifact(executionKey, second);
             
             assertThat(firstAdded).isTrue();
-            assertThat(secondAdded).isFalse();
-            assertThat(treeBuilder.getExecutionArtifacts(executionKey)).hasSize(2);
+            assertThat(secondAdded).isTrue();
+            assertThat(treeBuilder.getExecutionArtifacts(executionKey)).hasSize(3);
         }
         
         @Test
@@ -360,8 +360,8 @@ class ArtifactTreeBuilderTest {
         }
         
         @Test
-        @DisplayName("duplicate template hash is rejected")
-        void duplicateTemplateHashIsRejected() {
+        @DisplayName("duplicate template hash is accepted for distinct key")
+        void duplicateTemplateHashIsAcceptedForDistinctKey() {
             treeBuilder.addArtifact(executionKey, rootArtifact);
             
             String sharedHash = "same-template-hash";
@@ -388,7 +388,7 @@ class ArtifactTreeBuilderTest {
             boolean secondAdded = treeBuilder.addArtifact(executionKey, second);
             
             assertThat(firstAdded).isTrue();
-            assertThat(secondAdded).isFalse();
+            assertThat(secondAdded).isTrue();
         }
         
         @Test
@@ -630,8 +630,8 @@ class ArtifactTreeBuilderTest {
         }
         
         @Test
-        @DisplayName("AgentModelArtifact with duplicate hash is deduplicated")
-        void agentModelArtifactWithDuplicateHashIsDeduplicated() {
+        @DisplayName("AgentModelArtifact with duplicate hash is accepted for distinct key")
+        void agentModelArtifactWithDuplicateHashIsAcceptedForDistinctKey() {
             treeBuilder.addArtifact(executionKey, rootArtifact);
             
             // Create two models with same content (same hash)
@@ -649,10 +649,10 @@ class ArtifactTreeBuilderTest {
             boolean secondAdded = treeBuilder.addArtifact(executionKey, secondArtifact);
             
             assertThat(firstAdded).isTrue();
-            assertThat(secondAdded).isFalse(); // Deduplicated by hash
+            assertThat(secondAdded).isTrue();
             
             Collection<Artifact> artifacts = treeBuilder.getExecutionArtifacts(executionKey);
-            assertThat(artifacts).hasSize(2); // root + first model only
+            assertThat(artifacts).hasSize(3); // root + both models
         }
         
         @Test
