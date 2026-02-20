@@ -238,6 +238,9 @@ public class LlmDebugUiController {
             }
             NodeAccumulator node = nodes.computeIfAbsent(event.nodeId(), NodeAccumulator::new);
             node.totalEvents++;
+            if (node.firstEventAt == null) {
+                node.firstEventAt = event.timestamp();
+            }
             node.lastEventAt = event.timestamp();
             node.eventTypeCounts.merge(event.eventType(), 1, Integer::sum);
             String parent = parentNodeId(event.nodeId());
@@ -377,13 +380,19 @@ public class LlmDebugUiController {
         for (NodeAccumulator node : nodes.values()) {
             if (!node.isNamed() && !node.nodeId.equals(rootNodeId)) continue;
             if (node.nodeId.equals(rootNodeId)) continue;
-            String namedParent = findNamedAncestor(node.nodeId, nodes, rootNodeId);
-            if (namedParent == null || namedParent.equals(node.nodeId)) continue;
+            String akParent = parentNodeId(node.nodeId);
+            if (akParent == null || akParent.isBlank()) continue;
+            String namedParent = findNamedAncestor(akParent, nodes, rootNodeId);
+            if (namedParent == null) continue;
             children.computeIfAbsent(namedParent, ignored -> new ArrayList<>()).add(node.nodeId);
             node.parentNodeId = namedParent;
         }
         for (List<String> childIds : children.values()) {
-            childIds.sort(Comparator.naturalOrder());
+            childIds.sort(Comparator.comparing(
+                    (String id) -> {
+                        NodeAccumulator acc = nodes.get(id);
+                        return acc != null && acc.firstEventAt != null ? acc.firstEventAt : Instant.MAX;
+                    }).thenComparing(Comparator.naturalOrder()));
         }
 
         // Compute per-action error counts from named nodes.
@@ -635,6 +644,7 @@ public class LlmDebugUiController {
         private String actionName;
         private String statusReason;
         private int routeBackCount;
+        private Instant firstEventAt;
         private Instant lastEventAt;
         private int totalEvents;
         private final Map<String, Integer> eventTypeCounts = new LinkedHashMap<>();

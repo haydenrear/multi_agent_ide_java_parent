@@ -3,6 +3,7 @@ package com.hayden.acp_cdc_ai.acp.events;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.hayden.utilitymodule.schema.SpecialJsonSchemaGenerator;
+import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.Builder;
 import lombok.With;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +14,7 @@ import java.util.stream.Collectors;
 
 /**
  * Base interface for all artifacts in the execution tree.
- * 
+ *
  * Artifacts are immutable nodes that capture execution state:
  * - prompts, templates, arguments
  * - tool I/O
@@ -63,8 +64,9 @@ public sealed interface Artifact
     Artifact withArtifactKey(ArtifactKey key);
 
     default List<Artifact> collectRecursiveChildren() {
-        var l = new ArrayList<>(this.children());
-        this.children().stream().flatMap(a -> a.collectRecursiveChildren().stream())
+        var l = StreamUtil.toStream(this.children())
+                .collect(Collectors.toCollection(ArrayList::new));
+        this.children().stream().flatMap(a -> StreamUtil.toStream(a.collectRecursiveChildren()))
                 .forEach(l::add);
         return l;
     }
@@ -77,18 +79,18 @@ public sealed interface Artifact
      * Hierarchical, time-sortable identifier.
      */
     ArtifactKey artifactKey();
-    
+
     /**
      * SHA-256 hash of content bytes (if applicable).
      */
     @JsonIgnore
     Optional<String> contentHash();
-    
+
     /**
      * Optional metadata map.
      */
     Map<String, String> metadata();
-    
+
     /**
      * Child artifacts (tree structure).
      */
@@ -274,7 +276,7 @@ public sealed interface Artifact
     }
 
     // ========== Execution Root ==========
-    
+
     /**
      * Root artifact for an execution tree.
      */
@@ -291,19 +293,19 @@ public sealed interface Artifact
             String hash
     ) implements Artifact {
 
-        
+
         @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
     }
-    
+
     enum ExecutionStatus {
         RUNNING, COMPLETED, FAILED, STOPPED
     }
-    
+
     // ========== Execution Config ==========
-    
+
     /**
      * Configuration snapshot for reconstructability.
      */
@@ -320,15 +322,15 @@ public sealed interface Artifact
             List<Artifact> children
     ) implements Artifact {
 
-        
+
         @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
     }
-    
+
     // ========== Prompts ==========
-    
+
     /**
      * Fully rendered prompt text with references to template and args.
      */
@@ -343,13 +345,13 @@ public sealed interface Artifact
             String promptName
     ) implements Artifact {
 
-        
+
         @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
     }
-    
+
     /**
      * Dynamic inputs bound into a template.
      */
@@ -363,13 +365,13 @@ public sealed interface Artifact
             List<Artifact> children
     ) implements Artifact {
 
-        
+
         @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
     }
-    
+
     /**
      * Single prompt contributor output.
      */
@@ -386,7 +388,7 @@ public sealed interface Artifact
             Map<String, String> metadata,
             List<Artifact> children
     ) implements Templated {
-        
+
         @Override
         @JsonIgnore
         public String templateStaticId() {
@@ -482,7 +484,7 @@ public sealed interface Artifact
     }
 
     // ========== Tools ==========
-    
+
     /**
      * Tool invocation with input/output.
      */
@@ -508,16 +510,16 @@ public sealed interface Artifact
                     .build();
         }
 
-        
+
         @Override
         public Optional<String> contentHash() {
             // Could hash combined input+output
             return Optional.ofNullable(inputHash);
         }
     }
-    
+
     // ========== Outcomes ==========
-    
+
     /**
      * Objective evidence for outcomes.
      */
@@ -531,16 +533,16 @@ public sealed interface Artifact
             Map<String, String> metadata,
             List<Artifact> children
     ) implements Artifact {
-        
+
 
         @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
     }
-    
+
     // ========== Events ==========
-    
+
     /**
      * Captured GraphEvent as source artifact.
      */
@@ -556,13 +558,13 @@ public sealed interface Artifact
             Map<String, String> metadata,
             List<Artifact> children
     ) implements Artifact {
-        
+
 
         @Override
         public Optional<String> contentHash() {
             return Optional.ofNullable(hash);
         }
     }
-    
+
 
 }

@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -106,6 +107,7 @@ class LlmDebugUiControllerWorkflowGraphTest {
         mockMvc.perform(get("/api/llm-debug/ui/workflow-graph")
                         .param("nodeId", child.value())
                         .param("errorWindowSeconds", "180"))
+                .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.requestedNodeId").value(child.value()))
                 .andExpect(jsonPath("$.rootNodeId").value(root.value()))
@@ -303,6 +305,7 @@ class LlmDebugUiControllerWorkflowGraphTest {
         mockMvc.perform(get("/api/llm-debug/ui/workflow-graph")
                         .param("nodeId", root.value())
                         .param("errorWindowSeconds", "180"))
+                .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rootNodeId").value(root.value()))
                 .andExpect(jsonPath("$.stats.totalNodes").value(9))
