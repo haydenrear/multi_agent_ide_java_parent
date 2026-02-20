@@ -32,16 +32,11 @@ public class PermissionEscalationPromptContributorFactory implements PromptContr
         private static final String TEMPLATE = """
                 ## Permission Escalation Guardrail
 
-                If a required tool action is rejected immediately (for example: permission denied,
-                read-only filesystem, sandbox blocked, or "not allowed"), do not silently fail and do
-                not stop the workflow only because of that denial.
+                If at first there is a tool-call error related to permissions or authorization
+                (for example: file permission denied, cannot view, cannot modify, read-only, or
+                other "not allowed" errors), raise a permission request.
 
-                Instead, raise a permission request that explicitly asks for escalation:
-                - explain the blocked action and why it is required to complete the task,
-                - include concrete options (grant once, grant always, continue without permission, abort),
-                - include any confirmations needed to proceed safely.
-
-                Once permission is granted, continue the original plan.
+                Do not fail the workflow only because of that first permission/authorization error.
                 """;
 
         @Override
