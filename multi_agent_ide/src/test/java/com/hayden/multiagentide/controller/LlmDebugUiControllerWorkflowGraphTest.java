@@ -127,50 +127,38 @@ class LlmDebugUiControllerWorkflowGraphTest {
     }
 
     /**
-     * Full workflow test modeled on real production output:
-     *
-     * Expected hierarchy after reparenting:
-     *   Orchestrator
-     *   ├── Discovery Orchestrator
-     *   │   ├── Discovery Agent
-     *   │   └── Discovery Collector
-     *   ├── Planning Orchestrator        (reparented from under Discovery Collector)
-     *   │   ├── Plan segment 1
-     *   │   └── Planning Collector
-     *   └── Ticket Orchestrator          (reparented from under Planning Collector)
-     *       └── Ticket 1                 (has pending permission)
+     * Full workflow test modeled on real production output.
+     * ArtifactKey hierarchy determines the graph nesting:
+     *   Orchestrator (root)
+     *   ├── Discovery Orchestrator       (root/A)
+     *   │   ├── Discovery Agent          (root/A/B/C)
+     *   │   └── Discovery Collector      (root/A/D)
+     *   ├── Planning Orchestrator        (root/E — direct child of root)
+     *   │   ├── Plan segment 1           (root/E/F/G)
+     *   │   └── Planning Collector       (root/E/H)
+     *   └── Ticket Orchestrator          (root/I — direct child of root)
+     *       └── Ticket 1                 (root/I/J/K, has pending permission)
      */
     @Test
     void workflowGraph_reparents_orchestrators_and_tracks_pending_items() throws Exception {
         Instant now = Instant.now();
 
-        // Build artifact key hierarchy matching real production structure.
-        // Root orchestrator
+        // Build artifact key hierarchy matching corrected production structure.
+        // All phase orchestrators are direct children of root.
         ArtifactKey root = ArtifactKey.createRoot();
 
-        // Discovery orchestrator scope — child of root
+        // Discovery orchestrator — child of root
         ArtifactKey discoveryOrchScope = root.createChild();
-
-        // Discovery agent — nested under discovery orch
         ArtifactKey discoveryAgentScope = discoveryOrchScope.createChild().createChild();
-
-        // Discovery collector — sibling of discovery agent under discovery orch
         ArtifactKey discoveryCollectorScope = discoveryOrchScope.createChild();
 
-        // Planning orchestrator — in production, parentNodeId points to discovery collector
-        // (spawned by collector), but AK is nested under discovery orch scope
-        ArtifactKey planningOrchScope = discoveryOrchScope.createChild();
-
-        // Planning agent — under planning orch
+        // Planning orchestrator — direct child of root (not nested under discovery)
+        ArtifactKey planningOrchScope = root.createChild();
         ArtifactKey planningAgentScope = planningOrchScope.createChild().createChild();
-
-        // Planning collector — under planning orch
         ArtifactKey planningCollectorScope = planningOrchScope.createChild();
 
-        // Ticket orchestrator — in production, parentNodeId points to planning collector
-        ArtifactKey ticketOrchScope = planningOrchScope.createChild();
-
-        // Ticket agent — under ticket orch
+        // Ticket orchestrator — direct child of root (not nested under planning)
+        ArtifactKey ticketOrchScope = root.createChild();
         ArtifactKey ticketAgentScope = ticketOrchScope.createChild().createChild();
 
         // --- Orchestrator ---
@@ -234,10 +222,10 @@ class LlmDebugUiControllerWorkflowGraphTest {
                 uid(), now.minusSeconds(219), discoveryOrchScope.value(),
                 Events.NodeStatus.RUNNING, Events.NodeStatus.COMPLETED, "Agent execution completed successfully"));
 
-        // --- Planning Orchestrator --- (parentNodeId = discoveryCollectorScope, which is the collector)
+        // --- Planning Orchestrator --- (direct child of root orchestrator)
         eventStreamRepository.save(new Events.NodeAddedEvent(
                 uid(), now.minusSeconds(200), planningOrchScope.value(),
-                "Planning Orchestrator", Events.NodeType.PLANNING, discoveryCollectorScope.value()));
+                "Planning Orchestrator", Events.NodeType.PLANNING, root.value()));
         eventStreamRepository.save(new Events.ActionStartedEvent(
                 uid(), now.minusSeconds(199), planningOrchScope.value(),
                 "PlanningOrchestratorAgent", "planning-orchestrator"));
@@ -278,10 +266,10 @@ class LlmDebugUiControllerWorkflowGraphTest {
                 uid(), now.minusSeconds(139), planningOrchScope.value(),
                 Events.NodeStatus.RUNNING, Events.NodeStatus.COMPLETED, "Agent execution completed successfully"));
 
-        // --- Ticket Orchestrator --- (parentNodeId = planningCollectorScope, which is the collector)
+        // --- Ticket Orchestrator --- (direct child of root orchestrator)
         eventStreamRepository.save(new Events.NodeAddedEvent(
                 uid(), now.minusSeconds(120), ticketOrchScope.value(),
-                "Ticket Orchestrator", Events.NodeType.WORK, planningCollectorScope.value()));
+                "Ticket Orchestrator", Events.NodeType.WORK, root.value()));
         eventStreamRepository.save(new Events.ActionStartedEvent(
                 uid(), now.minusSeconds(119), ticketOrchScope.value(),
                 "TicketOrchestratorAgent", "ticket-orchestrator"));

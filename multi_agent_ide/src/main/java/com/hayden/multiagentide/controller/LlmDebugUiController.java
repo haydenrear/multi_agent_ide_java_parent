@@ -371,88 +371,17 @@ public class LlmDebugUiController {
         }
 
         // Build children map using only named nodes (+ root).
-        // Use the explicit parentNodeId from NodeAddedEvent as the authoritative
-        // logical parent, falling back to ArtifactKey ancestry only for unnamed nodes.
+        // Use the ArtifactKey hierarchy to determine parent-child relationships:
+        // for each named node, walk up its AK segments to find the nearest named ancestor.
         Map<String, List<String>> children = new HashMap<>();
         for (NodeAccumulator node : nodes.values()) {
-            if (!node.isNamed() && !node.nodeId.equals(rootNodeId)) {
-                continue;
-            }
-            if (node.nodeId.equals(rootNodeId)) {
-                continue;
-            }
-            // For named nodes, use their explicit parentNodeId (from NodeAddedEvent)
-            // to find the nearest named parent in the logical graph.
-            String logicalParent = node.parentNodeId;
-            String namedParent = null;
-            if (logicalParent != null) {
-                NodeAccumulator parentAcc = nodes.get(logicalParent);
-                if (parentAcc != null && (parentAcc.isNamed() || logicalParent.equals(rootNodeId))) {
-                    namedParent = logicalParent;
-                } else {
-                    namedParent = findNamedAncestor(logicalParent, nodes, rootNodeId);
-                }
-            }
-            if (namedParent == null) {
-                namedParent = findNamedAncestor(node.nodeId, nodes, rootNodeId);
-            }
-            if (namedParent == null || namedParent.equals(node.nodeId)) {
-                continue;
-            }
+            if (!node.isNamed() && !node.nodeId.equals(rootNodeId)) continue;
+            if (node.nodeId.equals(rootNodeId)) continue;
+            String namedParent = findNamedAncestor(node.nodeId, nodes, rootNodeId);
+            if (namedParent == null || namedParent.equals(node.nodeId)) continue;
             children.computeIfAbsent(namedParent, ignored -> new ArrayList<>()).add(node.nodeId);
+            node.parentNodeId = namedParent;
         }
-        for (List<String> childIds : children.values()) {
-            childIds.sort(Comparator.naturalOrder());
-        }
-
-        // Reparent: orchestrator nodes spawned by collectors should be top-level
-        // siblings under the root orchestrator, not deeply nested.
-        // E.g. planning-orchestrator spawned by discovery-collector, and
-        // ticket-orchestrator spawned by planning-collector, should both be
-        // direct children of the root Orchestrator.
-        // Build a reverse lookup: nodeId -> parentId in the children map.
-        Map<String, String> childToParent = new HashMap<>();
-        for (var entry : children.entrySet()) {
-            for (String childId : entry.getValue()) {
-                childToParent.put(childId, entry.getKey());
-            }
-        }
-        for (NodeAccumulator node : nodes.values()) {
-            if (!node.isNamed() || node.nodeId.equals(rootNodeId)) continue;
-            if (node.actionName == null || !node.actionName.endsWith("-orchestrator")) continue;
-            if ("orchestrator".equals(node.actionName)) continue; // skip root orchestrator action
-            String currentParent = childToParent.get(node.nodeId);
-            if (currentParent == null) continue;
-            // Walk up through collectors and orchestrators-spawned-by-collectors
-            // to find the ultimate non-collector ancestor.
-            String target = currentParent;
-            while (target != null && !target.equals(rootNodeId)) {
-                NodeAccumulator targetAcc = nodes.get(target);
-                if (targetAcc == null) break;
-                boolean isCollector = targetAcc.actionName != null && targetAcc.actionName.endsWith("-collector");
-                boolean isOrchestratorSpawnedByCollector = false;
-                if (targetAcc.actionName != null && targetAcc.actionName.endsWith("-orchestrator")) {
-                    String targetsParent = childToParent.get(target);
-                    if (targetsParent != null) {
-                        NodeAccumulator tpAcc = nodes.get(targetsParent);
-                        isOrchestratorSpawnedByCollector = tpAcc != null && tpAcc.actionName != null
-                                && tpAcc.actionName.endsWith("-collector");
-                    }
-                }
-                if (!isCollector && !isOrchestratorSpawnedByCollector) break;
-                String nextUp = childToParent.get(target);
-                if (nextUp == null) { target = rootNodeId; break; }
-                target = nextUp;
-            }
-            if (target == null) target = rootNodeId;
-            if (!target.equals(currentParent)) {
-                children.get(currentParent).remove(node.nodeId);
-                children.computeIfAbsent(target, ignored -> new ArrayList<>()).add(node.nodeId);
-                childToParent.put(node.nodeId, target);
-                node.parentNodeId = target;
-            }
-        }
-        // Re-sort after reparenting.
         for (List<String> childIds : children.values()) {
             childIds.sort(Comparator.naturalOrder());
         }

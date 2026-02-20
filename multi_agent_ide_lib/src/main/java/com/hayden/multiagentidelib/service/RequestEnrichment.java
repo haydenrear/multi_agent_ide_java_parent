@@ -172,7 +172,6 @@ public class RequestEnrichment {
                             AgentModels.PlanningOrchestratorRequest.class);
             case AgentModels.PlanningOrchestratorRequest ignored ->
                     findLastFromHistory(history,
-                            AgentModels.DiscoveryOrchestratorRequest.class,
                             AgentModels.OrchestratorRequest.class);
             case AgentModels.ReviewRequest ignored ->
                     findLastFromHistory(history,
@@ -192,8 +191,6 @@ public class RequestEnrichment {
                             AgentModels.TicketOrchestratorRequest.class);
             case AgentModels.TicketOrchestratorRequest ignored ->
                     findLastFromHistory(history,
-                            AgentModels.PlanningOrchestratorRequest.class,
-                            AgentModels.DiscoveryOrchestratorRequest.class,
                             AgentModels.OrchestratorRequest.class);
         };
     }

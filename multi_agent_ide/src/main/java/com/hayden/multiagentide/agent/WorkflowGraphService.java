@@ -339,8 +339,6 @@ public class WorkflowGraphService {
     ) {
          return resolveState(context, state -> {
              String parentId = firstNonBlank(
-                     state.discoveryCollectorNodeId(),
-                     state.orchestratorCollectorNodeId(),
                      state.orchestratorNodeId()
              );
              String discoveryContext = "";
@@ -470,8 +468,6 @@ public class WorkflowGraphService {
     ) {
         return resolveState(context, state -> {
             String parentId = firstNonBlank(
-                    state.planningCollectorNodeId(),
-                    state.orchestratorCollectorNodeId(),
                     state.orchestratorNodeId()
             );
             OrchestratorNode root = requireOrchestrator(context);
