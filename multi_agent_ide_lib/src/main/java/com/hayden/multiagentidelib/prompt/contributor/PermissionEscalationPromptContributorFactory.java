@@ -36,7 +36,7 @@ public class PermissionEscalationPromptContributorFactory implements PromptContr
                 read-only filesystem, sandbox blocked, or "not allowed"), do not silently fail and do
                 not stop the workflow only because of that denial.
 
-                Instead, emit an `interruptRequest` that explicitly asks for permission escalation:
+                Instead, raise a permission request that explicitly asks for escalation:
                 - explain the blocked action and why it is required to complete the task,
                 - include concrete options (grant once, grant always, continue without permission, abort),
                 - include any confirmations needed to proceed safely.
