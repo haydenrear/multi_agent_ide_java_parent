@@ -295,17 +295,43 @@ public class LlmDebugUiController {
                     totalStreamTokens += stream.tokenCount();
                 }
                 case Events.ToolCallEvent ignored -> node.metrics.toolEvents++;
-                case Events.PermissionRequestedEvent ignored -> node.metrics.pendingPermissions++;
-                case Events.PermissionResolvedEvent ignored -> node.metrics.pendingPermissions--;
+                case Events.PermissionRequestedEvent perm -> {
+                    node.metrics.pendingItems.add(new PendingItem(
+                            perm.requestId(),
+                            perm.nodeId(),
+                            "PERMISSION",
+                            "Permission requested for tool call " + perm.toolCallId()
+                                    + ". Resolve with: resolve-permission --id " + perm.requestId() + " --option-type ALLOW_ONCE"
+                    ));
+                }
+                case Events.PermissionResolvedEvent permResolved -> {
+                    node.metrics.pendingItems.removeIf(p ->
+                            "PERMISSION".equals(p.type()) && p.id().equals(permResolved.requestId()));
+                }
+                case Events.InterruptRequestEvent interrupt -> {
+                    node.metrics.pendingItems.add(new PendingItem(
+                            interrupt.requestId(),
+                            interrupt.nodeId(),
+                            "INTERRUPT",
+                            "Interrupt requested: " + interrupt.reason()
+                                    + ". Resolve with: resolve-interrupt --id " + interrupt.requestId()
+                                    + " --origin-node-id " + interrupt.nodeId()
+                    ));
+                }
                 case Events.InterruptStatusEvent interruptStatus -> {
-                    if ("REQUESTED".equalsIgnoreCase(interruptStatus.interruptStatus())) {
-                        node.metrics.pendingInterrupts++;
-                    } else {
-                        node.metrics.pendingInterrupts = Math.max(0, node.metrics.pendingInterrupts - 1);
+                    if (!"REQUESTED".equalsIgnoreCase(interruptStatus.interruptStatus())) {
+                        node.metrics.pendingItems.removeIf(p ->
+                                "INTERRUPT".equals(p.type()) && p.nodeId().equals(interruptStatus.originNodeId()));
                     }
                 }
-                case Events.InterruptRequestEvent ignored -> node.metrics.pendingInterrupts++;
-                case Events.NodeReviewRequestedEvent ignored -> node.metrics.pendingReviews++;
+                case Events.NodeReviewRequestedEvent review -> {
+                    node.metrics.pendingItems.add(new PendingItem(
+                            review.reviewNodeId(),
+                            review.nodeId(),
+                            "REVIEW",
+                            "Review requested (" + review.reviewType() + "). Review content at node " + review.reviewNodeId()
+                    ));
+                }
                 default -> {
                     countedAsSpecificMetric = false;
                 }
@@ -375,6 +401,42 @@ public class LlmDebugUiController {
             }
             children.computeIfAbsent(namedParent, ignored -> new ArrayList<>()).add(node.nodeId);
         }
+        for (List<String> childIds : children.values()) {
+            childIds.sort(Comparator.naturalOrder());
+        }
+
+        // Reparent: orchestrator nodes spawned by collectors should be siblings,
+        // not children. E.g. planning-orchestrator spawned by discovery-collector
+        // should be a child of the collector's parent (discovery-orchestrator's parent).
+        for (NodeAccumulator node : nodes.values()) {
+            if (!node.isNamed() || node.nodeId.equals(rootNodeId)) continue;
+            if (node.actionName == null || !node.actionName.endsWith("-orchestrator")) continue;
+            // Find which named parent this node is currently under in the children map.
+            String currentParent = null;
+            for (var entry : children.entrySet()) {
+                if (entry.getValue().contains(node.nodeId)) {
+                    currentParent = entry.getKey();
+                    break;
+                }
+            }
+            if (currentParent == null) continue;
+            NodeAccumulator parentAcc = nodes.get(currentParent);
+            if (parentAcc == null || parentAcc.actionName == null || !parentAcc.actionName.endsWith("-collector")) continue;
+            // Find the collector's own parent in the children map.
+            String collectorParent = null;
+            for (var entry : children.entrySet()) {
+                if (entry.getValue().contains(currentParent)) {
+                    collectorParent = entry.getKey();
+                    break;
+                }
+            }
+            if (collectorParent == null) collectorParent = rootNodeId;
+            // Move node from collector's children to collector's parent's children.
+            children.get(currentParent).remove(node.nodeId);
+            children.computeIfAbsent(collectorParent, ignored -> new ArrayList<>()).add(node.nodeId);
+            node.parentNodeId = collectorParent;
+        }
+        // Re-sort after reparenting.
         for (List<String> childIds : children.values()) {
             childIds.sort(Comparator.naturalOrder());
         }
@@ -607,9 +669,15 @@ public class LlmDebugUiController {
             long streamTokens,
             int toolEvents,
             int otherEvents,
-            int pendingPermissions,
-            int pendingInterrupts,
-            int pendingReviews
+            List<PendingItem> pendingItems
+    ) {
+    }
+
+    public record PendingItem(
+            String id,
+            String nodeId,
+            String type,
+            String description
     ) {
     }
 
@@ -657,9 +725,7 @@ public class LlmDebugUiController {
         private long streamTokens;
         private int toolEvents;
         private int otherEvents;
-        private int pendingPermissions;
-        private int pendingInterrupts;
-        private int pendingReviews;
+        private final List<PendingItem> pendingItems = new ArrayList<>();
 
         private void mergeFrom(MetricsAccumulator other) {
             nodeErrorCount += other.nodeErrorCount;
@@ -671,9 +737,7 @@ public class LlmDebugUiController {
             streamTokens += other.streamTokens;
             toolEvents += other.toolEvents;
             otherEvents += other.otherEvents;
-            pendingPermissions += other.pendingPermissions;
-            pendingInterrupts += other.pendingInterrupts;
-            pendingReviews += other.pendingReviews;
+            pendingItems.addAll(other.pendingItems);
         }
 
         private WorkflowNodeMetrics toSnapshot() {
@@ -687,9 +751,7 @@ public class LlmDebugUiController {
                     streamTokens,
                     toolEvents,
                     otherEvents,
-                    Math.max(0, pendingPermissions),
-                    Math.max(0, pendingInterrupts),
-                    Math.max(0, pendingReviews)
+                    List.copyOf(pendingItems)
             );
         }
     }
