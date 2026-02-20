@@ -54,7 +54,8 @@ class FilterPropertiesDecoratorTest {
                 "reroute",
                 java.util.List.of(),
                 java.util.List.of(),
-                "ctx"
+                "ctx",
+                "random"
         ));
 
         var ctx = buildInterruptContext(

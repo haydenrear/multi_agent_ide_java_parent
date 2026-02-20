@@ -614,7 +614,8 @@ public interface Events {
             String reason,
             List<StructuredChoice> choices,
             List<ConfirmationItem> confirmationItems,
-            String contextForDecision
+            String contextForDecision,
+            String requestId
     ) implements AgentEvent {
         @Override
         public String eventType() {

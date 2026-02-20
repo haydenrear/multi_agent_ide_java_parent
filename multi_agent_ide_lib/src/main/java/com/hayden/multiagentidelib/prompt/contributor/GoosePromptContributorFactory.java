@@ -44,12 +44,19 @@ public class GoosePromptContributorFactory implements PromptContributorFactory {
         @Override
         public String template() {
             return """
-                    Under no circumstances should you use the Subagent tool call.
-                    This subagent tool call will not have any of the required permissions.
-                    It will fail in every respect. Instead, use the routing of the agents
-                    provided to perform the work.
+                    Under no circumstances should you use any of the __platform tool calls.
+                    Please instead use your file system tools provided:
                     
-                    **Please do not use the Subagent tool call under any circumstances.**
+                    - read
+                    - edit
+                    - write
+                    - bash
+                    - killShell
+                    - BashOutput
+                    
+                    to perform dev activities. Please do not assume that your structured output will
+                    produce the tool calls. If you are asked to perform a task involving reading and writing,
+                    please perform that task using tool calls.
                     """;
         }
 

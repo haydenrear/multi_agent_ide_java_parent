@@ -5,9 +5,14 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.service.AgentControlService;
 import com.hayden.multiagentide.gate.PermissionGate;
+import com.hayden.multiagentide.repository.EventStreamRepository;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import com.hayden.multiagentidelib.agent.AgentModels;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +34,7 @@ public class InterruptController {
     private final AgentControlService agentControlService;
     private final EventBus eventBus;
     private final PermissionGate permissionGate;
+    private final EventStreamRepository eventStreamRepository;
 
     @PostMapping
     public InterruptStatusResponse requestInterrupt(@RequestBody InterruptRequest request) {
@@ -53,11 +59,14 @@ public class InterruptController {
         return new InterruptStatusResponse(interruptId, "REQUESTED", request.originNodeId(), request.originNodeId());
     }
 
-    @PostMapping("/{interruptId}/resolve")
+    @PostMapping("/resolve")
     public InterruptStatusResponse resolveInterrupt(
-            @PathVariable String interruptId,
             @RequestBody InterruptResolution request
     ) {
+        String interruptId = request.id();
+        if (interruptId == null || interruptId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "id is required");
+        }
         String message = request.resolutionNotes() != null ? request.resolutionNotes() : "Interrupt resolved";
         boolean resolved = permissionGate.resolveInterrupt(
                 interruptId,
@@ -65,18 +74,36 @@ public class InterruptController {
                 message,
                 request.reviewResult()
         );
+        String resolvedInterruptId = interruptId;
+
+        if (!resolved && isArtifactKey(interruptId)) {
+            for (String candidateInterruptId : findInterruptIdsInScope(interruptId)) {
+                resolved = permissionGate.resolveInterrupt(
+                        candidateInterruptId,
+                        request.resolutionType(),
+                        message,
+                        request.reviewResult()
+                );
+                if (resolved) {
+                    resolvedInterruptId = candidateInterruptId;
+                    break;
+                }
+            }
+        }
+
         if (!resolved) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Interrupt request not found");
         }
+        String originNodeId = request.originNodeId() != null ? request.originNodeId() : resolvedInterruptId;
         eventBus.publish(new Events.ResolveInterruptEvent(
                 UUID.randomUUID().toString(),
                 Instant.now(),
-                new ArtifactKey(request.originNodeId()).createChild().value(),
-                request.originNodeId(),
+                new ArtifactKey(originNodeId).createChild().value(),
+                originNodeId,
                 message,
                 Events.InterruptType.HUMAN_REVIEW
         ));
-        return new InterruptStatusResponse(interruptId, "RESOLVED", request.originNodeId(), request.originNodeId());
+        return new InterruptStatusResponse(resolvedInterruptId, "RESOLVED", originNodeId, originNodeId);
     }
 
     @GetMapping("/{interruptId}")
@@ -97,6 +124,7 @@ public class InterruptController {
     }
 
     public record InterruptResolution(
+            String id,
             String originNodeId,
             String resolutionType,
             String resolutionNotes,
@@ -110,5 +138,55 @@ public class InterruptController {
             String originNodeId,
             String resumeNodeId
     ) {
+    }
+
+    private List<String> findInterruptIdsInScope(String scopeNodeId) {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        eventStreamRepository.list().stream()
+                .sorted(Comparator.comparing(Events.GraphEvent::timestamp).reversed())
+                .forEach(event -> {
+                    if (event instanceof Events.InterruptRequestEvent interruptEvent
+                            && matchesNodeScope(scopeNodeId, interruptEvent.nodeId())) {
+                        Stream.of(interruptEvent.requestId(), interruptEvent.nodeId())
+                                .filter(Objects::nonNull)
+                                .filter(s -> !s.isBlank())
+                                .forEach(candidates::add);
+                    }
+                    if (event instanceof Events.NodeReviewRequestedEvent reviewRequested
+                            && matchesNodeScope(scopeNodeId, reviewRequested.nodeId())
+                            && reviewRequested.reviewNodeId() != null
+                            && !reviewRequested.reviewNodeId().isBlank()) {
+                        candidates.add(reviewRequested.reviewNodeId());
+                    }
+                });
+        return candidates.stream().toList();
+    }
+
+    private boolean isArtifactKey(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        try {
+            new ArtifactKey(value);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private boolean matchesNodeScope(String scopeNodeId, String eventNodeId) {
+        if (scopeNodeId == null || scopeNodeId.isBlank() || eventNodeId == null || eventNodeId.isBlank()) {
+            return false;
+        }
+        if (scopeNodeId.equals(eventNodeId)) {
+            return true;
+        }
+        try {
+            ArtifactKey candidate = new ArtifactKey(eventNodeId);
+            ArtifactKey scope = new ArtifactKey(scopeNodeId);
+            return candidate.isDescendantOf(scope);
+        } catch (Exception ignored) {
+            return eventNodeId.startsWith(scopeNodeId + "/");
+        }
     }
 }

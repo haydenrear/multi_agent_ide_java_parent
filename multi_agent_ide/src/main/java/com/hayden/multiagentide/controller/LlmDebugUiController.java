@@ -17,6 +17,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -133,11 +136,11 @@ public class LlmDebugUiController {
             @PathVariable String nodeId,
             @RequestParam(defaultValue = "50") int limit,
             @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "180") int truncate
+            @RequestParam(defaultValue = "180") int truncate,
+            @RequestParam(defaultValue = "asc") String sort
     ) {
         int safeLimit = Math.max(1, Math.min(500, limit));
         int safeTruncate = Math.max(80, Math.min(10_000, truncate));
-        int offset = parseCursor(cursor);
 
         List<Events.GraphEvent> scopedEvents = eventStreamRepository.list().stream()
                 .filter(Objects::nonNull)
@@ -145,6 +148,13 @@ public class LlmDebugUiController {
                 .sorted(Comparator.comparing(Events.GraphEvent::timestamp)
                         .thenComparing(Events.GraphEvent::eventId, Comparator.nullsLast(String::compareTo)))
                 .toList();
+
+        int offset;
+        if ("desc".equalsIgnoreCase(sort) && cursor == null) {
+            offset = Math.max(0, scopedEvents.size() - safeLimit);
+        } else {
+            offset = parseCursor(cursor);
+        }
 
         int toIndex = Math.min(scopedEvents.size(), offset + safeLimit);
         List<Events.GraphEvent> pageEvents = offset >= scopedEvents.size() ? List.of() : scopedEvents.subList(offset, toIndex);
@@ -195,6 +205,133 @@ public class LlmDebugUiController {
         return sseEventAdapter.registerEmitter(event -> matchesNodeScope(nodeId, event.nodeId()));
     }
 
+    @GetMapping("/workflow-graph")
+    public WorkflowGraphResponse workflowGraph(
+            @RequestParam String nodeId,
+            @RequestParam(defaultValue = "180") int errorWindowSeconds
+    ) {
+        int safeErrorWindowSeconds = Math.max(30, Math.min(3600, errorWindowSeconds));
+        String rootNodeId = toRootNodeId(nodeId);
+        Instant now = Instant.now();
+        Instant errorWindowStart = now.minusSeconds(safeErrorWindowSeconds);
+
+        List<Events.GraphEvent> scopedEvents = eventStreamRepository.list().stream()
+                .filter(Objects::nonNull)
+                .filter(event -> matchesNodeScope(rootNodeId, event.nodeId()))
+                .sorted(Comparator.comparing(Events.GraphEvent::timestamp)
+                        .thenComparing(Events.GraphEvent::eventId, Comparator.nullsLast(String::compareTo)))
+                .toList();
+
+        Map<String, NodeAccumulator> nodes = new LinkedHashMap<>();
+        Map<String, Integer> eventTypeCounts = new LinkedHashMap<>();
+        Map<String, Integer> recentErrorsByNodeType = new LinkedHashMap<>();
+        int recentErrorCount = 0;
+        long totalThoughtTokens = 0L;
+        long totalStreamTokens = 0L;
+        int chatSessionEvents = 0;
+        int chatMessageEvents = 0;
+
+        for (Events.GraphEvent event : scopedEvents) {
+            eventTypeCounts.merge(event.eventType(), 1, Integer::sum);
+            if (event.nodeId() == null || event.nodeId().isBlank()) {
+                continue;
+            }
+            NodeAccumulator node = nodes.computeIfAbsent(event.nodeId(), NodeAccumulator::new);
+            node.totalEvents++;
+            node.lastEventAt = event.timestamp();
+            node.eventTypeCounts.merge(event.eventType(), 1, Integer::sum);
+            String parent = parentNodeId(event.nodeId());
+            if (node.parentNodeId == null && parent != null) {
+                node.parentNodeId = parent;
+            }
+
+            boolean countedAsSpecificMetric = true;
+            switch (event) {
+                case Events.NodeAddedEvent added -> {
+                    node.title = added.nodeTitle();
+                    node.nodeType = added.nodeType() == null ? null : added.nodeType().name();
+                    if (added.parentNodeId() != null && !added.parentNodeId().isBlank()) {
+                        node.parentNodeId = added.parentNodeId();
+                    }
+                }
+                case Events.NodeStatusChangedEvent statusChanged -> node.currentStatus = statusChanged.newStatus().name();
+                case Events.NodeErrorEvent error -> {
+                    node.metrics.nodeErrorCount++;
+                    if (!event.timestamp().isBefore(errorWindowStart)) {
+                        recentErrorCount++;
+                        String key = error.nodeType() == null ? "UNKNOWN" : error.nodeType().name();
+                        recentErrorsByNodeType.merge(key, 1, Integer::sum);
+                    }
+                }
+                case Events.ChatSessionCreatedEvent ignored -> {
+                    node.metrics.chatSessionEvents++;
+                    chatSessionEvents++;
+                }
+                case Events.AddMessageEvent ignored -> {
+                    node.metrics.chatMessageEvents++;
+                    chatMessageEvents++;
+                }
+                case Events.NodeThoughtDeltaEvent thought -> {
+                    node.metrics.thoughtDeltas++;
+                    node.metrics.thoughtTokens += thought.tokenCount();
+                    totalThoughtTokens += thought.tokenCount();
+                }
+                case Events.NodeStreamDeltaEvent stream -> {
+                    node.metrics.streamDeltas++;
+                    node.metrics.streamTokens += stream.tokenCount();
+                    totalStreamTokens += stream.tokenCount();
+                }
+                case Events.ToolCallEvent ignored -> node.metrics.toolEvents++;
+                default -> {
+                    countedAsSpecificMetric = false;
+                }
+            }
+            if (!countedAsSpecificMetric) {
+                node.metrics.otherEvents++;
+            }
+        }
+
+        // Ensure every node has a parent assigned where possible.
+        for (NodeAccumulator node : nodes.values()) {
+            if ((node.parentNodeId == null || node.parentNodeId.isBlank()) && !rootNodeId.equals(node.nodeId)) {
+                node.parentNodeId = parentNodeId(node.nodeId);
+            }
+        }
+        nodes.computeIfAbsent(rootNodeId, NodeAccumulator::new);
+
+        Map<String, List<String>> children = new HashMap<>();
+        for (NodeAccumulator node : nodes.values()) {
+            if (node.parentNodeId == null || node.parentNodeId.isBlank() || node.nodeId.equals(rootNodeId)) {
+                continue;
+            }
+            children.computeIfAbsent(node.parentNodeId, ignored -> new ArrayList<>()).add(node.nodeId);
+        }
+        for (List<String> childIds : children.values()) {
+            childIds.sort(Comparator.naturalOrder());
+        }
+
+        WorkflowNode root = toWorkflowNode(rootNodeId, nodes, children);
+        WorkflowGraphStats stats = new WorkflowGraphStats(
+                scopedEvents.size(),
+                nodes.size(),
+                eventTypeCounts,
+                safeErrorWindowSeconds,
+                recentErrorCount,
+                recentErrorsByNodeType,
+                chatSessionEvents,
+                chatMessageEvents,
+                totalThoughtTokens,
+                totalStreamTokens
+        );
+        return new WorkflowGraphResponse(
+                nodeId,
+                rootNodeId,
+                now,
+                stats,
+                root
+        );
+    }
+
     private String summarize(Events.GraphEvent event, int maxLength) {
         String formatted = cliEventFormatter.format(event);
         if (formatted == null || formatted.length() <= maxLength) {
@@ -228,6 +365,51 @@ public class LlmDebugUiController {
         } catch (Exception ignored) {
             return eventNodeId.startsWith(scopeNodeId + "/");
         }
+    }
+
+    private String toRootNodeId(String nodeId) {
+        try {
+            ArtifactKey current = new ArtifactKey(nodeId);
+            while (current.parent().isPresent()) {
+                current = current.parent().get();
+            }
+            return current.value();
+        } catch (Exception ignored) {
+            int idx = nodeId.indexOf('/');
+            return idx > 0 ? nodeId.substring(0, idx) : nodeId;
+        }
+    }
+
+    private String parentNodeId(String nodeId) {
+        try {
+            return new ArtifactKey(nodeId).parent().map(ArtifactKey::value).orElse(null);
+        } catch (Exception ignored) {
+            int idx = nodeId.lastIndexOf('/');
+            return idx > 0 ? nodeId.substring(0, idx) : null;
+        }
+    }
+
+    private WorkflowNode toWorkflowNode(
+            String nodeId,
+            Map<String, NodeAccumulator> nodes,
+            Map<String, List<String>> children
+    ) {
+        NodeAccumulator node = nodes.computeIfAbsent(nodeId, NodeAccumulator::new);
+        List<WorkflowNode> childNodes = children.getOrDefault(nodeId, List.of()).stream()
+                .map(childId -> toWorkflowNode(childId, nodes, children))
+                .toList();
+        return new WorkflowNode(
+                node.nodeId,
+                node.parentNodeId,
+                node.title,
+                node.nodeType,
+                node.currentStatus,
+                node.lastEventAt,
+                node.totalEvents,
+                node.eventTypeCounts,
+                node.metrics.toSnapshot(),
+                childNodes
+        );
     }
 
     public record UiActionRequest(String actionType, java.util.Map<String, Object> payload) {
@@ -273,5 +455,97 @@ public class LlmDebugUiController {
     }
 
     public record PageMeta(int limit, String cursor, String nextCursor, boolean hasNext) {
+    }
+
+    public record WorkflowGraphResponse(
+            String requestedNodeId,
+            String rootNodeId,
+            Instant capturedAt,
+            WorkflowGraphStats stats,
+            WorkflowNode root
+    ) {
+    }
+
+    public record WorkflowGraphStats(
+            int totalEvents,
+            int totalNodes,
+            Map<String, Integer> eventTypeCounts,
+            int errorWindowSeconds,
+            int recentErrorCount,
+            Map<String, Integer> recentErrorsByNodeType,
+            int chatSessionEvents,
+            int chatMessageEvents,
+            long thoughtTokens,
+            long streamTokens
+    ) {
+    }
+
+    public record WorkflowNode(
+            String nodeId,
+            String parentNodeId,
+            String title,
+            String nodeType,
+            String currentStatus,
+            Instant lastEventAt,
+            int totalEvents,
+            Map<String, Integer> eventTypeCounts,
+            WorkflowNodeMetrics metrics,
+            List<WorkflowNode> children
+    ) {
+    }
+
+    public record WorkflowNodeMetrics(
+            int nodeErrorCount,
+            int chatSessionEvents,
+            int chatMessageEvents,
+            int thoughtDeltas,
+            long thoughtTokens,
+            int streamDeltas,
+            long streamTokens,
+            int toolEvents,
+            int otherEvents
+    ) {
+    }
+
+    private static final class NodeAccumulator {
+        private final String nodeId;
+        private String parentNodeId;
+        private String title;
+        private String nodeType;
+        private String currentStatus;
+        private Instant lastEventAt;
+        private int totalEvents;
+        private final Map<String, Integer> eventTypeCounts = new LinkedHashMap<>();
+        private final MetricsAccumulator metrics = new MetricsAccumulator();
+
+        private NodeAccumulator(String nodeId) {
+            this.nodeId = nodeId;
+        }
+    }
+
+    private static final class MetricsAccumulator {
+        private int nodeErrorCount;
+        private int chatSessionEvents;
+        private int chatMessageEvents;
+        private int thoughtDeltas;
+        private long thoughtTokens;
+        private int streamDeltas;
+        private long streamTokens;
+        private int toolEvents;
+        private int otherEvents;
+
+        private WorkflowNodeMetrics toSnapshot() {
+            return new WorkflowNodeMetrics(
+                    nodeErrorCount,
+                    chatSessionEvents,
+                    chatMessageEvents,
+                    thoughtDeltas,
+                    thoughtTokens,
+                    streamDeltas,
+                    streamTokens,
+                    toolEvents,
+                    otherEvents
+            );
+        }
     }
 }
