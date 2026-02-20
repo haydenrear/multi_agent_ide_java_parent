@@ -295,6 +295,17 @@ public class LlmDebugUiController {
                     totalStreamTokens += stream.tokenCount();
                 }
                 case Events.ToolCallEvent ignored -> node.metrics.toolEvents++;
+                case Events.PermissionRequestedEvent ignored -> node.metrics.pendingPermissions++;
+                case Events.PermissionResolvedEvent ignored -> node.metrics.pendingPermissions--;
+                case Events.InterruptStatusEvent interruptStatus -> {
+                    if ("REQUESTED".equalsIgnoreCase(interruptStatus.interruptStatus())) {
+                        node.metrics.pendingInterrupts++;
+                    } else {
+                        node.metrics.pendingInterrupts = Math.max(0, node.metrics.pendingInterrupts - 1);
+                    }
+                }
+                case Events.InterruptRequestEvent ignored -> node.metrics.pendingInterrupts++;
+                case Events.NodeReviewRequestedEvent ignored -> node.metrics.pendingReviews++;
                 default -> {
                     countedAsSpecificMetric = false;
                 }
@@ -334,12 +345,31 @@ public class LlmDebugUiController {
         }
 
         // Build children map using only named nodes (+ root).
+        // Use the explicit parentNodeId from NodeAddedEvent as the authoritative
+        // logical parent, falling back to ArtifactKey ancestry only for unnamed nodes.
         Map<String, List<String>> children = new HashMap<>();
         for (NodeAccumulator node : nodes.values()) {
             if (!node.isNamed() && !node.nodeId.equals(rootNodeId)) {
                 continue;
             }
-            String namedParent = findNamedAncestor(node.parentNodeId, nodes, rootNodeId);
+            if (node.nodeId.equals(rootNodeId)) {
+                continue;
+            }
+            // For named nodes, use their explicit parentNodeId (from NodeAddedEvent)
+            // to find the nearest named parent in the logical graph.
+            String logicalParent = node.parentNodeId;
+            String namedParent = null;
+            if (logicalParent != null) {
+                NodeAccumulator parentAcc = nodes.get(logicalParent);
+                if (parentAcc != null && (parentAcc.isNamed() || logicalParent.equals(rootNodeId))) {
+                    namedParent = logicalParent;
+                } else {
+                    namedParent = findNamedAncestor(logicalParent, nodes, rootNodeId);
+                }
+            }
+            if (namedParent == null) {
+                namedParent = findNamedAncestor(node.nodeId, nodes, rootNodeId);
+            }
             if (namedParent == null || namedParent.equals(node.nodeId)) {
                 continue;
             }
@@ -576,7 +606,10 @@ public class LlmDebugUiController {
             int streamDeltas,
             long streamTokens,
             int toolEvents,
-            int otherEvents
+            int otherEvents,
+            int pendingPermissions,
+            int pendingInterrupts,
+            int pendingReviews
     ) {
     }
 
@@ -624,6 +657,9 @@ public class LlmDebugUiController {
         private long streamTokens;
         private int toolEvents;
         private int otherEvents;
+        private int pendingPermissions;
+        private int pendingInterrupts;
+        private int pendingReviews;
 
         private void mergeFrom(MetricsAccumulator other) {
             nodeErrorCount += other.nodeErrorCount;
@@ -635,6 +671,9 @@ public class LlmDebugUiController {
             streamTokens += other.streamTokens;
             toolEvents += other.toolEvents;
             otherEvents += other.otherEvents;
+            pendingPermissions += other.pendingPermissions;
+            pendingInterrupts += other.pendingInterrupts;
+            pendingReviews += other.pendingReviews;
         }
 
         private WorkflowNodeMetrics toSnapshot() {
@@ -647,7 +686,10 @@ public class LlmDebugUiController {
                     streamDeltas,
                     streamTokens,
                     toolEvents,
-                    otherEvents
+                    otherEvents,
+                    Math.max(0, pendingPermissions),
+                    Math.max(0, pendingInterrupts),
+                    Math.max(0, pendingReviews)
             );
         }
     }
