@@ -1,0 +1,24 @@
+logging.config: classpath:logback-multi-agent-ide.xml
+
+multi-agent-embabel:
+  chat-model:
+    provider: acp
+  acp:
+    transport: stdio
+    command: ${ACP_COMMAND:codex-acp}
+    args: ${ACP_ARGS:--model anthropic/claude-haiku-4.5}
+    working-directory: ${ACP_WORKING_DIR:}
+    auth-method: chatgpt
+    env:
+      HOME: {{PROJ_DIR}}/configs
+      OPENAI_API_BASE: https://openrouter.ai/api/v1
+      OPENAI_API_KEY: ${X_OPENROUTER_API_KEY}
+
+acp.mcp:
+  http:
+    #    - name: deepwiki
+    #      url: https://mcp.deepwiki.com/mcp
+    #      headers:
+    - name: hindsight
+      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
+      headers:

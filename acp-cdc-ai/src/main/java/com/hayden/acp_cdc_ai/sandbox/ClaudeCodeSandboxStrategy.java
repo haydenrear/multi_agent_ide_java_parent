@@ -4,10 +4,7 @@ import com.hayden.acp_cdc_ai.repository.RequestContext;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.hayden.acp_cdc_ai.sandbox.SandboxArgUtils.*;
 
@@ -40,7 +37,7 @@ public class ClaudeCodeSandboxStrategy implements SandboxTranslationStrategy {
     }
 
     @Override
-    public SandboxTranslation translate(RequestContext context, List<String> acpArgs) {
+    public SandboxTranslation translate(RequestContext context, List<String> acpArgs, String modelName) {
         if (context == null || context.mainWorktreePath() == null) {
             return SandboxTranslation.empty();
         }
@@ -73,6 +70,11 @@ public class ClaudeCodeSandboxStrategy implements SandboxTranslationStrategy {
         if (!hasFlag(acpArgs, "--permission-mode")) {
             args.add("--permission-mode");
             args.add("acceptEdits");
+        }
+
+        if (!Objects.equals(modelName, "DEFAULT")){
+            args.add("--model");
+            args.add(modelName);
         }
 
         return new SandboxTranslation(env, args, mainPath);

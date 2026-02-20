@@ -51,18 +51,15 @@ class AcpChatModelIntegrationTest {
     // Track which executables are available
     private var claudeCodeAcpAvailable = false
     private var codexAcpAvailable = false
-    private var gooseAvailable = false
 
     @BeforeAll
     fun checkExecutables() {
         claudeCodeAcpAvailable = isExecutableAvailable("which","claude-code-acp")
         codexAcpAvailable = isExecutableAvailable("which", "codex-acp")
-        gooseAvailable = isExecutableAvailable("goose", "--version")
 
         println("ACP Provider Availability:")
         println("  claude-code-acp: ${if (claudeCodeAcpAvailable) "AVAILABLE" else "NOT FOUND"}")
         println("  codex-acp: ${if (codexAcpAvailable) "AVAILABLE" else "NOT FOUND"}")
-        println("  goose: ${if (gooseAvailable) "AVAILABLE" else "NOT FOUND"}")
     }
 
     @BeforeEach
@@ -127,8 +124,7 @@ class AcpChatModelIntegrationTest {
         val registry = SandboxTranslationRegistry(
             listOf(
                 ClaudeCodeSandboxStrategy(),
-                CodexSandboxStrategy(),
-                GooseSandboxStrategy()
+                CodexSandboxStrategy()
             )
         )
 
@@ -336,67 +332,6 @@ class AcpChatModelIntegrationTest {
     }
 
     @Nested
-    @DisplayName("Goose ACP Integration")
-    inner class GooseAcpTests {
-
-        @Test
-        @DisplayName("should send message and receive response via AcpChatModel")
-        @Timeout(value = 120, unit = TimeUnit.SECONDS)
-        fun shouldSendAndReceiveMessage() {
-            assumeTrue(gooseAvailable, "goose not available, skipping test")
-
-            val sessionId = ArtifactKey.createRoot().value
-            setMemoryId(sessionId)
-
-            try {
-                val chatModel = createAcpChatModel("goose acp", sessionId)
-
-                val prompt = Prompt(listOf(UserMessage("What is 2 + 2? Reply with just the number.")))
-
-                val response = chatModel.call(prompt)
-
-                assertThat(response).isNotNull
-                assertThat(response.results).isNotEmpty
-                assertThat(response.result).isNotNull
-                assertThat(response.result.output).isNotNull
-                assertThat(response.result.output.text).isNotBlank
-
-                println("Goose response: ${response.result.output.text}")
-            } finally {
-                clearMemoryId()
-            }
-        }
-
-        @Test
-        @DisplayName("should work with sandbox args and GOOSE_MODE env var")
-        @Timeout(value = 120, unit = TimeUnit.SECONDS)
-        fun shouldWorkWithSandboxArgs() {
-            assumeTrue(gooseAvailable, "goose not available, skipping test")
-
-            val sessionId = ArtifactKey.createRoot().value
-            setMemoryId(sessionId)
-
-            try {
-                val chatModel = createAcpChatModel("goose acp", sessionId)
-
-                val prompt = Prompt(listOf(UserMessage("What files are in the current directory? Just list the filenames.")))
-
-                val response = chatModel.call(prompt)
-
-                assertThat(response).isNotNull
-                assertThat(response.results).isNotEmpty
-
-                val responseText = response.result.output.text
-                println("Goose sandbox response: $responseText")
-
-                assertThat(responseText).isNotBlank
-            } finally {
-                clearMemoryId()
-            }
-        }
-    }
-
-    @Nested
     @DisplayName("Cross-Provider Comparison")
     inner class CrossProviderTests {
 
@@ -407,7 +342,6 @@ class AcpChatModelIntegrationTest {
             val availableProviders = mutableListOf<String>()
             if (claudeCodeAcpAvailable) availableProviders.add("claude-code-acp")
             if (codexAcpAvailable) availableProviders.add("codex-acp")
-            if (gooseAvailable) availableProviders.add("goose acp")
 
             assumeTrue(availableProviders.isNotEmpty(), "No ACP providers available")
 

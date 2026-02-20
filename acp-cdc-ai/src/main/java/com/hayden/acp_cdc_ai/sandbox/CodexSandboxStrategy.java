@@ -4,10 +4,7 @@ import com.hayden.acp_cdc_ai.repository.RequestContext;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Sandbox translation strategy for OpenAI Codex CLI (via codex-acp).
@@ -39,14 +36,14 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
     }
 
     @Override
-    public SandboxTranslation translate(RequestContext context, List<String> acpArgs) {
+    public SandboxTranslation translate(RequestContext context, List<String> acpArgs, String modelName) {
         if (context == null || context.mainWorktreePath() == null) {
             return SandboxTranslation.empty();
         }
-        
+
         String mainPath = context.mainWorktreePath().toString();
         List<Path> submodulePaths = context.submoduleWorktreePaths();
-        
+
         Map<String, String> env = new HashMap<>();
         List<String> args = new ArrayList<>();
 
@@ -55,7 +52,7 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
             args.add("-c");
             args.add("cd=" + mainPath);
         }
-        
+
         // Set sandbox policy to workspace-write if not already specified
         if (!hasConfigValue(acpArgs, "sandbox")) {
             args.add("-c");
@@ -77,7 +74,12 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
                 }
             }
         }
-        
+
+        if (!Objects.equals(modelName, "DEFAULT")) {
+            args.add("--model");
+            args.add(modelName);
+        }
+
         return new SandboxTranslation(env, args, mainPath);
     }
 

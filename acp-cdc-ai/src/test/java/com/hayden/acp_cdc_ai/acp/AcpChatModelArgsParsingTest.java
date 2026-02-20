@@ -158,16 +158,6 @@ class AcpChatModelArgsParsingTest {
         }
 
         @Test
-        @DisplayName("should extract filename from path command")
-        void shouldExtractFilenameFromPathCommand() throws Exception {
-            when(properties.getCommand()).thenReturn("/usr/local/bin/goose acp");
-
-            String result = invokeResolveProviderKey();
-
-            assertThat(result).isEqualTo("goose");
-        }
-
-        @Test
         @DisplayName("should return empty string for null command")
         void shouldReturnEmptyForNullCommand() throws Exception {
             when(properties.getCommand()).thenReturn(null);

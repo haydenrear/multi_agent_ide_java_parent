@@ -11,5 +11,9 @@ public interface SandboxTranslationStrategy {
 
     String providerKey();
 
-    SandboxTranslation translate(RequestContext context, List<String> args);
+    SandboxTranslation translate(RequestContext context, List<String> args, String modelName);
+
+    default SandboxTranslation translate(RequestContext context, List<String> args) {
+        return translate(context, args, "DEFAULT");
+    }
 }

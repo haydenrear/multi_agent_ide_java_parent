@@ -33,12 +33,13 @@ public record PromptContext(
         List<ContextualPromptElement> promptContributors,
         String templateName,
         Artifact.HashContext hashContext,
-        Map<String, Object> model
+        Map<String, Object> model,
+        String modelName
 ) {
 
     public PromptContext(AgentType agentType, ArtifactKey currentContextId, List<UpstreamContext> upstreamContexts, PreviousContext previousContext, BlackboardHistory blackboardHistory, AgentModels.AgentRequest previousRequest, AgentModels.AgentRequest currentRequest,
-                         Map<String, Object> metadata, String templateName, Map<String, Object> modelWithFeedback) {
-        this(agentType, currentContextId, upstreamContexts, previousContext, blackboardHistory, previousRequest, currentRequest, metadata, new ArrayList<>(), templateName, Artifact.HashContext.defaultHashContext(), modelWithFeedback);
+                         Map<String, Object> metadata, String templateName, Map<String, Object> modelWithFeedback, String modelName) {
+        this(agentType, currentContextId, upstreamContexts, previousContext, blackboardHistory, previousRequest, currentRequest, metadata, new ArrayList<>(), templateName, Artifact.HashContext.defaultHashContext(), modelWithFeedback, modelName);
     }
 
     /**

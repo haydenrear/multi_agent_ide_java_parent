@@ -46,3 +46,6 @@ src/main/resources/static/**
 
 .tmp
 log.log
+
+**/auth.json
+.codex

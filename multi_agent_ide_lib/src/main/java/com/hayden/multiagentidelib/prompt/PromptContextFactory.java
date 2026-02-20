@@ -39,9 +39,32 @@ public class PromptContextFactory {
             AgentModels.AgentRequest input,
             BlackboardHistory blackboardHistory,
             String templateName,
+            Map<String, Object> model,
+            String modelName
+    ) {
+        return build(agentType, input, null, input, blackboardHistory, templateName, model, modelName);
+    }
+
+    public PromptContext build(
+            AgentType agentType,
+            AgentModels.AgentRequest input,
+            BlackboardHistory blackboardHistory,
+            String templateName,
             Map<String, Object> model
     ) {
-        return build(agentType, input, null, input, blackboardHistory, templateName, model);
+        return build(agentType, input, null, input, blackboardHistory, templateName, model, "DEFAULT");
+    }
+
+    public PromptContext build(
+            AgentType agentType,
+            AgentModels.AgentRequest contextRequest,
+            AgentModels.AgentRequest previousRequest,
+            AgentModels.AgentRequest currentRequest,
+            BlackboardHistory blackboardHistory,
+            String templateName,
+            Map<String, Object> model
+    ) {
+        return build(agentType, contextRequest, previousRequest, currentRequest, blackboardHistory, templateName, model, "DEFAULT") ;
     }
 
     /**
@@ -55,7 +78,8 @@ public class PromptContextFactory {
             AgentModels.AgentRequest currentRequest,
             BlackboardHistory blackboardHistory,
             String templateName,
-            Map<String, Object> model
+            Map<String, Object> model,
+            String modelName
     ) {
         List<UpstreamContext> upstreamContexts = new ArrayList<>();
         PreviousContext previousContext = null;
@@ -191,10 +215,23 @@ public class PromptContextFactory {
                 currentRequest,
                 Map.of(),
                 templateName,
-                model
+                model,
+                modelName
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
+    }
+
+    public PromptContext build(
+            AgentType agentType,
+            ArtifactKey contextId,
+            List<UpstreamContext> upstreamContexts,
+            PreviousContext previousContext,
+            BlackboardHistory blackboardHistory,
+            String templateName,
+            Map<String, Object> model
+    ) {
+        return build(agentType, contextId, upstreamContexts, previousContext, blackboardHistory, templateName, model, "DEFAULT");
     }
 
     /**
@@ -208,7 +245,8 @@ public class PromptContextFactory {
             PreviousContext previousContext,
             BlackboardHistory blackboardHistory,
             String templateName,
-            Map<String, Object> model
+            Map<String, Object> model,
+            String modelName
     ) {
         var pc = new PromptContext(
                 agentType,
@@ -220,10 +258,31 @@ public class PromptContextFactory {
                 null,
                 Map.of(),
                 templateName,
-                model
+                model,
+                modelName
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
+    }
+    public PromptContext build(
+            AgentType agentType,
+            ArtifactKey contextId,
+            UpstreamContext upstreamContext,
+            PreviousContext previousContext,
+            BlackboardHistory blackboardHistory,
+            String templateName,
+            Map<String, Object> model
+    ) {
+        return build(
+                agentType,
+                contextId,
+                upstreamContext,
+                previousContext,
+                blackboardHistory,
+                templateName,
+                model,
+                "DEFAULT"
+        );
     }
 
     /**
@@ -237,7 +296,8 @@ public class PromptContextFactory {
             PreviousContext previousContext,
             BlackboardHistory blackboardHistory,
             String templateName,
-            Map<String, Object> model
+            Map<String, Object> model,
+            String modelName
     ) {
         List<UpstreamContext> contexts = upstreamContext != null 
                 ? List.of(upstreamContext) 
@@ -252,7 +312,8 @@ public class PromptContextFactory {
                 null,
                 Map.of(),
                 templateName,
-                model
+                model,
+                modelName
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();

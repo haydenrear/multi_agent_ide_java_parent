@@ -25,7 +25,6 @@ class SandboxTranslationIntegrationTest {
     private SandboxTranslationRegistry registry;
     private ClaudeCodeSandboxStrategy claudeStrategy;
     private CodexSandboxStrategy codexStrategy;
-    private GooseSandboxStrategy gooseStrategy;
 
     @TempDir
     Path tempDir;
@@ -38,10 +37,9 @@ class SandboxTranslationIntegrationTest {
     void setUp() throws IOException {
         claudeStrategy = new ClaudeCodeSandboxStrategy();
         codexStrategy = new CodexSandboxStrategy();
-        gooseStrategy = new GooseSandboxStrategy();
 
         registry = new SandboxTranslationRegistry(
-                Arrays.asList(claudeStrategy, codexStrategy, gooseStrategy)
+                Arrays.asList(claudeStrategy, codexStrategy)
         );
 
         // Create temp directories for testing
@@ -69,13 +67,6 @@ class SandboxTranslationIntegrationTest {
         void shouldFindCodexStrategy() {
             assertThat(registry.find("codex-acp")).isPresent();
             assertThat(registry.find("codex-acp").get()).isInstanceOf(CodexSandboxStrategy.class);
-        }
-
-        @Test
-        @DisplayName("should find goose strategy")
-        void shouldFindGooseStrategy() {
-            assertThat(registry.find("goose")).isPresent();
-            assertThat(registry.find("goose").get()).isInstanceOf(GooseSandboxStrategy.class);
         }
 
         @Test
@@ -221,68 +212,6 @@ class SandboxTranslationIntegrationTest {
     }
 
     @Nested
-    @DisplayName("Goose integration")
-    class GooseIntegrationTests {
-
-        @Test
-        @DisplayName("should generate correct args with no existing acpArgs")
-        void shouldGenerateCorrectArgsWithNoExistingArgs() {
-            RequestContext context = createContext(mainWorktree);
-
-            SandboxTranslation result = gooseStrategy.translate(context, Collections.emptyList());
-
-            // Goose uses -w for working directory
-            // Goose sets GOOSE_MODE env var
-            assertThat(result.env()).containsEntry("GOOSE_MODE", "smart_approve");
-            // Goose doesn't have --sandbox or --add-dir
-            assertThat(result.args()).doesNotContain("--sandbox");
-            assertThat(result.args()).doesNotContain("--add-dir");
-            assertThat(result.workingDirectory()).isEqualTo(mainWorktree.toString());
-        }
-
-        @Test
-        @DisplayName("should respect --working_dir long form")
-        void shouldRespectLongFormWorkingDir() {
-            RequestContext context = createContext(mainWorktree);
-            List<String> existingArgs = Arrays.asList("--working_dir", "/custom/path");
-
-            SandboxTranslation result = gooseStrategy.translate(context, existingArgs);
-
-            // Should NOT add -w since --working_dir is already specified
-            assertThat(result.args()).doesNotContain("-w");
-        }
-
-        @Test
-        @DisplayName("should not add working dir for non-existent path")
-        void shouldNotAddWorkingDirForNonExistentPath() {
-            Path nonExistent = Path.of("/non/existent/path");
-            RequestContext context = RequestContext.builder()
-                    .sessionId("test-session")
-                    .sandboxContext(SandboxContext.builder()
-                            .mainWorktreePath(nonExistent)
-                            .build())
-                    .build();
-
-            SandboxTranslation result = gooseStrategy.translate(context, Collections.emptyList());
-
-            // Should not add -w for non-existent path
-            assertThat(result.args()).doesNotContain("-w");
-            // But workingDirectory should still be set
-            assertThat(result.workingDirectory()).isEqualTo(nonExistent.toString());
-        }
-
-        @Test
-        @DisplayName("should ignore submodules since Goose doesn't support --add-dir")
-        void shouldIgnoreSubmodules() {
-            RequestContext context = createContext(mainWorktree, submodule1, submodule2);
-
-            SandboxTranslation result = gooseStrategy.translate(context, Collections.emptyList());
-
-            // Should only have -w and the main path
-        }
-    }
-
-    @Nested
     @DisplayName("Cross-provider comparison")
     class CrossProviderComparisonTests {
 
@@ -293,11 +222,9 @@ class SandboxTranslationIntegrationTest {
 
             SandboxTranslation claudeResult = claudeStrategy.translate(context, Collections.emptyList());
             SandboxTranslation codexResult = codexStrategy.translate(context, Collections.emptyList());
-            SandboxTranslation gooseResult = gooseStrategy.translate(context, Collections.emptyList());
 
             assertThat(claudeResult.workingDirectory()).isEqualTo(mainWorktree.toString());
             assertThat(codexResult.workingDirectory()).isEqualTo(mainWorktree.toString());
-            assertThat(gooseResult.workingDirectory()).isEqualTo(mainWorktree.toString());
         }
 
         @Test
@@ -307,7 +234,6 @@ class SandboxTranslationIntegrationTest {
 
             SandboxTranslation claudeResult = claudeStrategy.translate(context, Collections.emptyList());
             SandboxTranslation codexResult = codexStrategy.translate(context, Collections.emptyList());
-            SandboxTranslation gooseResult = gooseStrategy.translate(context, Collections.emptyList());
 
             // Claude uses --add-dir (cwd set via session param)
             assertThat(claudeResult.args()).contains("--add-dir");
@@ -320,17 +246,15 @@ class SandboxTranslationIntegrationTest {
         }
 
         @Test
-        @DisplayName("only Goose sets environment variables by default")
-        void onlyGooseSetsEnvVarsByDefault() {
+        @DisplayName("none sets environment variables by default")
+        void setsEnvVarsByDefault() {
             RequestContext context = createContext(mainWorktree);
 
             SandboxTranslation claudeResult = claudeStrategy.translate(context, Collections.emptyList());
             SandboxTranslation codexResult = codexStrategy.translate(context, Collections.emptyList());
-            SandboxTranslation gooseResult = gooseStrategy.translate(context, Collections.emptyList());
 
             assertThat(claudeResult.env()).isEmpty();
             assertThat(codexResult.env()).isEmpty();
-            assertThat(gooseResult.env()).containsKey("GOOSE_MODE");
         }
     }
 

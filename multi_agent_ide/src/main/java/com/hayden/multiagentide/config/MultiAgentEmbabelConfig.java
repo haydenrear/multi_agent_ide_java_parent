@@ -140,18 +140,28 @@ public class MultiAgentEmbabelConfig {
         OptionsConverter<ChatOptions> optionsConverter = new OptionsConverter<>() {
             @Override
             public @NonNull ChatOptions convertOptions(@NonNull LlmOptions options) {
-                String model;
+                String key;
                 if (options.getModelSelectionCriteria() == null){
-                    model = options.getModel();
+                    key = options.getModel();
                 } else {
-                    model = switch (options.getModelSelectionCriteria()) {
+                    key = switch (options.getModelSelectionCriteria()) {
                         case FallbackByNameModelSelectionCriteria f ->
                                 f.getNames().getLast();
                         default -> options.getModel();
                     };
                 }
+                String acpModel;
+                if (options.getModelSelectionCriteria() == null){
+                    acpModel = key;
+                } else {
+                    acpModel = switch (options.getModelSelectionCriteria()) {
+                        case FallbackByNameModelSelectionCriteria f ->
+                                f.getNames().get(1);
+                        default -> options.getModel();
+                    };
+                }
                 var tc = ToolCallingChatOptions.builder()
-                        .model(model)
+                        .model("%s___%s".formatted(key, acpModel))
                         .temperature(options.getTemperature())
                         .topP(options.getTopP())
                         .maxTokens(options.getMaxTokens())

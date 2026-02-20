@@ -5,18 +5,14 @@ multi-agent-embabel:
     provider: acp
   acp:
     transport: stdio
-    command: goose acp
-    args: ${ACP_ARGS:--extensions developer}
-    working-directory: ${ACP_WORKING_DIR:}
+    command: ${ACP_COMMAND:codex-acp}
+    args: ${ACP_ARGS:}
+    working-directory: ${ACP_WORKING_DIR:--model gpt-oss:120b-cloud}
+    auth-method: chatgpt
     env:
-      #    will throw an error if your on mac for some security ring
-#      HOME: {{PROJECT_DIR}}/configs
-      GOOSE_MODE: smart_approve
-      GOOSE_DISABLE_SUBAGENTS: true
-
-spring:
-  lifecycle:
-    timeout-per-shutdown-phase: 1s
+      HOME: {{PROJ_DIR}}/configs
+      OPENAI_API_BASE: http://localhost:11434/v1
+      OPENAI_API_KEY: ollama
 
 acp.mcp:
   http:
