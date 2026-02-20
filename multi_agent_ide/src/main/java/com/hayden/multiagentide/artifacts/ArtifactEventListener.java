@@ -5,6 +5,7 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.acp.events.MessageStreamArtifact;
+import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -239,7 +240,7 @@ public class ArtifactEventListener implements EventListener {
         
         if (result.isPresent()) {
             log.info("Persisted artifact tree for execution: {} with {} children", 
-                    executionKey, result.get().children().size());
+                    executionKey, StreamUtil.toStream(result.get().children()).count());
         }
         
         // Remove from active executions

@@ -66,7 +66,8 @@ public sealed interface Artifact
     default List<Artifact> collectRecursiveChildren() {
         var l = StreamUtil.toStream(this.children())
                 .collect(Collectors.toCollection(ArrayList::new));
-        this.children().stream().flatMap(a -> StreamUtil.toStream(a.collectRecursiveChildren()))
+        StreamUtil.toStream(this.children())
+                .flatMap(a -> StreamUtil.toStream(a.collectRecursiveChildren()))
                 .forEach(l::add);
         return l;
     }
