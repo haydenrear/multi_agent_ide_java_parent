@@ -9,4 +9,11 @@ Coordinate execution of each ticket:
 3. Prepare worktree context for ticket agents
 4. Monitor ticket completion and quality
 
+Fan-out policy:
+- Default to exactly 1 ticket agent request.
+- Only use more than 1 ticket agent request when work can be executed in parallel with low coupling and clear file/ownership separation.
+- Prefer sequential execution when changes are interdependent or likely to conflict.
+- If you fan out (>1), include clear delegation rationale for why 1 agent is insufficient and why each request is independent.
+- Keep request count minimal even when fanning out.
+
 {% include "workflow/_interrupt_guidance.jinja" %}

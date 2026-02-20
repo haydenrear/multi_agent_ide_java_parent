@@ -3,4 +3,11 @@ Decompose the planning for the goal according to the results from discovery.
 Goal: {{ goal }}
 Phase: {{ phase }}
 
+Fan-out policy:
+- Default to exactly 1 planning agent request.
+- Only use more than 1 planning agent request when the goal is overly complex and decomposes into independent implementation tracks.
+- Avoid splitting for style or symmetry; split only when it materially reduces risk or runtime.
+- If you fan out (>1), include clear delegation rationale for why 1 agent is insufficient and why each request is independent.
+- Keep request count minimal even when fanning out.
+
 {% include "workflow/_interrupt_guidance.jinja" %}
