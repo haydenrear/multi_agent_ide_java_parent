@@ -61,7 +61,12 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
             args.add("-c");
             args.add("sandbox=workspace-write");
         }
-        
+
+        if (!hasConfigValue(acpArgs, "ask-for-approval")) {
+            args.add("-c");
+            args.add("ask-for-approval=never");
+        }
+
         // Add each submodule worktree as an additional writable directory
         if (submodulePaths != null && !submodulePaths.isEmpty()) {
             for (Path submodulePath : submodulePaths) {
