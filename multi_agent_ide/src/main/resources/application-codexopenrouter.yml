@@ -10,7 +10,7 @@ multi-agent-embabel:
     working-directory: ${ACP_WORKING_DIR:}
     auth-method: chatgpt
     env:
-      HOME: {{PROJ_DIR}}/configs
+      HOME: /Users/hayde/codex-config-openrouter
       OPENAI_API_BASE: https://openrouter.ai/api/v1
       OPENAI_API_KEY: ${X_OPENROUTER_API_KEY}
 
