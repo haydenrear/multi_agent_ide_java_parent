@@ -120,6 +120,8 @@ class LlmDebugUiControllerWorkflowGraphTest {
                 .andExpect(jsonPath("$.root.nodeId").value(root.value()))
                 .andExpect(jsonPath("$.root.children[0].nodeId").value(child.value()))
                 .andExpect(jsonPath("$.root.children[0].metrics.nodeErrorCount").value(2))
-                .andExpect(jsonPath("$.root.children[0].metrics.otherEvents").value(1));
+                .andExpect(jsonPath("$.root.children[0].metrics.otherEvents").value(0))
+                .andExpect(jsonPath("$.root.children[0].actionName").value("discovery"))
+                .andExpect(jsonPath("$.root.children[0].routeBackCount").value(0));
     }
 }

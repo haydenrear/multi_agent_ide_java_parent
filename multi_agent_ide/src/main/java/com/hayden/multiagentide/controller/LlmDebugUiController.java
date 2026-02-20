@@ -254,7 +254,20 @@ public class LlmDebugUiController {
                         node.parentNodeId = added.parentNodeId();
                     }
                 }
-                case Events.NodeStatusChangedEvent statusChanged -> node.currentStatus = statusChanged.newStatus().name();
+                case Events.ActionStartedEvent action -> {
+                    node.actionName = action.actionName();
+                }
+                case Events.NodeStatusChangedEvent statusChanged -> {
+                    node.currentStatus = statusChanged.newStatus().name();
+                    if (statusChanged.reason() != null && !statusChanged.reason().isBlank()) {
+                        node.statusReason = statusChanged.reason();
+                        String reasonLower = statusChanged.reason().toLowerCase();
+                        if (reasonLower.contains("route_back") || reasonLower.contains("route back")
+                                || reasonLower.contains("routed back")) {
+                            node.routeBackCount++;
+                        }
+                    }
+                }
                 case Events.NodeErrorEvent error -> {
                     node.metrics.nodeErrorCount++;
                     if (!event.timestamp().isBefore(errorWindowStart)) {
@@ -299,25 +312,64 @@ public class LlmDebugUiController {
         }
         nodes.computeIfAbsent(rootNodeId, NodeAccumulator::new);
 
+        // Collapse: merge unnamed nodes into nearest named ancestor.
+        // The root node is always kept even if unnamed.
+        Map<String, String> collapseTarget = new HashMap<>();
+        for (NodeAccumulator node : nodes.values()) {
+            if (node.isNamed() || node.nodeId.equals(rootNodeId)) {
+                collapseTarget.put(node.nodeId, node.nodeId);
+            } else {
+                String target = findNamedAncestor(node.nodeId, nodes, rootNodeId);
+                collapseTarget.put(node.nodeId, target);
+            }
+        }
+        for (NodeAccumulator node : nodes.values()) {
+            String target = collapseTarget.get(node.nodeId);
+            if (target != null && !target.equals(node.nodeId)) {
+                NodeAccumulator ancestor = nodes.get(target);
+                if (ancestor != null) {
+                    ancestor.mergeFrom(node);
+                }
+            }
+        }
+
+        // Build children map using only named nodes (+ root).
         Map<String, List<String>> children = new HashMap<>();
         for (NodeAccumulator node : nodes.values()) {
-            if (node.parentNodeId == null || node.parentNodeId.isBlank() || node.nodeId.equals(rootNodeId)) {
+            if (!node.isNamed() && !node.nodeId.equals(rootNodeId)) {
                 continue;
             }
-            children.computeIfAbsent(node.parentNodeId, ignored -> new ArrayList<>()).add(node.nodeId);
+            String namedParent = findNamedAncestor(node.parentNodeId, nodes, rootNodeId);
+            if (namedParent == null || namedParent.equals(node.nodeId)) {
+                continue;
+            }
+            children.computeIfAbsent(namedParent, ignored -> new ArrayList<>()).add(node.nodeId);
         }
         for (List<String> childIds : children.values()) {
             childIds.sort(Comparator.naturalOrder());
         }
 
+        // Compute per-action error counts from named nodes.
+        Map<String, Integer> errorsByAction = new LinkedHashMap<>();
+        for (NodeAccumulator node : nodes.values()) {
+            if (node.isNamed() && node.actionName != null && node.metrics.nodeErrorCount > 0) {
+                errorsByAction.merge(node.actionName, node.metrics.nodeErrorCount, Integer::sum);
+            }
+        }
+
+        long namedNodeCount = nodes.values().stream()
+                .filter(n -> n.isNamed() || n.nodeId.equals(rootNodeId))
+                .count();
+
         WorkflowNode root = toWorkflowNode(rootNodeId, nodes, children);
         WorkflowGraphStats stats = new WorkflowGraphStats(
                 scopedEvents.size(),
-                nodes.size(),
+                (int) namedNodeCount,
                 eventTypeCounts,
                 safeErrorWindowSeconds,
                 recentErrorCount,
                 recentErrorsByNodeType,
+                errorsByAction,
                 chatSessionEvents,
                 chatMessageEvents,
                 totalThoughtTokens,
@@ -389,6 +441,22 @@ public class LlmDebugUiController {
         }
     }
 
+    /**
+     * Walk up the ArtifactKey hierarchy to find the nearest named ancestor node.
+     * Returns rootNodeId as fallback if no named ancestor is found.
+     */
+    private String findNamedAncestor(String nodeId, Map<String, NodeAccumulator> nodes, String rootNodeId) {
+        String current = nodeId;
+        while (current != null && !current.isBlank()) {
+            NodeAccumulator acc = nodes.get(current);
+            if (acc != null && (acc.isNamed() || current.equals(rootNodeId))) {
+                return current;
+            }
+            current = parentNodeId(current);
+        }
+        return rootNodeId;
+    }
+
     private WorkflowNode toWorkflowNode(
             String nodeId,
             Map<String, NodeAccumulator> nodes,
@@ -404,9 +472,11 @@ public class LlmDebugUiController {
                 node.title,
                 node.nodeType,
                 node.currentStatus,
+                node.actionName,
+                node.statusReason,
+                node.routeBackCount,
                 node.lastEventAt,
                 node.totalEvents,
-                node.eventTypeCounts,
                 node.metrics.toSnapshot(),
                 childNodes
         );
@@ -473,6 +543,7 @@ public class LlmDebugUiController {
             int errorWindowSeconds,
             int recentErrorCount,
             Map<String, Integer> recentErrorsByNodeType,
+            Map<String, Integer> errorsByAction,
             int chatSessionEvents,
             int chatMessageEvents,
             long thoughtTokens,
@@ -486,9 +557,11 @@ public class LlmDebugUiController {
             String title,
             String nodeType,
             String currentStatus,
+            String actionName,
+            String statusReason,
+            int routeBackCount,
             Instant lastEventAt,
             int totalEvents,
-            Map<String, Integer> eventTypeCounts,
             WorkflowNodeMetrics metrics,
             List<WorkflowNode> children
     ) {
@@ -513,6 +586,9 @@ public class LlmDebugUiController {
         private String title;
         private String nodeType;
         private String currentStatus;
+        private String actionName;
+        private String statusReason;
+        private int routeBackCount;
         private Instant lastEventAt;
         private int totalEvents;
         private final Map<String, Integer> eventTypeCounts = new LinkedHashMap<>();
@@ -520,6 +596,21 @@ public class LlmDebugUiController {
 
         private NodeAccumulator(String nodeId) {
             this.nodeId = nodeId;
+        }
+
+        private boolean isNamed() {
+            return title != null && !title.isBlank();
+        }
+
+        private void mergeFrom(NodeAccumulator other) {
+            totalEvents += other.totalEvents;
+            for (var entry : other.eventTypeCounts.entrySet()) {
+                eventTypeCounts.merge(entry.getKey(), entry.getValue(), Integer::sum);
+            }
+            metrics.mergeFrom(other.metrics);
+            if (other.lastEventAt != null && (lastEventAt == null || other.lastEventAt.isAfter(lastEventAt))) {
+                lastEventAt = other.lastEventAt;
+            }
         }
     }
 
@@ -533,6 +624,18 @@ public class LlmDebugUiController {
         private long streamTokens;
         private int toolEvents;
         private int otherEvents;
+
+        private void mergeFrom(MetricsAccumulator other) {
+            nodeErrorCount += other.nodeErrorCount;
+            chatSessionEvents += other.chatSessionEvents;
+            chatMessageEvents += other.chatMessageEvents;
+            thoughtDeltas += other.thoughtDeltas;
+            thoughtTokens += other.thoughtTokens;
+            streamDeltas += other.streamDeltas;
+            streamTokens += other.streamTokens;
+            toolEvents += other.toolEvents;
+            otherEvents += other.otherEvents;
+        }
 
         private WorkflowNodeMetrics toSnapshot() {
             return new WorkflowNodeMetrics(
