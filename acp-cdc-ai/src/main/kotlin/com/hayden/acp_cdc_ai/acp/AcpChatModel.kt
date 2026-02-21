@@ -194,8 +194,10 @@ class AcpChatModel(
         val pb = ProcessBuilder(*command)
             .redirectInput(ProcessBuilder.Redirect.PIPE)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
-            .redirectError(ProcessBuilder.Redirect.PIPE)
+            .redirectError(File("%s-errs.log".format(command.first())))
             .directory(dir.toFile())
+
+        pb.environment()["CLAUDECODE"] = "0"
 
        this.properties.envCopy()
            ?.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
@@ -293,22 +295,12 @@ class AcpChatModel(
 
             val agentInfo = protocol.start()
 
-            properties.authMethod?.let {
-                val authenticationResult = client.authenticate(AuthMethodId(it))
-                log.info("Authenticated with ACP {}", authenticationResult)
-            }
+//            properties.authMethod?.let {
+//                val authenticationResult = client.authenticate(AuthMethodId("claude-login"))
+//                log.info("Authenticated with ACP {}", authenticationResult)
+//            }
 
-            val initialized = client.initialize(
-                ClientInfo(
-                    capabilities = ClientCapabilities(
-                        fs = FileSystemCapability(
-                            readTextFile = true,
-                            writeTextFile = true
-                        ),
-                        terminal = true
-                    )
-                )
-            )
+            val initialized = client.initialize(ClientInfo())
 
             log.info("Agent info: ${initialized.implementation.toString()}")
 

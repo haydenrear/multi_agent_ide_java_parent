@@ -38,6 +38,7 @@ public class ClaudeCodeSandboxStrategy implements SandboxTranslationStrategy {
 
     @Override
     public SandboxTranslation translate(RequestContext context, List<String> acpArgs, String modelName) {
+        var args = SandboxTranslationStrategy.parseFromAcpArgsClaude(acpArgs, modelName);
         if (context == null || context.mainWorktreePath() == null) {
             return SandboxTranslation.empty();
         }
@@ -46,7 +47,6 @@ public class ClaudeCodeSandboxStrategy implements SandboxTranslationStrategy {
         List<Path> submodulePaths = context.submoduleWorktreePaths();
         
         Map<String, String> env = new HashMap<>();
-        List<String> args = new ArrayList<>();
 
         // Add main worktree as an additional directory if not already specified
         if (!hasFlagValuePair(acpArgs, mainPath, "--add-dir")) {
@@ -70,11 +70,6 @@ public class ClaudeCodeSandboxStrategy implements SandboxTranslationStrategy {
         if (!hasFlag(acpArgs, "--permission-mode")) {
             args.add("--permission-mode");
             args.add("acceptEdits");
-        }
-
-        if (!Objects.equals(modelName, "DEFAULT")){
-            args.add("--model");
-            args.add(modelName);
         }
 
         return new SandboxTranslation(env, args, mainPath);

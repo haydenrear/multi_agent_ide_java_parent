@@ -28,6 +28,7 @@ if (project.parent?.name?.contains("multi_agent_ide_java_parent") ?: false) {
 
 dependencies {
     implementation(project("${utilLib}:utilitymodule"))
+    implementation("com.agentclientprotocol:acp:0.15.3")
 }
 
 tasks.test {

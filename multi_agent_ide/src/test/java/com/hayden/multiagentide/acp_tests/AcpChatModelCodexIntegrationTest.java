@@ -58,7 +58,7 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles({"codexopenrouter"})
+@ActiveProfiles({"claudellama"})
 @ExtendWith(SpringExtension.class)
 @TestPropertySource(properties = {"spring.ai.mcp.server.stdio=false"})
 class AcpChatModelCodexIntegrationTest {
@@ -248,6 +248,7 @@ class AcpChatModelCodexIntegrationTest {
                             .mainWorktreePath(workingDir)
                             .build())
                     .build();
+            startPermissionConsole();
             requestContextRepository.save(requestContext);
             
             ProcessOptions processOptions = ProcessOptions.DEFAULT.withContextId(nodeId)

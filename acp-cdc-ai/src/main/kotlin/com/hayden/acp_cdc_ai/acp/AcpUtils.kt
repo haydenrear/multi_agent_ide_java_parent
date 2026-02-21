@@ -75,6 +75,13 @@ fun parseGenerationsFromAcpEvent(event: Event, sessionContext: AcpSessionManager
                     sessionContext.chatModelKey))
                 flushed
             }
+
+            is SessionUpdate.ConfigOptionUpdate -> {
+                mutableListOf()
+            }
+            is SessionUpdate.SessionInfoUpdate -> {
+                mutableListOf()
+            }
         }
     } else {
         emptyList()

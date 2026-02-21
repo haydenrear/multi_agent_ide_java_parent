@@ -1,0 +1,22 @@
+logging.config: classpath:logback-multi-agent-ide.xml
+
+multi-agent-embabel:
+  chat-model:
+    provider: acp
+  acp:
+    transport: stdio
+    command: ${ACP_COMMAND:claude-agent-acp}
+    args: ${ACP_ARGS:--model openai/gpt-oss-120b:nitro}
+    working-directory: ${ACP_WORKING_DIR:}
+    env:
+      ANTHROPIC_AUTH_TOKEN: openrouter
+      ANTHROPIC_BASE_URL: https://openrouter.ai/api/v1
+      ANTHROPIC_API_KEY: ${X_OPENROUTER_API_KEY}
+acp.mcp:
+  http:
+    #    - name: deepwiki
+    #      url: https://mcp.deepwiki.com/mcp
+    #      headers:
+    - name: hindsight
+      url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
+      headers:

@@ -5,15 +5,13 @@ multi-agent-embabel:
     provider: acp
   acp:
     transport: stdio
-    command: ${ACP_COMMAND:codex-acp}
-    args: ${ACP_ARGS:--model anthropic/claude-haiku-4.5}
+    command: ${ACP_COMMAND:claude-agent-acp}
+    args: ${ACP_ARGS:--model gpt-oss:120b-cloud}
     working-directory: ${ACP_WORKING_DIR:}
-    auth-method: chatgpt
     env:
-      HOME: /Users/hayde/codex-config-openrouter
-      OPENAI_API_BASE: https://openrouter.ai/api/v1
-      OPENAI_API_KEY: ${X_OPENROUTER_API_KEY}
-
+      ANTHROPIC_AUTH_TOKEN: ollama
+      ANTHROPIC_BASE_URL: http://localhost:11434
+      ANTHROPIC_API_KEY: ""
 acp.mcp:
   http:
     #    - name: deepwiki

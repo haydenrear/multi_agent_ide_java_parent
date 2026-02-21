@@ -1,6 +1,7 @@
 package com.hayden.acp_cdc_ai.sandbox;
 
 import com.hayden.acp_cdc_ai.repository.RequestContext;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
@@ -27,6 +28,7 @@ import java.util.*;
  * @see <a href="https://developers.openai.com/codex/cli/reference/">Codex CLI Reference</a>
  * @see <a href="https://github.com/zed-industries/codex-acp">codex-acp</a>
  */
+@Slf4j
 @Component
 public class CodexSandboxStrategy implements SandboxTranslationStrategy {
 
@@ -37,6 +39,8 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
 
     @Override
     public SandboxTranslation translate(RequestContext context, List<String> acpArgs, String modelName) {
+        var args = SandboxTranslationStrategy.parseFromAcpArgsCodex(acpArgs, modelName);
+
         if (context == null || context.mainWorktreePath() == null) {
             return SandboxTranslation.empty();
         }
@@ -45,7 +49,6 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
         List<Path> submodulePaths = context.submoduleWorktreePaths();
 
         Map<String, String> env = new HashMap<>();
-        List<String> args = new ArrayList<>();
 
         // Set the working directory for the agent if not already specified
         if (!hasConfigValue(acpArgs, "cd")) {
@@ -73,11 +76,6 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
                     args.add("add-dir=" + submodulePathStr);
                 }
             }
-        }
-
-        if (!Objects.equals(modelName, "DEFAULT")) {
-            args.add("--model");
-            args.add(modelName);
         }
 
         return new SandboxTranslation(env, args, mainPath);

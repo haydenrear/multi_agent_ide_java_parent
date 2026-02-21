@@ -34,7 +34,7 @@ import java.util.function.Predicate
  * and verify responses are received.
  *
  * Prerequisites:
- * - claude-code-acp must be installed
+ * - claude-agent-acp must be installed
  * - codex-acp must be installed
  * - goose must be installed
  * - Valid API keys must be configured in environment variables
@@ -54,11 +54,11 @@ class AcpChatModelIntegrationTest {
 
     @BeforeAll
     fun checkExecutables() {
-        claudeCodeAcpAvailable = isExecutableAvailable("which","claude-code-acp")
+        claudeCodeAcpAvailable = isExecutableAvailable("which","claude-agent-acp")
         codexAcpAvailable = isExecutableAvailable("which", "codex-acp")
 
         println("ACP Provider Availability:")
-        println("  claude-code-acp: ${if (claudeCodeAcpAvailable) "AVAILABLE" else "NOT FOUND"}")
+        println("  claude-agent-acp: ${if (claudeCodeAcpAvailable) "AVAILABLE" else "NOT FOUND"}")
         println("  codex-acp: ${if (codexAcpAvailable) "AVAILABLE" else "NOT FOUND"}")
     }
 
@@ -83,6 +83,11 @@ class AcpChatModelIntegrationTest {
             val command = arrayOf(executable) + testArgs
             val pb = ProcessBuilder(*command)
             pb.redirectErrorStream(true)
+            var p = pb.environment().get("PATH")
+
+            p += ":/opt/homebrew/Cellar/node/25.6.1/bin".format(System.getProperty("user.home"))
+            p += ":%s/.local/bin".format(System.getProperty("user.home"))
+            pb.environment().put("PATH", p)
             val process = pb.start()
             val finished = process.waitFor(10, TimeUnit.SECONDS)
             if (finished) {
@@ -190,13 +195,13 @@ class AcpChatModelIntegrationTest {
         @DisplayName("should send message and receive response via AcpChatModel")
         @Timeout(value = 120, unit = TimeUnit.SECONDS)
         fun shouldSendAndReceiveMessage() {
-            assumeTrue(claudeCodeAcpAvailable, "claude-code-acp not available, skipping test")
+            assumeTrue(claudeCodeAcpAvailable, "claude-agent-acp not available, skipping test")
 
             val sessionId = ArtifactKey.createRoot().value
             setMemoryId(sessionId)
 
             try {
-                val chatModel = createAcpChatModel("claude-code-acp", sessionId)
+                val chatModel = createAcpChatModel("/opt/homebrew/Cellar/node/25.6.1/bin/claude-agent-acp", sessionId)
 
                 val prompt = Prompt(listOf(UserMessage("What is 2 + 2? Reply with just the number.")))
 
@@ -218,13 +223,13 @@ class AcpChatModelIntegrationTest {
         @DisplayName("should work with sandbox args applied")
         @Timeout(value = 120, unit = TimeUnit.SECONDS)
         fun shouldWorkWithSandboxArgs() {
-            assumeTrue(claudeCodeAcpAvailable, "claude-code-acp not available, skipping test")
+            assumeTrue(claudeCodeAcpAvailable, "claude-agent-acp not available, skipping test")
 
             val sessionId = ArtifactKey.createRoot().value
             setMemoryId(sessionId)
 
             try {
-                val chatModel = createAcpChatModel("claude-code-acp", sessionId)
+                val chatModel = createAcpChatModel("claude-agent-acp", sessionId)
 
                 val prompt = Prompt(listOf(UserMessage("What files are in the current directory? Just list the filenames.")))
 
@@ -340,7 +345,7 @@ class AcpChatModelIntegrationTest {
         @Timeout(value = 300, unit = TimeUnit.SECONDS)
         fun allProvidersShouldHandleSamePrompt() {
             val availableProviders = mutableListOf<String>()
-            if (claudeCodeAcpAvailable) availableProviders.add("claude-code-acp")
+            if (claudeCodeAcpAvailable) availableProviders.add("claude-agent-acp")
             if (codexAcpAvailable) availableProviders.add("codex-acp")
 
             assumeTrue(availableProviders.isNotEmpty(), "No ACP providers available")

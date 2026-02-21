@@ -5,15 +5,9 @@ multi-agent-embabel:
     provider: acp
   acp:
     transport: stdio
-    command: ${ACP_COMMAND:codex-acp}
+    command: ${ACP_COMMAND:claude-agent-acp}
     args: ${ACP_ARGS:}
-    working-directory: ${ACP_WORKING_DIR:--model gpt-oss:120b-cloud}
-    auth-method: chatgpt
-    env:
-      HOME: {{PROJ_DIR}}/configs
-      OPENAI_API_BASE: http://localhost:11434/v1
-      OPENAI_API_KEY: ollama
-
+    working-directory: ${ACP_WORKING_DIR:}
 acp.mcp:
   http:
     #    - name: deepwiki
