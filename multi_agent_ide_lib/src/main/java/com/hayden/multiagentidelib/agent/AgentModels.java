@@ -2670,7 +2670,7 @@ public interface AgentModels {
     record OrchestratorCollectorRouting(
             @JsonPropertyDescription("Interrupt request for collector decisions.")
             InterruptRequest.OrchestratorCollectorInterruptRequest interruptRequest,
-            @JsonPropertyDescription("Collector result to drive branching decisions.")
+            @JsonPropertyDescription("Final consolidation decision. Use this to complete the workflow (ADVANCE_PHASE with requestedPhase=\"COMPLETE\") or intentionally route back via collector decision semantics.")
             OrchestratorCollectorResult collectorResult,
             @JsonPropertyDescription("Route back to orchestrator.")
             OrchestratorRequest orchestratorRequest,
@@ -2682,10 +2682,8 @@ public interface AgentModels {
             TicketOrchestratorRequest ticketRequest,
             @JsonPropertyDescription("Route to review agent.")
             ReviewRequest reviewRequest,
-            @JsonPropertyDescription("Route to merger agent.")
-            MergerRequest mergerRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
+            @JsonPropertyDescription("Route to merger agent (to deal with merge conflicts for the merged code - if there are any).")
+            MergerRequest mergerRequest
     ) implements Routing {
         public OrchestratorCollectorRouting(OrchestratorCollectorResult collectorResult) {
             this(null, collectorResult, null, null, null, null, null, null, null);
@@ -3091,13 +3089,11 @@ public interface AgentModels {
             DiscoveryOrchestratorRequest discoveryRequest,
             @JsonPropertyDescription("Route to planning orchestrator.")
             PlanningOrchestratorRequest planningRequest,
-            @JsonPropertyDescription("Route to ticket orchestrator.")
-            TicketOrchestratorRequest ticketRequest,
-            @JsonPropertyDescription("Route to review agent.")
+            @JsonPropertyDescription("Route to review agent for quality/correctness validation when needed.")
             ReviewRequest reviewRequest,
-            @JsonPropertyDescription("Route to merger agent.")
+            @JsonPropertyDescription("Route to merger agent for merge/conflict handling when needed.")
             MergerRequest mergerRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
+            @JsonPropertyDescription("Route to context manager only when specific context from another agent chat/history is required.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
     }
@@ -3965,11 +3961,13 @@ public interface AgentModels {
             TicketOrchestratorRequest ticketRequest,
             @JsonPropertyDescription("Route to orchestrator collector.")
             OrchestratorCollectorRequest orchestratorCollectorRequest,
-            @JsonPropertyDescription("Route to review agent.")
+            @JsonPropertyDescription("Route to orchestrator for non-standard workflow coordination.")
+            OrchestratorRequest orchestratorRequest,
+            @JsonPropertyDescription("Route to review agent for quality/correctness validation when needed.")
             ReviewRequest reviewRequest,
-            @JsonPropertyDescription("Route to merger agent.")
+            @JsonPropertyDescription("Route to merger agent for merge/conflict handling when needed.")
             MergerRequest mergerRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
+            @JsonPropertyDescription("Route to context manager only when specific context from another agent chat/history is required.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
     }
