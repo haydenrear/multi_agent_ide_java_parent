@@ -2,11 +2,14 @@ package com.hayden.multiagentide.repository;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
+import com.hayden.multiagentidelib.model.nodes.InterruptNode;
+import com.hayden.multiagentidelib.model.nodes.ReviewNode;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * In-memory implementation of GraphRepository using ConcurrentHashMap for thread safety.
@@ -24,6 +27,24 @@ public class InMemoryGraphRepository implements GraphRepository {
     @Override
     public Optional<GraphNode> findById(String nodeId) {
         return Optional.ofNullable(nodes.get(nodeId));
+    }
+
+    @Override
+    public Optional<GraphNode> findInterruptByOrigin(String nodeId) {
+        return nodes.entrySet()
+                .stream()
+                .flatMap(s -> {
+                    if (s.getValue() instanceof ReviewNode r && Objects.equals(nodeId, r.reviewedNodeId())) {
+                        return Stream.of(s.getValue());
+                    }
+
+                    if (s.getValue() instanceof InterruptNode r && Objects.equals(nodeId, r.interruptOriginNodeId())) {
+                        return Stream.of(s.getValue());
+                    }
+
+                    return Stream.empty();
+                })
+                .findFirst();
     }
 
     @Override

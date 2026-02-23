@@ -14,5 +14,9 @@ Produce a summary with:
 
 Happy path: return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "COMPLETE".
 If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest.
-If you believe ROUTE_BACK is required, first emit interruptRequest explaining why; only ROUTE_BACK after clarification confirms it.
+If you believe ticket execution is insufficient, follow the Route-Back Review Protocol:
+in your structured JSON response, return a result with only `interruptRequest` populated, explaining what tickets failed or are incomplete.
+After review, if approved: set collectorResult with ROUTE_BACK so ticket execution runs again.
+After review, if rejected: set collectorResult with ADVANCE_PHASE and requestedPhase = "COMPLETE",
+filling in completionStatus and followUps with what was accomplished and what remains.
 Only set contextManagerRequest when you need specific missing context from another agent chat/history.

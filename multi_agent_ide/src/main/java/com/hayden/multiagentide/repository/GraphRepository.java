@@ -23,6 +23,8 @@ public interface GraphRepository {
      */
     Optional<GraphNode> findById(String nodeId);
 
+    Optional<GraphNode> findInterruptByOrigin(String nodeId);
+
     /**
      * Get all nodes.
      * @return list of all nodes
