@@ -75,7 +75,6 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     private <T extends AgentModels.AgentResult> T addMergeDescriptor(T result, MergeDescriptor descriptor) {
         return switch (result) {
             case AgentModels.TicketAgentResult r -> (T) r.toBuilder().mergeDescriptor(descriptor).build();
