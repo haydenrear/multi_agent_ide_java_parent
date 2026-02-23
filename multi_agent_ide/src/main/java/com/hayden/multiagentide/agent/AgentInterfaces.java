@@ -955,7 +955,7 @@ public interface AgentInterfaces {
             AgentModels.OrchestratorCollectorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorCollectorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Orchestrator collector request not found - cannot finalize collector result.",
                         METHOD_FINAL_COLLECTOR_RESULT,
                         AgentModels.OrchestratorCollectorResult.class,
@@ -974,7 +974,7 @@ public interface AgentInterfaces {
                     METHOD_FINAL_COLLECTOR_RESULT
             );
         }
-
+        
 
 
         @Action(canRerun = true)
@@ -985,7 +985,7 @@ public interface AgentInterfaces {
             AgentModels.OrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Orchestrator request not found - cannot consolidate workflow outputs.",
                         METHOD_CONSOLIDATE_WORKFLOW_OUTPUTS,
                         AgentModels.OrchestratorCollectorRequest.class,
@@ -1058,7 +1058,7 @@ public interface AgentInterfaces {
             AgentModels.DiscoveryOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Discovery orchestrator request not found - cannot consolidate discovery findings.",
                         METHOD_CONSOLIDATE_DISCOVERY_FINDINGS,
                         AgentModels.DiscoveryCollectorRequest.class,
@@ -1129,7 +1129,7 @@ public interface AgentInterfaces {
             AgentModels.PlanningOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Planning request not found - cannot consolidate plans into tickets.",
                         METHOD_CONSOLIDATE_PLANS_INTO_TICKETS,
                         AgentModels.PlanningCollectorRequest.class,
@@ -1200,7 +1200,7 @@ public interface AgentInterfaces {
             AgentModels.TicketOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Ticket request not found - cannot consolidate ticket results.",
                         METHOD_CONSOLIDATE_TICKET_RESULTS,
                         AgentModels.TicketCollectorRequest.class,
@@ -1272,7 +1272,7 @@ public interface AgentInterfaces {
             AgentModels.OrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Discovery orchestrator request not found - cannot kick off discovery agents.",
                         METHOD_KICK_OFF_ANY_NUMBER_OF_AGENTS_FOR_CODE_SEARCH,
                         AgentModels.DiscoveryOrchestratorRequest.class,
@@ -1343,7 +1343,7 @@ public interface AgentInterfaces {
             AgentModels.DiscoveryOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Discovery dispatch request not found - cannot dispatch discovery agents.",
                         METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
                         AgentModels.DiscoveryAgentRequests.class,
@@ -1412,7 +1412,7 @@ public interface AgentInterfaces {
                     "goal",
                     goal,
                     "discoveryResults",
-                    d.prettyPrint(new AgentContext.AgentSerializationCtx.ResultsSerialization())
+                    d.prettyPrint(new AgentPretty.AgentSerializationCtx.ResultsSerialization())
             );
 
             PromptContext promptContext = buildPromptContext(
@@ -1464,7 +1464,7 @@ public interface AgentInterfaces {
             AgentModels.OrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Planning orchestrator request not found - cannot decompose plan.",
                         METHOD_DECOMPOSE_PLAN_AND_CREATE_WORK_ITEMS,
                         AgentModels.PlanningOrchestratorRequest.class,
@@ -1537,7 +1537,7 @@ public interface AgentInterfaces {
             AgentModels.PlanningOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Planning dispatch request not found - cannot dispatch planning agents.",
                         METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
                         AgentModels.PlanningAgentRequests.class,
@@ -1600,7 +1600,7 @@ public interface AgentInterfaces {
 
             Optional.ofNullable(goal)
                     .ifPresent(g -> model.put("goal", g));
-            model.put("planningResults", planningAgentResults.prettyPrint(new AgentContext.AgentSerializationCtx.ResultsSerialization()));
+            model.put("planningResults", planningAgentResults.prettyPrint(new AgentPretty.AgentSerializationCtx.ResultsSerialization()));
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.PLANNING_AGENT_DISPATCH,
@@ -1652,7 +1652,7 @@ public interface AgentInterfaces {
             AgentModels.TicketOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Ticket orchestrator request not found - cannot finalize ticket orchestrator.",
                         METHOD_FINALIZE_TICKET_ORCHESTRATOR,
                         AgentModels.TicketOrchestratorResult.class,
@@ -1684,7 +1684,7 @@ public interface AgentInterfaces {
             AgentModels.OrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Ticket orchestrator request not found - cannot orchestrate ticket execution.",
                         METHOD_ORCHESTRATE_TICKET_EXECUTION,
                         AgentModels.TicketOrchestratorRequest.class,
@@ -1752,7 +1752,7 @@ public interface AgentInterfaces {
             AgentModels.TicketOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Ticket dispatch request not found - cannot dispatch ticket agents.",
                         METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
                         AgentModels.TicketAgentRequests.class,
@@ -1817,7 +1817,7 @@ public interface AgentInterfaces {
                     "goal",
                     goal,
                     "ticketResults",
-                    ticketAgentResults.prettyPrint(new AgentContext.AgentSerializationCtx.ResultsSerialization())
+                    ticketAgentResults.prettyPrint(new AgentPretty.AgentSerializationCtx.ResultsSerialization())
             );
 
             PromptContext promptContext = buildPromptContext(
@@ -1870,7 +1870,7 @@ public interface AgentInterfaces {
             AgentModels.AgentRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.AgentRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Merger request not found - cannot perform merge.",
                         METHOD_PERFORM_MERGE,
                         AgentModels.MergerRequest.class,
@@ -1947,7 +1947,7 @@ public interface AgentInterfaces {
             AgentModels.AgentRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.AgentRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Review request not found - cannot perform review.",
                         METHOD_PERFORM_REVIEW,
                         AgentModels.ReviewRequest.class,
@@ -2024,7 +2024,7 @@ public interface AgentInterfaces {
             AgentModels.TicketOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Ticket collector request not found - cannot handle ticket collector branch.",
                         METHOD_HANDLE_TICKET_COLLECTOR_BRANCH,
                         AgentModels.TicketCollectorResult.class,
@@ -2102,7 +2102,7 @@ public interface AgentInterfaces {
             AgentModels.DiscoveryOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Discovery collector request not found - cannot handle discovery collector branch.",
                         METHOD_HANDLE_DISCOVERY_COLLECTOR_BRANCH,
                         AgentModels.DiscoveryCollectorResult.class,
@@ -2163,7 +2163,7 @@ public interface AgentInterfaces {
             AgentModels.OrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Orchestrator collector request not found - cannot handle orchestrator collector branch.",
                         METHOD_HANDLE_ORCHESTRATOR_COLLECTOR_BRANCH,
                         AgentModels.OrchestratorCollectorResult.class,
@@ -2218,7 +2218,7 @@ public interface AgentInterfaces {
             AgentModels.PlanningOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Planning collector request not found - cannot handle planning collector branch.",
                         METHOD_HANDLE_PLANNING_COLLECTOR_BRANCH,
                         AgentModels.PlanningCollectorResult.class,
@@ -2301,7 +2301,7 @@ public interface AgentInterfaces {
                 AgentModels.DiscoveryAgentRequests input
         ) {
             String resolved = input != null
-                    ? input.prettyPrint(new AgentContext.AgentSerializationCtx.GoalResolutionSerialization())
+                    ? input.prettyPrint(new AgentPretty.AgentSerializationCtx.GoalResolutionSerialization())
                     : "";
             if (resolved != null && !resolved.isBlank()) {
                 return resolved;
@@ -2324,11 +2324,11 @@ public interface AgentInterfaces {
                 AgentModels.MergerRouting routing
         ) {
             String requestSummary = request != null
-                    ? request.prettyPrint(new AgentContext.AgentSerializationCtx.MergeSummarySerialization())
+                    ? request.prettyPrint(new AgentPretty.AgentSerializationCtx.MergeSummarySerialization())
                     : "";
             AgentModels.MergerAgentResult result = routing != null ? routing.mergerResult() : null;
             String resultSummary = result != null
-                    ? result.prettyPrint(new AgentContext.AgentSerializationCtx.MergeSummarySerialization())
+                    ? result.prettyPrint(new AgentPretty.AgentSerializationCtx.MergeSummarySerialization())
                     : "";
             return firstNonBlank(requestSummary, resultSummary);
         }
@@ -2461,7 +2461,7 @@ public interface AgentInterfaces {
             AgentModels.TicketAgentRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketAgentRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Ticket agent request not found - cannot recover from interrupt.",
                         METHOD_TRANSITION_TO_INTERRUPT_STATE,
                         AgentModels.InterruptRequest.TicketAgentInterruptRequest.class,
@@ -2523,7 +2523,7 @@ public interface AgentInterfaces {
             AgentModels.TicketAgentRequests lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketAgentRequests.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Ticket agent request not found - cannot run ticket agent.",
                         METHOD_RUN_TICKET_AGENT,
                         AgentModels.TicketAgentRequest.class,
@@ -2705,7 +2705,7 @@ public interface AgentInterfaces {
                     BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningAgentRequest.class);
 
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Planning agent request not found - cannot recover from interrupt.",
                         METHOD_TRANSITION_TO_INTERRUPT_STATE,
                         AgentModels.InterruptRequest.PlanningAgentInterruptRequest.class,
@@ -2764,7 +2764,7 @@ public interface AgentInterfaces {
             AgentModels.PlanningAgentRequests lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningAgentRequests.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Planning agent request not found - cannot run planning agent.",
                         METHOD_RUN_PLANNING_AGENT,
                         AgentModels.PlanningAgentRequest.class,
@@ -2932,7 +2932,7 @@ public interface AgentInterfaces {
             AgentModels.DiscoveryAgentRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryAgentRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
+                throw AgentInterfaces.degenerateLoop(eventBus, context, 
                         "Discovery agent request not found - cannot recover from interrupt.",
                         METHOD_TRANSITION_TO_INTERRUPT_STATE,
                         AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest.class,
@@ -3268,10 +3268,10 @@ public interface AgentInterfaces {
     /**
      * Decorates a ResultsRequest (TicketAgentResults, PlanningAgentResults, DiscoveryAgentResults)
      * using the provided ResultsRequestDecorator chain.
-     *
+     * 
      * Used for Phase 2 of the worktree merge flow: merging child agent worktrees
      * back to the parent (trunk) worktree before routing decisions.
-     *
+     * 
      * @param resultsRequest The results request to decorate
      * @param context The operation context
      * @param decorators The list of decorators to apply

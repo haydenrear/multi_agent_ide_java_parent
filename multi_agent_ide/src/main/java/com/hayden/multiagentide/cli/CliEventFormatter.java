@@ -2,8 +2,8 @@ package com.hayden.multiagentide.cli;
 
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.agent.AgentContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.AgentPretty;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 
@@ -38,6 +38,7 @@ public class CliEventFormatter {
                 case Events.ActionCompletedEvent e -> formatActionCompleted(normalizedArgs, e);
                 case Events.ToolCallEvent e -> formatToolCall(normalizedArgs, e);
                 case Events.NodeAddedEvent e -> formatNodeAdded(normalizedArgs, e);
+                case Events.AddChildNodeEvent e -> formatAddChildNode(normalizedArgs, e);
                 case Events.NodeStatusChangedEvent e -> formatNodeStatusChanged(normalizedArgs, e);
                 case Events.NodeErrorEvent e -> formatNodeError(normalizedArgs, e);
                 case Events.NodeBranchedEvent e -> formatNodeBranched(normalizedArgs, e);
@@ -132,6 +133,12 @@ public class CliEventFormatter {
         return format(args, "NODE", event, details);
     }
 
+    private String formatAddChildNode(CliEventArgs args, Events.AddChildNodeEvent event) {
+        String details = "child=" + summarize(args, event.nodeId())
+                + " parent=" + summarize(args, event.parentNodeId());
+        return format(args, "NODE", event, details);
+    }
+
     private String formatNodeStatusChanged(CliEventArgs args, Events.NodeStatusChangedEvent event) {
         String details = "from=" + event.oldStatus() + " to=" + event.newStatus()
                 + " reason=" + summarize(args, event.reason());
@@ -222,14 +229,14 @@ public class CliEventFormatter {
             return "model=none";
         }
 
-        if (args.prettyPrint && model instanceof AgentContext c)
+        if (args.prettyPrint && model instanceof AgentPretty c)
             return c.prettyPrint();
 
         return switch (model) {
             case AgentModels.InterruptRequest interrupt -> "interrupt=" + formatInterruptRequest(args, interrupt);
             case AgentModels.AgentRequest request -> "request=" + formatAgentRequest(args, request);
             case AgentModels.AgentResult result -> "result=" + formatAgentResult(args, result);
-            case AgentContext context -> "context=" + formatAgentContext(args, context);
+            case AgentPretty context -> "context=" + formatAgentContext(args, context);
             default -> "model=" + summarize(args, model.getClass().getSimpleName());
         };
     }
@@ -345,7 +352,7 @@ public class CliEventFormatter {
         };
     }
 
-    private String formatAgentContext(CliEventArgs args, AgentContext context) {
+    private String formatAgentContext(CliEventArgs args, AgentPretty context) {
         String summary = summarize(args, context.prettyPrint());
         return switch (context) {
             case AgentModels.DiscoveryCuration c ->
