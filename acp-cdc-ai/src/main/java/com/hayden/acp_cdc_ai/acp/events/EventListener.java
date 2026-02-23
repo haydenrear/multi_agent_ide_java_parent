@@ -33,6 +33,13 @@ public interface EventListener {
     }
 
     /**
+     * Listener execution order. Lower values run first.
+     */
+    default int order() {
+        return 0;
+    }
+
+    /**
      * Called when listener is subscribed.
      */
     default void onSubscribed() {

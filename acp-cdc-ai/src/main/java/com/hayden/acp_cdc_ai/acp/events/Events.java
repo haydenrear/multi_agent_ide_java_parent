@@ -1,6 +1,7 @@
 package com.hayden.acp_cdc_ai.acp.events;
 
 import com.agui.core.types.BaseEvent;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonClassDescription;
 import lombok.Builder;
 import org.slf4j.Logger;
@@ -117,6 +118,11 @@ public interface Events {
                         line("nodeId", e.nodeId()),
                         line("nodeTitle", e.nodeTitle()),
                         line("nodeType", e.nodeType()),
+                        line("parentNodeId", e.parentNodeId()));
+                case AddChildNodeEvent e -> formatEvent("Add Child Node Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
                         line("parentNodeId", e.parentNodeId()));
                 case ActionStartedEvent e -> formatEvent("Action Started Event", e.eventType(),
                         line("eventId", e.eventId()),
@@ -489,11 +495,37 @@ public interface Events {
             String nodeId,
             String nodeTitle,
             NodeType nodeType,
-            String parentNodeId
+            String parentNodeId,
+            @JsonIgnore EventNode node
     ) implements AgentEvent {
+        public NodeAddedEvent(
+                String eventId,
+                Instant timestamp,
+                String nodeId,
+                String nodeTitle,
+                NodeType nodeType,
+                String parentNodeId
+        ) {
+            this(eventId, timestamp, nodeId, nodeTitle, nodeType, parentNodeId, null);
+        }
+
         @Override
         public String eventType() {
             return "NODE_ADDED";
+        }
+    }
+
+    record AddChildNodeEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String parentNodeId,
+            @JsonIgnore EventNode updatedParentNode,
+            @JsonIgnore EventNode childNode
+    ) implements AgentEvent {
+        @Override
+        public String eventType() {
+            return "ADD_CHILD_NODE";
         }
     }
 
@@ -867,8 +899,18 @@ public interface Events {
             String eventId,
             Instant timestamp,
             String nodeId,
-            Map<String, String> updates
+            Map<String, String> updates,
+            @JsonIgnore EventNode node
     ) implements Events.GraphEvent {
+        public NodeUpdatedEvent(
+                String eventId,
+                Instant timestamp,
+                String nodeId,
+                Map<String, String> updates
+        ) {
+            this(eventId, timestamp, nodeId, updates, null);
+        }
+
         @Override
         public String eventType() {
             return "NODE_UPDATED";
