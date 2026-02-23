@@ -4,6 +4,7 @@ import static com.hayden.multiagentide.acp_tests.AcpChatModelCodexIntegrationTes
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.agentclientprotocol.model.PermissionOptionKind;
 import com.embabel.agent.api.annotation.AchievesGoal;
 import com.embabel.agent.api.annotation.Action;
@@ -346,7 +347,7 @@ class AcpChatModelCodexIntegrationTest {
                                         if (input == null || input.isBlank()) {
                                             permissionGateAdapter.resolveInterrupt(
                                                     request.getInterruptId(),
-                                                    request.getOriginNodeId(),
+                                                    IPermissionGate.ResolutionType.RESOLVED,
                                                     "",
                                                     null
                                             );
@@ -355,7 +356,7 @@ class AcpChatModelCodexIntegrationTest {
                                         var trimmed = input.trim();
                                         permissionGateAdapter.resolveInterrupt(
                                                 request.getInterruptId(),
-                                                request.getOriginNodeId(),
+                                                IPermissionGate.ResolutionType.FEEDBACK,
                                                 trimmed,
                                                 null
                                         );

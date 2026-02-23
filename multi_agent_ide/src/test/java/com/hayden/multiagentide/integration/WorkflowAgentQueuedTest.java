@@ -20,6 +20,7 @@ import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentide.support.QueuedLlmRunner;
 import com.hayden.multiagentide.support.TestEventListener;
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
@@ -258,7 +259,8 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             verify(computationGraphOrchestrator, atLeastOnce()).emitStatusChangeEvent(any(), any(), any(), any());
             queuedLlmRunner.assertAllConsumed();
 
-            permissionGate.resolveInterrupt(output.getInterruptId(), "", "", (AgentModels.ReviewAgentResult) null);
+            permissionGate.resolveInterrupt(output.getInterruptId(), IPermissionGate.ResolutionType.RESOLVED, "",
+                    (IPermissionGate.InterruptResult) null);
         }
 
         @SneakyThrows
@@ -296,9 +298,9 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
             permissionGate.resolveInterrupt(
                     output.getInterruptId(),
+                    IPermissionGate.ResolutionType.RESOLVED,
                     "",
-                    "",
-                    (AgentModels.ReviewAgentResult) null);
+                    (IPermissionGate.InterruptResult) null);
 
             await().atMost(Duration.ofSeconds(300))
                     .until(res::isDone);
@@ -397,9 +399,9 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             // Now externally resolve the interrupt (simulating human approval)
             permissionGate.resolveInterrupt(
                     pendingInterrupt.getInterruptId(),
-                    "approved",
+                    IPermissionGate.ResolutionType.APPROVED,
                     "Architecture looks good, proceed",
-                    (AgentModels.ReviewAgentResult) null);
+                    (IPermissionGate.InterruptResult) null);
 
             // Workflow should now complete
             await().atMost(Duration.ofSeconds(300))
@@ -481,8 +483,8 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             }
 
             // Now resolve and let workflow finish
-            permissionGate.resolveInterrupt(interruptId, "approved", "Approved after checks",
-                    (AgentModels.ReviewAgentResult) null);
+            permissionGate.resolveInterrupt(interruptId, IPermissionGate.ResolutionType.APPROVED, "Approved after checks",
+                    (IPermissionGate.InterruptResult) null);
 
             await().atMost(Duration.ofSeconds(300))
                     .until(workflowFuture::isDone);
@@ -528,9 +530,9 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             // Resolve with specific feedback
             permissionGate.resolveInterrupt(
                     pendingInterrupt.getInterruptId(),
-                    "approved",
+                    IPermissionGate.ResolutionType.APPROVED,
                     "Approved with note: use event sourcing pattern",
-                    (AgentModels.ReviewAgentResult) null);
+                    (IPermissionGate.InterruptResult) null);
 
             await().atMost(Duration.ofSeconds(300))
                     .until(workflowFuture::isDone);
@@ -574,9 +576,9 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             // Resolve with specific feedback
             permissionGate.resolveInterrupt(
                     pendingInterrupt.getInterruptId(),
-                    "approved",
+                    IPermissionGate.ResolutionType.APPROVED,
                     "Approved with note: use event sourcing pattern",
-                    (AgentModels.ReviewAgentResult) null);
+                    (IPermissionGate.InterruptResult) null);
 
             await().atMost(Duration.ofSeconds(300))
                     .until(workflowFuture::isDone);
@@ -909,6 +911,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                             .build())
                     .build());
 
+            initialOrchestratorToDiscovery("Another one.");
 
             enqueueDiscoveryToEnd("This goal.");
 

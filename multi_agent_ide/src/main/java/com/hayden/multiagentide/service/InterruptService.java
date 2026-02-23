@@ -4,6 +4,7 @@ import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
+import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
@@ -85,7 +86,8 @@ public class InterruptService {
                         promptContext.currentRequest(),
                         promptContext.blackboardHistory(),
                         TEMPLATE_REVIEW_RESOLUTION,
-                        modelWithFeedback
+                        modelWithFeedback,
+                        context
                 );
 
                 toolContext = AgentInterfaces.decorateToolContext(
@@ -214,7 +216,8 @@ public class InterruptService {
                 AgentModels.ReviewAgentResult reviewResult =
                         runInterruptAgentReview(context, promptContext, result, request);
                 String feedback = reviewResult != null ? reviewResult.output() : "";
-                permissionGate.resolveInterrupt(result.interruptId(), "agent-review", feedback, reviewResult);
+                IPermissionGate.ResolutionType agentResolutionType = resolveResolutionType(reviewResult);
+                permissionGate.resolveInterrupt(result.interruptId(), agentResolutionType, feedback, reviewResult);
                 yield feedback;
             }
         };
@@ -239,6 +242,16 @@ public class InterruptService {
     private record InterruptData(String reviewContent, String interruptId) {
     }
 
+    private IPermissionGate.ResolutionType resolveResolutionType(AgentModels.ReviewAgentResult reviewResult) {
+        if (reviewResult == null || reviewResult.assessmentStatus() == null) {
+            return IPermissionGate.ResolutionType.RESOLVED;
+        }
+        try {
+            return IPermissionGate.ResolutionType.valueOf(reviewResult.assessmentStatus().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return IPermissionGate.ResolutionType.RESOLVED;
+        }
+    }
 
     private AgentModels.ReviewAgentResult runInterruptAgentReview(
             OperationContext context,
@@ -258,7 +271,8 @@ public class InterruptService {
                 request,
                 history,
                 TEMPLATE_WORKFLOW_REVIEW,
-                callerPromptContext.model()
+                callerPromptContext.model(),
+                context
         );
 
         promptContext = AgentInterfaces.decoratePromptContext(

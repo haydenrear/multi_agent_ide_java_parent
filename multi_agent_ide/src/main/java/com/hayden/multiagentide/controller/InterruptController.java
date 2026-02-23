@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -126,9 +126,9 @@ public class InterruptController {
     public record InterruptResolution(
             String id,
             String originNodeId,
-            String resolutionType,
+            IPermissionGate.ResolutionType resolutionType,
             String resolutionNotes,
-            AgentModels.ReviewAgentResult reviewResult
+            IPermissionGate.InterruptResult reviewResult
     ) {
     }
 

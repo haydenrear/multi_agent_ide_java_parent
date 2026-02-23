@@ -444,16 +444,19 @@ public class TuiSession implements EventListener {
         if (request == null) {
             return false;
         }
-        String resolutionType;
+        IPermissionGate.ResolutionType resolutionType;
         String resolutionNotes;
         if (input.isBlank()) {
-            resolutionType = "resolved";
+            resolutionType = IPermissionGate.ResolutionType.RESOLVED;
             resolutionNotes = "";
         } else if ("approve".equalsIgnoreCase(input) || "approved".equalsIgnoreCase(input)) {
-            resolutionType = "approved";
+            resolutionType = IPermissionGate.ResolutionType.APPROVED;
             resolutionNotes = "approved";
+        } else if ("reject".equalsIgnoreCase(input) || "rejected".equalsIgnoreCase(input)) {
+            resolutionType = IPermissionGate.ResolutionType.REJECTED;
+            resolutionNotes = "rejected";
         } else {
-            resolutionType = "feedback";
+            resolutionType = IPermissionGate.ResolutionType.FEEDBACK;
             resolutionNotes = input;
         }
         permissionGateAdapter.resolveInterrupt(request.getInterruptId(), resolutionType, resolutionNotes, null);

@@ -35,7 +35,8 @@ class PermissionGate(
     private val orchestrator: ComputationGraphOrchestrator
 ) : IPermissionGate {
 
-    @Autowired @Lazy
+    @Autowired
+    @Lazy
     private lateinit var eventBus: EventBus
 
     val log = LoggerFactory.getLogger(PermissionGate::class.java)
@@ -47,14 +48,14 @@ class PermissionGate(
 
     override fun getInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): IPermissionGate.PendingInterruptRequest? {
         return pendingInterrupts.entries
-            .filter{ requestId.test(it.value) }
+            .filter { requestId.test(it.value) }
             .map { it.value }
             .firstOrNull()
     }
 
     override fun isInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): Boolean {
         return pendingInterrupts.entries
-            .any{ requestId.test(it.value) }
+            .any { requestId.test(it.value) }
     }
 
     override fun pendingPermissionRequests(): List<IPermissionGate.PendingPermissionRequest> {
@@ -116,13 +117,15 @@ class PermissionGate(
         toolCallId: String,
         meta: JsonElement? = null
     ): IPermissionGate.PendingPermissionRequest {
-        return pendingRequests.computeIfAbsent(requestId, {it ->
-//            try {
-//                orchestrator.addChildNodeAndEmitEvent(originNodeId, permissionNode)
-//            } catch (ex: Exception) {
-//                log.error("Could not add child node and emit event", ex)
-//                graphRepository.save(permissionNode)
-//            }
+        return pendingRequests.computeIfAbsent(requestId, { it ->
+            if (permissionNode != null) {
+                try {
+                    orchestrator.addChildNodeAndEmitEvent(originNodeId, permissionNode)
+                } catch (ex: Exception) {
+                    log.error("Could not attach permission node to parent, emitting add event as fallback", ex)
+                    orchestrator.emitNodeAddedEvent(permissionNode, originNodeId)
+                }
+            }
 
             val deferred = CompletableDeferred<RequestPermissionResponse>()
             val pending = IPermissionGate.PendingPermissionRequest(
@@ -204,7 +207,7 @@ class PermissionGate(
             val node = graphRepository.findById(nodeId).orElse(null)
             if (node is AskPermissionNode) {
                 val updated = node.withStatus(Events.NodeStatus.COMPLETED)
-                graphRepository.save(updated)
+                emitNodeUpdatedIf(updated)
                 orchestrator.emitStatusChangeEvent(
                     nodeId,
                     node.status(),
@@ -258,7 +261,7 @@ class PermissionGate(
                         .status(Events.NodeStatus.WAITING_INPUT)
                         .lastUpdatedAt(Instant.now())
                         .build()
-                    graphRepository.save(updated)
+                    emitNodeUpdatedIf(updated)
                     orchestrator.emitStatusChangeEvent(
                         reviewNode.nodeId(),
                         reviewNode.status(),
@@ -282,7 +285,7 @@ class PermissionGate(
                         .status(Events.NodeStatus.RUNNING)
                         .lastUpdatedAt(Instant.now())
                         .build()
-                    graphRepository.save(updated)
+                    emitNodeUpdatedIf(updated)
                     orchestrator.emitStatusChangeEvent(
                         reviewNode.nodeId(),
                         reviewNode.status(),
@@ -306,7 +309,7 @@ class PermissionGate(
         return IPermissionGate.InterruptResolution(
             interruptId = interruptId,
             originNodeId = interruptId,
-            resolutionType = "cancelled",
+            resolutionType = IPermissionGate.ResolutionType.CANCELLED,
             resolutionNotes = null
         )
     }
@@ -319,26 +322,27 @@ class PermissionGate(
 
     override fun resolveInterrupt(
         interruptId: String,
-        resolutionType: String?,
+        resolutionType: IPermissionGate.ResolutionType?,
         resolutionNotes: String?,
         reviewResult: IPermissionGate.InterruptResult?
     ): Boolean {
         val rr: AgentModels.ReviewAgentResult? = if (reviewResult != null)
             AgentModels.ReviewAgentResult(
                 reviewResult.contextId,
-                reviewResult.assessmentStatus,
+                reviewResult.assessmentStatus?.name,
                 reviewResult.feedback,
-                reviewResult.suggestions,
-                reviewResult.contentLinks,
-                reviewResult.output)
-            else null
+                reviewResult.suggestions ?: emptyList(),
+                reviewResult.contentLinks ?: emptyList(),
+                reviewResult.output
+            )
+        else null
 
-        return resolveInterrupt(interruptId, resolutionType, resolutionNotes,  rr)
+        return resolveInterrupt(interruptId, resolutionType, resolutionNotes, rr)
     }
 
     fun resolveInterrupt(
         interruptId: String,
-        resolutionType: String?,
+        resolutionType: IPermissionGate.ResolutionType?,
         resolutionNotes: String?,
         reviewResult: AgentModels.ReviewAgentResult? = null
     ): Boolean {
@@ -354,14 +358,12 @@ class PermissionGate(
         val interruptNode = graphRepository.findById(interruptId).orElse(null)
         when (interruptNode) {
             is ReviewNode -> {
-                val approved = resolutionType?.equals("approved", ignoreCase = true) == true
-                    || resolutionType?.equals("accept", ignoreCase = true) == true
                 val updatedContext = interruptNode.interruptContext()
                     ?.withStatus(InterruptContext.InterruptStatus.RESOLVED)
                     ?.withResultPayload(resolutionNotes)
                 val updated = interruptNode
                     .toBuilder()
-                    .approved(approved)
+                    .approved(resolution.approved())
                     .agentFeedback(resolutionNotes ?: "")
                     .reviewCompletedAt(Instant.now())
                     .reviewResult(reviewResult)
@@ -369,7 +371,7 @@ class PermissionGate(
                     .status(Events.NodeStatus.COMPLETED)
                     .lastUpdatedAt(Instant.now())
                     .build()
-                graphRepository.save(updated)
+                emitNodeUpdatedIf(updated)
                 orchestrator.emitStatusChangeEvent(
                     interruptNode.nodeId(),
                     interruptNode.status(),
@@ -383,6 +385,7 @@ class PermissionGate(
                     resolution.resolutionNotes
                 )
             }
+
             is InterruptNode -> {
                 val updatedContext = interruptNode.interruptContext()
                     ?.withStatus(InterruptContext.InterruptStatus.RESOLVED)
@@ -393,7 +396,7 @@ class PermissionGate(
                     .status(Events.NodeStatus.COMPLETED)
                     .lastUpdatedAt(Instant.now())
                     .build()
-                graphRepository.save(updated)
+                emitNodeUpdatedIf(updated)
                 orchestrator.emitStatusChangeEvent(
                     interruptNode.nodeId(),
                     interruptNode.status(),
@@ -407,6 +410,7 @@ class PermissionGate(
                     resolution.resolutionNotes
                 )
             }
+
             else -> {
             }
         }
@@ -419,12 +423,12 @@ class PermissionGate(
                     .withStatus(InterruptContext.InterruptStatus.RESOLVED)
                     .withResultPayload(resolutionNotes)
                 val updatedOrigin = updateInterruptContext(originNode, updatedContext)
-                graphRepository.save(updatedOrigin)
+                emitNodeUpdatedIf(updatedOrigin)
                 if (originNode.status() == Events.NodeStatus.WAITING_INPUT ||
                     originNode.status() == Events.NodeStatus.WAITING_REVIEW
                 ) {
                     val resumed = updatedOrigin.withStatus(Events.NodeStatus.RUNNING)
-                    graphRepository.save(resumed)
+                    emitNodeUpdatedIf(resumed)
                     orchestrator.emitStatusChangeEvent(
                         originNode.nodeId(),
                         originNode.status(),
@@ -446,38 +450,69 @@ class PermissionGate(
         return true
     }
 
+    private fun emitNodeUpdatedIf(node: GraphNode?) {
+        if (node == null) {
+            return
+        }
+        orchestrator.emitNodeUpdatedEvent(node)
+    }
+
     private fun updateInterruptContext(node: GraphNode, context: InterruptContext): GraphNode {
         return when (node) {
             is com.hayden.multiagentidelib.model.nodes.DiscoveryNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.DiscoveryCollectorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
+            is com.hayden.multiagentidelib.model.nodes.DiscoveryDispatchAgentNode ->
+                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.DiscoveryOrchestratorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.PlanningNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.PlanningCollectorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
+            is com.hayden.multiagentidelib.model.nodes.PlanningDispatchAgentNode ->
+                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.PlanningOrchestratorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.TicketNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.TicketCollectorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
+            is com.hayden.multiagentidelib.model.nodes.TicketDispatchAgentNode ->
+                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.TicketOrchestratorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is ReviewNode ->
                 node.toBuilder().interruptContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.MergeNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.OrchestratorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.CollectorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.SummaryNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
+
             is InterruptNode ->
                 node.toBuilder().interruptContext(context).lastUpdatedAt(Instant.now()).build()
+
             is com.hayden.multiagentidelib.model.nodes.AskPermissionNode ->
                 node.toBuilder().lastUpdatedAt(Instant.now()).build()
         }
