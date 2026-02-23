@@ -224,18 +224,26 @@ public class WeAreHerePromptContributor implements PromptContributor {
             **Branching behavior when `collectorResult` is set:**
             - Collector decision is interpreted by the discovery collector branch flow
             - ADVANCE_PHASE advances to Planning Orchestrator
-            - ROUTE_BACK requires interrupt clarification first; if confirmed, return to Discovery Orchestrator
+            - ROUTE_BACK: you must first set interruptRequest for review; after review feedback, set collectorResult with the reviewer's decision
             - STOP stops execution
-            - Include additional action/context summary fields needed by the next stage
+
+            **Route-Back Review:** To ROUTE_BACK, first return a structured JSON response with only `interruptRequest` populated (leave collectorResult null).
+            After review, if approved: return `collectorResult` with ROUTE_BACK so discovery runs again.
+            After review, if rejected: return `collectorResult` with ADVANCE_PHASE and requestedPhase = "PLANNING",
+            filling in unifiedCodeMap, recommendations, and querySpecificFindings with the best available data.
 
             **Most common:** Use `collectorResult` for standard flow control.""");
         templates.put(AgentModels.PlanningCollectorRequest.class, """
             **Branching behavior when `collectorResult` is set:**
             - Collector decision is interpreted by the planning collector branch flow
             - ADVANCE_PHASE advances to Ticket Orchestrator
-            - ROUTE_BACK requires interrupt clarification first; if confirmed, return to Planning Orchestrator
+            - ROUTE_BACK: you must first set interruptRequest for review; after review feedback, set collectorResult with the reviewer's decision
             - STOP stops execution
-            - Include additional action/context summary fields needed by the next stage
+
+            **Route-Back Review:** To ROUTE_BACK, first return a structured JSON response with only `interruptRequest` populated (leave collectorResult null).
+            After review, if approved: return `collectorResult` with ROUTE_BACK so planning runs again.
+            After review, if rejected: return `collectorResult` with ADVANCE_PHASE and requestedPhase = "TICKETS",
+            filling in finalizedTickets and dependencyGraph with the best available plan.
 
             **Most common:** Use `collectorResult` for standard flow control.""");
 
@@ -251,9 +259,13 @@ public class WeAreHerePromptContributor implements PromptContributor {
             **Branching behavior when `collectorResult` is set:**
             - Collector decision is interpreted by the ticket collector branch flow
             - ADVANCE_PHASE advances to Orchestrator Collector (final)
-            - ROUTE_BACK requires interrupt clarification first; if confirmed, return to Ticket Orchestrator
+            - ROUTE_BACK: you must first set interruptRequest for review; after review feedback, set collectorResult with the reviewer's decision
             - STOP stops execution
-            - Include additional action/context summary fields needed by the next stage
+
+            **Route-Back Review:** To ROUTE_BACK, first return a structured JSON response with only `interruptRequest` populated (leave collectorResult null).
+            After review, if approved: return `collectorResult` with ROUTE_BACK so ticket execution runs again.
+            After review, if rejected: return `collectorResult` with ADVANCE_PHASE and requestedPhase = "COMPLETE",
+            filling in completionStatus and followUps with what was accomplished and what remains.
 
             **Most common:** Use `collectorResult` for standard flow control.""");
 
@@ -261,9 +273,15 @@ public class WeAreHerePromptContributor implements PromptContributor {
             **Branching behavior when `collectorResult` is set:**
             - Collector decision is interpreted by the final collector branch flow
             - ADVANCE_PHASE → workflow complete (requestedPhase="COMPLETE")
-            - ROUTE_BACK requires interrupt clarification first; if confirmed, return to Orchestrator for another pass
+            - ROUTE_BACK: you must first set interruptRequest for review; after review feedback, set collectorResult with the reviewer's decision
             - At this stage, validate ticket completion against the goal and prefer completion when done
-            - Include additional action/context summary fields needed by the next stage
+
+            **Route-Back Review:** To ROUTE_BACK, first return a structured JSON response with only `interruptRequest` populated (leave collectorResult null).
+            After review, if approved: return `collectorResult` with ROUTE_BACK. Widen the goal in consolidatedOutput
+            to cover both the original goal and unresolved gaps. Populate discoveryCollectorResult,
+            planningCollectorResult, and ticketCollectorResult so context is preserved.
+            After review, if rejected: return `collectorResult` with ADVANCE_PHASE and requestedPhase = "COMPLETE",
+            summarizing accomplishments and noting limitations in consolidatedOutput.
 
             **Most common:** Use `collectorResult` with ADVANCE_PHASE for workflow completion.""");
 
