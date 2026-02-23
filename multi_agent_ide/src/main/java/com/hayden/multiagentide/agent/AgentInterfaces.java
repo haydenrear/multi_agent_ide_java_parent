@@ -21,18 +21,12 @@ import com.hayden.multiagentide.agent.decorator.request.ResultsRequestDecorator;
 import com.hayden.multiagentide.agent.decorator.result.DispatchedAgentResultDecorator;
 import com.hayden.multiagentide.agent.decorator.result.FinalResultDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
+import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentidelib.events.DegenerateLoopException;
 import com.hayden.multiagentide.service.InterruptService;
 import com.hayden.multiagentide.tool.ToolAbstraction;
 import com.hayden.multiagentide.tool.ToolContext;
 import com.hayden.multiagentidelib.service.RequestEnrichment;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.agent.ContextManagerTools;
-import com.hayden.multiagentidelib.agent.AgentContext;
-import com.hayden.multiagentidelib.agent.UpstreamContext;
-import com.hayden.multiagentidelib.agent.BlackboardHistoryService;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContextFactory;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
@@ -609,7 +603,8 @@ public interface AgentInterfaces {
                     currentRequest,
                     history,
                     templateName,
-                    model
+                    model,
+                    context
             );
             return AgentInterfaces.decoratePromptContext(
                     promptContext,
@@ -2420,7 +2415,8 @@ public interface AgentInterfaces {
                     currentRequest,
                     history,
                     templateName,
-                    model
+                    model,
+                    context
             );
             return AgentInterfaces.decoratePromptContext(
                     promptContext,
@@ -2663,7 +2659,8 @@ public interface AgentInterfaces {
                     currentRequest,
                     history,
                     templateName,
-                    model
+                    model,
+                    context
             );
             return AgentInterfaces.decoratePromptContext(
                     promptContext,
@@ -2899,7 +2896,8 @@ public interface AgentInterfaces {
                     currentRequest,
                     history,
                     templateName,
-                    model
+                    model,
+                    context
             );
             return AgentInterfaces.decoratePromptContext(
                     promptContext,
