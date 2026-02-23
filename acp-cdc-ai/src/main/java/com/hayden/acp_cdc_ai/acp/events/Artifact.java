@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 
 /**
  * Base interface for all artifacts in the execution tree.
- *
+ * 
  * Artifacts are immutable nodes that capture execution state:
  * - prompts, templates, arguments
  * - tool I/O
