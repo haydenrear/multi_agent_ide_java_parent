@@ -1,5 +1,6 @@
 package com.hayden.acp_cdc_ai.acp;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties;
 import com.hayden.acp_cdc_ai.acp.config.McpProperties;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
@@ -63,7 +64,8 @@ class AcpChatModelArgsParsingTest {
                 mcpProperties,
                 permissionGate,
                 requestContextRepository,
-                sandboxTranslationRegistry
+                sandboxTranslationRegistry,
+                new ObjectMapper()
         );
     }
 
