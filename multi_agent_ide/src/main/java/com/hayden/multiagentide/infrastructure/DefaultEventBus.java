@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.List;
 
@@ -27,6 +28,7 @@ public class DefaultEventBus implements EventBus {
     @Lazy
     public void setSubscribers(List<EventListener> subscribers) {
         this.subscribers = new ArrayList<>(subscribers);
+        this.subscribers.sort(Comparator.comparingInt(EventListener::order));
     }
 
     @Override
@@ -37,6 +39,7 @@ public class DefaultEventBus implements EventBus {
             return;
         }
         subscribers.add(listener);
+        subscribers.sort(Comparator.comparingInt(EventListener::order));
         listener.onSubscribed();
     }
 

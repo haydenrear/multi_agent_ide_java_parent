@@ -58,6 +58,9 @@ public class AgentEventListener implements EventListener {
             case Events.NodeAddedEvent nodeAddedEvent -> {
                 handleNodeAdded(nodeAddedEvent);
             }
+            case Events.AddChildNodeEvent addChildNodeEvent -> {
+                log.debug("Child node attached: {} -> {}", addChildNodeEvent.parentNodeId(), addChildNodeEvent.nodeId());
+            }
             case Events.NodeStatusChangedEvent statusChangedEvent -> {
                 handleNodeStatusChanged(statusChangedEvent);
             }

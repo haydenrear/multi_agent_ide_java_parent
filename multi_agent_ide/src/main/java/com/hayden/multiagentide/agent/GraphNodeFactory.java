@@ -110,6 +110,30 @@ public class GraphNodeFactory {
         );
     }
 
+    public DiscoveryDispatchAgentNode discoveryDispatchAgentNode(
+            String parentId,
+            AgentModels.DiscoveryAgentRequests input
+    ) {
+        Instant now = Instant.now();
+        int requestCount = input != null && input.requests() != null ? input.requests().size() : 0;
+        return new DiscoveryDispatchAgentNode(
+                input != null && input.contextId() != null ? input.contextId().value() : newNodeId(),
+                "Discovery Dispatch",
+                input != null ? input.goal() : "",
+                Events.NodeStatus.READY,
+                parentId,
+                new ArrayList<>(),
+                new ConcurrentHashMap<>(),
+                now,
+                now,
+                requestCount,
+                input != null ? input.delegationRationale() : "",
+                input,
+                null,
+                WorkflowContext.initial()
+        );
+    }
+
     public PlanningOrchestratorNode planningOrchestratorNode(
             String parentId,
             String goal,
@@ -175,6 +199,30 @@ public class GraphNodeFactory {
                 "",
                 0,
                 0
+        );
+    }
+
+    public PlanningDispatchAgentNode planningDispatchAgentNode(
+            String parentId,
+            AgentModels.PlanningAgentRequests input
+    ) {
+        Instant now = Instant.now();
+        int requestCount = input != null && input.requests() != null ? input.requests().size() : 0;
+        return new PlanningDispatchAgentNode(
+                input != null && input.contextId() != null ? input.contextId().value() : newNodeId(),
+                "Planning Dispatch",
+                input != null ? input.goal() : "",
+                Events.NodeStatus.READY,
+                parentId,
+                new ArrayList<>(),
+                new ConcurrentHashMap<>(),
+                now,
+                now,
+                requestCount,
+                input != null ? input.delegationRationale() : "",
+                input,
+                null,
+                WorkflowContext.initial()
         );
     }
 
@@ -250,6 +298,30 @@ public class GraphNodeFactory {
                 "",
                 0,
                 0
+        );
+    }
+
+    public TicketDispatchAgentNode ticketDispatchAgentNode(
+            String parentId,
+            AgentModels.TicketAgentRequests input
+    ) {
+        Instant now = Instant.now();
+        int requestCount = input != null && input.requests() != null ? input.requests().size() : 0;
+        return new TicketDispatchAgentNode(
+                input != null && input.contextId() != null ? input.contextId().value() : newNodeId(),
+                "Ticket Dispatch",
+                input != null ? input.goal() : "",
+                Events.NodeStatus.READY,
+                parentId,
+                new ArrayList<>(),
+                new ConcurrentHashMap<>(),
+                now,
+                now,
+                requestCount,
+                input != null ? input.delegationRationale() : "",
+                input,
+                null,
+                WorkflowContext.initial()
         );
     }
 

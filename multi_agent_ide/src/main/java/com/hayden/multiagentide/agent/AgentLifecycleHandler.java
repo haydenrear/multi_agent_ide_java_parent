@@ -11,7 +11,6 @@ import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
-import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.WorktreeService;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +33,6 @@ public class AgentLifecycleHandler {
 
 
     private final ComputationGraphOrchestrator orchestrator;
-    private final GraphRepository graphRepository;
     private final WorktreeRepository worktreeRepository;
     private final WorktreeService worktreeService;
     private final AgentPlatform agentPlatform;
@@ -137,13 +135,11 @@ public class AgentLifecycleHandler {
 
 
         // Save to repositories
-        graphRepository.save(orchestrator);
+        this.orchestrator.emitNodeAddedEvent(orchestrator, orchestrator.parentNodeId());
         worktreeRepository.save(mainWorktree);
 
         this.orchestrator.emitWorktreeCreatedEvent(mainWorktree.worktreeId(), resolvedNodeId,
                 mainWorktree.worktreePath().toString(), "main", null);
-        this.orchestrator.emitNodeAddedEvent(orchestrator.nodeId(), orchestrator.title(),
-                orchestrator.nodeType(), orchestrator.parentNodeId());
     }
 
     private boolean nodeExists(String nodeId) {

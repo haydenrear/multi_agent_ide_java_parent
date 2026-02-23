@@ -72,12 +72,13 @@ public class ComputationGraphOrchestrator {
 
         GraphNode parent = parentOpt.get();
         List<String> childIds = new ArrayList<>(parent.childNodeIds());
-        childIds.add(childNode.nodeId());
+        if (!childIds.contains(childNode.nodeId())) {
+            childIds.add(childNode.nodeId());
+        }
 
         // Update parent based on type
         GraphNode updatedParent = updateNodeChildren(parent, childIds);
-        graphRepository.save(updatedParent);
-        graphRepository.save(childNode);
+        emitAddChildNodeEvent(parentNodeId, updatedParent, childNode);
 
         emitNodeAddedEvent(
                 childNode.nodeId(),
@@ -138,13 +139,64 @@ public class ComputationGraphOrchestrator {
             Events.NodeType nodeType,
             String parentId
     ) {
+        emitNodeAddedEvent(nodeId, title, nodeType, parentId, null);
+    }
+
+    public void emitNodeAddedEvent(
+            String nodeId,
+            String title,
+            Events.NodeType nodeType,
+            String parentId,
+            GraphNode node
+    ) {
         Events.NodeAddedEvent event = new Events.NodeAddedEvent(
                 UUID.randomUUID().toString(),
                 Instant.now(),
                 nodeId,
                 title,
                 nodeType,
-                parentId
+                parentId,
+                node
+        );
+        eventBus.publish(event);
+    }
+
+    public void emitNodeAddedEvent(GraphNode node, String parentId) {
+        if (node == null) {
+            return;
+        }
+        emitNodeAddedEvent(node.nodeId(), node.title(), node.nodeType(), parentId, node);
+    }
+
+    public void emitNodeUpdatedEvent(GraphNode node) {
+        emitNodeUpdatedEvent(node, Map.of());
+    }
+
+    public void emitNodeUpdatedEvent(GraphNode node, Map<String, String> updates) {
+        if (node == null) {
+            return;
+        }
+        Events.NodeUpdatedEvent event = new Events.NodeUpdatedEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                node.nodeId(),
+                updates != null ? updates : Map.of(),
+                node
+        );
+        eventBus.publish(event);
+    }
+
+    public void emitAddChildNodeEvent(String parentNodeId, GraphNode updatedParentNode, GraphNode childNode) {
+        if (childNode == null) {
+            return;
+        }
+        Events.AddChildNodeEvent event = new Events.AddChildNodeEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                childNode.nodeId(),
+                parentNodeId,
+                updatedParentNode,
+                childNode
         );
         eventBus.publish(event);
     }
@@ -299,6 +351,11 @@ public class ComputationGraphOrchestrator {
                             .childNodeIds(childIds)
                             .lastUpdatedAt(Instant.now())
                             .build();
+            case DiscoveryDispatchAgentNode p ->
+                    p.toBuilder()
+                            .childNodeIds(childIds)
+                            .lastUpdatedAt(Instant.now())
+                            .build();
             case PlanningOrchestratorNode p ->
                     p.toBuilder()
                             .childNodeIds(childIds)
@@ -309,7 +366,17 @@ public class ComputationGraphOrchestrator {
                             .childNodeIds(childIds)
                             .lastUpdatedAt(Instant.now())
                             .build();
+            case PlanningDispatchAgentNode p ->
+                    p.toBuilder()
+                            .childNodeIds(childIds)
+                            .lastUpdatedAt(Instant.now())
+                            .build();
             case TicketCollectorNode p ->
+                    p.toBuilder()
+                            .childNodeIds(childIds)
+                            .lastUpdatedAt(Instant.now())
+                            .build();
+            case TicketDispatchAgentNode p ->
                     p.toBuilder()
                             .childNodeIds(childIds)
                             .lastUpdatedAt(Instant.now())

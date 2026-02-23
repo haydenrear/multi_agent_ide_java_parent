@@ -11,13 +11,16 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,8 +32,6 @@ import org.springframework.stereotype.Service;
 public class WorkflowGraphService {
 
     private static final String META_PARENT_WORKTREE = "parent_worktree_id";
-    private static final String META_DISCOVERY_CONTEXT = "discovery_context";
-    private static final String META_PLANNING_CONTEXT = "planning_context";
 
     private final ComputationGraphOrchestrator computationGraphOrchestrator;
     private final GraphRepository graphRepository;
@@ -72,6 +73,10 @@ public class WorkflowGraphService {
         return resolveState(context, s -> requireNode(s.discoveryCollectorNodeId(), DiscoveryCollectorNode.class, "discovery collector"));
     }
 
+    public DiscoveryDispatchAgentNode requireDiscoveryDispatch(OperationContext context) {
+        return resolveState(context, s -> requireNode(s.discoveryDispatchNodeId(), DiscoveryDispatchAgentNode.class, "discovery dispatch"));
+    }
+
     public PlanningOrchestratorNode requirePlanningOrchestrator(OperationContext context) {
         return resolveState(context, s -> requireNode(s.planningOrchestratorNodeId(), PlanningOrchestratorNode.class, "planning orchestrator"));
     }
@@ -80,12 +85,20 @@ public class WorkflowGraphService {
         return resolveState(context, s -> requireNode(s.planningCollectorNodeId(), PlanningCollectorNode.class, "planning collector"));
     }
 
+    public PlanningDispatchAgentNode requirePlanningDispatch(OperationContext context) {
+        return resolveState(context, s -> requireNode(s.planningDispatchNodeId(), PlanningDispatchAgentNode.class, "planning dispatch"));
+    }
+
     public TicketOrchestratorNode requireTicketOrchestrator(OperationContext context) {
         return resolveState(context, state -> requireNode(state.ticketOrchestratorNodeId(), TicketOrchestratorNode.class, "ticket orchestrator"));
     }
 
     public TicketCollectorNode requireTicketCollector(OperationContext context) {
         return resolveState(context, state -> requireNode(state.ticketCollectorNodeId(), TicketCollectorNode.class, "ticket collector"));
+    }
+
+    public TicketDispatchAgentNode requireTicketDispatch(OperationContext context) {
+        return resolveState(context, state -> requireNode(state.ticketDispatchNodeId(), TicketDispatchAgentNode.class, "ticket dispatch"));
     }
 
     public CollectorNode requireOrchestratorCollector(OperationContext context) {
@@ -112,16 +125,34 @@ public class WorkflowGraphService {
         );
     }
 
+    public void emitDecoratorError(OperationContext context, String message) {
+        if (message == null || message.isBlank()) {
+            return;
+        }
+        if (context == null) {
+            log.error("Decorator error with no operation context: {}", message);
+            return;
+        }
+        try {
+            emitErrorEvent(requireOrchestrator(context), message);
+        } catch (RuntimeException e) {
+            log.error("Decorator error and failed to emit node error event: {}", message, e);
+        }
+    }
+
     public OrchestratorNode startOrchestrator(OperationContext context) {
         OrchestratorNode orchestratorNode = requireOrchestrator(context);
         return markNodeRunning(orchestratorNode);
     }
 
-    public void completeOrchestrator(OrchestratorNode running, AgentModels.OrchestratorRouting routing) {
+    public void pendingOrchestrator(OrchestratorNode running, AgentModels.OrchestratorRouting routing) {
         String output = routing != null ? routing.toString() : "";
         OrchestratorNode withOutput = running.withOutput(output);
-        graphRepository.save(withOutput);
-        handleRoutingInterrupt(withOutput, routing != null ? routing.interruptRequest() : null, output);
+        persistNode(withOutput);
+        if (handleRoutingInterrupt(withOutput, routing != null ? routing.interruptRequest() : null, output)) {
+            return;
+        }
+        markNodePending(withOutput);
     }
 
     public void completeOrchestratorCollectorResult(
@@ -135,14 +166,14 @@ public class WorkflowGraphService {
             OrchestratorNode withOutput = consolidated != null && !consolidated.isBlank()
                     ? orchestratorNode.withOutput(consolidated)
                     : orchestratorNode;
-            graphRepository.save(withOutput);
+            persistNode(withOutput);
             if (state.orchestratorCollectorNodeId() != null) {
                 findNode(state.orchestratorCollectorNodeId(), CollectorNode.class)
                         .map(node -> input != null ? node.withResult(input) : node)
-                        .map(this::markNodeCompleted)
-                        .ifPresent(graphRepository::save);
+                        .ifPresent(this::markNodeCompleted);
             }
-            markNodeCompleted(withOutput);
+            OrchestratorNode completed = markNodeCompleted(withOutput);
+            markDescendantNodesCompleted(completed.nodeId());
             return null;
         });
     }
@@ -151,17 +182,33 @@ public class WorkflowGraphService {
             OperationContext context,
             AgentModels.OrchestratorCollectorRequest input
     ) {
-        OrchestratorNode orchestratorNode = requireOrchestrator(context);
-        CollectorNode collectorNode = nodeFactory.orchestratorCollectorNode(orchestratorNode, input.goal(), input.contextId());
-        computationGraphOrchestrator.addChildNodeAndEmitEvent(
-                orchestratorNode.nodeId(),
-                collectorNode
-        );
-        updateState(context, s -> s.withOrchestratorCollectorNodeId(collectorNode.nodeId()));
-        return markNodeRunning(collectorNode);
+        return resolveState(context, state -> {
+            OrchestratorNode orchestratorNode = requireOrchestrator(context);
+            return startOrReuseRerunnableNode(
+                    context,
+                    state.orchestratorCollectorNodeId(),
+                    input != null ? input.contextId() : null,
+                    CollectorNode.class,
+                    existing -> existing.toBuilder()
+                            .goal(firstNonBlank(input != null ? input.goal() : null, existing.goal()))
+                            .parentNodeId(orchestratorNode.nodeId())
+                            .lastUpdatedAt(Instant.now())
+                            .build(),
+                    () -> {
+                        CollectorNode collectorNode = nodeFactory.orchestratorCollectorNode(
+                                orchestratorNode,
+                                input != null ? input.goal() : "",
+                                input != null ? input.contextId() : null
+                        );
+                        computationGraphOrchestrator.addChildNodeAndEmitEvent(orchestratorNode.nodeId(), collectorNode);
+                        return collectorNode;
+                    },
+                    (s, nodeId) -> s.withOrchestratorCollectorNodeId(nodeId)
+            );
+        });
     }
 
-    public void completeOrchestratorCollector(
+    public void pendingOrchestratorCollector(
             OperationContext context,
             CollectorNode running,
             AgentModels.OrchestratorCollectorRouting routing
@@ -171,13 +218,13 @@ public class WorkflowGraphService {
                 routing != null ? routing.collectorResult() : null;
         String output = collectorResult != null ? collectorResult.consolidatedOutput() : "";
         CollectorNode withResult = running.withResult(collectorResult).withOutput(output);
-        graphRepository.save(withResult);
+        persistNode(withResult);
         if (handleRoutingInterrupt(withResult, routing != null ? routing.interruptRequest() : null, output)) {
             return;
         }
-        markNodeCompleted(withResult);
+        markNodePending(withResult);
         if (output != null && !output.isBlank()) {
-            graphRepository.save(orchestratorNode.withOutput(output));
+            persistNode(orchestratorNode.withOutput(output));
         }
     }
 
@@ -201,24 +248,43 @@ public class WorkflowGraphService {
             OperationContext context,
             AgentModels.DiscoveryOrchestratorRequest input
     ) {
-        var d = resolveState(context, s -> {
-            String parentId = firstNonBlank(s.orchestratorCollectorNodeId(), s.orchestratorNodeId());
-            var discoveryNode = nodeFactory.discoveryOrchestratorNode(parentId, input.goal(), input.contextId());
-            computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, discoveryNode);
-            updateState(context,st ->  st.withDiscoveryOrchestratorNodeId(discoveryNode.nodeId()));
-            return discoveryNode;
+        return resolveState(context, state -> {
+            String parentId = firstNonBlank(state.orchestratorCollectorNodeId(), state.orchestratorNodeId());
+            return startOrReuseRerunnableNode(
+                    context,
+                    state.discoveryOrchestratorNodeId(),
+                    input != null ? input.contextId() : null,
+                    DiscoveryOrchestratorNode.class,
+                    existing -> existing.toBuilder()
+                            .goal(firstNonBlank(input != null ? input.goal() : null, existing.goal()))
+                            .parentNodeId(parentId)
+                            .lastUpdatedAt(Instant.now())
+                            .build(),
+                    () -> {
+                        DiscoveryOrchestratorNode discoveryNode = nodeFactory.discoveryOrchestratorNode(
+                                parentId,
+                                input != null ? input.goal() : "",
+                                input != null ? input.contextId() : null
+                        );
+                        computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, discoveryNode);
+                        return discoveryNode;
+                    },
+                    (s, nodeId) -> s.withDiscoveryOrchestratorNodeId(nodeId)
+            );
         });
-        return markNodeRunning(d);
     }
 
-    public void completeDiscoveryOrchestrator(
+    public void pendingDiscoveryOrchestrator(
             DiscoveryOrchestratorNode running,
             AgentModels.DiscoveryOrchestratorRouting routing
     ) {
         String summary = routing != null ? routing.toString() : "";
         DiscoveryOrchestratorNode updated = running.withContent(summary);
-        graphRepository.save(updated);
-        handleRoutingInterrupt(updated, routing != null ? routing.interruptRequest() : null, summary);
+        persistNode(updated);
+        if (handleRoutingInterrupt(updated, routing != null ? routing.interruptRequest() : null, summary)) {
+            return;
+        }
+        markNodePending(updated);
     }
 
     public void handleDiscoveryInterrupt(
@@ -243,6 +309,27 @@ public class WorkflowGraphService {
         return graphRepository.findById(nodeId);
     }
 
+    public <T extends GraphNode> Optional<T> findNodeById(String nodeId, Class<T> type) {
+        return findNode(nodeId, type);
+    }
+
+    public void ensureNodeRecorded(GraphNode node) {
+        if (node == null || node.nodeId() == null || node.nodeId().isBlank()) {
+            return;
+        }
+
+        if (!graphRepository.exists(node.nodeId())) {
+            String parentNodeId = node.parentNodeId();
+            if (parentNodeId != null && !parentNodeId.isBlank() && graphRepository.exists(parentNodeId)) {
+                computationGraphOrchestrator.addChildNodeAndEmitEvent(parentNodeId, node);
+            } else {
+                computationGraphOrchestrator.emitNodeAddedEvent(node, parentNodeId);
+            }
+        }
+
+        persistNode(node);
+    }
+
     public void handleAgentInterrupt(
             GraphNode originNode,
             AgentModels.InterruptRequest request
@@ -254,19 +341,57 @@ public class WorkflowGraphService {
         handleRoutingInterrupt(
                 originNode,
                 request,
-                firstNonBlank(request.reason(), request.contextForDecision())
-        );
+                firstNonBlank(request.reason(), request.contextForDecision()));
+    }
+
+    public void pendingNode(GraphNode node) {
+        if (node == null) {
+            return;
+        }
+        if (node.status() == Events.NodeStatus.PENDING) {
+            persistNode(node);
+            return;
+        }
+        markNodePending(node);
+    }
+
+    public DiscoveryDispatchAgentNode startDiscoveryDispatch(
+            OperationContext context,
+            AgentModels.DiscoveryAgentRequests input
+    ) {
+        return resolveState(context, state -> {
+            DiscoveryOrchestratorNode parent = requireDiscoveryOrchestrator(context);
+            return startOrReuseRerunnableNode(
+                    context,
+                    state.discoveryDispatchNodeId(),
+                    input != null ? input.contextId() : null,
+                    DiscoveryDispatchAgentNode.class,
+                    existing -> existing.withRequests(input)
+                            .toBuilder()
+                            .parentNodeId(parent.nodeId())
+                            .lastUpdatedAt(Instant.now())
+                            .build(),
+                    () -> {
+                        DiscoveryDispatchAgentNode dispatchNode = nodeFactory.discoveryDispatchAgentNode(parent.nodeId(), input);
+                        computationGraphOrchestrator.addChildNodeAndEmitEvent(parent.nodeId(), dispatchNode);
+                        return dispatchNode;
+                    },
+                    (s, nodeId) -> s.withDiscoveryDispatchNodeId(nodeId)
+            );
+        });
     }
 
     public DiscoveryNode startDiscoveryAgent(
-            DiscoveryOrchestratorNode parent,
+            DiscoveryDispatchAgentNode parent,
             String goal,
             String focus,
             AgentModels.DiscoveryAgentRequest enrichedRequest) {
+        String requestGoal = firstNonBlank(goal, enrichedRequest != null ? enrichedRequest.goal() : null);
+        String title = "Discover: " + firstNonBlank(focus, enrichedRequest != null ? enrichedRequest.subdomainFocus() : null);
         DiscoveryNode discoveryNode = nodeFactory.discoveryNode(
                 parent.nodeId(),
-                goal,
-                "Discover: " + focus,
+                requestGoal,
+                title,
                 enrichedRequest,
                 enrichedRequest != null ? enrichedRequest.contextId() : null
         );
@@ -285,7 +410,7 @@ public class WorkflowGraphService {
 
         if (runningOpt.get() instanceof DiscoveryNode running) {
             DiscoveryNode completed = running.withResult(response).withContent(response.output());
-            graphRepository.save(completed);
+            persistNode(completed);
             markNodeCompleted(completed);
         }
     }
@@ -294,43 +419,64 @@ public class WorkflowGraphService {
             OperationContext context,
             AgentModels.DiscoveryCollectorRequest input
     ) {
-        DiscoveryOrchestratorNode discoveryParent = requireDiscoveryOrchestrator(context);
-        DiscoveryCollectorNode collectorNode = nodeFactory.discoveryCollectorNode(
-                discoveryParent.nodeId(),
-                input.goal(),
-                input.contextId()
-        );
-        computationGraphOrchestrator.addChildNodeAndEmitEvent(
-                discoveryParent.nodeId(),
-                collectorNode
-        );
-        updateState(context, state -> state.withDiscoveryCollectorNodeId(collectorNode.nodeId()));
-        return markNodeRunning(collectorNode);
+        return resolveState(context, state -> {
+            DiscoveryOrchestratorNode discoveryParent = requireDiscoveryOrchestrator(context);
+            return startOrReuseRerunnableNode(
+                    context,
+                    state.discoveryCollectorNodeId(),
+                    input != null ? input.contextId() : null,
+                    DiscoveryCollectorNode.class,
+                    existing -> existing.toBuilder()
+                            .goal(firstNonBlank(input != null ? input.goal() : null, existing.goal()))
+                            .parentNodeId(discoveryParent.nodeId())
+                            .lastUpdatedAt(Instant.now())
+                            .build(),
+                    () -> {
+                        DiscoveryCollectorNode collectorNode = nodeFactory.discoveryCollectorNode(
+                                discoveryParent.nodeId(),
+                                input != null ? input.goal() : "",
+                                input != null ? input.contextId() : null
+                        );
+                        computationGraphOrchestrator.addChildNodeAndEmitEvent(discoveryParent.nodeId(), collectorNode);
+                        return collectorNode;
+                    },
+                    (s, nodeId) -> s.withDiscoveryCollectorNodeId(nodeId)
+            );
+        });
     }
 
-    public void completeDiscoveryCollector(
+    public void pendingDiscoveryCollector(
             OperationContext context,
             DiscoveryCollectorNode running,
             AgentModels.DiscoveryCollectorRouting routing
     ) {
         DiscoveryOrchestratorNode discoveryParent = requireDiscoveryOrchestrator(context);
+
         AgentModels.DiscoveryCollectorResult collectorResult =
                 routing != null ? routing.collectorResult() : null;
+
         String output = collectorResult != null ? collectorResult.consolidatedOutput() : "";
+
         List<CollectedNodeStatus> collectedNodes =
                 collectSiblingStatusSnapshots(discoveryParent.nodeId(), DiscoveryNode.class);
+
         DiscoveryCollectorNode withResult = running
                 .withResult(collectorResult)
                 .withContent(output)
                 .withCollectedNodes(collectedNodes);
-        graphRepository.save(withResult);
+
+        persistNode(withResult);
+
         if (handleRoutingInterrupt(withResult, routing != null ? routing.interruptRequest() : null, output)) {
             return;
         }
-        markNodeCompleted(withResult);
+
+        markNodePending(withResult);
         DiscoveryOrchestratorNode updatedParent = discoveryParent.withContent(output);
-        graphRepository.save(updatedParent);
-        markNodeCompleted(updatedParent);
+
+        persistNode(updatedParent);
+
+        markNodePending(updatedParent);
     }
 
     public PlanningOrchestratorNode startPlanningOrchestrator(
@@ -341,32 +487,42 @@ public class WorkflowGraphService {
              String parentId = firstNonBlank(
                      state.orchestratorNodeId()
              );
-             String discoveryContext = "";
-             if (state.discoveryCollectorNodeId() != null) {
-                 discoveryContext = findNode(state.discoveryCollectorNodeId(), DiscoveryCollectorNode.class)
-                         .map(DiscoveryCollectorNode::getView)
-                         .orElse("");
-             }
-             PlanningOrchestratorNode planningNode = nodeFactory.planningOrchestratorNode(
-                     parentId,
-                     input.goal(),
-                     Map.of(META_DISCOVERY_CONTEXT, discoveryContext),
-                     input.contextId()
+             return startOrReuseRerunnableNode(
+                     context,
+                     state.planningOrchestratorNodeId(),
+                     input != null ? input.contextId() : null,
+                     PlanningOrchestratorNode.class,
+                     existing -> existing.toBuilder()
+                             .goal(firstNonBlank(input != null ? input.goal() : null, existing.goal()))
+                             .parentNodeId(parentId)
+                             .lastUpdatedAt(Instant.now())
+                             .build(),
+                     () -> {
+                         PlanningOrchestratorNode planningNode = nodeFactory.planningOrchestratorNode(
+                                 parentId,
+                                 input != null ? input.goal() : "",
+                                 Map.of(),
+                                 input != null ? input.contextId() : null
+                         );
+                         computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, planningNode);
+                         return planningNode;
+                     },
+                     (s, nodeId) -> s.withPlanningOrchestratorNodeId(nodeId)
              );
-             computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, planningNode);
-             updateState(context, s -> s.withPlanningOrchestratorNodeId(planningNode.nodeId()));
-             return markNodeRunning(planningNode);
          });
     }
 
-    public void completePlanningOrchestrator(
+    public void pendingPlanningOrchestrator(
             PlanningOrchestratorNode running,
             AgentModels.PlanningOrchestratorRouting routing
     ) {
         String summary = routing != null ? routing.toString() : "";
         PlanningOrchestratorNode updated = running.withPlanContent(summary);
-        graphRepository.save(updated);
-        handleRoutingInterrupt(updated, routing != null ? routing.interruptRequest() : null, summary);
+        persistNode(updated);
+        if (handleRoutingInterrupt(updated, routing != null ? routing.interruptRequest() : null, summary)) {
+            return;
+        }
+        markNodePending(updated);
     }
 
     public void handlePlanningInterrupt(
@@ -383,25 +539,50 @@ public class WorkflowGraphService {
         });
     }
 
+    public PlanningDispatchAgentNode startPlanningDispatch(
+            OperationContext context,
+            AgentModels.PlanningAgentRequests input
+    ) {
+        return resolveState(context, state -> {
+            PlanningOrchestratorNode parent = requirePlanningOrchestrator(context);
+            return startOrReuseRerunnableNode(
+                    context,
+                    state.planningDispatchNodeId(),
+                    input != null ? input.contextId() : null,
+                    PlanningDispatchAgentNode.class,
+                    existing -> existing.withRequests(input)
+                            .toBuilder()
+                            .parentNodeId(parent.nodeId())
+                            .lastUpdatedAt(Instant.now())
+                            .build(),
+                    () -> {
+                        PlanningDispatchAgentNode dispatchNode = nodeFactory.planningDispatchAgentNode(parent.nodeId(), input);
+                        computationGraphOrchestrator.addChildNodeAndEmitEvent(parent.nodeId(), dispatchNode);
+                        return dispatchNode;
+                    },
+                    (s, nodeId) -> s.withPlanningDispatchNodeId(nodeId)
+            );
+        });
+    }
+
     public PlanningNode startPlanningAgent(
-            PlanningOrchestratorNode parent,
+            PlanningDispatchAgentNode parent,
             String goal,
             String title,
             ArtifactKey artifactKey
     ) {
-        String discoveryContext = parent.metadata().getOrDefault(META_DISCOVERY_CONTEXT, "");
         PlanningNode planningNode = nodeFactory.planningNode(
                 parent.nodeId(),
                 goal,
                 title,
-                Map.of(META_DISCOVERY_CONTEXT, discoveryContext),
+                Map.of(),
                 artifactKey
         );
         return startChildNode(parent.nodeId(), planningNode);
     }
 
     public PlanningNode startPlanningAgent(
-            PlanningOrchestratorNode parent,
+            PlanningDispatchAgentNode parent,
             AgentModels.PlanningAgentRequest request
     ) {
         int index = nextChildIndex(parent.nodeId(), PlanningNode.class);
@@ -415,7 +596,7 @@ public class WorkflowGraphService {
             return;
         }
         PlanningNode completed = running.withResult(response).withPlanContent(response.output());
-        graphRepository.save(completed);
+        persistNode(completed);
         markNodeCompleted(completed);
     }
 
@@ -423,21 +604,33 @@ public class WorkflowGraphService {
             OperationContext context,
             AgentModels.PlanningCollectorRequest input
     ) {
-        PlanningOrchestratorNode planningParent = requirePlanningOrchestrator(context);
-        PlanningCollectorNode collectorNode = nodeFactory.planningCollectorNode(
-                planningParent.nodeId(),
-                input.goal(),
-                input.contextId()
-        );
-        computationGraphOrchestrator.addChildNodeAndEmitEvent(
-                planningParent.nodeId(),
-                collectorNode
-        );
-        updateState(context, state -> state.withPlanningCollectorNodeId(collectorNode.nodeId()));
-        return markNodeRunning(collectorNode);
+        return resolveState(context, state -> {
+            PlanningOrchestratorNode planningParent = requirePlanningOrchestrator(context);
+            return startOrReuseRerunnableNode(
+                    context,
+                    state.planningCollectorNodeId(),
+                    input != null ? input.contextId() : null,
+                    PlanningCollectorNode.class,
+                    existing -> existing.toBuilder()
+                            .goal(firstNonBlank(input != null ? input.goal() : null, existing.goal()))
+                            .parentNodeId(planningParent.nodeId())
+                            .lastUpdatedAt(Instant.now())
+                            .build(),
+                    () -> {
+                        PlanningCollectorNode collectorNode = nodeFactory.planningCollectorNode(
+                                planningParent.nodeId(),
+                                input != null ? input.goal() : "",
+                                input != null ? input.contextId() : null
+                        );
+                        computationGraphOrchestrator.addChildNodeAndEmitEvent(planningParent.nodeId(), collectorNode);
+                        return collectorNode;
+                    },
+                    (s, nodeId) -> s.withPlanningCollectorNodeId(nodeId)
+            );
+        });
     }
 
-    public void completePlanningCollector(
+    public void pendingPlanningCollector(
             OperationContext context,
             PlanningCollectorNode running,
             AgentModels.PlanningCollectorRouting routing
@@ -452,14 +645,14 @@ public class WorkflowGraphService {
                 .withResult(collectorResult)
                 .withPlanContent(output)
                 .withCollectedNodes(collectedNodes);
-        graphRepository.save(withResult);
+        persistNode(withResult);
         if (handleRoutingInterrupt(withResult, routing != null ? routing.interruptRequest() : null, output)) {
             return;
         }
-        markNodeCompleted(withResult);
+        markNodePending(withResult);
         PlanningOrchestratorNode updatedParent = planningParent.withPlanContent(output);
-        graphRepository.save(updatedParent);
-        markNodeCompleted(updatedParent);
+        persistNode(updatedParent);
+        markNodePending(updatedParent);
     }
 
     public TicketOrchestratorNode startTicketOrchestrator(
@@ -471,59 +664,73 @@ public class WorkflowGraphService {
                     state.orchestratorNodeId()
             );
             OrchestratorNode root = requireOrchestrator(context);
-            String parentWorktreeId = root.mainWorktreeId();
-            String ticketBranchName = "ticket-orch-" + shortId(parentId);
-            String ticketMainWorktreeId = root.mainWorktreeId();
-            List<HasWorktree.WorkTree> branchedSubmodules = new ArrayList<>();
-            try {
-                MainWorktreeContext branched = worktreeService.branchWorktree(
-                        root.mainWorktreeId(),
-                        ticketBranchName,
-                        parentId
-                );
-                ticketMainWorktreeId = branched.worktreeId();
-                if (root.submoduleWorktreeIds() != null) {
-                    branchedSubmodules = root.submoduleWorktreeIds()
-                            .stream()
-                            .map(submoduleId -> new HasWorktree.WorkTree(
-                                    worktreeService.branchSubmoduleWorktree(
-                                            submoduleId,
-                                            ticketBranchName,
-                                            parentId
-                                    ).worktreeId(),
-                                    submoduleId,
-                                    new ArrayList<>()
-                            ))
-                            .toList();
-                }
-            } catch (Exception e) {
-                ticketMainWorktreeId = root.mainWorktreeId();
-            }
-            Map<String, String> metadata = new ConcurrentHashMap<>();
-            metadata.put(META_DISCOVERY_CONTEXT, input.discoveryCuration() != null ? input.discoveryCuration().prettyPrint() : "");
-            metadata.put(META_PLANNING_CONTEXT, input.planningCuration() != null ? input.planningCuration().prettyPrint() : "");
-            metadata.put(META_PARENT_WORKTREE, Optional.ofNullable(parentWorktreeId).orElse(""));
-            TicketOrchestratorNode ticketNode = nodeFactory.ticketOrchestratorNode(
-                    parentId,
-                    input.goal(),
-                    metadata,
-                    new HasWorktree.WorkTree(ticketMainWorktreeId, root.mainWorktreeId(), branchedSubmodules),
-                    input.contextId()
+            return startOrReuseRerunnableNode(
+                    context,
+                    state.ticketOrchestratorNodeId(),
+                    input != null ? input.contextId() : null,
+                    TicketOrchestratorNode.class,
+                    existing -> existing.toBuilder()
+                            .goal(firstNonBlank(input != null ? input.goal() : null, existing.goal()))
+                            .parentNodeId(parentId)
+                            .lastUpdatedAt(Instant.now())
+                            .build(),
+                    () -> {
+                        String parentWorktreeId = root.mainWorktreeId();
+                        String ticketBranchName = "ticket-orch-" + shortId(parentId);
+                        String ticketMainWorktreeId = root.mainWorktreeId();
+                        List<HasWorktree.WorkTree> branchedSubmodules = new ArrayList<>();
+                        try {
+                            MainWorktreeContext branched = worktreeService.branchWorktree(
+                                    root.mainWorktreeId(),
+                                    ticketBranchName,
+                                    parentId
+                            );
+                            ticketMainWorktreeId = branched.worktreeId();
+                            if (root.submoduleWorktreeIds() != null) {
+                                branchedSubmodules = root.submoduleWorktreeIds()
+                                        .stream()
+                                        .map(submoduleId -> new HasWorktree.WorkTree(
+                                                worktreeService.branchSubmoduleWorktree(
+                                                        submoduleId,
+                                                        ticketBranchName,
+                                                        parentId
+                                                ).worktreeId(),
+                                                submoduleId,
+                                                new ArrayList<>()
+                                        ))
+                                        .toList();
+                            }
+                        } catch (Exception e) {
+                            ticketMainWorktreeId = root.mainWorktreeId();
+                        }
+                        Map<String, String> metadata = new ConcurrentHashMap<>();
+                        metadata.put(META_PARENT_WORKTREE, Optional.ofNullable(parentWorktreeId).orElse(""));
+                        TicketOrchestratorNode ticketNode = nodeFactory.ticketOrchestratorNode(
+                                parentId,
+                                input != null ? input.goal() : "",
+                                metadata,
+                                new HasWorktree.WorkTree(ticketMainWorktreeId, root.mainWorktreeId(), branchedSubmodules),
+                                input != null ? input.contextId() : null
+                        );
+                        computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, ticketNode);
+                        return ticketNode;
+                    },
+                    (s, nodeId) -> s.withTicketOrchestratorNodeId(nodeId)
             );
-            computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, ticketNode);
-            updateState(context, s -> s.withTicketOrchestratorNodeId(ticketNode.nodeId()));
-            return markNodeRunning(ticketNode);
         });
     }
 
-    public void completeTicketOrchestrator(
+    public void pendingTicketOrchestrator(
             TicketOrchestratorNode running,
             AgentModels.TicketOrchestratorRouting routing
     ) {
         String output = routing != null ? routing.toString() : "";
         TicketOrchestratorNode updated = running.withOutput(output, 0);
-        graphRepository.save(updated);
-        handleRoutingInterrupt(updated, routing != null ? routing.interruptRequest() : null, output);
+        persistNode(updated);
+        if (handleRoutingInterrupt(updated, routing != null ? routing.interruptRequest() : null, output)) {
+            return;
+        }
+        markNodePending(updated);
     }
 
     public void handleTicketInterrupt(
@@ -540,60 +747,54 @@ public class WorkflowGraphService {
         });
     }
 
+    public TicketDispatchAgentNode startTicketDispatch(
+            OperationContext context,
+            AgentModels.TicketAgentRequests input
+    ) {
+        return resolveState(context, state -> {
+            TicketOrchestratorNode parent = requireTicketOrchestrator(context);
+            return startOrReuseRerunnableNode(
+                    context,
+                    state.ticketDispatchNodeId(),
+                    input != null ? input.contextId() : null,
+                    TicketDispatchAgentNode.class,
+                    existing -> existing.withRequests(input)
+                            .toBuilder()
+                            .parentNodeId(parent.nodeId())
+                            .lastUpdatedAt(Instant.now())
+                            .build(),
+                    () -> {
+                        TicketDispatchAgentNode dispatchNode = nodeFactory.ticketDispatchAgentNode(parent.nodeId(), input);
+                        computationGraphOrchestrator.addChildNodeAndEmitEvent(parent.nodeId(), dispatchNode);
+                        return dispatchNode;
+                    },
+                    (s, nodeId) -> s.withTicketDispatchNodeId(nodeId)
+            );
+        });
+    }
+
     public TicketNode startTicketAgent(
-            TicketOrchestratorNode parent,
+            TicketDispatchAgentNode parent,
             AgentModels.TicketAgentRequest request,
             int index
     ) {
-        String ticketBranchName = "ticket-" + index + "-" + shortId(parent.nodeId());
-        String branchedWorktreeId = parent.mainWorktreeId();
-        List<HasWorktree.WorkTree> submoduleWorktrees = parent.submoduleWorktreeIds();
-        if (request != null && request.worktreeContext() != null && request.worktreeContext().mainWorktree() != null) {
-            branchedWorktreeId = request.worktreeContext().mainWorktree().worktreeId();
-            submoduleWorktrees = request.worktreeContext().submoduleWorktrees()
-                    .stream()
-                    .map(submodule -> new HasWorktree.WorkTree(
-                            submodule.worktreeId(),
-                            submodule.parentWorktreeId(),
-                            new ArrayList<>()
-                    ))
-                    .toList();
-        } else {
-            try {
-                MainWorktreeContext branched = worktreeService.branchWorktree(
-                        parent.mainWorktreeId(),
-                        ticketBranchName,
-                        parent.nodeId()
-                );
-                branchedWorktreeId = branched.worktreeId();
-                submoduleWorktrees = parent.submoduleWorktreeIds()
-                        .stream()
-                        .map(id -> new HasWorktree.WorkTree(
-                                worktreeService.branchSubmoduleWorktree(
-                                        id.worktreeId(),
-                                        ticketBranchName,
-                                        parent.nodeId()
-                                ).worktreeId(),
-                                id.worktreeId(),
-                                new ArrayList<>()
-                        ))
-                        .toList();
-            } catch (Exception e) {
-                branchedWorktreeId = parent.mainWorktreeId();
-            }
-        }
-        Map<String, String> metadata = new ConcurrentHashMap<>();
-        metadata.put(META_DISCOVERY_CONTEXT, parent.metadata().getOrDefault(META_DISCOVERY_CONTEXT, ""));
-        metadata.put(META_PLANNING_CONTEXT, parent.metadata().getOrDefault(META_PLANNING_CONTEXT, ""));
+        TicketOrchestratorNode ticketParent = requireNode(
+                parent.parentNodeId(),
+                TicketOrchestratorNode.class,
+                "ticket orchestrator for dispatch"
+        );
+
+        String branchedWorktreeId = ticketParent.mainWorktreeId();
+        List<HasWorktree.WorkTree> submoduleWorktrees = ticketParent.submoduleWorktreeIds();
         String title = firstNonBlank(request.ticketDetailsFilePath(), "Ticket " + index);
         TicketNode ticketNode = nodeFactory.ticketNode(
                 parent.nodeId(),
                 title,
                 Objects.toString(request.ticketDetails(), ""),
-                metadata,
+                Map.of(),
                 new HasWorktree.WorkTree(
                         branchedWorktreeId,
-                        parent.mainWorktreeId(),
+                        ticketParent.mainWorktreeId(),
                         submoduleWorktrees
                 ),
                 request != null ? request.contextId() : null
@@ -602,7 +803,7 @@ public class WorkflowGraphService {
     }
 
     public TicketNode startTicketAgent(
-            TicketOrchestratorNode parent,
+            TicketDispatchAgentNode parent,
             AgentModels.TicketAgentRequest request
     ) {
         int index = nextChildIndex(parent.nodeId(), TicketNode.class);
@@ -615,7 +816,7 @@ public class WorkflowGraphService {
             return;
         }
         TicketNode completed = running.withTicketAgentResult(response).withOutput(response.output(), 0);
-        graphRepository.save(completed);
+        persistNode(completed);
         markNodeCompleted(completed);
     }
 
@@ -623,21 +824,33 @@ public class WorkflowGraphService {
             OperationContext context,
             AgentModels.TicketCollectorRequest input
     ) {
-        TicketOrchestratorNode ticketParent = requireTicketOrchestrator(context);
-        TicketCollectorNode collectorNode = nodeFactory.ticketCollectorNode(
-                ticketParent.nodeId(),
-                input.goal(),
-                input.contextId()
-        );
-        computationGraphOrchestrator.addChildNodeAndEmitEvent(
-                ticketParent.nodeId(),
-                collectorNode
-        );
-        updateState(context, state -> state.withTicketCollectorNodeId(collectorNode.nodeId()));
-        return markNodeRunning(collectorNode);
+        return resolveState(context, state -> {
+            TicketOrchestratorNode ticketParent = requireTicketOrchestrator(context);
+            return startOrReuseRerunnableNode(
+                    context,
+                    state.ticketCollectorNodeId(),
+                    input != null ? input.contextId() : null,
+                    TicketCollectorNode.class,
+                    existing -> existing.toBuilder()
+                            .goal(firstNonBlank(input != null ? input.goal() : null, existing.goal()))
+                            .parentNodeId(ticketParent.nodeId())
+                            .lastUpdatedAt(Instant.now())
+                            .build(),
+                    () -> {
+                        TicketCollectorNode collectorNode = nodeFactory.ticketCollectorNode(
+                                ticketParent.nodeId(),
+                                input != null ? input.goal() : "",
+                                input != null ? input.contextId() : null
+                        );
+                        computationGraphOrchestrator.addChildNodeAndEmitEvent(ticketParent.nodeId(), collectorNode);
+                        return collectorNode;
+                    },
+                    (s, nodeId) -> s.withTicketCollectorNodeId(nodeId)
+            );
+        });
     }
 
-    public void completeTicketCollector(
+    public void pendingTicketCollector(
             OperationContext context,
             TicketCollectorNode running,
             AgentModels.TicketCollectorRouting routing
@@ -652,14 +865,14 @@ public class WorkflowGraphService {
                 .withResult(collectorResult)
                 .withSummary(summary)
                 .withCollectedNodes(collectedNodes);
-        graphRepository.save(withResult);
+        persistNode(withResult);
         if (handleRoutingInterrupt(withResult, routing != null ? routing.interruptRequest() : null, summary)) {
             return;
         }
-        markNodeCompleted(withResult);
+        markNodePending(withResult);
         TicketOrchestratorNode updatedParent = ticketParent.withOutput(summary, 0);
-        graphRepository.save(updatedParent);
-        markNodeCompleted(updatedParent);
+        persistNode(updatedParent);
+        markNodePending(updatedParent);
     }
 
     public ReviewNode startReview(OperationContext context, AgentModels.ReviewRequest input) {
@@ -686,7 +899,7 @@ public class WorkflowGraphService {
         ReviewNode withResult = running
                 .withResult(reviewResult)
                 .withReviewDecision(approved, reviewOutput);
-        graphRepository.save(withResult);
+        persistNode(withResult);
         if (handleRoutingInterrupt(withResult, response != null ? response.interruptRequest() : null, reviewOutput)) {
             return;
         }
@@ -695,7 +908,7 @@ public class WorkflowGraphService {
                     withResult,
                     Events.NodeStatus.WAITING_INPUT
             );
-            graphRepository.save(waiting);
+            persistNode(waiting);
             computationGraphOrchestrator.emitStatusChangeEvent(
                     waiting.nodeId(),
                     Events.NodeStatus.RUNNING,
@@ -750,7 +963,7 @@ public class WorkflowGraphService {
     ) {
         AgentModels.MergerAgentResult mergeResult = response != null ? response.mergerResult() : null;
         MergeNode withResult = running.withResult(mergeResult).withContent(combinedSummary);
-        graphRepository.save(withResult);
+        persistNode(withResult);
         if (handleRoutingInterrupt(withResult, response != null ? response.interruptRequest() : null, combinedSummary)) {
             return;
         }
@@ -790,19 +1003,88 @@ public class WorkflowGraphService {
                 .orElseThrow(() -> new IllegalStateException("Missing " + label + " node: " + nodeId));
     }
 
+    private <T extends GraphNode> Optional<T> findExistingNodeForRun(
+            String stateNodeId,
+            ArtifactKey requestContextId,
+            Class<T> type
+    ) {
+        Optional<T> fromState = findNode(stateNodeId, type);
+        if (fromState.isPresent()) {
+            return fromState;
+        }
+        String requestNodeId = requestContextId != null ? requestContextId.value() : null;
+        return findNode(requestNodeId, type);
+    }
+
+    private <T extends GraphNode> Optional<T> updateExisting(
+            String stateNodeId,
+            ArtifactKey requestContextId,
+            Class<T> type,
+            Function<T, T> updater
+    ) {
+        return findExistingNodeForRun(stateNodeId, requestContextId, type)
+                .map(existing -> {
+                    if (updater == null) {
+                        return existing;
+                    }
+                    T updated = updater.apply(existing);
+                    return updated != null ? updated : existing;
+                });
+    }
+
+    private <T extends GraphNode> T startOrReuseRerunnableNode(
+            OperationContext context,
+            String stateNodeId,
+            ArtifactKey requestContextId,
+            Class<T> type,
+            Function<T, T> existingUpdater,
+            Supplier<T> createNew,
+            BiFunction<com.hayden.multiagentidelib.agent.WorkflowGraphState, String, com.hayden.multiagentidelib.agent.WorkflowGraphState> stateUpdater
+    ) {
+        Optional<T> existing = updateExisting(stateNodeId, requestContextId, type, existingUpdater);
+        if (existing.isPresent()) {
+            T updated = existing.get();
+            if (context != null && stateUpdater != null) {
+                updateState(context, state -> stateUpdater.apply(state, updated.nodeId()));
+            }
+            return markNodeRunning(updated);
+        }
+
+        T created = createNew != null ? createNew.get() : null;
+        if (created == null) {
+            return null;
+        }
+        if (context != null && stateUpdater != null) {
+            updateState(context, state -> stateUpdater.apply(state, created.nodeId()));
+        }
+        return markNodeRunning(created);
+    }
+
+    private <T extends GraphNode> T persistNode(T node) {
+        if (node == null) {
+            return null;
+        }
+        computationGraphOrchestrator.emitNodeUpdatedEvent(node);
+        return node;
+    }
+
     private <T extends GraphNode> T markNodeRunning(T node) {
-        GraphNode runningNode = updateNodeStatus(
-                node,
+        if (node == null) {
+            return null;
+        }
+        T rerunIncrementedNode = incrementWorkflowCounter(node);
+        T runningNode = updateNodeStatus(
+                rerunIncrementedNode,
                 Events.NodeStatus.RUNNING
         );
-        graphRepository.save(runningNode);
+        persistNode(runningNode);
         computationGraphOrchestrator.emitStatusChangeEvent(
                 node.nodeId(),
                 node.status(),
                 Events.NodeStatus.RUNNING,
                 "Agent execution started"
         );
-        return (T) runningNode;
+        return runningNode;
     }
 
     private <T extends GraphNode> T markNodeCompleted(T node) {
@@ -810,7 +1092,7 @@ public class WorkflowGraphService {
                 node,
                 Events.NodeStatus.COMPLETED
         );
-        graphRepository.save(completedNode);
+        persistNode(completedNode);
         computationGraphOrchestrator.emitStatusChangeEvent(
                 node.nodeId(),
                 node.status(),
@@ -818,6 +1100,54 @@ public class WorkflowGraphService {
                 "Agent execution completed successfully"
         );
         return (T) completedNode;
+    }
+
+    private <T extends GraphNode> T markNodePending(T node) {
+        GraphNode pendingNode = updateNodeStatus(
+                node,
+                Events.NodeStatus.PENDING
+        );
+        persistNode(pendingNode);
+        computationGraphOrchestrator.emitStatusChangeEvent(
+                node.nodeId(),
+                node.status(),
+                Events.NodeStatus.PENDING,
+                "Awaiting route-back or downstream continuation"
+        );
+        return (T) pendingNode;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends GraphNode> T incrementWorkflowCounter(T node) {
+        if (node instanceof HasWorkflowContext<?> rerunnable) {
+            return (T) rerunnable.incrementCounter();
+        }
+        return node;
+    }
+
+    private void markDescendantNodesCompleted(String rootNodeId) {
+        if (rootNodeId == null || rootNodeId.isBlank()) {
+            return;
+        }
+        var queue = new ArrayDeque<>(graphRepository.findByParentId(rootNodeId));
+        var visited = new java.util.HashSet<String>();
+        while (!queue.isEmpty()) {
+            GraphNode node = queue.removeFirst();
+            if (node == null || !visited.add(node.nodeId())) {
+                continue;
+            }
+            queue.addAll(graphRepository.findByParentId(node.nodeId()));
+            if (shouldMarkCompleted(node)) {
+                markNodeCompleted(node);
+            }
+        }
+    }
+
+    private boolean shouldMarkCompleted(GraphNode node) {
+        return switch (node.status()) {
+            case COMPLETED, CANCELED, FAILED, PRUNED -> false;
+            default -> true;
+        };
     }
 
     private <T extends GraphNode> T updateNodeStatus(
@@ -845,7 +1175,7 @@ public class WorkflowGraphService {
                 resultPayload
         );
         GraphNode withInterrupt = updateNodeInterruptibleContext(node, interruptContext);
-        graphRepository.save(withInterrupt);
+        persistNode(withInterrupt);
         computationGraphOrchestrator.emitInterruptStatusEvent(
                 node.nodeId(),
                 interruptRequest.type().name(),
@@ -861,7 +1191,7 @@ public class WorkflowGraphService {
             case PRUNE -> Events.NodeStatus.PRUNED;
         };
         GraphNode updated = updateNodeStatus(withInterrupt, newStatus);
-        graphRepository.save(updated);
+        persistNode(updated);
         computationGraphOrchestrator.emitStatusChangeEvent(
                 node.nodeId(),
                 node.status(),
@@ -887,19 +1217,22 @@ public class WorkflowGraphService {
                 interruptNode
         );
         GraphNode updatedOrigin = updateNodeInterruptibleContext(node, emittedContext);
-        graphRepository.save(updatedOrigin);
+        persistNode(updatedOrigin);
     }
 
     private GraphNode updateNodeInterruptibleContext(GraphNode node, InterruptContext context) {
         return switch (node) {
             case DiscoveryNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case DiscoveryCollectorNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
+            case DiscoveryDispatchAgentNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case DiscoveryOrchestratorNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case PlanningNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case PlanningCollectorNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
+            case PlanningDispatchAgentNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case PlanningOrchestratorNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case TicketNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case TicketCollectorNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
+            case TicketDispatchAgentNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case TicketOrchestratorNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case ReviewNode n -> n.toBuilder().interruptContext(context).lastUpdatedAt(Instant.now()).build();
             case MergeNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
