@@ -1,0 +1,33 @@
+logging.config: classpath:logback-multi-agent-console.xml
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5108}/${POSTGRES_DATABASE:postgres}
+    hikari:
+      username: postgres
+      password: postgres
+      #jdbc-url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5105}/${POSTGRES_DATABASE:postgres}
+      driver-class-name: org.postgresql.Driver
+  liquibase:
+    enabled: false
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+    user: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  docker:
+    compose:
+      file: file:{{PROJ_DIR}}/src/test/resources/test-docker/docker-compose-test.yml
+      enabled: true
+      skip:
+        in-tests: false
+      lifecycle-management: start_only
+      start:
+        skip: if_running
+      readiness:
+        wait: only_if_started

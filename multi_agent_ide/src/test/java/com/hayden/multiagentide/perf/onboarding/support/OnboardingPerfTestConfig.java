@@ -32,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 
 @SpringBootTest
-@ActiveProfiles({"test", "perf"})
+@ActiveProfiles({"test", "perf", "testdocker"})
 @Import(OnboardingCommitDiffContextTestConfig.class)
 public abstract class OnboardingPerfTestConfig {
 

@@ -25,7 +25,7 @@ spring:
     name: multi-agent-ide
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
   datasource:
     driver-class-name: org.postgresql.Driver
     username: postgres

@@ -1,5 +1,7 @@
 package com.hayden.multiagentide.support;
 
+import org.springframework.test.context.ActiveProfiles;
+
 /**
  * Base class for agent tests.
  * 
@@ -15,6 +17,7 @@ package com.hayden.multiagentide.support;
  * DO NOT mock LlmOperations - it's just an intermediary. Mock either above it
  * (actions) or below it (AcpChatModel).
  */
+@ActiveProfiles({"testdocker", "test"})
 public abstract class AgentTestBase {
     // Common test utilities can go here
 }

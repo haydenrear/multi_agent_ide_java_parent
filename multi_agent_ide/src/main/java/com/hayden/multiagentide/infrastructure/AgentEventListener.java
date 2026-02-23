@@ -154,6 +154,12 @@ public class AgentEventListener implements EventListener {
             }
             case Events.TuiSystemGraphEvent tuiSystemGraphEvent -> {
             }
+            case Events.MergePhaseStartedEvent mergePhaseStartedEvent -> {
+                log.debug("Merge phase started: {} direction={}", mergePhaseStartedEvent.eventId(), mergePhaseStartedEvent.mergeDirection());
+            }
+            case Events.MergePhaseCompletedEvent mergePhaseCompletedEvent -> {
+                log.debug("Merge phase completed: {} successful={}", mergePhaseCompletedEvent.eventId(), mergePhaseCompletedEvent.successful());
+            }
         }
     }
 

@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles({"inttest"})
+@ActiveProfiles({"inttest", "testdocker"})
 @TestPropertySource(properties = {"spring.ai.mcp.server.stdio=false"})
 class McpServerIntegrationTest {
 

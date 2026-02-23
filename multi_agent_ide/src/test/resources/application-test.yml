@@ -1,5 +1,3 @@
-logging.config: classpath:logback-multi-agent-ide-console.xml
-
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 1s

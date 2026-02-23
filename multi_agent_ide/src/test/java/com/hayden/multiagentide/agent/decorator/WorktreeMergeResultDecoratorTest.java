@@ -39,7 +39,7 @@ class WorktreeMergeResultDecoratorTest {
 
     @BeforeEach
     void setUp() {
-        decorator = new WorktreeMergeResultDecorator(gitWorktreeService);
+        decorator = new WorktreeMergeResultDecorator(gitWorktreeService, null);
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
@@ -15,9 +17,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Decorator that performs child → trunk merge when aggregating dispatch agent results.
@@ -37,6 +41,7 @@ import java.util.List;
 public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
 
     private final GitWorktreeService gitWorktreeService;
+    private final EventBus eventBus;
 
     @Override
     public int order() {
@@ -61,10 +66,43 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
             return resultsRequest;
         }
 
+        String nodeId = resolveNodeId(resultsRequest);
+        String trunkId = trunkContext.mainWorktree() != null ? trunkContext.mainWorktree().worktreeId() : "unknown";
+
+        publishIfAvailable(new Events.MergePhaseStartedEvent(
+                UUID.randomUUID().toString(), Instant.now(), nodeId,
+                "CHILD_TO_TRUNK", trunkId, null, childResults.size()));
+
         MergeAggregation aggregation = performChildToTrunkMerges(childResults, trunkContext);
+
+        int conflictCount = aggregation.conflicted() != null ? 1 : 0;
+        List<String> conflictFiles = aggregation.conflicted() != null && aggregation.conflicted().mergeDescriptor() != null
+                ? aggregation.conflicted().mergeDescriptor().conflictFiles()
+                : List.of();
+
+        publishIfAvailable(new Events.MergePhaseCompletedEvent(
+                UUID.randomUUID().toString(), Instant.now(), nodeId,
+                "CHILD_TO_TRUNK", conflictCount == 0,
+                aggregation.merged() != null ? aggregation.merged().size() : 0,
+                conflictCount,
+                conflictFiles != null ? conflictFiles : List.of(),
+                null));
 
         T decorated = resultsRequest.withMergeAggregation(aggregation);
         return decorated;
+    }
+
+    private void publishIfAvailable(Events.GraphEvent event) {
+        if (eventBus != null) {
+            eventBus.publish(event);
+        }
+    }
+
+    private String resolveNodeId(AgentModels.ResultsRequest resultsRequest) {
+        if (resultsRequest.contextId() != null && resultsRequest.contextId().value() != null) {
+            return resultsRequest.contextId().value();
+        }
+        return "unknown";
     }
 
     private MergeAggregation performChildToTrunkMerges(

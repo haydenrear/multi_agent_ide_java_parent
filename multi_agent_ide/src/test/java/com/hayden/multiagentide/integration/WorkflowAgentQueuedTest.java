@@ -44,6 +44,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
@@ -78,7 +79,7 @@ import static org.mockito.Mockito.*;
  */
 @Slf4j
 @SpringBootTest
-@Profile("test")
+@ActiveProfiles({"test", "testdocker"})
 class WorkflowAgentQueuedTest extends AgentTestBase {
 
     @Autowired

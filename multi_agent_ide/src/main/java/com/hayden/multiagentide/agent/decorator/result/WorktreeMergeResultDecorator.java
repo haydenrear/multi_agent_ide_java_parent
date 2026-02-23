@@ -1,5 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
@@ -8,6 +10,10 @@ import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Decorator that performs trunk → child merge when a dispatched agent completes.
@@ -26,6 +32,7 @@ import org.springframework.stereotype.Component;
 public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecorator, ResultDecorator {
 
     private final GitWorktreeService gitWorktreeService;
+    private final EventBus eventBus;
 
     @Override
     public int order() {
@@ -49,13 +56,36 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
         WorktreeSandboxContext trunkContext = resolveTrunkWorktreeContext(context);
 
         if (childContext == null || trunkContext == null) {
-            log.debug("Skipping trunk→child merge: missing worktree context");
+            log.debug("Skipping trunk→child merge: missing worktree context (child={}, trunk={})",
+                    childContext != null, trunkContext != null);
             return result;
         }
 
+        String nodeId = result.contextId() != null ? result.contextId().value() : "unknown";
+        String trunkId = trunkContext.mainWorktree() != null ? trunkContext.mainWorktree().worktreeId() : "unknown";
+        String childId = childContext.mainWorktree() != null ? childContext.mainWorktree().worktreeId() : "unknown";
+
+        publishIfAvailable(new Events.MergePhaseStartedEvent(
+                UUID.randomUUID().toString(), Instant.now(), nodeId,
+                "TRUNK_TO_CHILD", trunkId, childId, 1));
+
         MergeDescriptor descriptor = gitWorktreeService.mergeTrunkToChild(trunkContext, childContext);
-        
+
+        publishIfAvailable(new Events.MergePhaseCompletedEvent(
+                UUID.randomUUID().toString(), Instant.now(), nodeId,
+                "TRUNK_TO_CHILD", descriptor.successful(),
+                descriptor.successful() ? 1 : 0,
+                descriptor.conflictFiles() != null ? descriptor.conflictFiles().size() : 0,
+                descriptor.conflictFiles() != null ? descriptor.conflictFiles() : List.of(),
+                descriptor.errorMessage()));
+
         return addMergeDescriptor(result, descriptor);
+    }
+
+    private void publishIfAvailable(Events.GraphEvent event) {
+        if (eventBus != null) {
+            eventBus.publish(event);
+        }
     }
 
     private WorktreeSandboxContext resolveChildWorktreeContext(AgentModels.AgentResult result, DecoratorContext context) {

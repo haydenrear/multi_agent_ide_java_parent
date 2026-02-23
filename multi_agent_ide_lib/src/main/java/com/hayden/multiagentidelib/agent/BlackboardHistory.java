@@ -535,6 +535,8 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     new ArrayList<>();
             case Events.TuiSystemGraphEvent tuiSystemGraphEvent ->
                     new ArrayList<>();
+            case Events.MergePhaseStartedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.MergePhaseCompletedEvent ignored -> buildTargets(event.nodeId(), null);
         };
     }
 

@@ -82,6 +82,12 @@ public class CliEventFormatter {
                         + " event=" + summarize(args, e.tuiEvent() == null ? null : e.tuiEvent().getClass().getSimpleName()));
                 case Events.TuiSystemGraphEvent e -> format(args, "TUI", e, "sessionId=" + summarize(args, e.sessionId())
                         + " event=" + summarize(args, e.tuiEvent() == null ? null : e.tuiEvent().getClass().getSimpleName()));
+                case Events.MergePhaseStartedEvent e -> format(args, "MERGE", e, "direction=" + e.mergeDirection()
+                        + " trunk=" + summarize(args, e.trunkWorktreeId()) + " child=" + summarize(args, e.childWorktreeId())
+                        + " children=" + e.childCount());
+                case Events.MergePhaseCompletedEvent e -> format(args, "MERGE", e, "direction=" + e.mergeDirection()
+                        + " successful=" + e.successful() + " merged=" + e.mergedCount()
+                        + " conflicts=" + e.conflictCount());
             };
     }
 

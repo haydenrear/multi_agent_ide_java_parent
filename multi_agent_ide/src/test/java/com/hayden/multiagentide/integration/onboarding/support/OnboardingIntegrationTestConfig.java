@@ -40,7 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 
 @SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles({"test", "testdocker"})
 @Import(OnboardingCommitDiffContextTestConfig.class)
 public abstract class OnboardingIntegrationTestConfig {
 

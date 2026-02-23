@@ -25,6 +25,7 @@ import org.mockito.Captor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Profile;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.util.List;
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.*;
 
 @Slf4j
 @SpringBootTest
-@Profile("test")
+@ActiveProfiles({"test", "testdocker"})
 class DefaultLlmRunnerSpringBootTest {
 
 

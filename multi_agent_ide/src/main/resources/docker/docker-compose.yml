@@ -8,10 +8,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
-      - multi-agent-ide:/var/lib/postgresql/embedding
+      - /Users/hayde/db/artifact-db:/var/lib/postgresql/embedding
     ports:
       - "5105:5432"
-volumes:
-  multi-agent-ide:
 networks:
   multi-agent-ide-network:

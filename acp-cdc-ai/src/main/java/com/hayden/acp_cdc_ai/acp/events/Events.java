@@ -393,6 +393,24 @@ public interface Events {
                         line("nodeId", e.nodeId()),
                         line("sessionId", e.sessionId()),
                         line("tuiEvent", summarizeObject(e.tuiEvent())));
+                case MergePhaseStartedEvent e -> formatEvent("Merge Phase Started Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("mergeDirection", e.mergeDirection()),
+                        line("trunkWorktreeId", e.trunkWorktreeId()),
+                        line("childWorktreeId", e.childWorktreeId()),
+                        line("childCount", e.childCount()));
+                case MergePhaseCompletedEvent e -> formatEvent("Merge Phase Completed Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("mergeDirection", e.mergeDirection()),
+                        line("successful", e.successful()),
+                        line("mergedCount", e.mergedCount()),
+                        line("conflictCount", e.conflictCount()),
+                        list("conflictFiles", e.conflictFiles()),
+                        line("errorMessage", e.errorMessage()));
                 case ArtifactEvent e -> formatEvent("Artifact Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
@@ -1344,6 +1362,46 @@ public interface Events {
             Instant timestamp,
             Object renderTree
     ) {
+    }
+
+    // ============ MERGE PHASE EVENTS ============
+
+    /**
+     * Emitted when a merge phase starts in a decorator (trunk→child or child→trunk).
+     */
+    record MergePhaseStartedEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String mergeDirection,
+            String trunkWorktreeId,
+            String childWorktreeId,
+            int childCount
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "MERGE_PHASE_STARTED";
+        }
+    }
+
+    /**
+     * Emitted when a merge phase completes in a decorator, with the aggregate result.
+     */
+    record MergePhaseCompletedEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String mergeDirection,
+            boolean successful,
+            int mergedCount,
+            int conflictCount,
+            List<String> conflictFiles,
+            String errorMessage
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "MERGE_PHASE_COMPLETED";
+        }
     }
 
     // ============ ARTIFACT EVENTS ============
