@@ -5,10 +5,13 @@ Happy path guidance:
 - Validate whether the ticket implementation is complete against the stated goal and acceptance context.
 - If complete, return collectorResult and set collectorDecision.decisionType = ADVANCE_PHASE with requestedPhase = "COMPLETE".
 - If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest.
-- If you believe ROUTE_BACK is required, first emit interruptRequest explaining why; only ROUTE_BACK after clarification confirms it.
-- Route back only when there is a concrete, unresolved gap that requires another phase - make sure to include the unresolved gap
-  as well as all the current goal - please do not simply replace with the unresolved gap. Instead, widen the goal to include the
-  unresolved gap.
+- If you believe the implementation is incomplete or has gaps, follow the Route-Back Review Protocol:
+  in your structured JSON response, return a result with only `interruptRequest` populated (leave collectorResult null) with the gaps and let the reviewer decide.
+- After review, if approved for route-back: set collectorResult with ROUTE_BACK. Widen the goal in
+  consolidatedOutput to cover both the original goal and unresolved gaps. Populate discoveryCollectorResult,
+  planningCollectorResult, and ticketCollectorResult so context is preserved.
+- After review, if rejected: set collectorResult with ADVANCE_PHASE and requestedPhase = "COMPLETE",
+  summarizing accomplishments and noting limitations in consolidatedOutput.
 - Only set contextManagerRequest when you need specific missing context from another agent chat/history.
 
 {% include "workflow/_interrupt_guidance.jinja" %}
