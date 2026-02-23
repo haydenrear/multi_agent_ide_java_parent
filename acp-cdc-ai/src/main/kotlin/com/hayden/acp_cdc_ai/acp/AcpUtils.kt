@@ -77,9 +77,11 @@ fun parseGenerationsFromAcpEvent(event: Event, sessionContext: AcpSessionManager
             }
 
             is SessionUpdate.ConfigOptionUpdate -> {
+//                TODO:
                 mutableListOf()
             }
             is SessionUpdate.SessionInfoUpdate -> {
+//                TODO:
                 mutableListOf()
             }
         }

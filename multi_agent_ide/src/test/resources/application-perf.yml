@@ -1,4 +1,4 @@
-logging.config: classpath:logback-multi-agent-ide-console.xml
+logging.config: classpath:logback-multi-agent-console.xml
 
 onboarding:
   pipeline:

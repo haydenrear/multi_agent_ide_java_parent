@@ -86,5 +86,20 @@ public class InMemoryGraphRepository implements GraphRepository {
         nodes.clear();
     }
 
+    @Override
+    public Map<String, GraphNode> findSubtree(String rootNodeId) {
+        Map<String, GraphNode> result = new LinkedHashMap<>();
+        collectSubtree(rootNodeId, result);
+        return result;
+    }
 
+    private void collectSubtree(String nodeId, Map<String, GraphNode> result) {
+        if (nodeId == null || result.containsKey(nodeId)) return;
+        GraphNode node = nodes.get(nodeId);
+        if (node == null) return;
+        result.put(nodeId, node);
+        for (String childId : node.childNodeIds()) {
+            collectSubtree(childId, result);
+        }
+    }
 }

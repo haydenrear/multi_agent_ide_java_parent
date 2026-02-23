@@ -1,4 +1,4 @@
-logging.config: classpath:logback-multi-agent-ide-test-console.xml
+logging.config: classpath:logback-multi-agent-ide-console.xml
 
 spring:
   lifecycle:

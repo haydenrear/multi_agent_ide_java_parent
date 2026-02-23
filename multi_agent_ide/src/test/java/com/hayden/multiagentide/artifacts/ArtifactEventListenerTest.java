@@ -133,33 +133,33 @@ class ArtifactEventListenerTest {
         @Test
         @DisplayName("onEvent adds artifact to tree builder")
         void onEventAddsArtifactToTreeBuilder() {
-            when(treeBuilder.addArtifact(anyString(), any())).thenReturn(true);
+            when(treeBuilder.addArtifact(any())).thenReturn(true);
             
             Artifact.ExecutionArtifact artifact = createExecutionArtifact(rootKey);
             Events.ArtifactEvent event = createArtifactEvent(rootKey, artifact);
             
             listener.onEvent(event);
             
-            verify(treeBuilder).addArtifact(eq(executionKey), artifactCaptor.capture());
+            verify(treeBuilder).addArtifact(artifactCaptor.capture());
             assertThat(artifactCaptor.getValue()).isEqualTo(artifact);
         }
         
         @Test
         @DisplayName("onEvent extracts execution key from root artifact")
         void onEventExtractsExecutionKeyFromRoot() {
-            when(treeBuilder.addArtifact(anyString(), any())).thenReturn(true);
+            when(treeBuilder.addArtifact(any())).thenReturn(true);
             
             Events.ArtifactEvent event = createArtifactEvent(rootKey, createExecutionArtifact(rootKey));
             
             listener.onEvent(event);
             
-            verify(treeBuilder).addArtifact(eq(executionKey), any());
+            verify(treeBuilder).addArtifact(any());
         }
         
         @Test
         @DisplayName("onEvent extracts execution key from child artifact")
         void onEventExtractsExecutionKeyFromChild() {
-            when(treeBuilder.addArtifact(anyString(), any())).thenReturn(true);
+            when(treeBuilder.addArtifact(any())).thenReturn(true);
             
             ArtifactKey childKey = rootKey.createChild();
             Events.ArtifactEvent event = createArtifactEvent(childKey, createGroupArtifact(childKey, "Child"));
@@ -167,7 +167,7 @@ class ArtifactEventListenerTest {
             listener.onEvent(event);
             
             // Should extract root key as execution key
-            verify(treeBuilder).addArtifact(eq(executionKey), any());
+            verify(treeBuilder).addArtifact(any());
         }
         
         @Test
@@ -208,7 +208,7 @@ class ArtifactEventListenerTest {
         @Test
         @DisplayName("PromptTemplateVersion artifact is added correctly")
         void promptTemplateVersionIsAddedCorrectly() {
-            when(treeBuilder.addArtifact(anyString(), any())).thenReturn(true);
+            when(treeBuilder.addArtifact(any())).thenReturn(true);
             
             ArtifactKey templateKey = rootKey.createChild();
             PromptTemplateVersion template = PromptTemplateVersion.builder()
@@ -223,7 +223,7 @@ class ArtifactEventListenerTest {
             
             listener.onEvent(event);
             
-            verify(treeBuilder).addArtifact(eq(executionKey), artifactCaptor.capture());
+            verify(treeBuilder).addArtifact(artifactCaptor.capture());
             assertThat(artifactCaptor.getValue()).isInstanceOf(PromptTemplateVersion.class);
             
             PromptTemplateVersion captured = (PromptTemplateVersion) artifactCaptor.getValue();
@@ -233,7 +233,7 @@ class ArtifactEventListenerTest {
         @Test
         @DisplayName("multiple templates with different hashes are added")
         void multipleTemplatesWithDifferentHashesAreAdded() {
-            when(treeBuilder.addArtifact(anyString(), any())).thenReturn(true);
+            when(treeBuilder.addArtifact(any())).thenReturn(true);
             
             ArtifactKey template1Key = rootKey.createChild();
             PromptTemplateVersion template1 = PromptTemplateVersion.builder()
@@ -256,7 +256,7 @@ class ArtifactEventListenerTest {
             listener.onEvent(createArtifactEvent(template1Key, template1));
             listener.onEvent(createArtifactEvent(template2Key, template2));
             
-            verify(treeBuilder, times(2)).addArtifact(eq(executionKey), any());
+            verify(treeBuilder, times(2)).addArtifact(any());
         }
     }
     
@@ -350,8 +350,8 @@ class ArtifactEventListenerTest {
         @Test
         @DisplayName("full execution lifecycle works correctly")
         void fullExecutionLifecycleWorksCorrectly() {
-            when(treeBuilder.addArtifact(anyString(), any())).thenReturn(true);
-            
+            when(treeBuilder.addArtifact(any())).thenReturn(true);
+
             // Register execution
             listener.registerExecution(executionKey, "workflow-full-test");
             
@@ -384,7 +384,7 @@ class ArtifactEventListenerTest {
             listener.onEvent(completion);
             
             // Verify all artifacts were added
-            verify(treeBuilder, times(3)).addArtifact(eq(executionKey), any());
+            verify(treeBuilder, times(3)).addArtifact(any());
             
             // Verify finished was called
 //            verify(treeBuilder).persistExecutionTree(executionKey);

@@ -2,11 +2,9 @@ package com.hayden.multiagentide.artifacts;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
-import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
-import com.hayden.utilitymodule.stream.StreamUtil;
-import jakarta.persistence.PersistenceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -14,8 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Builds and persists artifact trees from artifact events.
@@ -42,24 +38,30 @@ public class ArtifactTreeBuilder {
     private final ArtifactService artifactService;
 
     private final Map<String, ArtifactNode> executionTrees = new ConcurrentHashMap<>();
-    
+
     /**
      * Adds an artifact to the tree using trie-based insertion with hash deduplication.
-     * 
+     *
      * The artifact is inserted at the position determined by its hierarchical key.
      * Before insertion, siblings are checked for matching content hashes to enable
      * automatic deduplication.
-     * 
-     * @param executionKey The root execution key
+     *
      * @param artifact The artifact to add
      * @return true if added successfully, false if duplicate (key or hash)
      */
+    public boolean addArtifact(com.hayden.acp_cdc_ai.acp.events.Artifact artifact) {
+        var executionKey = getInsertionExecutionKey(artifact);
+
+        return executionKey.map(e -> addArtifact(e, artifact))
+                .orElse(false);
+    }
+
     public boolean addArtifact(String executionKey, com.hayden.acp_cdc_ai.acp.events.Artifact artifact) {
         com.hayden.acp_cdc_ai.acp.events.ArtifactKey key = artifact.artifactKey();
-        
+
         // Get or create the execution tree
         ArtifactNode root = executionTrees.get(executionKey);
-        
+
         if (root == null) {
             // This is the first artifact - it should be the root
             if (key.isRoot() || key.depth() == 1) {
@@ -74,10 +76,10 @@ public class ArtifactTreeBuilder {
                 return handleOrphanArtifact(executionKey, artifact);
             }
         }
-        
+
         // Add to the trie structure
         ArtifactNode.AddResult result = root.addArtifact(artifact);
-        
+
         switch (result) {
             case ADDED -> {
                 log.debug("Added artifact: {} (type: {})", key, artifact.artifactType());
@@ -100,6 +102,13 @@ public class ArtifactTreeBuilder {
                 return false;
             }
         }
+    }
+
+
+
+    private Optional<String> getInsertionExecutionKey(Artifact artifact) {
+        return executionTrees.keySet().stream().filter(s -> artifact.artifactKey().value().startsWith(s))
+                .max(Comparator.comparing(String::length));
     }
     
     /**

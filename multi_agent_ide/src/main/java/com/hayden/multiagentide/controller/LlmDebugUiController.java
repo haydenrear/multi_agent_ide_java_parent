@@ -6,6 +6,8 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.adapter.SseEventAdapter;
 import com.hayden.multiagentide.cli.CliEventFormatter;
 import com.hayden.multiagentide.repository.EventStreamRepository;
+import com.hayden.multiagentide.repository.GraphRepository;
+import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentide.ui.shared.SharedUiInteractionService;
 import com.hayden.multiagentide.ui.shared.UiActionCommand;
 import com.hayden.multiagentide.ui.shared.UiStateSnapshot;
@@ -18,7 +20,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Comparator;
 import java.util.List;
@@ -38,6 +39,7 @@ public class LlmDebugUiController {
     private final UiStateStore uiStateStore;
     private final SseEventAdapter sseEventAdapter;
     private final EventStreamRepository eventStreamRepository;
+    private final GraphRepository graphRepository;
     private final CliEventFormatter cliEventFormatter;
     private final OrchestrationController orchestrationController;
 
@@ -215,219 +217,155 @@ public class LlmDebugUiController {
         Instant now = Instant.now();
         Instant errorWindowStart = now.minusSeconds(safeErrorWindowSeconds);
 
-        List<Events.GraphEvent> scopedEvents = eventStreamRepository.list().stream()
-                .filter(Objects::nonNull)
-                .filter(event -> matchesNodeScope(rootNodeId, event.nodeId()))
-                .sorted(Comparator.comparing(Events.GraphEvent::timestamp)
-                        .thenComparing(Events.GraphEvent::eventId, Comparator.nullsLast(String::compareTo)))
-                .toList();
+        // Tree structure from GraphRepository
+        Map<String, GraphNode> allNodes = graphRepository.findSubtree(rootNodeId);
 
-        Map<String, NodeAccumulator> nodes = new LinkedHashMap<>();
-        Map<String, Integer> eventTypeCounts = new LinkedHashMap<>();
-        Map<String, Integer> recentErrorsByNodeType = new LinkedHashMap<>();
-        int recentErrorCount = 0;
-        long totalThoughtTokens = 0L;
-        long totalStreamTokens = 0L;
-        int chatSessionEvents = 0;
-        int chatMessageEvents = 0;
+        // Global event stats
+        EventStreamRepository.ScopedEventStats globalStats =
+                eventStreamRepository.computeScopedStats(rootNodeId, errorWindowStart);
 
-        for (Events.GraphEvent event : scopedEvents) {
-            eventTypeCounts.merge(event.eventType(), 1, Integer::sum);
-            if (event.nodeId() == null || event.nodeId().isBlank()) {
-                continue;
-            }
-            NodeAccumulator node = nodes.computeIfAbsent(event.nodeId(), NodeAccumulator::new);
-            node.totalEvents++;
-            if (node.firstEventAt == null) {
-                node.firstEventAt = event.timestamp();
-            }
-            node.lastEventAt = event.timestamp();
-            node.eventTypeCounts.merge(event.eventType(), 1, Integer::sum);
-            String parent = parentNodeId(event.nodeId());
-            if (node.parentNodeId == null && parent != null) {
-                node.parentNodeId = parent;
-            }
-
-            boolean countedAsSpecificMetric = true;
-            switch (event) {
-                case Events.NodeAddedEvent added -> {
-                    node.title = added.nodeTitle();
-                    node.nodeType = added.nodeType() == null ? null : added.nodeType().name();
-                    if (added.parentNodeId() != null && !added.parentNodeId().isBlank()) {
-                        node.parentNodeId = added.parentNodeId();
-                    }
-                }
-                case Events.ActionStartedEvent action -> {
-                    node.actionName = action.actionName();
-                }
-                case Events.NodeStatusChangedEvent statusChanged -> {
-                    node.currentStatus = statusChanged.newStatus().name();
-                    if (statusChanged.reason() != null && !statusChanged.reason().isBlank()) {
-                        node.statusReason = statusChanged.reason();
-                        String reasonLower = statusChanged.reason().toLowerCase();
-                        if (reasonLower.contains("route_back") || reasonLower.contains("route back")
-                                || reasonLower.contains("routed back")) {
-                            node.routeBackCount++;
-                        }
-                    }
-                }
-                case Events.NodeErrorEvent error -> {
-                    node.metrics.nodeErrorCount++;
-                    if (!event.timestamp().isBefore(errorWindowStart)) {
-                        recentErrorCount++;
-                        String key = error.nodeType() == null ? "UNKNOWN" : error.nodeType().name();
-                        recentErrorsByNodeType.merge(key, 1, Integer::sum);
-                    }
-                }
-                case Events.ChatSessionCreatedEvent ignored -> {
-                    node.metrics.chatSessionEvents++;
-                    chatSessionEvents++;
-                }
-                case Events.AddMessageEvent ignored -> {
-                    node.metrics.chatMessageEvents++;
-                    chatMessageEvents++;
-                }
-                case Events.NodeThoughtDeltaEvent thought -> {
-                    node.metrics.thoughtDeltas++;
-                    node.metrics.thoughtTokens += thought.tokenCount();
-                    totalThoughtTokens += thought.tokenCount();
-                }
-                case Events.NodeStreamDeltaEvent stream -> {
-                    node.metrics.streamDeltas++;
-                    node.metrics.streamTokens += stream.tokenCount();
-                    totalStreamTokens += stream.tokenCount();
-                }
-                case Events.ToolCallEvent ignored -> node.metrics.toolEvents++;
-                case Events.PermissionRequestedEvent perm -> {
-                    node.metrics.pendingItems.add(new PendingItem(
-                            perm.requestId(),
-                            perm.nodeId(),
-                            "PERMISSION",
-                            "Permission requested for tool call " + perm.toolCallId()
-                                    + ". Resolve with: resolve-permission --id " + perm.requestId() + " --option-type ALLOW_ONCE"
-                    ));
-                }
-                case Events.PermissionResolvedEvent permResolved -> {
-                    node.metrics.pendingItems.removeIf(p ->
-                            "PERMISSION".equals(p.type()) && p.id().equals(permResolved.requestId()));
-                }
-                case Events.InterruptRequestEvent interrupt -> {
-                    node.metrics.pendingItems.add(new PendingItem(
-                            interrupt.requestId(),
-                            interrupt.nodeId(),
-                            "INTERRUPT",
-                            "Interrupt requested: " + interrupt.reason()
-                                    + ". Resolve with: resolve-interrupt --id " + interrupt.requestId()
-                                    + " --origin-node-id " + interrupt.nodeId()
-                    ));
-                }
-                case Events.InterruptStatusEvent interruptStatus -> {
-                    if (!"REQUESTED".equalsIgnoreCase(interruptStatus.interruptStatus())) {
-                        node.metrics.pendingItems.removeIf(p ->
-                                "INTERRUPT".equals(p.type()) && p.nodeId().equals(interruptStatus.originNodeId()));
-                    }
-                }
-                case Events.NodeReviewRequestedEvent review -> {
-                    node.metrics.pendingItems.add(new PendingItem(
-                            review.reviewNodeId(),
-                            review.nodeId(),
-                            "REVIEW",
-                            "Review requested (" + review.reviewType() + "). Review content at node " + review.reviewNodeId()
-                    ));
-                }
-                default -> {
-                    countedAsSpecificMetric = false;
-                }
-            }
-            if (!countedAsSpecificMetric) {
-                node.metrics.otherEvents++;
-            }
+        // Per-node event metrics (keyed by graph node ID)
+        Map<String, EventStreamRepository.NodeEventMetrics> metricsMap = new LinkedHashMap<>();
+        for (String nid : allNodes.keySet()) {
+            eventStreamRepository.computeMetrics(nid).ifPresent(m -> metricsMap.put(nid, m));
         }
 
-        // Ensure every node has a parent assigned where possible.
-        for (NodeAccumulator node : nodes.values()) {
-            if ((node.parentNodeId == null || node.parentNodeId.isBlank()) && !rootNodeId.equals(node.nodeId)) {
-                node.parentNodeId = parentNodeId(node.nodeId);
-            }
-        }
-        nodes.computeIfAbsent(rootNodeId, NodeAccumulator::new);
-
-        // Collapse: merge unnamed nodes into nearest named ancestor.
-        // The root node is always kept even if unnamed.
-        Map<String, String> collapseTarget = new HashMap<>();
-        for (NodeAccumulator node : nodes.values()) {
-            if (node.isNamed() || node.nodeId.equals(rootNodeId)) {
-                collapseTarget.put(node.nodeId, node.nodeId);
-            } else {
-                String target = findNamedAncestor(node.nodeId, nodes, rootNodeId);
-                collapseTarget.put(node.nodeId, target);
-            }
-        }
-        for (NodeAccumulator node : nodes.values()) {
-            String target = collapseTarget.get(node.nodeId);
-            if (target != null && !target.equals(node.nodeId)) {
-                NodeAccumulator ancestor = nodes.get(target);
-                if (ancestor != null) {
-                    ancestor.mergeFrom(node);
-                }
-            }
-        }
-
-        // Build children map using only named nodes (+ root).
-        // Use the ArtifactKey hierarchy to determine parent-child relationships:
-        // for each named node, walk up its AK segments to find the nearest named ancestor.
-        Map<String, List<String>> children = new HashMap<>();
-        for (NodeAccumulator node : nodes.values()) {
-            if (!node.isNamed() && !node.nodeId.equals(rootNodeId)) continue;
-            if (node.nodeId.equals(rootNodeId)) continue;
-            String akParent = parentNodeId(node.nodeId);
-            if (akParent == null || akParent.isBlank()) continue;
-            String namedParent = findNamedAncestor(akParent, nodes, rootNodeId);
-            if (namedParent == null) continue;
-            children.computeIfAbsent(namedParent, ignored -> new ArrayList<>()).add(node.nodeId);
-            node.parentNodeId = namedParent;
-        }
-        for (List<String> childIds : children.values()) {
-            childIds.sort(Comparator.comparing(
-                    (String id) -> {
-                        NodeAccumulator acc = nodes.get(id);
-                        return acc != null && acc.firstEventAt != null ? acc.firstEventAt : Instant.MAX;
-                    }).thenComparing(Comparator.naturalOrder()));
-        }
-
-        // Compute per-action error counts from named nodes.
+        // Compute per-action error counts
         Map<String, Integer> errorsByAction = new LinkedHashMap<>();
-        for (NodeAccumulator node : nodes.values()) {
-            if (node.isNamed() && node.actionName != null && node.metrics.nodeErrorCount > 0) {
-                errorsByAction.merge(node.actionName, node.metrics.nodeErrorCount, Integer::sum);
+        for (GraphNode gn : allNodes.values()) {
+            String action = actionName(gn);
+            EventStreamRepository.NodeEventMetrics m = metricsMap.get(gn.nodeId());
+            if (action != null && m != null && m.nodeErrorCount() > 0) {
+                errorsByAction.merge(action, m.nodeErrorCount(), Integer::sum);
             }
         }
 
-        long namedNodeCount = nodes.values().stream()
-                .filter(n -> n.isNamed() || n.nodeId.equals(rootNodeId))
-                .count();
+        // Build tree recursively from root
+        WorkflowNode root = buildWorkflowNode(rootNodeId, allNodes, metricsMap);
 
-        WorkflowNode root = toWorkflowNode(rootNodeId, nodes, children);
         WorkflowGraphStats stats = new WorkflowGraphStats(
-                scopedEvents.size(),
-                (int) namedNodeCount,
-                eventTypeCounts,
+                globalStats.totalEvents(),
+                allNodes.size(),
+                globalStats.eventTypeCounts(),
                 safeErrorWindowSeconds,
-                recentErrorCount,
-                recentErrorsByNodeType,
+                globalStats.recentErrorCount(),
+                globalStats.recentErrorsByNodeType(),
                 errorsByAction,
-                chatSessionEvents,
-                chatMessageEvents,
-                totalThoughtTokens,
-                totalStreamTokens
+                globalStats.chatSessionEvents(),
+                globalStats.chatMessageEvents(),
+                globalStats.totalThoughtTokens(),
+                globalStats.totalStreamTokens()
         );
-        return new WorkflowGraphResponse(
-                nodeId,
-                rootNodeId,
-                now,
-                stats,
-                root
+
+        return new WorkflowGraphResponse(nodeId, rootNodeId, now, stats, root);
+    }
+
+    private WorkflowNode buildWorkflowNode(
+            String nid,
+            Map<String, GraphNode> allNodes,
+            Map<String, EventStreamRepository.NodeEventMetrics> metricsMap
+    ) {
+        GraphNode gn = allNodes.get(nid);
+        if (gn == null) return null;
+
+        EventStreamRepository.NodeEventMetrics m = metricsMap.getOrDefault(nid,
+                new EventStreamRepository.NodeEventMetrics(0, 0, 0, 0, 0, 0L, 0, 0L, 0, 0));
+
+        // Collect pending items and filter children
+        List<PendingItem> pendingItems = new ArrayList<>();
+        List<WorkflowNode> children = new ArrayList<>();
+
+        for (String childId : gn.childNodeIds()) {
+            GraphNode child = allNodes.get(childId);
+            if (child == null) continue;
+
+            if (child instanceof AskPermissionNode perm) {
+                if (perm.status() == Events.NodeStatus.COMPLETED) continue; // exclude resolved
+                pendingItems.add(new PendingItem(
+                        perm.toolCallId(), perm.nodeId(), "PERMISSION",
+                        "Permission requested for tool call " + perm.toolCallId()
+                                + ". Resolve with: resolve-permission --id " + perm.toolCallId() + " --option-type ALLOW_ONCE"
+                ));
+                children.add(buildWorkflowNode(childId, allNodes, metricsMap));
+            } else if (child instanceof InterruptNode interrupt) {
+                InterruptContext ctx = interrupt.interruptContext();
+                if (ctx.status() == InterruptContext.InterruptStatus.RESOLVED
+                        || interrupt.status() == Events.NodeStatus.COMPLETED) continue; // exclude resolved
+                pendingItems.add(new PendingItem(
+                        ctx.interruptNodeId() != null ? ctx.interruptNodeId() : interrupt.nodeId(),
+                        interrupt.nodeId(), "INTERRUPT",
+                        "Interrupt requested: " + ctx.reason()
+                                + ". Resolve with: resolve-interrupt --id " + interrupt.nodeId()
+                                + " --origin-node-id " + ctx.originNodeId()
+                ));
+                children.add(buildWorkflowNode(childId, allNodes, metricsMap));
+            } else if (child instanceof ReviewNode review) {
+                // Reviews always included in children
+                InterruptContext ctx = review.interruptContext();
+                if (ctx != null && ctx.status() != InterruptContext.InterruptStatus.RESOLVED
+                        && review.status() != Events.NodeStatus.COMPLETED) {
+                    pendingItems.add(new PendingItem(
+                            review.nodeId(), review.nodeId(), "REVIEW",
+                            "Review requested (" + review.reviewerAgentType()
+                                    + "). Review content at node " + review.nodeId()
+                    ));
+                }
+                children.add(buildWorkflowNode(childId, allNodes, metricsMap));
+            } else {
+                // Structural nodes (orchestrators, dispatchers, collectors, agents, merge, summary) — always included
+                children.add(buildWorkflowNode(childId, allNodes, metricsMap));
+            }
+        }
+
+        // Sort children by createdAt
+        children.sort(Comparator.comparing(
+                (WorkflowNode wn) -> wn != null && wn.lastEventAt() != null ? wn.lastEventAt() : Instant.MAX
+        ).thenComparing(wn -> wn != null ? wn.nodeId() : ""));
+
+        // Route-back count from WorkflowContext
+        int routeBackCount = (gn instanceof HasWorkflowContext<?> hwc && hwc.workflowContext() != null)
+                ? hwc.workflowContext().runCount()
+                : 0;
+
+        WorkflowNodeMetrics metrics = new WorkflowNodeMetrics(
+                m.nodeErrorCount(), m.chatSessionEvents(), m.chatMessageEvents(),
+                m.thoughtDeltas(), m.thoughtTokens(), m.streamDeltas(), m.streamTokens(),
+                m.toolEvents(), m.otherEvents(), List.copyOf(pendingItems)
         );
+
+        return new WorkflowNode(
+                gn.nodeId(),
+                gn.parentNodeId(),
+                gn.title(),
+                gn.nodeType() != null ? gn.nodeType().name() : null,
+                gn.status() != null ? gn.status().name() : null,
+                actionName(gn),
+                gn.goal(),
+                routeBackCount,
+                gn.lastUpdatedAt(),
+                m.totalEvents(),
+                metrics,
+                children.stream().filter(Objects::nonNull).toList()
+        );
+    }
+
+    private static String actionName(GraphNode gn) {
+        return switch (gn) {
+            case OrchestratorNode ignored -> "orchestrator";
+            case DiscoveryOrchestratorNode ignored -> "discovery-orchestrator";
+            case DiscoveryDispatchAgentNode ignored -> "discovery-dispatch";
+            case DiscoveryNode ignored -> "discovery-agent";
+            case DiscoveryCollectorNode ignored -> "discovery-collector";
+            case PlanningOrchestratorNode ignored -> "planning-orchestrator";
+            case PlanningDispatchAgentNode ignored -> "planning-dispatch";
+            case PlanningNode ignored -> "planning-agent";
+            case PlanningCollectorNode ignored -> "planning-collector";
+            case TicketOrchestratorNode ignored -> "ticket-orchestrator";
+            case TicketDispatchAgentNode ignored -> "ticket-dispatch";
+            case TicketNode ignored -> "ticket-agent";
+            case TicketCollectorNode ignored -> "ticket-collector";
+            default -> null;
+        };
     }
 
     private String summarize(Events.GraphEvent event, int maxLength) {
@@ -485,47 +423,6 @@ public class LlmDebugUiController {
             int idx = nodeId.lastIndexOf('/');
             return idx > 0 ? nodeId.substring(0, idx) : null;
         }
-    }
-
-    /**
-     * Walk up the ArtifactKey hierarchy to find the nearest named ancestor node.
-     * Returns rootNodeId as fallback if no named ancestor is found.
-     */
-    private String findNamedAncestor(String nodeId, Map<String, NodeAccumulator> nodes, String rootNodeId) {
-        String current = nodeId;
-        while (current != null && !current.isBlank()) {
-            NodeAccumulator acc = nodes.get(current);
-            if (acc != null && (acc.isNamed() || current.equals(rootNodeId))) {
-                return current;
-            }
-            current = parentNodeId(current);
-        }
-        return rootNodeId;
-    }
-
-    private WorkflowNode toWorkflowNode(
-            String nodeId,
-            Map<String, NodeAccumulator> nodes,
-            Map<String, List<String>> children
-    ) {
-        NodeAccumulator node = nodes.computeIfAbsent(nodeId, NodeAccumulator::new);
-        List<WorkflowNode> childNodes = children.getOrDefault(nodeId, List.of()).stream()
-                .map(childId -> toWorkflowNode(childId, nodes, children))
-                .toList();
-        return new WorkflowNode(
-                node.nodeId,
-                node.parentNodeId,
-                node.title,
-                node.nodeType,
-                node.currentStatus,
-                node.actionName,
-                node.statusReason,
-                node.routeBackCount,
-                node.lastEventAt,
-                node.totalEvents,
-                node.metrics.toSnapshot(),
-                childNodes
-        );
     }
 
     public record UiActionRequest(String actionType, java.util.Map<String, Object> payload) {
@@ -635,79 +532,4 @@ public class LlmDebugUiController {
     ) {
     }
 
-    private static final class NodeAccumulator {
-        private final String nodeId;
-        private String parentNodeId;
-        private String title;
-        private String nodeType;
-        private String currentStatus;
-        private String actionName;
-        private String statusReason;
-        private int routeBackCount;
-        private Instant firstEventAt;
-        private Instant lastEventAt;
-        private int totalEvents;
-        private final Map<String, Integer> eventTypeCounts = new LinkedHashMap<>();
-        private final MetricsAccumulator metrics = new MetricsAccumulator();
-
-        private NodeAccumulator(String nodeId) {
-            this.nodeId = nodeId;
-        }
-
-        private boolean isNamed() {
-            return title != null && !title.isBlank();
-        }
-
-        private void mergeFrom(NodeAccumulator other) {
-            totalEvents += other.totalEvents;
-            for (var entry : other.eventTypeCounts.entrySet()) {
-                eventTypeCounts.merge(entry.getKey(), entry.getValue(), Integer::sum);
-            }
-            metrics.mergeFrom(other.metrics);
-            if (other.lastEventAt != null && (lastEventAt == null || other.lastEventAt.isAfter(lastEventAt))) {
-                lastEventAt = other.lastEventAt;
-            }
-        }
-    }
-
-    private static final class MetricsAccumulator {
-        private int nodeErrorCount;
-        private int chatSessionEvents;
-        private int chatMessageEvents;
-        private int thoughtDeltas;
-        private long thoughtTokens;
-        private int streamDeltas;
-        private long streamTokens;
-        private int toolEvents;
-        private int otherEvents;
-        private final List<PendingItem> pendingItems = new ArrayList<>();
-
-        private void mergeFrom(MetricsAccumulator other) {
-            nodeErrorCount += other.nodeErrorCount;
-            chatSessionEvents += other.chatSessionEvents;
-            chatMessageEvents += other.chatMessageEvents;
-            thoughtDeltas += other.thoughtDeltas;
-            thoughtTokens += other.thoughtTokens;
-            streamDeltas += other.streamDeltas;
-            streamTokens += other.streamTokens;
-            toolEvents += other.toolEvents;
-            otherEvents += other.otherEvents;
-            pendingItems.addAll(other.pendingItems);
-        }
-
-        private WorkflowNodeMetrics toSnapshot() {
-            return new WorkflowNodeMetrics(
-                    nodeErrorCount,
-                    chatSessionEvents,
-                    chatMessageEvents,
-                    thoughtDeltas,
-                    thoughtTokens,
-                    streamDeltas,
-                    streamTokens,
-                    toolEvents,
-                    otherEvents,
-                    List.copyOf(pendingItems)
-            );
-        }
-    }
 }

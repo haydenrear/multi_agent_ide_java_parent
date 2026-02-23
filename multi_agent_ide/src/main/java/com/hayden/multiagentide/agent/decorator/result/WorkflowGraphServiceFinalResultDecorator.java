@@ -29,8 +29,7 @@ public class WorkflowGraphServiceFinalResultDecorator implements FinalResultDeco
                 if (context != null && context.decoratorContext() != null) {
                     graphService.completeOrchestratorCollectorResult(
                             context.decoratorContext().operationContext(),
-                            res
-                    );
+                            res);
                 }
                 yield res;
             }

@@ -3,6 +3,7 @@ package com.hayden.multiagentide.repository;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -22,8 +23,6 @@ public interface GraphRepository {
      * @return the node if found
      */
     Optional<GraphNode> findById(String nodeId);
-
-    Optional<GraphNode> findInterruptByOrigin(String nodeId);
 
     /**
      * Get all nodes.
@@ -68,5 +67,16 @@ public interface GraphRepository {
      * Clear all nodes.
      */
     void clear();
+
+    /**
+     * Find an interrupt or review node that targets the given origin node.
+     */
+    Optional<GraphNode> findInterruptByOrigin(String nodeId);
+
+    /**
+     * Find a node and all its descendants recursively.
+     * Returns map of nodeId -> GraphNode for efficient lookup.
+     */
+    Map<String, GraphNode> findSubtree(String rootNodeId);
 
 }
