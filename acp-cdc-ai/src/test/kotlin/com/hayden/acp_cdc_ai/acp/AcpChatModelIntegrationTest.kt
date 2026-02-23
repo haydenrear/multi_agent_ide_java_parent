@@ -393,7 +393,7 @@ class AcpChatModelIntegrationTest {
         private val pending = mutableMapOf<String, IPermissionGate.PendingPermissionRequest>()
         override fun resolveInterrupt(
             interruptId: String,
-            resolutionType: String?,
+            resolutionType: IPermissionGate.ResolutionType?,
             resolutionNotes: String?,
             reviewResult: IPermissionGate.InterruptResult?
         ): Boolean {

@@ -7,11 +7,9 @@ import com.agentclientprotocol.common.SessionCreationParameters
 import com.agentclientprotocol.model.*
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.Transport
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
 import com.hayden.acp_cdc_ai.acp.config.McpProperties
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
-import com.hayden.acp_cdc_ai.acp.events.Events
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository
 import com.hayden.acp_cdc_ai.sandbox.SandboxTranslation
@@ -71,7 +69,6 @@ class AcpChatModel(
 ) : ChatModel, StreamingChatModel {
 
     private val log: Logger = LoggerFactory.getLogger(AcpChatModel::class.java)
-    private val objectMapper = ObjectMapper()
 
     companion object AcpChatModel {
 
@@ -153,31 +150,6 @@ class AcpChatModel(
 
         generations.addAll(session.flushWindows(memoryId))
 
-        val unparsedToolCall = detectUnparsedToolCallInLastMessage(generations)
-        if (unparsedToolCall != null) {
-            val err = "ACP returned unparsed tool call as final structured output: $unparsedToolCall"
-            log.warn(err)
-            sessionManager.eventBus.publish(Events.NodeErrorEvent.err(err, sessionContext.chatModelKey))
-
-            val retryGenerations = mutableListOf<Generation>()
-            val retryContent = listOf(
-                ContentBlock.Text(
-                    "The last thing you sent was parsed as a tool call: $unparsedToolCall. " +
-                            "Do not return a tool call as final structured output. " +
-                            "Please continue with either a different tool call that can actually execute, " +
-                            "or return the required structured response for this step."
-                )
-            )
-            session.prompt(retryContent)
-                .transform { event ->
-                    parseGenerationsFromAcpEvent(event, sessionContext, memoryId).forEach { emit(it) }
-                }
-                .collect { retryGenerations.add(it) }
-
-            retryGenerations.addAll(session.flushWindows(memoryId))
-            return@runBlocking toChatResponse(retryGenerations)
-        }
-
         toChatResponse(generations)
     }
 
@@ -230,19 +202,7 @@ class AcpChatModel(
     }
 
     private fun resolveMemoryId(chatRequest: Prompt): Any? {
-        val chatModel = chatRequest.options?.model ?: return ArtifactKey.createRoot()
-
-        if (chatModel.contains("___")) {
-            val splitted = chatModel.split("___")
-            return splitted[0]
-        }
-
-       try {
-           return chatModel
-       } catch (e: IllegalArgumentException) {
-            log.error("Error attempting to cast artifact key to root: {}", e.message, e)
-           return ArtifactKey.createRoot()
-       }
+        return chatRequest.options?.model ?: ArtifactKey.createRoot().value
     }
 
     private fun getOrCreateSession(memoryId: Any?, chatRequest: Prompt?): AcpSessionManager.AcpSessionContext {
@@ -295,12 +255,22 @@ class AcpChatModel(
 
             val agentInfo = protocol.start()
 
-//            properties.authMethod?.let {
-//                val authenticationResult = client.authenticate(AuthMethodId("claude-login"))
-//                log.info("Authenticated with ACP {}", authenticationResult)
-//            }
+            properties.authMethod?.let {
+                val authenticationResult = client.authenticate(AuthMethodId(it))
+                log.info("Authenticated with ACP {}", authenticationResult)
+            }
 
-            val initialized = client.initialize(ClientInfo())
+            val initialized = client.initialize(
+                ClientInfo(
+                    capabilities = ClientCapabilities(
+                        fs = FileSystemCapability(
+                            readTextFile = true,
+                            writeTextFile = true
+                        ),
+                        terminal = true
+                    )
+                )
+            )
 
             log.info("Agent info: ${initialized.implementation.toString()}")
 
@@ -427,83 +397,6 @@ class AcpChatModel(
             executableAcp
         else
             Path.of(executableAcp).fileName.toString()
-    }
-
-    private fun detectUnparsedToolCallInLastMessage(generations: List<Generation>): String? {
-        val lastMessage = generations
-            .asReversed()
-            .mapNotNull { generation -> runCatching { generation.output.text }.getOrNull() }
-            .firstOrNull { it.isNotBlank() }
-            ?: return null
-
-        return extractToolCallNameFromLastStructuredPayload(lastMessage)
-    }
-
-    internal fun extractToolCallNameFromLastStructuredPayload(lastMessage: String): String? {
-        if (lastMessage.isBlank()) {
-            return null
-        }
-
-        val trailingJson = extractTrailingJsonObject(lastMessage)
-        if (trailingJson != null) {
-            val tree = runCatching { objectMapper.readTree(trailingJson) }.getOrNull()
-            if (tree != null && tree.isObject) {
-                val toolName = tree.get("tool_name")?.asText()
-                    ?: tree.get("name")?.asText()
-                if (!toolName.isNullOrBlank()) {
-                    return toolName
-                }
-            }
-        }
-
-        val trailingToolCallXml = Regex("""<tool_call>\s*([A-Za-z0-9_./-]+)""")
-            .find(lastMessage.trimEnd())
-            ?.groupValues
-            ?.getOrNull(1)
-        return if (trailingToolCallXml.isNullOrBlank()) null else trailingToolCallXml
-    }
-
-    private fun extractTrailingJsonObject(text: String): String? {
-        val trimmed = text.trimEnd()
-        if (!trimmed.endsWith("}")) {
-            return null
-        }
-
-        var depth = 0
-        var inString = false
-        var escaping = false
-        var start = -1
-
-        for (i in trimmed.lastIndex downTo 0) {
-            val c = trimmed[i]
-            if (inString) {
-                if (escaping) {
-                    escaping = false
-                } else if (c == '\\') {
-                    escaping = true
-                } else if (c == '"') {
-                    inString = false
-                }
-                continue
-            }
-
-            when (c) {
-                '"' -> inString = true
-                '}' -> depth++
-                '{' -> {
-                    depth--
-                    if (depth == 0) {
-                        start = i
-                        break
-                    }
-                }
-            }
-        }
-
-        if (start < 0) {
-            return null
-        }
-        return trimmed.substring(start)
     }
 
     private fun formatPromptMessages(messages: Prompt): String {
