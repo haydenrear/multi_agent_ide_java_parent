@@ -1,9 +1,6 @@
 package com.hayden.multiagentidelib.prompt.contributor;
 
-import com.hayden.multiagentidelib.agent.AgentContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
@@ -121,7 +118,7 @@ public class HistoryPromptContributorFactory implements PromptContributorFactory
         }
         Object previousRequest = findPreviousNonInterrupt(entries);
         StringBuilder builder = new StringBuilder();
-        builder.append(interrupt.prettyPrint(new AgentContext.AgentSerializationCtx.InterruptSerialization()));
+        builder.append(interrupt.prettyPrint(new AgentPretty.AgentSerializationCtx.InterruptSerialization()));
         appendSection(builder, "Before Interrupt", formatRequestSummary(previousRequest));
         appendSection(builder, "After Interrupt", formatRequestSummary(request));
         appendSection(builder, "Instructions", """
@@ -191,7 +188,7 @@ public class HistoryPromptContributorFactory implements PromptContributorFactory
             return interrupt.type() + (reason != null && !reason.isBlank() ? " - " + reason.trim() : "");
         }
         if (request instanceof AgentModels.AgentRequest agentRequest) {
-            return agentRequest.prettyPrint(new AgentContext.AgentSerializationCtx.InterruptSerialization());
+            return agentRequest.prettyPrint(new AgentPretty.AgentSerializationCtx.InterruptSerialization());
         }
         return Objects.toString(request, "");
     }

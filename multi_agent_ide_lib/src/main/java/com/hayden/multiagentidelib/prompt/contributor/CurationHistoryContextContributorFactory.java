@@ -1,9 +1,6 @@
 package com.hayden.multiagentidelib.prompt.contributor;
 
-import com.hayden.multiagentidelib.agent.AgentContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.agent.UpstreamContext;
+import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
@@ -566,7 +563,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         addSupplementaryResultTypes(allowed);
     }
 
-    private static boolean hasRenderableOutput(AgentContext data) {
+    private static boolean hasRenderableOutput(AgentPretty data) {
         if (data == null) {
             return false;
         }
@@ -877,7 +874,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
     record DataCurationContributor(
             String contributorName,
             String header,
-            AgentContext data,
+            AgentPretty data,
             int contributorPriority
     ) implements PromptContributor {
 

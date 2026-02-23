@@ -7,7 +7,7 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 
 import java.util.List;
 
-public interface AgentContext extends Artifact.AgentModel {
+public interface AgentContext extends Artifact.AgentModel, AgentPretty {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     ArtifactKey contextId();
@@ -28,43 +28,6 @@ public interface AgentContext extends Artifact.AgentModel {
     @SuppressWarnings("unchecked")
     default <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> c) {
         return (T) this;
-    }
-
-    default String prettyPrint(AgentSerializationCtx serializationCtx) {
-        return switch (serializationCtx) {
-            case AgentSerializationCtx.StdReceiverSerialization stdReceiverSerialization ->
-                    prettyPrint();
-            case AgentSerializationCtx.InterruptSerialization interruptSerialization ->
-                    prettyPrintInterruptContinuation();
-            case AgentSerializationCtx.GoalResolutionSerialization goalResolutionSerialization ->
-                    prettyPrint();
-            case AgentSerializationCtx.MergeSummarySerialization mergeSummarySerialization ->
-                    prettyPrint();
-            case AgentSerializationCtx.ResultsSerialization resultsSerialization ->
-                    prettyPrint();
-        };
-    }
-
-    @JsonIgnore
-    default String prettyPrintInterruptContinuation() {
-        return prettyPrint();
-    }
-
-    @JsonIgnore
-    String prettyPrint();
-
-    sealed interface AgentSerializationCtx {
-
-        record StdReceiverSerialization() implements AgentSerializationCtx {}
-
-        record InterruptSerialization() implements AgentSerializationCtx {}
-
-        record GoalResolutionSerialization() implements AgentSerializationCtx {}
-
-        record MergeSummarySerialization() implements AgentSerializationCtx {}
-
-        record ResultsSerialization() implements AgentSerializationCtx {}
-
     }
 
 }

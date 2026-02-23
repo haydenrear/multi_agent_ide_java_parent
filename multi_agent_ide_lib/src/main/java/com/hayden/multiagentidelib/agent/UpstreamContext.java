@@ -117,7 +117,7 @@ public sealed interface UpstreamContext extends AgentContext
         builder.append("\t").append(value.trim().replace("\n", "\n\t")).append("\n");
     }
 
-    private static void appendContext(StringBuilder builder, String label, AgentContext context) {
+    private static void appendContext(StringBuilder builder, String label, AgentPretty context) {
         builder.append(label).append(":\n");
         if (context == null) {
             builder.append("\t(none)\n");

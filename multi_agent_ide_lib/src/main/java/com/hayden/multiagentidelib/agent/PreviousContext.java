@@ -146,7 +146,7 @@ public sealed interface PreviousContext extends AgentContext permits
         builder.append(label).append(":\n").append(value.trim()).append("\n");
     }
 
-    private static String prettyPrint(AgentContext context) {
+    private static String prettyPrint(AgentPretty context) {
         return context == null
                 ? ""
                 : context.prettyPrint();
