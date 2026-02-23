@@ -13,6 +13,17 @@ import kotlinx.serialization.json.JsonElement
 import java.util.function.Predicate
 
 interface IPermissionGate {
+
+    enum class ResolutionType {
+        APPROVED,
+        REJECTED,
+        CANCELLED,
+        FEEDBACK,
+        RESOLVED;
+
+        fun approved(): Boolean = this == APPROVED
+    }
+
     data class PendingPermissionRequest(
         val requestId: String,
         val originNodeId: String,
@@ -26,17 +37,19 @@ interface IPermissionGate {
     data class InterruptResolution(
         val interruptId: String,
         val originNodeId: String,
-        val resolutionType: String?,
+        val resolutionType: ResolutionType? = null,
         val resolutionNotes: String?
-    )
+    ) {
+        fun approved(): Boolean = resolutionType?.approved() == true
+    }
 
     data class InterruptResult(
-            val contextId: ArtifactKey,
-            val assessmentStatus: String?,
-            val feedback: String?,
-            val suggestions: List<String>,
-            val contentLinks: List<String> ,
-            val output: String
+            val contextId: ArtifactKey? = null,
+            val assessmentStatus: ResolutionType? = null,
+            val feedback: String? = null,
+            val suggestions: List<String> = emptyList(),
+            val contentLinks: List<String> = emptyList(),
+            val output: String? = null
     )
 
     data class PendingInterruptRequest(
@@ -49,7 +62,7 @@ interface IPermissionGate {
 
     fun resolveInterrupt(
         interruptId: String,
-        resolutionType: String?,
+        resolutionType: ResolutionType?,
         resolutionNotes: String?,
         reviewResult: InterruptResult? = null
     ): Boolean
