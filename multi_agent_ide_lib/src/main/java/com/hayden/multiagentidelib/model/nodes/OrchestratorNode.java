@@ -31,14 +31,16 @@ public record OrchestratorNode(
         MainWorktreeContext worktreeContext,
         String orchestratorOutput,
         AgentModels.OrchestratorAgentResult orchestratorResult,
-        InterruptContext interruptibleContext
-) implements GraphNode, Viewable<String>, Orchestrator, Interruptible {
+        InterruptContext interruptibleContext,
+        WorkflowContext workflowContext
+) implements GraphNode, Viewable<String>, Orchestrator, Interruptible, HasWorkflowContext<OrchestratorNode> {
 
     public OrchestratorNode {
         if (nodeId == null || nodeId.isEmpty()) throw new IllegalArgumentException("nodeId required");
         if (worktreeContext.repositoryUrl() == null || worktreeContext.repositoryUrl().isEmpty()) throw new IllegalArgumentException("repositoryUrl required");
         if (childNodeIds == null) childNodeIds = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
+        if (workflowContext == null) workflowContext = WorkflowContext.initial();
     }
 
     public boolean hasSubmodules() {
@@ -99,6 +101,14 @@ public record OrchestratorNode(
     public OrchestratorNode withInterruptibleContext(InterruptContext context) {
         return toBuilder()
                 .interruptibleContext(context)
+                .lastUpdatedAt(Instant.now())
+                .build();
+    }
+
+    @Override
+    public OrchestratorNode withWorkflowContext(WorkflowContext workflowContext) {
+        return toBuilder()
+                .workflowContext(workflowContext)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

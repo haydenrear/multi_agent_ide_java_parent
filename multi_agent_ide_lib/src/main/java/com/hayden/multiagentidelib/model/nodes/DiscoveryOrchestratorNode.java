@@ -26,18 +26,20 @@ public record DiscoveryOrchestratorNode(
         int totalTasksCompleted,
         int totalTasksFailed,
         AgentModels.DiscoveryOrchestratorResult discoveryOrchestratorResult,
-        InterruptContext interruptibleContext
-) implements GraphNode, Viewable<String>, Orchestrator, Interruptible {
+        InterruptContext interruptibleContext,
+        WorkflowContext workflowContext
+) implements GraphNode, Viewable<String>, Orchestrator, Interruptible, HasWorkflowContext<DiscoveryOrchestratorNode> {
 
     public DiscoveryOrchestratorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String summaryContent, int totalTasksCompleted, int totalTasksFailed) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                summaryContent, totalTasksCompleted, totalTasksFailed, null, null);
+                summaryContent, totalTasksCompleted, totalTasksFailed, null, null, WorkflowContext.initial());
     }
 
     public DiscoveryOrchestratorNode {
         if (nodeId == null || nodeId.isEmpty()) throw new IllegalArgumentException("nodeId required");
         if (childNodeIds == null) childNodeIds = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
+        if (workflowContext == null) workflowContext = WorkflowContext.initial();
     }
 
     @Override
@@ -80,6 +82,14 @@ public record DiscoveryOrchestratorNode(
     public DiscoveryOrchestratorNode withInterruptibleContext(InterruptContext context) {
         return toBuilder()
                 .interruptibleContext(context)
+                .lastUpdatedAt(Instant.now())
+                .build();
+    }
+
+    @Override
+    public DiscoveryOrchestratorNode withWorkflowContext(WorkflowContext workflowContext) {
+        return toBuilder()
+                .workflowContext(workflowContext)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

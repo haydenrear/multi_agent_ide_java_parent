@@ -31,12 +31,13 @@ public record PlanningCollectorNode(
         List<CollectedNodeStatus> collectedNodes,
         AgentModels.CollectorDecision collectorDecision,
         AgentModels.PlanningCollectorResult planningCollectorResult,
-        InterruptContext interruptibleContext
-) implements GraphNode, Viewable<String>, Collector, Interruptible {
+        InterruptContext interruptibleContext,
+        WorkflowContext workflowContext
+) implements GraphNode, Viewable<String>, Collector, Interruptible, HasWorkflowContext<PlanningCollectorNode> {
 
     public PlanningCollectorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, List<String> generatedTicketIds, String planContent, int estimatedSubtasks, int completedSubtasks) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                generatedTicketIds, planContent, estimatedSubtasks, completedSubtasks, new ArrayList<>(), null, null, null);
+                generatedTicketIds, planContent, estimatedSubtasks, completedSubtasks, new ArrayList<>(), null, null, null, WorkflowContext.initial());
     }
 
     public PlanningCollectorNode {
@@ -46,6 +47,7 @@ public record PlanningCollectorNode(
         if (metadata == null) metadata = new HashMap<>();
         if (generatedTicketIds == null) generatedTicketIds = new ArrayList<>();
         if (collectedNodes == null) collectedNodes = new ArrayList<>();
+        if (workflowContext == null) workflowContext = WorkflowContext.initial();
     }
 
     @Override
@@ -119,6 +121,14 @@ public record PlanningCollectorNode(
     public PlanningCollectorNode withInterruptibleContext(InterruptContext context) {
         return toBuilder()
                 .interruptibleContext(context)
+                .lastUpdatedAt(Instant.now())
+                .build();
+    }
+
+    @Override
+    public PlanningCollectorNode withWorkflowContext(WorkflowContext workflowContext) {
+        return toBuilder()
+                .workflowContext(workflowContext)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

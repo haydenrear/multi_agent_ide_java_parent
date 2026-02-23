@@ -33,19 +33,20 @@ public record CollectorNode(
         List<CollectedNodeStatus> collectedNodes,
         AgentModels.CollectorDecision collectorDecision,
         AgentModels.OrchestratorCollectorResult collectorResult,
-        InterruptContext interruptibleContext
-) implements GraphNode, Viewable<String>, Collector, Interruptible {
+        InterruptContext interruptibleContext,
+        WorkflowContext workflowContext
+) implements GraphNode, Viewable<String>, Collector, Interruptible, HasWorkflowContext<CollectorNode> {
 
     public CollectorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String repositoryUrl, String baseBranch, boolean hasSubmodules, List<String> submoduleNames, String mainWorktreeId, List<String> submoduleWorktreeIds, String orchestratorOutput) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
                 repositoryUrl, baseBranch, hasSubmodules, submoduleNames, mainWorktreeId, submoduleWorktreeIds, orchestratorOutput,
-                new ArrayList<>(), new ArrayList<>(), null, null, null);
+                new ArrayList<>(), new ArrayList<>(), null, null, null, WorkflowContext.initial());
     }
 
     public CollectorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String repositoryUrl, String baseBranch, boolean hasSubmodules, List<String> submoduleNames, String mainWorktreeId, List<String> submoduleWorktreeIds, String orchestratorOutput, List<SubmoduleNode> submodules) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
                 repositoryUrl, baseBranch, hasSubmodules, submoduleNames, mainWorktreeId, submoduleWorktreeIds, orchestratorOutput,
-                submodules, new ArrayList<>(), null, null, null);
+                submodules, new ArrayList<>(), null, null, null, WorkflowContext.initial());
     }
 
     public CollectorNode {
@@ -56,6 +57,7 @@ public record CollectorNode(
         if (submoduleNames == null) submoduleNames = new ArrayList<>();
         if (submoduleWorktreeIds == null) submoduleWorktreeIds = new ArrayList<>();
         if (collectedNodes == null) collectedNodes = new ArrayList<>();
+        if (workflowContext == null) workflowContext = WorkflowContext.initial();
     }
 
     @Override
@@ -118,6 +120,14 @@ public record CollectorNode(
     public CollectorNode withInterruptibleContext(InterruptContext context) {
         return toBuilder()
                 .interruptibleContext(context)
+                .lastUpdatedAt(Instant.now())
+                .build();
+    }
+
+    @Override
+    public CollectorNode withWorkflowContext(WorkflowContext workflowContext) {
+        return toBuilder()
+                .workflowContext(workflowContext)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

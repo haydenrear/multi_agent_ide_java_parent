@@ -30,14 +30,15 @@ public record TicketOrchestratorNode(
         boolean mergeRequired,
         int streamingTokenCount,
         AgentModels.TicketOrchestratorResult ticketOrchestratorResult,
-        InterruptContext interruptibleContext
-) implements GraphNode, Viewable<String>, Orchestrator, HasWorktree, Interruptible {
+        InterruptContext interruptibleContext,
+        WorkflowContext workflowContext
+) implements GraphNode, Viewable<String>, Orchestrator, HasWorktree, Interruptible, HasWorkflowContext<TicketOrchestratorNode> {
 
     public TicketOrchestratorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata,
                                   Instant createdAt, Instant lastUpdatedAt, WorkTree worktree, int completedSubtasks, int totalSubtasks, String agentType, String workOutput, boolean mergeRequired, int streamingTokenCount) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
                 worktree, completedSubtasks, totalSubtasks, agentType,
-                workOutput, mergeRequired, streamingTokenCount, null, null);
+                workOutput, mergeRequired, streamingTokenCount, null, null, WorkflowContext.initial());
     }
 
 
@@ -47,6 +48,7 @@ public record TicketOrchestratorNode(
         if (worktree == null) throw new IllegalArgumentException("mainWorktreeId required");
         if (childNodeIds == null) childNodeIds = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
+        if (workflowContext == null) workflowContext = WorkflowContext.initial();
     }
 
     @Override
@@ -123,6 +125,14 @@ public record TicketOrchestratorNode(
     public TicketOrchestratorNode withInterruptibleContext(InterruptContext context) {
         return toBuilder()
                 .interruptibleContext(context)
+                .lastUpdatedAt(Instant.now())
+                .build();
+    }
+
+    @Override
+    public TicketOrchestratorNode withWorkflowContext(WorkflowContext workflowContext) {
+        return toBuilder()
+                .workflowContext(workflowContext)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

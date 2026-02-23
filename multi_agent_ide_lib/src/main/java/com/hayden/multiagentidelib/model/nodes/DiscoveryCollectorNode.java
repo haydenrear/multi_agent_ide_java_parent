@@ -28,12 +28,13 @@ public record DiscoveryCollectorNode(
         List<CollectedNodeStatus> collectedNodes,
         AgentModels.CollectorDecision collectorDecision,
         AgentModels.DiscoveryCollectorResult discoveryCollectorResult,
-        InterruptContext interruptibleContext
-) implements GraphNode, Viewable<String>, Collector, Interruptible {
+        InterruptContext interruptibleContext,
+        WorkflowContext workflowContext
+) implements GraphNode, Viewable<String>, Collector, Interruptible, HasWorkflowContext<DiscoveryCollectorNode> {
 
     public DiscoveryCollectorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String summaryContent, int totalTasksCompleted, int totalTasksFailed) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                summaryContent, totalTasksCompleted, totalTasksFailed, new ArrayList<>(), null, null, null);
+                summaryContent, totalTasksCompleted, totalTasksFailed, new ArrayList<>(), null, null, null, WorkflowContext.initial());
     }
 
     public DiscoveryCollectorNode {
@@ -41,6 +42,7 @@ public record DiscoveryCollectorNode(
         if (childNodeIds == null) childNodeIds = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
         if (collectedNodes == null) collectedNodes = new ArrayList<>();
+        if (workflowContext == null) workflowContext = WorkflowContext.initial();
     }
 
     @Override
@@ -91,6 +93,14 @@ public record DiscoveryCollectorNode(
     public DiscoveryCollectorNode withInterruptibleContext(InterruptContext context) {
         return toBuilder()
                 .interruptibleContext(context)
+                .lastUpdatedAt(Instant.now())
+                .build();
+    }
+
+    @Override
+    public DiscoveryCollectorNode withWorkflowContext(WorkflowContext workflowContext) {
+        return toBuilder()
+                .workflowContext(workflowContext)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

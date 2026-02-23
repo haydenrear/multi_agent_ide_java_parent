@@ -1,5 +1,6 @@
 package com.hayden.multiagentidelib.model.nodes;
 
+import com.hayden.acp_cdc_ai.acp.events.EventNode;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 
 import java.time.Instant;
@@ -11,8 +12,8 @@ import java.util.Map;
  * Nodes can implement capability mixins (Branchable, Editable, etc.) for optional behaviors.
  * This is a data-oriented interface that composes capabilities.
  */
-public sealed interface GraphNode
-        permits AskPermissionNode, CollectorNode, DiscoveryCollectorNode, DiscoveryNode, DiscoveryOrchestratorNode, InterruptNode, MergeNode, OrchestratorNode, PlanningCollectorNode, PlanningNode, PlanningOrchestratorNode, ReviewNode, SummaryNode, TicketCollectorNode, TicketNode, TicketOrchestratorNode {
+public sealed interface GraphNode extends EventNode
+        permits AskPermissionNode, CollectorNode, DiscoveryCollectorNode, DiscoveryDispatchAgentNode, DiscoveryNode, DiscoveryOrchestratorNode, InterruptNode, MergeNode, OrchestratorNode, PlanningCollectorNode, PlanningDispatchAgentNode, PlanningNode, PlanningOrchestratorNode, ReviewNode, SummaryNode, TicketCollectorNode, TicketDispatchAgentNode, TicketNode, TicketOrchestratorNode {
 
     GraphNode withStatus(Events.NodeStatus nodeStatus);
 

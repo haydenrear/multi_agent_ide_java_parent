@@ -29,12 +29,13 @@ public record PlanningOrchestratorNode(
         int estimatedSubtasks,
         int completedSubtasks,
         AgentModels.PlanningOrchestratorResult planningOrchestratorResult,
-        InterruptContext interruptibleContext
-) implements GraphNode, Viewable<String>, Orchestrator, Interruptible {
+        InterruptContext interruptibleContext,
+        WorkflowContext workflowContext
+) implements GraphNode, Viewable<String>, Orchestrator, Interruptible, HasWorkflowContext<PlanningOrchestratorNode> {
 
     public PlanningOrchestratorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, List<String> generatedTicketIds, String planContent, int estimatedSubtasks, int completedSubtasks) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                generatedTicketIds, planContent, estimatedSubtasks, completedSubtasks, null, null);
+                generatedTicketIds, planContent, estimatedSubtasks, completedSubtasks, null, null, WorkflowContext.initial());
     }
 
     public PlanningOrchestratorNode {
@@ -43,6 +44,7 @@ public record PlanningOrchestratorNode(
         if (childNodeIds == null) childNodeIds = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
         if (generatedTicketIds == null) generatedTicketIds = new ArrayList<>();
+        if (workflowContext == null) workflowContext = WorkflowContext.initial();
     }
 
     @Override
@@ -108,6 +110,14 @@ public record PlanningOrchestratorNode(
     public PlanningOrchestratorNode withInterruptibleContext(InterruptContext context) {
         return toBuilder()
                 .interruptibleContext(context)
+                .lastUpdatedAt(Instant.now())
+                .build();
+    }
+
+    @Override
+    public PlanningOrchestratorNode withWorkflowContext(WorkflowContext workflowContext) {
+        return toBuilder()
+                .workflowContext(workflowContext)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }
