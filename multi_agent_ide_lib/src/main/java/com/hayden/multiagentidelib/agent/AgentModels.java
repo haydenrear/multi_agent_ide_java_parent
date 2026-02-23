@@ -222,10 +222,10 @@ public interface AgentModels {
         @JsonIgnore
         default String routeGuardrailsExtraction() {
             return switch (this) {
-                case DiscoveryCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE -> planningRequest, ROUTE_BACK -> discoveryRequest, STOP -> orchestratorRequest.";
-                case PlanningCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE -> ticketOrchestratorRequest, ROUTE_BACK -> planningRequest, STOP -> orchestratorCollectorRequest.";
-                case TicketCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE -> orchestratorCollectorRequest, ROUTE_BACK -> ticketRequest, STOP -> orchestratorCollectorRequest.";
-                case OrchestratorCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE -> complete, ROUTE_BACK -> orchestratorRequest, STOP -> collectorResult.";
+                case DiscoveryCollectorRequest ignored -> "CollectorDecision: use ADVANCE_PHASE or ROUTE_BACK for normal flow; STOP stops execution. Prefer collectorResult. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required.";
+                case PlanningCollectorRequest ignored -> "CollectorDecision: use ADVANCE_PHASE or ROUTE_BACK for normal flow; STOP stops execution. Prefer collectorResult. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required.";
+                case TicketCollectorRequest ignored -> "CollectorDecision: use ADVANCE_PHASE or ROUTE_BACK for normal flow; STOP stops execution. Prefer collectorResult. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required.";
+                case OrchestratorCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE completes workflow, ROUTE_BACK returns to an Orchestrator request. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required. Use reviewRequest/mergerRequest when needed; use contextManagerRequest only for missing cross-agent context.";
                 case ContextManagerRequest ignored -> "Return exactly one non-null returnTo* route based on recovered context.";
                 case ContextManagerRoutingRequest ignored -> "Set context manager reason/type and route to context manager request.";
                 default -> "Set exactly one non-null route field that matches the next intended node.";
@@ -284,6 +284,18 @@ public interface AgentModels {
             return prettyPrintInterruptContinuation();
         }
     }
+
+    /**
+     * Marker for requests where routing can explicitly choose ROUTE_BACK semantics.
+     * Prompt contributors use this to inject anti-loop guardrails.
+     */
+    interface HasRouteBack {}
+
+    /**
+     * Marker for requests where routing can send control back to OrchestratorRequest.
+     * Prompt contributors use this to require clarification before routing to orchestrator.
+     */
+    interface HasOrchestratorRequestRouteBack {}
 
     /**
      * Interface for agent results containers that can have merge aggregation.
@@ -2989,7 +3001,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Previous discovery collector context for reruns.")
             @SkipPropertyFilter
             PreviousContext.DiscoveryCollectorPreviousContext previousContext
-    ) implements AgentRequest {
+    ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3403,7 +3415,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Previous planning collector context for reruns.")
             @SkipPropertyFilter
             PreviousContext.PlanningCollectorPreviousContext previousContext
-    ) implements AgentRequest {
+    ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3512,8 +3524,15 @@ public interface AgentModels {
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
-        public PlanningCollectorRouting(InterruptRequest.PlanningCollectorInterruptRequest interruptRequest, PlanningCollectorResult collectorResult, PlanningOrchestratorRequest planningRequest, DiscoveryOrchestratorRequest discoveryOrchestratorRequest, ReviewRequest reviewRequest, MergerRequest mergerRequest) {
-            this(interruptRequest, collectorResult, planningRequest, discoveryOrchestratorRequest, reviewRequest, mergerRequest, null, null, null);
+        public PlanningCollectorRouting(InterruptRequest.PlanningCollectorInterruptRequest interruptRequest,
+                                        PlanningCollectorResult collectorResult,
+                                        PlanningOrchestratorRequest planningRequest,
+                                        TicketOrchestratorRequest ticketOrchestratorRequest,
+                                        OrchestratorRequest orchestratorRequest,
+                                        ReviewRequest reviewRequest,
+                                        MergerRequest mergerRequest) {
+            this(interruptRequest, collectorResult, planningRequest, ticketOrchestratorRequest,
+                    null, orchestratorRequest, reviewRequest, mergerRequest, null);
         }
     }
 
@@ -3856,7 +3875,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Previous ticket collector context for reruns.")
             @SkipPropertyFilter
             PreviousContext.TicketCollectorPreviousContext previousContext
-    ) implements AgentRequest {
+    ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();

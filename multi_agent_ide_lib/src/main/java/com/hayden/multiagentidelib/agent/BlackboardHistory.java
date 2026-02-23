@@ -97,6 +97,10 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         return history.getLastOfType(t).orElse(null);
     }
 
+    public synchronized <T> T getLastMatching(Function<Entry, Optional<T>> t)  {
+        return history.getLastMatching(t).orElse(null);
+    }
+
     public synchronized <T> Optional<T> fromState(Function<WorkflowGraphState, T> t) {
         if (state == null)
             return Optional.empty();
@@ -144,6 +148,16 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
 
     public static BlackboardHistory getEntireBlackboardHistory(Blackboard context) {
         return context.last(BlackboardHistory.class);
+    }
+
+    public static <T> T getLastMatching(Blackboard context, Function<Entry, Optional<T>> inputType) {
+        var history = getEntireBlackboardHistory(context);
+
+        if (history == null) {
+            return null;
+        }
+
+        return history.getLastMatching(inputType);
     }
 
     public static <T> T getLastFromHistory(Blackboard context, Class<T> inputType) {
@@ -307,19 +321,28 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     .collect(Collectors.toList());
         }
 
+        public <T> Optional<T> getLastMatching(Function<Entry, Optional<T>> type) {
+            return entries.stream()
+                    .flatMap(t -> type.apply(t).stream())
+                    .reduce((first, second) -> second);
+        }
+
         /**
          * Get the most recent entry of a specific type
          */
         @SuppressWarnings("unchecked")
         public <T> Optional<T> getLastOfType(Class<T> type) {
-            return entries.stream()
-                    .filter(entry -> entry.inputType() != null && entry.inputType().equals(type))
-                    .map(entry -> (T) entry.input())
-                    .reduce((first, second) -> second)
-                    .or(() -> entries.stream()
-                            .filter(entry -> isTy(type, entry))
-                            .map(entry -> (T) entry.input())
-                            .reduce((first, second) -> second));
+            return getLastMatching(entry -> {
+                if (entry.inputType() != null && entry.inputType().equals(type)) {
+                    return Optional.of((T) entry.input());
+                }
+                return Optional.empty();
+            }).or(() -> getLastMatching(entry -> {
+                if (isTy(type, entry)) {
+                    return Optional.of((T) entry.input());
+                }
+                return Optional.empty();
+            }));
         }
 
         private <T> boolean isTy(Class<T> type, Entry entry) {
@@ -461,6 +484,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
     private static List<String> classifyEventTargets(Events.GraphEvent event) {
         return switch (event) {
             case Events.NodeAddedEvent nodeAdded -> buildTargets(event.nodeId(), nodeAdded.parentNodeId());
+            case Events.AddChildNodeEvent addChild -> buildTargets(addChild.nodeId(), addChild.parentNodeId());
             case Events.ActionStartedEvent ignored -> buildTargets(event.nodeId(), null);
             case Events.ActionCompletedEvent ignored -> buildTargets(event.nodeId(), null);
             case Events.StopAgentEvent ignored -> buildTargets(event.nodeId(), null);
