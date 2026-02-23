@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
 import com.hayden.acp_cdc_ai.acp.config.McpProperties
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
+import com.hayden.acp_cdc_ai.acp.events.Events
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository
 import com.hayden.acp_cdc_ai.sandbox.SandboxTranslation
@@ -229,7 +230,19 @@ class AcpChatModel(
     }
 
     private fun resolveMemoryId(chatRequest: Prompt): Any? {
-        return chatRequest.options?.model ?: ArtifactKey.createRoot().value
+        val chatModel = chatRequest.options?.model ?: return ArtifactKey.createRoot()
+
+        if (chatModel.contains("___")) {
+            val splitted = chatModel.split("___")
+            return splitted[0]
+        }
+
+       try {
+           return chatModel
+       } catch (e: IllegalArgumentException) {
+            log.error("Error attempting to cast artifact key to root: {}", e.message, e)
+           return ArtifactKey.createRoot()
+       }
     }
 
     private fun getOrCreateSession(memoryId: Any?, chatRequest: Prompt?): AcpSessionManager.AcpSessionContext {
