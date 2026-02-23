@@ -2,10 +2,13 @@ package com.hayden.multiagentidelib.prompt.contributor;
 
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.model.merge.AgentMergeStatus;
 import com.hayden.multiagentidelib.model.merge.MergeAggregation;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
-import com.hayden.multiagentidelib.model.merge.SubmoduleMergeResult;
+import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
@@ -16,10 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Factory that provides merge status context to routing LLMs via the standard prompt contributor pattern.
- *
- * This is used to inform the dispatch agent's routing LLM about the status of child→trunk merges
- * so it can decide how to handle any conflicts (e.g., emit MergerInterruptRequest, MergerRequest, skip).
+ * Factory that provides merge status context to dispatch and collector routing LLMs.
  */
 @Component
 public class MergeAggregationPromptContributorFactory implements PromptContributorFactory {
@@ -30,182 +30,232 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             AgentType.DISCOVERY_AGENT_DISPATCH
     );
 
+    private static final Set<AgentType> COLLECTOR_AGENT_TYPES = Set.of(
+            AgentType.DISCOVERY_COLLECTOR,
+            AgentType.PLANNING_COLLECTOR,
+            AgentType.TICKET_COLLECTOR,
+            AgentType.ORCHESTRATOR_COLLECTOR
+    );
+
+    private static final String MERGE_AGGREGATION_METADATA_KEY = "mergeAggregation";
+    private static final String MERGE_DESCRIPTOR_METADATA_KEY = "mergeDescriptor";
+    private static final String FINAL_MERGE_DESCRIPTOR_METADATA_KEY = "finalMergeDescriptor";
+
     @Override
     public List<PromptContributor> create(PromptContext context) {
         if (context == null || context.currentRequest() == null) {
             return List.of();
         }
 
-        // Only applicable for dispatch agent types that have ResultsRequest
-        if (!isDispatchAgentType(context.agentType())) {
+        AgentType agentType = context.agentType();
+        if (!isSupportedAgentType(agentType)) {
             return List.of();
         }
 
-        // Extract MergeAggregation from the current request if it's a ResultsRequest
-        MergeAggregation aggregation = extractMergeAggregation(context);
-        if (aggregation == null) {
+        List<MergeAggregationSource> aggregationSources = extractMergeAggregationSources(context, agentType);
+        MergeDescriptor finalMergeDescriptor = extractFinalMergeDescriptor(context);
+        if (aggregationSources.isEmpty() && finalMergeDescriptor == null) {
             return List.of();
         }
 
-        return List.of(new MergeAggregationPromptContributor(aggregation));
+        return List.of(new MergeAggregationPromptContributor(agentType, aggregationSources, finalMergeDescriptor));
     }
 
-    private boolean isDispatchAgentType(AgentType agentType) {
+    private static boolean isDispatchAgentType(AgentType agentType) {
         return agentType != null && DISPATCH_AGENT_TYPES.contains(agentType);
     }
 
-    private MergeAggregation extractMergeAggregation(PromptContext context) {
+    private static boolean isCollectorAgentType(AgentType agentType) {
+        return agentType != null && COLLECTOR_AGENT_TYPES.contains(agentType);
+    }
+
+    private static boolean isSupportedAgentType(AgentType agentType) {
+        return isDispatchAgentType(agentType) || isCollectorAgentType(agentType);
+    }
+
+    private List<MergeAggregationSource> extractMergeAggregationSources(PromptContext context, AgentType agentType) {
+        List<MergeAggregationSource> sources = new ArrayList<>();
+
+        MergeAggregation currentRequestAggregation = extractMergeAggregationFromCurrentRequest(context);
+        if (currentRequestAggregation != null) {
+            String source = "current:" + context.currentRequest().getClass().getSimpleName();
+            sources.add(new MergeAggregationSource(source, currentRequestAggregation));
+        }
+
+        MergeAggregation metadataAggregation = extractMergeAggregationFromMetadata(context);
+        if (metadataAggregation != null) {
+            sources.add(new MergeAggregationSource("metadata:" + MERGE_AGGREGATION_METADATA_KEY, metadataAggregation));
+        }
+
+        if (isCollectorAgentType(agentType)) {
+            sources.addAll(extractHistoryMergeAggregations(context.blackboardHistory()));
+        }
+
+        return sources;
+    }
+
+    private MergeAggregation extractMergeAggregationFromCurrentRequest(PromptContext context) {
         AgentModels.AgentRequest request = context.currentRequest();
         if (request instanceof AgentModels.ResultsRequest resultsRequest) {
             return resultsRequest.mergeAggregation();
         }
-        // Also check metadata in case it was stored there
-        Object fromMetadata = context.metadata().get("mergeAggregation");
+        return null;
+    }
+
+    private MergeAggregation extractMergeAggregationFromMetadata(PromptContext context) {
+        Object fromMetadata = context.metadata().get(MERGE_AGGREGATION_METADATA_KEY);
         if (fromMetadata instanceof MergeAggregation agg) {
             return agg;
         }
         return null;
     }
 
+    private List<MergeAggregationSource> extractHistoryMergeAggregations(BlackboardHistory blackboardHistory) {
+        if (blackboardHistory == null) {
+            return List.of();
+        }
+        List<BlackboardHistory.Entry> entries = blackboardHistory.copyOfEntries();
+        if (entries == null || entries.isEmpty()) {
+            return List.of();
+        }
+
+        List<MergeAggregationSource> sources = new ArrayList<>();
+        int sequence = 1;
+        for (BlackboardHistory.Entry entry : entries) {
+            if (!(entry instanceof BlackboardHistory.DefaultEntry defaultEntry)) {
+                continue;
+            }
+            if (!(defaultEntry.input() instanceof AgentModels.ResultsRequest resultsRequest)) {
+                continue;
+            }
+            MergeAggregation aggregation = resultsRequest.mergeAggregation();
+            if (aggregation == null) {
+                continue;
+            }
+            String requestType = resultsRequest.getClass().getSimpleName();
+            String contextId = safeContextId(resultsRequest.contextId());
+            String source = String.format("history:%02d:%s:%s", sequence++, requestType, contextId);
+            sources.add(new MergeAggregationSource(source, aggregation));
+        }
+        return sources;
+    }
+
+    private MergeDescriptor extractFinalMergeDescriptor(PromptContext context) {
+        AgentModels.AgentRequest request = context.currentRequest();
+        if (request instanceof AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest
+                && orchestratorCollectorRequest.mergeDescriptor() != null) {
+            return orchestratorCollectorRequest.mergeDescriptor();
+        }
+
+        Object metadataMergeDescriptor = context.metadata().get(MERGE_DESCRIPTOR_METADATA_KEY);
+        if (metadataMergeDescriptor instanceof MergeDescriptor descriptor) {
+            return descriptor;
+        }
+
+        Object finalMetadataMergeDescriptor = context.metadata().get(FINAL_MERGE_DESCRIPTOR_METADATA_KEY);
+        if (finalMetadataMergeDescriptor instanceof MergeDescriptor descriptor) {
+            return descriptor;
+        }
+
+        BlackboardHistory history = context.blackboardHistory();
+        if (history == null) {
+            return null;
+        }
+        List<BlackboardHistory.Entry> entries = history.copyOfEntries();
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            BlackboardHistory.Entry entry = entries.get(i);
+            if (!(entry instanceof BlackboardHistory.DefaultEntry defaultEntry)) {
+                continue;
+            }
+            if (!(defaultEntry.input() instanceof AgentModels.OrchestratorCollectorRequest collectorRequest)) {
+                continue;
+            }
+            if (collectorRequest.mergeDescriptor() != null) {
+                return collectorRequest.mergeDescriptor();
+            }
+        }
+        return null;
+    }
+
+    private static String safeContextId(Object contextId) {
+        if (contextId == null) {
+            return "unknown";
+        }
+        if (contextId instanceof com.hayden.acp_cdc_ai.acp.events.ArtifactKey artifactKey) {
+            String value = artifactKey.value();
+            return value == null || value.isBlank() ? "unknown" : value;
+        }
+        String value = contextId.toString();
+        return value == null || value.isBlank() ? "unknown" : value;
+    }
+
     /**
-     * Prompt contributor that provides merge aggregation status to routing LLMs.
-     * Includes detailed per-submodule merge step information and specific instructions
-     * for Review and Merger routing decisions.
+     * Prompt contributor that provides merge aggregation and worktree validation guidance.
      */
     public record MergeAggregationPromptContributor(
-            MergeAggregation aggregation
+            AgentType agentType,
+            List<MergeAggregationSource> aggregationSources,
+            MergeDescriptor finalMergeDescriptor
     ) implements PromptContributor {
 
         private static final String TEMPLATE = """
-                ## Worktree Merge Status
+                ## Merge Validation Context
 
-                The child agent worktrees have been merged back to the parent worktree.
-                Multiple agents worked in isolated worktrees and their changes have been
-                merged using a leaves-first submodule merge strategy. Review the merge
-                status below to determine next steps.
-
-                **Overall Status**: %s
-
-                ### Completed Merge Steps
-                Count: %s
-                Agent result IDs (one per line, or `none`):
+                Role: %s
+                Dispatch merge rounds available: %s
+                Merge aggregation sources (one per line, or `none`):
                 %s
 
-                Submodule results for completed steps
-                Format: `<agentResultId> | <submoduleName> | <status> | <pointerUpdated>`
+                Overall merge status: %s
+
+                ### Aggregated merge outcomes
+                Merged entries: %s
+                Format: `<source> | <agentResultId> | <status>`
                 %s
 
-                ### Conflicted Merge Step
-                Agent result ID (single line, or `none`):
+                Conflicted entries: %s
+                Format: `<source> | <agentResultId> | <status> | <error> | <conflictFiles>`
                 %s
 
-                Submodule results for conflicted step
-                Format: `<submoduleName> | <status> | <pointerUpdated>`
+                Pending entries: %s
+                Format: `<source> | <agentResultId> | <status>`
                 %s
 
+                ### Worktree inventory for git validation
+                Main worktrees
+                Format: `<source> | <agentResultId> | <worktreeId> | <path> | <baseBranch> | <derivedBranch> | <lastCommitHash>`
+                %s
+
+                Submodule worktrees
+                Format: `<source> | <agentResultId> | <submoduleName> | <worktreeId> | <path> | <baseBranch> | <lastCommitHash>`
+                %s
+
+                Merge commit trail
+                Format: `<source> | <agentResultId> | <mergeCommitHash> | <childWorktreeId> | <parentWorktreeId> | <successful>`
+                %s
+
+                ### Final merge-to-source status
+                Status: %s
                 Conflict files (one per line, or `none`):
                 %s
-
                 Error message (single line, or `none`):
                 %s
-
-                ### Pending Merge Steps
-                Count: %s
-                Agent result IDs (one per line, or `none`):
+                Merge commit hash (single line, or `none`):
                 %s
 
                 ---
-                ### Routing Instructions
+                ### Required validation process
 
-                **Important context**: Because multiple agents worked in parallel on isolated
-                worktrees, the merged repository may be in an inconsistent state. Each agent's
-                changes were developed independently, so even when merges succeed without
-                conflicts, the combined result may have:
-                - Build or compilation errors from incompatible changes across agents
-                - Duplicate or contradictory modifications to shared files
-                - Submodule pointer mismatches between parent and child repositories
-                - Incomplete integration of cross-cutting changes
-
-                #### Collector Responsibilities (This Routing Step)
-
-                You are the collector LLM deciding next routing after child worktree merges.
-                Before routing, you should:
-                - Review the merge status details above and identify conflicts or pending merges
-                - Scan for overlapping changes across agents that may require consolidation
-                - Choose the next step: route to MergerAgent, ReviewAgent, or the appropriate
-                  collector agent for this result type (for example, TicketCollector)
-                - If the decision depends on unclear intent or user preference, use the
-                  question-answer tool to ask the user a brief, targeted question before routing
-
-                #### If Routing to MergerAgent
-
-                Applicability: %s
-                - REQUIRED when conflicts or pending merges exist.
-                - NOT REQUIRED when all merges are successful.
-
-                The MergerAgent should resolve merge conflicts and complete any remaining
-                merge steps. When populating the `mergerRequest`, include the following:
-
-                1. **`mergeContext`**: Describe the completed merge steps so far and what
-                   remains. Specifically:
-                   - Already merged successfully: %s
-                   - Currently conflicted: %s
-                   - Still pending merge: %s
-
-                2. **`conflictFiles`**: List all conflicting file paths from the merge
-                   descriptor above. Use the conflict file list already provided.
-                   Conflict files (one per line, or `none`):
-                   %s
-
-                3. **`mergeSummary`**: Provide instructions for the MergerAgent:
-                   - Resolve the listed conflicts by examining both sides of each conflict
-                   - After resolving conflicts, verify the build compiles across all submodules
-                   - Stage and commit resolved files with a descriptive commit message that
-                     includes metadata about which agents' work was merged
-                   - Once conflicts are resolved, the remaining pending agents' merges can
-                     proceed — instruct the MergerAgent to note this for the next routing step
-                   - After completing merge work, the MergerAgent should route to ReviewAgent
-                     (via the returnToXxxCollector fields) with instructions to validate the
-                     combined result
-
-                4. **`returnToXxxCollector`**: Set the appropriate return-to-collector field so
-                   that after the MergerAgent completes, routing returns to this collector for
-                   the next phase decision.
-
-                #### If Routing to ReviewAgent
-
-                Applicability: %s
-                - APPLIES when all merges are successful or conflicts have been resolved.
-                - DEFER when conflicts remain; route to MergerAgent first.
-
-                When populating the `reviewRequest`, include the following:
-
-                1. **`content`**: Package a summary of all changes that were merged. For each
-                   agent that was merged, describe:
-                   - The agent identifier and what work it performed
-                   - Which submodules were affected and the merge direction
-                   - Any files that were modified across multiple agents (potential integration issues)
-
-                2. **`criteria`**: Provide review criteria that accounts for multi-agent merge:
-                   - Verify the build compiles successfully across all submodules
-                   - Check for semantic conflicts (changes that don't conflict at the text level
-                     but are logically incompatible)
-                   - Validate that submodule pointers are consistent with their actual content
-                   - Review any files that were touched by multiple agents for coherence
-                   - Confirm that cross-cutting concerns (shared interfaces, common utilities)
-                     are consistent after the merge
-
-                3. **Processing steps for ReviewAgent**: Instruct the reviewer to:
-                   - First run the build/compilation to catch integration errors
-                   - Create a unified commit per submodule that squashes the merge commits,
-                     with a commit message containing metadata: which agents contributed,
-                     what phase this merge belongs to, and a summary of combined changes
-                   - If issues are found, describe them clearly so the next routing step can
-                     address them (e.g., route back to MergerAgent or a specific agent)
-
-                4. **`returnToXxxCollector`**: Set the appropriate return-to-collector field so
-                   that after the ReviewAgent completes, routing returns to this collector for
-                   the next phase decision.
+                1. Use bash + git to validate merge outcomes before routing:
+                   - `bash -lc 'git -C <worktreePath> log --oneline --decorate --graph -n 30'`
+                   - `bash -lc 'git -C <worktreePath> diff <expected_base_or_merge_target>...HEAD'`
+                   - `bash -lc 'git -C <worktreePath> show --name-status <mergeCommitHash>'`
+                2. Compare each worktree against the intended merge request and confirm expected commits were merged.
+                3. Run a preliminary review for buildability, integration risk, and semantic correctness.
+                4. If conflicts/pending merges/final merge failures exist, route to `MergerAgent` first. Merger requirement: %s.
+                5. If the code does not meet acceptance criteria, route to `ReviewAgent` for deeper review. Review routing guidance: %s.
+                6. Include worktree IDs, worktree paths, merge commits, and conflict/error details when creating Merger/Review requests.
+                7. Collector scope requirement: %s
                 """;
 
         @Override
@@ -215,33 +265,37 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
 
         @Override
         public boolean include(PromptContext promptContext) {
-            return aggregation != null;
+            return hasMergeData();
         }
 
         @Override
         public String contribute(PromptContext context) {
-            if (aggregation == null) {
+            if (!hasMergeData()) {
                 return "";
             }
-            TemplateArgs args = buildTemplateArgs(aggregation);
+            TemplateArgs args = buildTemplateArgs();
             return String.format(
                     template(),
+                    args.role(),
+                    args.sourceCount(),
+                    args.sourceLines(),
                     args.overallStatus(),
                     args.mergedCount(),
-                    args.mergedAgentIds(),
-                    args.mergedSubmoduleResults(),
-                    args.conflictedAgentId(),
-                    args.conflictedSubmoduleResults(),
-                    args.conflictFiles(),
-                    args.conflictError(),
+                    args.mergedLines(),
+                    args.conflictedCount(),
+                    args.conflictedLines(),
                     args.pendingCount(),
-                    args.pendingAgentIds(),
+                    args.pendingLines(),
+                    args.mainWorktreeLines(),
+                    args.submoduleWorktreeLines(),
+                    args.mergeCommitLines(),
+                    args.finalMergeStatus(),
+                    args.finalMergeConflictFiles(),
+                    args.finalMergeError(),
+                    args.finalMergeCommit(),
                     args.mergerApplicability(),
-                    args.mergerMergedIds(),
-                    args.mergerConflictedId(),
-                    args.mergerPendingIds(),
-                    args.mergerConflictFiles(),
-                    args.reviewApplicability()
+                    args.reviewApplicability(),
+                    args.collectorScopeRequirement()
             );
         }
 
@@ -255,144 +309,348 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             return 500;
         }
 
-        private TemplateArgs buildTemplateArgs(MergeAggregation agg) {
-            List<AgentMergeStatus> merged = agg.merged() != null ? agg.merged() : List.of();
-            List<AgentMergeStatus> pending = agg.pending() != null ? agg.pending() : List.of();
-            AgentMergeStatus conflicted = agg.conflicted();
-            boolean hasConflictsOrPending = agg.hasConflict() || !pending.isEmpty();
+        private boolean hasMergeData() {
+            return (aggregationSources != null && !aggregationSources.isEmpty()) || finalMergeDescriptor != null;
+        }
 
-            String overallStatus = agg.allSuccessful() ? "ALL MERGED SUCCESSFULLY" : "MERGE ISSUES DETECTED";
+        private TemplateArgs buildTemplateArgs() {
+            List<MergeAggregationSource> sources = aggregationSources == null ? List.of() : aggregationSources;
+            List<SourcedStatus> merged = collectMergedStatuses(sources);
+            List<SourcedStatus> pending = collectPendingStatuses(sources);
+            List<SourcedStatus> conflicted = collectConflictedStatuses(sources);
+            List<SourcedStatus> allStatuses = new ArrayList<>();
+            allStatuses.addAll(merged);
+            allStatuses.addAll(conflicted);
+            allStatuses.addAll(pending);
+
+            boolean hasDispatchMergeIssues = !pending.isEmpty() || !conflicted.isEmpty();
+            boolean hasFinalMergeFailure = finalMergeDescriptor != null && !finalMergeDescriptor.successful();
+            boolean hasAnyMergeFailure = hasDispatchMergeIssues || hasFinalMergeFailure;
+
+            String role = isCollectorAgentType(agentType)
+                    ? "collector-routing (reviews current + previous dispatch worktrees)"
+                    : "dispatch-routing (reviews this dispatch round across multiple worktrees)";
+            String sourceCount = Integer.toString(sources.size());
+            String sourceLines = toLineListOrNone(buildSourceLines(sources));
+            String overallStatus = hasAnyMergeFailure ? "MERGE ISSUES DETECTED" : "NO MERGE FAILURES DETECTED";
+
             String mergedCount = Integer.toString(merged.size());
-            String mergedAgentIds = toLineListOrNone(extractAgentIds(merged));
-            String mergedSubmoduleResults = toLineListOrNone(buildMergedSubmoduleLines(merged));
-            String conflictedAgentId = conflicted != null
-                    ? safeValue(conflicted.agentResultId(), "unknown")
-                    : "none";
-            String conflictedSubmoduleResults = toLineListOrNone(buildConflictedSubmoduleLines(conflicted));
-            String conflictFiles = toLineListOrNone(buildConflictFileLines(conflicted));
-            String conflictError = safeValue(
-                    conflicted != null && conflicted.mergeDescriptor() != null
-                            ? conflicted.mergeDescriptor().errorMessage()
-                            : null,
-                    "none"
-            );
+            String mergedLines = toLineListOrNone(buildMergedLines(merged));
+            String conflictedCount = Integer.toString(conflicted.size());
+            String conflictedLines = toLineListOrNone(buildConflictedLines(conflicted));
             String pendingCount = Integer.toString(pending.size());
-            String pendingAgentIds = toLineListOrNone(extractAgentIds(pending));
+            String pendingLines = toLineListOrNone(buildPendingLines(pending));
 
-            String mergerApplicability = hasConflictsOrPending ? "REQUIRED" : "NOT REQUIRED";
-            String mergerMergedIds = toCommaListOrNone(extractAgentIds(merged));
-            String mergerConflictedId = conflicted != null
-                    ? safeValue(conflicted.agentResultId(), "unknown")
-                    : "none";
-            String mergerPendingIds = toCommaListOrNone(extractAgentIds(pending));
-            String mergerConflictFiles = toLineListOrNone(buildConflictFileLines(conflicted));
+            String mainWorktreeLines = toLineListOrNone(buildMainWorktreeLines(allStatuses));
+            String submoduleWorktreeLines = toLineListOrNone(buildSubmoduleWorktreeLines(allStatuses));
+            String mergeCommitLines = toLineListOrNone(buildMergeCommitLines(allStatuses));
 
-            String reviewApplicability = hasConflictsOrPending ? "DEFER" : "APPLIES";
+            String finalMergeStatus = resolveFinalMergeStatus(finalMergeDescriptor);
+            String finalMergeConflictFiles = toLineListOrNone(resolveFinalMergeConflictFiles(finalMergeDescriptor));
+            String finalMergeError = resolveFinalMergeError(finalMergeDescriptor);
+            String finalMergeCommit = resolveFinalMergeCommit(finalMergeDescriptor);
+
+            String mergerApplicability = hasAnyMergeFailure ? "REQUIRED" : "OPTIONAL";
+            String reviewApplicability = hasAnyMergeFailure
+                    ? "REQUIRED after merger/failure remediation; route immediately if acceptance criteria fail"
+                    : "REQUIRED for acceptance verification; route if preliminary review detects risk";
+            String collectorScopeRequirement = isCollectorAgentType(agentType)
+                    ? "Validate all listed history/current worktrees; do not scope review to only one dispatch result."
+                    : "Validate all dispatched child worktrees in this round before routing.";
 
             return new TemplateArgs(
+                    role,
+                    sourceCount,
+                    sourceLines,
                     overallStatus,
                     mergedCount,
-                    mergedAgentIds,
-                    mergedSubmoduleResults,
-                    conflictedAgentId,
-                    conflictedSubmoduleResults,
-                    conflictFiles,
-                    conflictError,
+                    mergedLines,
+                    conflictedCount,
+                    conflictedLines,
                     pendingCount,
-                    pendingAgentIds,
+                    pendingLines,
+                    mainWorktreeLines,
+                    submoduleWorktreeLines,
+                    mergeCommitLines,
+                    finalMergeStatus,
+                    finalMergeConflictFiles,
+                    finalMergeError,
+                    finalMergeCommit,
                     mergerApplicability,
-                    mergerMergedIds,
-                    mergerConflictedId,
-                    mergerPendingIds,
-                    mergerConflictFiles,
-                    reviewApplicability
+                    reviewApplicability,
+                    collectorScopeRequirement
             );
         }
 
-        private List<String> extractAgentIds(List<AgentMergeStatus> statuses) {
-            if (statuses == null || statuses.isEmpty()) {
+        private List<SourcedStatus> collectMergedStatuses(List<MergeAggregationSource> sources) {
+            if (sources == null || sources.isEmpty()) {
                 return List.of();
             }
-            List<String> ids = new ArrayList<>();
-            for (AgentMergeStatus status : statuses) {
-                if (status == null) {
+            List<SourcedStatus> collected = new ArrayList<>();
+            for (MergeAggregationSource source : sources) {
+                if (source == null || source.aggregation() == null || source.aggregation().merged() == null) {
                     continue;
                 }
-                ids.add(safeValue(status.agentResultId(), "unknown"));
+                for (AgentMergeStatus status : source.aggregation().merged()) {
+                    if (status == null) {
+                        continue;
+                    }
+                    collected.add(new SourcedStatus(source.source(), status));
+                }
             }
-            return ids;
+            return collected;
         }
 
-        private List<String> buildMergedSubmoduleLines(List<AgentMergeStatus> merged) {
+        private List<SourcedStatus> collectPendingStatuses(List<MergeAggregationSource> sources) {
+            if (sources == null || sources.isEmpty()) {
+                return List.of();
+            }
+            List<SourcedStatus> collected = new ArrayList<>();
+            for (MergeAggregationSource source : sources) {
+                if (source == null || source.aggregation() == null || source.aggregation().pending() == null) {
+                    continue;
+                }
+                for (AgentMergeStatus status : source.aggregation().pending()) {
+                    if (status == null) {
+                        continue;
+                    }
+                    collected.add(new SourcedStatus(source.source(), status));
+                }
+            }
+            return collected;
+        }
+
+        private List<SourcedStatus> collectConflictedStatuses(List<MergeAggregationSource> sources) {
+            if (sources == null || sources.isEmpty()) {
+                return List.of();
+            }
+            List<SourcedStatus> collected = new ArrayList<>();
+            for (MergeAggregationSource source : sources) {
+                if (source == null || source.aggregation() == null || source.aggregation().conflicted() == null) {
+                    continue;
+                }
+                collected.add(new SourcedStatus(source.source(), source.aggregation().conflicted()));
+            }
+            return collected;
+        }
+
+        private List<String> buildSourceLines(List<MergeAggregationSource> sources) {
+            if (sources == null || sources.isEmpty()) {
+                return List.of();
+            }
+            List<String> lines = new ArrayList<>();
+            for (MergeAggregationSource source : sources) {
+                if (source == null || source.aggregation() == null) {
+                    continue;
+                }
+                lines.add(String.format(
+                        "%s | merged=%d | conflicted=%s | pending=%d",
+                        safeValue(source.source(), "unknown"),
+                        source.aggregation().merged() != null ? source.aggregation().merged().size() : 0,
+                        source.aggregation().conflicted() != null ? "yes" : "no",
+                        source.aggregation().pending() != null ? source.aggregation().pending().size() : 0
+                ));
+            }
+            return lines;
+        }
+
+        private List<String> buildMergedLines(List<SourcedStatus> merged) {
             if (merged == null || merged.isEmpty()) {
                 return List.of();
             }
             List<String> lines = new ArrayList<>();
-            for (AgentMergeStatus status : merged) {
-                if (status == null || status.mergeDescriptor() == null) {
+            for (SourcedStatus status : merged) {
+                if (status == null || status.status() == null) {
                     continue;
                 }
-                MergeDescriptor descriptor = status.mergeDescriptor();
-                List<SubmoduleMergeResult> subResults = descriptor.submoduleMergeResults();
-                if (subResults == null || subResults.isEmpty()) {
+                lines.add(String.format(
+                        "%s | %s | merged",
+                        safeValue(status.source(), "unknown"),
+                        safeValue(status.status().agentResultId(), "unknown")
+                ));
+            }
+            return lines;
+        }
+
+        private List<String> buildConflictedLines(List<SourcedStatus> conflicted) {
+            if (conflicted == null || conflicted.isEmpty()) {
+                return List.of();
+            }
+            List<String> lines = new ArrayList<>();
+            for (SourcedStatus status : conflicted) {
+                if (status == null || status.status() == null) {
                     continue;
                 }
-                String agentId = safeValue(status.agentResultId(), "unknown");
-                for (SubmoduleMergeResult sub : subResults) {
-                    if (sub == null) {
+                MergeDescriptor descriptor = status.status().mergeDescriptor();
+                String error = descriptor != null ? safeValue(descriptor.errorMessage(), "none") : "none";
+                String conflictFiles = descriptor != null
+                        ? toCommaListOrNone(nonBlankValues(descriptor.conflictFiles()))
+                        : "none";
+                lines.add(String.format(
+                        "%s | %s | conflicted | %s | %s",
+                        safeValue(status.source(), "unknown"),
+                        safeValue(status.status().agentResultId(), "unknown"),
+                        error,
+                        conflictFiles
+                ));
+            }
+            return lines;
+        }
+
+        private List<String> buildPendingLines(List<SourcedStatus> pending) {
+            if (pending == null || pending.isEmpty()) {
+                return List.of();
+            }
+            List<String> lines = new ArrayList<>();
+            for (SourcedStatus status : pending) {
+                if (status == null || status.status() == null) {
+                    continue;
+                }
+                lines.add(String.format(
+                        "%s | %s | pending",
+                        safeValue(status.source(), "unknown"),
+                        safeValue(status.status().agentResultId(), "unknown")
+                ));
+            }
+            return lines;
+        }
+
+        private List<String> buildMainWorktreeLines(List<SourcedStatus> statuses) {
+            if (statuses == null || statuses.isEmpty()) {
+                return List.of();
+            }
+            List<String> lines = new ArrayList<>();
+            for (SourcedStatus status : statuses) {
+                if (status == null || status.status() == null) {
+                    continue;
+                }
+                WorktreeSandboxContext worktreeContext = status.status().worktreeContext();
+                if (worktreeContext == null || worktreeContext.mainWorktree() == null) {
+                    continue;
+                }
+                MainWorktreeContext main = worktreeContext.mainWorktree();
+                lines.add(String.format(
+                        "%s | %s | %s | %s | %s | %s | %s",
+                        safeValue(status.source(), "unknown"),
+                        safeValue(status.status().agentResultId(), "unknown"),
+                        safeValue(main.worktreeId(), "unknown"),
+                        safeValue(pathOrNull(main.worktreePath()), "unknown"),
+                        safeValue(main.baseBranch(), "unknown"),
+                        safeValue(main.derivedBranch(), "unknown"),
+                        safeValue(main.lastCommitHash(), "unknown")
+                ));
+            }
+            return lines;
+        }
+
+        private List<String> buildSubmoduleWorktreeLines(List<SourcedStatus> statuses) {
+            if (statuses == null || statuses.isEmpty()) {
+                return List.of();
+            }
+            List<String> lines = new ArrayList<>();
+            for (SourcedStatus status : statuses) {
+                if (status == null || status.status() == null) {
+                    continue;
+                }
+                WorktreeSandboxContext worktreeContext = status.status().worktreeContext();
+                if (worktreeContext == null || worktreeContext.submoduleWorktrees() == null) {
+                    continue;
+                }
+                for (SubmoduleWorktreeContext submodule : worktreeContext.submoduleWorktrees()) {
+                    if (submodule == null) {
                         continue;
                     }
                     lines.add(String.format(
-                            "%s | %s | %s | %s",
-                            agentId,
-                            safeValue(sub.submoduleName(), "unknown"),
-                            sub.successful() ? "ok" : "conflict",
-                            Boolean.toString(sub.pointerUpdated())
+                            "%s | %s | %s | %s | %s | %s | %s",
+                            safeValue(status.source(), "unknown"),
+                            safeValue(status.status().agentResultId(), "unknown"),
+                            safeValue(submodule.submoduleName(), "unknown"),
+                            safeValue(submodule.worktreeId(), "unknown"),
+                            safeValue(pathOrNull(submodule.worktreePath()), "unknown"),
+                            safeValue(submodule.baseBranch(), "unknown"),
+                            safeValue(submodule.lastCommitHash(), "unknown")
                     ));
                 }
             }
             return lines;
         }
 
-        private List<String> buildConflictedSubmoduleLines(AgentMergeStatus conflicted) {
-            if (conflicted == null || conflicted.mergeDescriptor() == null) {
-                return List.of();
-            }
-            List<SubmoduleMergeResult> subResults = conflicted.mergeDescriptor().submoduleMergeResults();
-            if (subResults == null || subResults.isEmpty()) {
+        private List<String> buildMergeCommitLines(List<SourcedStatus> statuses) {
+            if (statuses == null || statuses.isEmpty()) {
                 return List.of();
             }
             List<String> lines = new ArrayList<>();
-            for (SubmoduleMergeResult sub : subResults) {
-                if (sub == null) {
+            for (SourcedStatus status : statuses) {
+                if (status == null || status.status() == null || status.status().mergeDescriptor() == null) {
                     continue;
                 }
+                MergeDescriptor descriptor = status.status().mergeDescriptor();
+                String mergeCommit = descriptor.mainWorktreeMergeResult() != null
+                        ? safeValue(descriptor.mainWorktreeMergeResult().mergeCommitHash(), "none")
+                        : "none";
+                String childId = descriptor.mainWorktreeMergeResult() != null
+                        ? safeValue(descriptor.mainWorktreeMergeResult().childWorktreeId(), "unknown")
+                        : "unknown";
+                String parentId = descriptor.mainWorktreeMergeResult() != null
+                        ? safeValue(descriptor.mainWorktreeMergeResult().parentWorktreeId(), "unknown")
+                        : "unknown";
                 lines.add(String.format(
-                        "%s | %s | %s",
-                        safeValue(sub.submoduleName(), "unknown"),
-                        sub.successful() ? "ok" : "conflict",
-                        Boolean.toString(sub.pointerUpdated())
+                        "%s | %s | %s | %s | %s | %s",
+                        safeValue(status.source(), "unknown"),
+                        safeValue(status.status().agentResultId(), "unknown"),
+                        mergeCommit,
+                        childId,
+                        parentId,
+                        Boolean.toString(descriptor.successful())
                 ));
             }
             return lines;
         }
 
-        private List<String> buildConflictFileLines(AgentMergeStatus conflicted) {
-            if (conflicted == null || conflicted.mergeDescriptor() == null) {
+        private List<String> resolveFinalMergeConflictFiles(MergeDescriptor descriptor) {
+            if (descriptor == null) {
                 return List.of();
             }
-            List<String> conflictFiles = conflicted.mergeDescriptor().conflictFiles();
-            if (conflictFiles == null || conflictFiles.isEmpty()) {
+            return nonBlankValues(descriptor.conflictFiles());
+        }
+
+        private String resolveFinalMergeStatus(MergeDescriptor descriptor) {
+            if (descriptor == null) {
+                return "not available";
+            }
+            return descriptor.successful() ? "successful" : "failed";
+        }
+
+        private String resolveFinalMergeError(MergeDescriptor descriptor) {
+            if (descriptor == null) {
+                return "none";
+            }
+            return safeValue(descriptor.errorMessage(), "none");
+        }
+
+        private String resolveFinalMergeCommit(MergeDescriptor descriptor) {
+            if (descriptor == null || descriptor.mainWorktreeMergeResult() == null) {
+                return "none";
+            }
+            return safeValue(descriptor.mainWorktreeMergeResult().mergeCommitHash(), "none");
+        }
+
+        private List<String> nonBlankValues(List<String> values) {
+            if (values == null || values.isEmpty()) {
                 return List.of();
             }
-            List<String> lines = new ArrayList<>();
-            for (String file : conflictFiles) {
-                if (file == null || file.isBlank()) {
+            List<String> filtered = new ArrayList<>();
+            for (String value : values) {
+                if (value == null || value.isBlank()) {
                     continue;
                 }
-                lines.add(file);
+                filtered.add(value);
             }
-            return lines;
+            return filtered;
+        }
+
+        private String pathOrNull(java.nio.file.Path path) {
+            return path == null ? null : path.toString();
         }
 
         private String toLineListOrNone(List<String> lines) {
@@ -417,23 +675,39 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
         }
 
         private record TemplateArgs(
+                String role,
+                String sourceCount,
+                String sourceLines,
                 String overallStatus,
                 String mergedCount,
-                String mergedAgentIds,
-                String mergedSubmoduleResults,
-                String conflictedAgentId,
-                String conflictedSubmoduleResults,
-                String conflictFiles,
-                String conflictError,
+                String mergedLines,
+                String conflictedCount,
+                String conflictedLines,
                 String pendingCount,
-                String pendingAgentIds,
+                String pendingLines,
+                String mainWorktreeLines,
+                String submoduleWorktreeLines,
+                String mergeCommitLines,
+                String finalMergeStatus,
+                String finalMergeConflictFiles,
+                String finalMergeError,
+                String finalMergeCommit,
                 String mergerApplicability,
-                String mergerMergedIds,
-                String mergerConflictedId,
-                String mergerPendingIds,
-                String mergerConflictFiles,
-                String reviewApplicability
+                String reviewApplicability,
+                String collectorScopeRequirement
         ) {
         }
+
+        private record SourcedStatus(
+                String source,
+                AgentMergeStatus status
+        ) {
+        }
+    }
+
+    private record MergeAggregationSource(
+            String source,
+            MergeAggregation aggregation
+    ) {
     }
 }

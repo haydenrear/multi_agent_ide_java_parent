@@ -79,6 +79,9 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
         List<String> conflictFiles = aggregation.conflicted() != null && aggregation.conflicted().mergeDescriptor() != null
                 ? aggregation.conflicted().mergeDescriptor().conflictFiles()
                 : List.of();
+        String conflictError = aggregation.conflicted() != null && aggregation.conflicted().mergeDescriptor() != null
+                ? aggregation.conflicted().mergeDescriptor().errorMessage()
+                : null;
 
         publishIfAvailable(new Events.MergePhaseCompletedEvent(
                 UUID.randomUUID().toString(), Instant.now(), nodeId,
@@ -86,7 +89,7 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
                 aggregation.merged() != null ? aggregation.merged().size() : 0,
                 conflictCount,
                 conflictFiles != null ? conflictFiles : List.of(),
-                null));
+                conflictError));
 
         T decorated = resultsRequest.withMergeAggregation(aggregation);
         return decorated;
