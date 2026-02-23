@@ -1,5 +1,6 @@
 package com.hayden.multiagentidelib.prompt;
 
+import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
@@ -40,9 +41,11 @@ public class PromptContextFactory {
             BlackboardHistory blackboardHistory,
             String templateName,
             Map<String, Object> model,
-            String modelName
+            String modelName,
+            OperationContext operationContext
     ) {
-        return build(agentType, input, null, input, blackboardHistory, templateName, model, modelName);
+        return build(agentType, input, null, input, blackboardHistory, templateName, model, modelName,
+                operationContext);
     }
 
     public PromptContext build(
@@ -50,9 +53,11 @@ public class PromptContextFactory {
             AgentModels.AgentRequest input,
             BlackboardHistory blackboardHistory,
             String templateName,
-            Map<String, Object> model
+            Map<String, Object> model,
+            OperationContext operationContext
     ) {
-        return build(agentType, input, null, input, blackboardHistory, templateName, model, "DEFAULT");
+        return build(agentType, input, null, input, blackboardHistory, templateName, model, "DEFAULT",
+                operationContext);
     }
 
     public PromptContext build(
@@ -62,9 +67,11 @@ public class PromptContextFactory {
             AgentModels.AgentRequest currentRequest,
             BlackboardHistory blackboardHistory,
             String templateName,
-            Map<String, Object> model
+            Map<String, Object> model,
+            OperationContext operationContext
     ) {
-        return build(agentType, contextRequest, previousRequest, currentRequest, blackboardHistory, templateName, model, "DEFAULT") ;
+        return build(agentType, contextRequest, previousRequest, currentRequest, blackboardHistory, templateName, model, "DEFAULT",
+                operationContext) ;
     }
 
     /**
@@ -79,7 +86,8 @@ public class PromptContextFactory {
             BlackboardHistory blackboardHistory,
             String templateName,
             Map<String, Object> model,
-            String modelName
+            String modelName,
+            OperationContext operationContext
     ) {
         List<UpstreamContext> upstreamContexts = new ArrayList<>();
         PreviousContext previousContext = null;
@@ -216,7 +224,8 @@ public class PromptContextFactory {
                 Map.of(),
                 templateName,
                 model,
-                modelName
+                modelName,
+               operationContext
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
@@ -229,9 +238,10 @@ public class PromptContextFactory {
             PreviousContext previousContext,
             BlackboardHistory blackboardHistory,
             String templateName,
-            Map<String, Object> model
+            Map<String, Object> model,
+            OperationContext operationContext
     ) {
-        return build(agentType, contextId, upstreamContexts, previousContext, blackboardHistory, templateName, model, "DEFAULT");
+        return build(agentType, contextId, upstreamContexts, previousContext, blackboardHistory, templateName, model, "DEFAULT", operationContext);
     }
 
     /**
@@ -246,7 +256,8 @@ public class PromptContextFactory {
             BlackboardHistory blackboardHistory,
             String templateName,
             Map<String, Object> model,
-            String modelName
+            String modelName,
+            OperationContext operationContext
     ) {
         var pc = new PromptContext(
                 agentType,
@@ -259,7 +270,8 @@ public class PromptContextFactory {
                 Map.of(),
                 templateName,
                 model,
-                modelName
+                modelName,
+                operationContext
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
@@ -271,7 +283,8 @@ public class PromptContextFactory {
             PreviousContext previousContext,
             BlackboardHistory blackboardHistory,
             String templateName,
-            Map<String, Object> model
+            Map<String, Object> model,
+            OperationContext operationContext
     ) {
         return build(
                 agentType,
@@ -281,7 +294,8 @@ public class PromptContextFactory {
                 blackboardHistory,
                 templateName,
                 model,
-                "DEFAULT"
+                "DEFAULT",
+                operationContext
         );
     }
 
@@ -297,7 +311,8 @@ public class PromptContextFactory {
             BlackboardHistory blackboardHistory,
             String templateName,
             Map<String, Object> model,
-            String modelName
+            String modelName,
+            OperationContext operationContext
     ) {
         List<UpstreamContext> contexts = upstreamContext != null 
                 ? List.of(upstreamContext) 
@@ -313,7 +328,8 @@ public class PromptContextFactory {
                 Map.of(),
                 templateName,
                 model,
-                modelName
+                modelName,
+                operationContext
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
