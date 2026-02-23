@@ -1090,7 +1090,7 @@ public interface AgentModels {
             DiscoveryReport report,
             @JsonPropertyDescription("Human-readable summary output.")
             String output,
-            @JsonPropertyDescription("Merge descriptor from trunk→child merge.")
+            @JsonPropertyDescription("Merge descriptor from trunk→child merge. Relevant only when code changes were produced and merge metadata exists.")
             MergeDescriptor mergeDescriptor
     ) implements AgentResult {
         @Override
@@ -1141,7 +1141,7 @@ public interface AgentModels {
             List<PlanningTicket> tickets,
             @JsonPropertyDescription("Human-readable summary output.")
             String output,
-            @JsonPropertyDescription("Merge descriptor from trunk→child merge.")
+            @JsonPropertyDescription("Merge descriptor from trunk→child merge. Relevant only when code changes were produced and merge metadata exists.")
             MergeDescriptor mergeDescriptor
     ) implements AgentResult {
         @Override
@@ -1214,7 +1214,7 @@ public interface AgentModels {
             List<MemoryReference> memoryReferences,
             @JsonPropertyDescription("Human-readable summary output.")
             String output,
-            @JsonPropertyDescription("Merge descriptor from trunk→child merge.")
+            @JsonPropertyDescription("Merge descriptor from trunk→child merge. Relevant only when code changes were produced and merge metadata exists.")
             MergeDescriptor mergeDescriptor
     ) implements AgentResult {
         public TicketAgentResult(String output) {
