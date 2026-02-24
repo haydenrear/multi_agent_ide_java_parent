@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.worktree;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
@@ -102,6 +103,27 @@ class GitWorktreeServiceTest extends AgentTestBase {
         assertThat(child.baseBranch()).isEqualTo("main-parent-derived");
         assertThat(childBranch).isEqualTo("discovery-1-ak-01KJ8");
         assertThat(childHead).isEqualTo(parentHead);
+    }
+
+    @Test
+    void createMainWorktreeFailsFastWhenSourceRepoIsDetachedHead() throws Exception {
+        Path repoDir = Files.createTempDirectory("detached-repo");
+        initRepo(repoDir);
+        commitFile(repoDir, "README.md", "hello", "init");
+        runGit(repoDir, "git", "checkout", "--detach");
+
+        assertThatThrownBy(() -> gitWorktreeService.createMainWorktree(
+                repoDir.toString(),
+                "main",
+                "main-0",
+                "node-detached"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("detached HEAD");
+
+        verify(eventBus, atLeastOnce()).publish(argThat(event ->
+                event instanceof Events.NodeErrorEvent err
+                        && err.message().contains("detached HEAD")
+        ));
     }
 
     @Test

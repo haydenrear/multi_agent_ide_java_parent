@@ -78,6 +78,7 @@ public class GitWorktreeService implements WorktreeService {
         Path worktreePath = Paths.get(baseWorktreesPath, worktreeId);
 
         try {
+            validateCloneSource(repositoryUrl, baseBranch, nodeId);
             Files.createDirectories(worktreePath);
             cloneRepository(repositoryUrl, worktreePath, baseBranch);
             checkoutNewBranch(worktreePath, derivedBranch, null);
@@ -731,6 +732,7 @@ public class GitWorktreeService implements WorktreeService {
             String worktreeId = UUID.randomUUID().toString();
             Path newWorktreePath = Paths.get(baseWorktreesPath, worktreeId);
             String parentBranch = resolveBranchForBranching(sourceContext);
+            validateCloneSource(sourceContext.worktreePath().toString(), parentBranch, nodeId);
 
             // Clone from the source worktree itself so derived branches created in the sandbox
             // are available as branch start points for child worktrees.
@@ -1379,6 +1381,79 @@ public class GitWorktreeService implements WorktreeService {
     }
 
     // ======== PRIVATE HELPERS ========
+
+    private void validateCloneSource(String repositoryUrl, String expectedBranch, String nodeId) {
+        if (repositoryUrl == null || repositoryUrl.isBlank()) {
+            String message = "Clone source repository path is required but was blank.";
+            emitCloneValidationFailure(nodeId, message, null);
+            throw new IllegalStateException(message);
+        }
+
+        Path sourcePath;
+        try {
+            sourcePath = Paths.get(repositoryUrl).toAbsolutePath().normalize();
+        } catch (Exception e) {
+            String message = "Clone source path '" + repositoryUrl + "' is invalid.";
+            emitCloneValidationFailure(nodeId, message, e);
+            throw new IllegalStateException(message, e);
+        }
+
+        if (!Files.exists(sourcePath)) {
+            // Non-local repository URLs are validated by clone itself.
+            return;
+        }
+
+        try (Repository sourceRepo = RepoUtil.findRepo(sourcePath)) {
+            Path resolvedWorktreePath = sourceRepo.getWorkTree() != null
+                    ? sourceRepo.getWorkTree().toPath().toAbsolutePath().normalize()
+                    : null;
+
+            if (resolvedWorktreePath == null || !resolvedWorktreePath.equals(sourcePath)) {
+                String message = "Clone source repository mismatch for path '" + sourcePath + "'. "
+                        + "Resolved git worktree path was '" + resolvedWorktreePath + "'. "
+                        + "Ensure submodules are on main and reset before running.";
+                emitCloneValidationFailure(nodeId, message, null);
+                throw new IllegalStateException(message);
+            }
+
+            if (expectedBranch == null || expectedBranch.isBlank()) {
+                return;
+            }
+
+            String fullBranch = sourceRepo.getFullBranch();
+            boolean detachedHead = fullBranch == null || !fullBranch.startsWith(Constants.R_HEADS);
+            String currentBranch = detachedHead ? null : Repository.shortenRefName(fullBranch);
+
+            if (detachedHead) {
+                String message = "Clone source repository '" + sourcePath + "' is in detached HEAD. "
+                        + "Expected branch '" + expectedBranch + "' before cloning.";
+                emitCloneValidationFailure(nodeId, message, null);
+                throw new IllegalStateException(message);
+            }
+
+            if (!Objects.equals(currentBranch, expectedBranch)) {
+                String message = "Clone source repository '" + sourcePath + "' is on branch '"
+                        + currentBranch + "' but expected '" + expectedBranch + "'.";
+                emitCloneValidationFailure(nodeId, message, null);
+                throw new IllegalStateException(message);
+            }
+        } catch (IOException e) {
+            String message = "Failed validating clone source repository '" + sourcePath + "': " + e.getMessage();
+            emitCloneValidationFailure(nodeId, message, e);
+            throw new IllegalStateException(message, e);
+        }
+    }
+
+    private void emitCloneValidationFailure(String nodeId, String message, Exception e) {
+        if (e == null) {
+            log.error(message);
+        } else {
+            log.error(message, e);
+        }
+        if (eventBus != null && nodeId != null && !nodeId.isBlank()) {
+            eventBus.publish(Events.NodeErrorEvent.err(message, getKey(nodeId)));
+        }
+    }
 
     public static void cloneRepository(String repositoryUrl, Path worktreePath, String baseBranch) throws GitAPIException, IOException {
         try(Repository build = RepoUtil.findRepo(Paths.get(repositoryUrl))) {
