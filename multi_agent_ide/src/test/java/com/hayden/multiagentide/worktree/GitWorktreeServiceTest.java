@@ -74,6 +74,37 @@ class GitWorktreeServiceTest extends AgentTestBase {
     }
 
     @Test
+    void branchWorktreeBranchesFromParentDerivedBranchWhenSourceRepoDoesNotHaveIt() throws Exception {
+        Path repoDir = Files.createTempDirectory("branch-source-repo");
+        initRepo(repoDir);
+        commitFile(repoDir, "README.md", "hello", "init");
+
+        MainWorktreeContext parent = gitWorktreeService.createMainWorktree(
+                repoDir.toString(),
+                "main",
+                "main-parent-derived",
+                "node-parent"
+        );
+
+        String sourceRepoBranches = gitOutput(repoDir, "git", "branch", "--list", "main-parent-derived").trim();
+        assertThat(sourceRepoBranches).isEmpty();
+
+        MainWorktreeContext child = gitWorktreeService.branchWorktree(
+                parent.worktreeId(),
+                "discovery-1-ak-01KJ8",
+                "node-child"
+        );
+
+        String parentHead = gitOutput(parent.worktreePath(), "git", "rev-parse", "HEAD").trim();
+        String childHead = gitOutput(child.worktreePath(), "git", "rev-parse", "HEAD").trim();
+        String childBranch = gitOutput(child.worktreePath(), "git", "branch", "--show-current").trim();
+
+        assertThat(child.baseBranch()).isEqualTo("main-parent-derived");
+        assertThat(childBranch).isEqualTo("discovery-1-ak-01KJ8");
+        assertThat(childHead).isEqualTo(parentHead);
+    }
+
+    @Test
     void createSubmoduleWorktreeTracksSubmodule() throws Exception {
         Path subRepo = Files.createTempDirectory("submodule-repo");
         initRepo(subRepo);

@@ -727,11 +727,15 @@ public class GitWorktreeService implements WorktreeService {
         }
 
         try {
+            MainWorktreeContext sourceContext = source.get();
             String worktreeId = UUID.randomUUID().toString();
             Path newWorktreePath = Paths.get(baseWorktreesPath, worktreeId);
+            String parentBranch = resolveBranchForBranching(sourceContext);
 
-            cloneRepository(source.get().repositoryUrl(), newWorktreePath, source.get().derivedBranch());
-            checkoutNewBranch(newWorktreePath, newBranchName, source.get().derivedBranch());
+            // Clone from the source worktree itself so derived branches created in the sandbox
+            // are available as branch start points for child worktrees.
+            cloneRepository(sourceContext.worktreePath().toString(), newWorktreePath, parentBranch);
+            checkoutNewBranch(newWorktreePath, newBranchName, parentBranch);
 
 
             String commitHash = getCurrentCommitHashInternal(newWorktreePath);
@@ -739,15 +743,15 @@ public class GitWorktreeService implements WorktreeService {
             MainWorktreeContext context = new MainWorktreeContext(
                     worktreeId,
                     newWorktreePath,
-                    source.get().derivedBranch(),
+                    parentBranch,
                     newBranchName,
                     WorktreeContext.WorktreeStatus.ACTIVE,
                     sourceWorktreeId,
                     nodeId,
                     Instant.now(),
                     commitHash,
-                    source.get().repositoryUrl(),
-                    source.get().hasSubmodules(),
+                    sourceContext.repositoryUrl(),
+                    sourceContext.hasSubmodules(),
                     new ArrayList<>(),
                     new HashMap<>()
             );
@@ -767,7 +771,8 @@ public class GitWorktreeService implements WorktreeService {
         }
 
         try {
-            checkoutNewBranch(source.get().worktreePath(), newBranchName, source.get().derivedBranch());
+            String startPoint = resolvePreferredBranch(source.get().worktreePath(), source.get().derivedBranch());
+            checkoutNewBranch(source.get().worktreePath(), newBranchName, startPoint);
 
             String commitHash = getCurrentCommitHashInternal(source.get().worktreePath());
 
@@ -1384,10 +1389,23 @@ public class GitWorktreeService implements WorktreeService {
             try (
                     Git git = clone.call()
             ) {
-                RepoUtil.runGitCommand(Paths.get(repositoryUrl), List.of("submodule", "update", "--init", "--recursive"));
-                if (baseBranch != null && !baseBranch.isBlank() && !Objects.equals(git.getRepository().getBranch(), baseBranch)) {
-                    git.checkout().setName(baseBranch).call();
-                    RepoUtil.runGitCommand(Paths.get(repositoryUrl), List.of("submodule", "foreach", "--recursive", "git reset --hard || true"));
+                RepoUtil.runGitCommand(worktreePath, List.of("submodule", "update", "--init", "--recursive"));
+                String resolvedBaseRef = resolveBranchRef(git.getRepository(), baseBranch);
+                if (resolvedBaseRef != null) {
+                    String resolvedBaseBranch = branchNameFromRef(resolvedBaseRef);
+                    if (!Objects.equals(git.getRepository().getBranch(), resolvedBaseBranch)) {
+                        CheckoutCommand checkout = git.checkout().setName(resolvedBaseBranch);
+                        if (git.getRepository().findRef("refs/heads/" + resolvedBaseBranch) == null) {
+                            checkout.setCreateBranch(true).setStartPoint(resolvedBaseRef);
+                        }
+                        checkout.call();
+                    }
+                } else if (baseBranch != null && !baseBranch.isBlank()) {
+                    log.warn(
+                            "Requested clone base branch '{}' not found for repository '{}'; continuing with current HEAD",
+                            baseBranch,
+                            repositoryUrl
+                    );
                 }
             }
         }
@@ -1399,14 +1417,107 @@ public class GitWorktreeService implements WorktreeService {
 
     private void checkoutNewBranch(Path repoPath, String newBranchName, String startPoint) throws IOException, GitAPIException {
         try (var git = openGit(repoPath)) {
-            CheckoutCommand checkout = git.checkout()
-                    .setCreateBranch(true)
-                    .setName(newBranchName);
-            if (startPoint != null && !startPoint.isBlank()) {
-                checkout.setStartPoint(startPoint);
+            if (newBranchName == null || newBranchName.isBlank()) {
+                throw new IllegalArgumentException("newBranchName is required");
+            }
+
+            Ref existingBranchRef = git.getRepository().findRef("refs/heads/" + newBranchName);
+            CheckoutCommand checkout = git.checkout().setName(newBranchName);
+            if (existingBranchRef == null) {
+                checkout.setCreateBranch(true);
+                String resolvedStartRef = resolveBranchRef(git.getRepository(), startPoint);
+                if (resolvedStartRef != null) {
+                    checkout.setStartPoint(resolvedStartRef);
+                } else if (startPoint != null && !startPoint.isBlank()) {
+                    log.warn(
+                            "Start branch '{}' not found in {}; creating '{}' from current HEAD",
+                            startPoint,
+                            repoPath,
+                            newBranchName
+                    );
+                }
             }
             checkout.call();
         }
+    }
+
+    private String resolveBranchForBranching(MainWorktreeContext sourceContext) {
+        if (sourceContext == null || sourceContext.worktreePath() == null) {
+            return "main";
+        }
+
+        String resolved = resolvePreferredBranch(
+                sourceContext.worktreePath(),
+                sourceContext.derivedBranch(),
+                sourceContext.baseBranch()
+        );
+        if (resolved != null && !resolved.isBlank()) {
+            return resolved;
+        }
+        if (sourceContext.derivedBranch() != null && !sourceContext.derivedBranch().isBlank()) {
+            return sourceContext.derivedBranch();
+        }
+        if (sourceContext.baseBranch() != null && !sourceContext.baseBranch().isBlank()) {
+            return sourceContext.baseBranch();
+        }
+        return "main";
+    }
+
+    private String resolvePreferredBranch(Path repoPath, String... candidates) {
+        if (repoPath == null) {
+            return null;
+        }
+        try (var git = openGit(repoPath)) {
+            Repository repository = git.getRepository();
+            if (candidates != null) {
+                for (String candidate : candidates) {
+                    String ref = resolveBranchRef(repository, candidate);
+                    if (ref != null) {
+                        return branchNameFromRef(ref);
+                    }
+                }
+            }
+
+            String current = repository.getBranch();
+            if (current != null && !current.isBlank()) {
+                return current;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to resolve preferred branch for {}", repoPath, e);
+        }
+        return null;
+    }
+
+    private static String resolveBranchRef(Repository repository, String branchName) throws IOException {
+        if (repository == null || branchName == null || branchName.isBlank()) {
+            return null;
+        }
+        String candidate = branchName.trim();
+        List<String> refs = List.of(
+                "refs/heads/" + candidate,
+                "refs/remotes/origin/" + candidate,
+                candidate
+        );
+        for (String refName : refs) {
+            Ref ref = repository.findRef(refName);
+            if (ref != null) {
+                return ref.getName();
+            }
+        }
+        return null;
+    }
+
+    private static String branchNameFromRef(String refName) {
+        if (refName == null || refName.isBlank()) {
+            return refName;
+        }
+        if (refName.startsWith("refs/heads/")) {
+            return refName.substring("refs/heads/".length());
+        }
+        if (refName.startsWith("refs/remotes/origin/")) {
+            return refName.substring("refs/remotes/origin/".length());
+        }
+        return refName;
     }
 
     private List<String> initializeSubmodule(Path parentWorktreePath) {
@@ -1735,10 +1846,15 @@ public class GitWorktreeService implements WorktreeService {
     }
 
     private static String shortId(String id) {
-        if (id == null) {
-            return "";
+        if (id == null || id.isBlank()) {
+            return "unknown";
         }
-        return id.length() <= 8 ? id : id.substring(0, 8);
+        String shortened = id.length() <= 8 ? id : id.substring(0, 8);
+        String sanitized = shortened.replaceAll("[^A-Za-z0-9._-]", "-");
+        if (sanitized.isBlank()) {
+            return "unknown";
+        }
+        return sanitized;
     }
 
     /**
