@@ -1404,18 +1404,6 @@ public class GitWorktreeService implements WorktreeService {
         }
 
         try (Repository sourceRepo = RepoUtil.findRepo(sourcePath)) {
-            Path resolvedWorktreePath = sourceRepo.getWorkTree() != null
-                    ? sourceRepo.getWorkTree().toPath().toAbsolutePath().normalize()
-                    : null;
-
-            if (resolvedWorktreePath == null || !samePath(sourcePath, resolvedWorktreePath)) {
-                String message = "Clone source repository mismatch for path '" + sourcePath + "'. "
-                        + "Resolved git worktree path was '" + resolvedWorktreePath + "'. "
-                        + "Ensure submodules are on main and reset before running.";
-                emitCloneValidationFailure(nodeId, message, null);
-                throw new IllegalStateException(message);
-            }
-
             if (expectedBranch == null || expectedBranch.isBlank()) {
                 return;
             }
@@ -1441,22 +1429,6 @@ public class GitWorktreeService implements WorktreeService {
             String message = "Failed validating clone source repository '" + sourcePath + "': " + e.getMessage();
             emitCloneValidationFailure(nodeId, message, e);
             throw new IllegalStateException(message, e);
-        }
-    }
-
-    private boolean samePath(Path left, Path right) {
-        if (left == null || right == null) {
-            return false;
-        }
-        try {
-            return Files.isSameFile(left, right);
-        } catch (IOException ignored) {
-            // Fall back to normalized real-path comparison when isSameFile cannot resolve.
-        }
-        try {
-            return left.toRealPath().equals(right.toRealPath());
-        } catch (IOException ignored) {
-            return left.toAbsolutePath().normalize().equals(right.toAbsolutePath().normalize());
         }
     }
 
