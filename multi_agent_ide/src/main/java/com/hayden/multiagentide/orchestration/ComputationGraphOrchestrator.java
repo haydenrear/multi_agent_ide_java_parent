@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.*;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
  * Main orchestrator for the computation graph.
  * Manages node execution, event emission, and worktree/spec lifecycle.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ComputationGraphOrchestrator {
@@ -67,18 +69,19 @@ public class ComputationGraphOrchestrator {
     ) {
         Optional<GraphNode> parentOpt = graphRepository.findById(parentNodeId);
         if (parentOpt.isEmpty()) {
-            throw new RuntimeException("Parent node not found: " + parentNodeId);
+            log.error("Parent node not found: " + parentNodeId);
         }
 
-        GraphNode parent = parentOpt.get();
-        List<String> childIds = new ArrayList<>(parent.childNodeIds());
-        if (!childIds.contains(childNode.nodeId())) {
-            childIds.add(childNode.nodeId());
-        }
+        parentOpt.ifPresent(parent -> {
+            List<String> childIds = new ArrayList<>(parent.childNodeIds());
+            if (!childIds.contains(childNode.nodeId())) {
+                childIds.add(childNode.nodeId());
+            }
 
-        // Update parent based on type
-        GraphNode updatedParent = updateNodeChildren(parent, childIds);
-        emitAddChildNodeEvent(parentNodeId, updatedParent, childNode);
+            // Update parent based on type
+            GraphNode updatedParent = updateNodeChildren(parent, childIds);
+            emitAddChildNodeEvent(parentNodeId, updatedParent, childNode);
+        });
 
         emitNodeAddedEvent(
                 childNode.nodeId(),
