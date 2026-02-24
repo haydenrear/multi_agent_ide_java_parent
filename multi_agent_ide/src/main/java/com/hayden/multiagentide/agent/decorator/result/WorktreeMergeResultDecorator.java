@@ -1,11 +1,13 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
+import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,15 +18,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Decorator that performs trunk → child merge when a dispatched agent completes.
- * 
- * Phase 1 of the worktree merge flow:
- * - After child agent (Ticket/Planning/Discovery) completes its work
- * - Merge any changes from trunk into the child's worktree
- * - Attach MergeDescriptor to the result
- * 
- * This ensures the child has the latest trunk changes before its results
- * are aggregated back to trunk.
+ * Performs trunk -> child merges for dispatched agent results and stores merge metadata.
+ *
+ * The child worktree always comes from the result/request context.
+ * The trunk worktree is resolved from child.mainWorktree.parentWorktreeId.
  */
 @Slf4j
 @Component
@@ -36,50 +33,88 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
 
     @Override
     public int order() {
-        return 1000;  // Run after core decorators, before emit decorators
+        return 1000;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T extends AgentModels.Routing> T decorate(T routing, DecoratorContext context) {
+        if (routing == null) {
+            return null;
+        }
+
+        return switch (routing) {
+            case AgentModels.DiscoveryAgentRouting r ->
+                    (T) r.toBuilder().agentResult(decorate(r.agentResult(), context)).build();
+            case AgentModels.PlanningAgentRouting r ->
+                    (T) r.toBuilder().agentResult(decorate(r.agentResult(), context)).build();
+            case AgentModels.TicketAgentRouting r ->
+                    (T) r.toBuilder().agentResult(decorate(r.agentResult(), context)).build();
+            default -> routing;
+        };
     }
 
     @Override
     public <T extends AgentModels.AgentResult> T decorate(T result, DecoratorContext context) {
         if (result == null) {
-            return result;
+            return null;
         }
 
-        // Only handle dispatch agent results that have worktree context
-        if (!(result instanceof AgentModels.TicketAgentResult) &&
-            !(result instanceof AgentModels.PlanningAgentResult) &&
-            !(result instanceof AgentModels.DiscoveryAgentResult)) {
-            return result;
+        T withContext = withWorktreeContext(result, context);
+        if (!isDispatchResult(withContext)) {
+            return withContext;
+        }
+        String nodeId = resolveNodeId(withContext);
+
+        WorktreeSandboxContext childContext = withContext.worktreeContext();
+        if (childContext == null || childContext.mainWorktree() == null) {
+            String reason = "Skipping trunk->child merge: missing child worktree context";
+            publishNodeError(nodeId, reason);
+            publishSkippedMergePhase(nodeId, "unknown", "unknown", reason);
+            return addMergeDescriptor(withContext, MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD));
         }
 
-        WorktreeSandboxContext childContext = resolveChildWorktreeContext(result, context);
-        WorktreeSandboxContext trunkContext = resolveTrunkWorktreeContext(context);
-
-        if (childContext == null || trunkContext == null) {
-            log.debug("Skipping trunk→child merge: missing worktree context (child={}, trunk={})",
-                    childContext != null, trunkContext != null);
-            return result;
+        WorktreeSandboxContext trunkContext = resolveTrunkWorktreeContext(childContext, context);
+        if (trunkContext == null || trunkContext.mainWorktree() == null) {
+            String childId = childContext.mainWorktree().worktreeId() != null ? childContext.mainWorktree().worktreeId() : "unknown";
+            String reason = "Skipping trunk->child merge: missing trunk worktree context for child " + childId;
+            publishNodeError(nodeId, reason);
+            publishSkippedMergePhase(nodeId, "unknown", childId, reason);
+            return addMergeDescriptor(withContext, MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD));
         }
 
-        String nodeId = result.contextId() != null ? result.contextId().value() : "unknown";
-        String trunkId = trunkContext.mainWorktree() != null ? trunkContext.mainWorktree().worktreeId() : "unknown";
-        String childId = childContext.mainWorktree() != null ? childContext.mainWorktree().worktreeId() : "unknown";
+        String childId = childContext.mainWorktree().worktreeId();
+        String trunkId = trunkContext.mainWorktree().worktreeId();
+        if (childId != null && childId.equals(trunkId)) {
+            String reason = "Skipping trunk->child merge: child and trunk worktree are the same (" + childId + ")";
+            publishNodeError(nodeId, reason);
+            publishSkippedMergePhase(nodeId, trunkId, childId, reason);
+            return addMergeDescriptor(withContext, MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD));
+        }
 
         publishIfAvailable(new Events.MergePhaseStartedEvent(
-                UUID.randomUUID().toString(), Instant.now(), nodeId,
-                "TRUNK_TO_CHILD", trunkId, childId, 1));
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                nodeId,
+                "TRUNK_TO_CHILD",
+                trunkId != null ? trunkId : "unknown",
+                childId != null ? childId : "unknown",
+                1));
 
         MergeDescriptor descriptor = gitWorktreeService.mergeTrunkToChild(trunkContext, childContext);
 
         publishIfAvailable(new Events.MergePhaseCompletedEvent(
-                UUID.randomUUID().toString(), Instant.now(), nodeId,
-                "TRUNK_TO_CHILD", descriptor.successful(),
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                nodeId,
+                "TRUNK_TO_CHILD",
+                descriptor.successful(),
                 descriptor.successful() ? 1 : 0,
                 descriptor.conflictFiles() != null ? descriptor.conflictFiles().size() : 0,
                 descriptor.conflictFiles() != null ? descriptor.conflictFiles() : List.of(),
                 descriptor.errorMessage()));
 
-        return addMergeDescriptor(result, descriptor);
+        return addMergeDescriptor(withContext, descriptor);
     }
 
     private void publishIfAvailable(Events.GraphEvent event) {
@@ -88,23 +123,109 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
         }
     }
 
-    private WorktreeSandboxContext resolveChildWorktreeContext(AgentModels.AgentResult result, DecoratorContext context) {
-        if (context.agentRequest() instanceof AgentModels.AgentRequest request) {
-            WorktreeSandboxContext worktreeContext = request.worktreeContext();
-            if (worktreeContext != null) {
-                return worktreeContext;
-            }
+    private void publishNodeError(String nodeId, String reason) {
+        log.error(reason);
+        if (eventBus == null) {
+            return;
         }
-        return null;
+        eventBus.publish(Events.NodeErrorEvent.err(reason, safeKey(nodeId)));
     }
 
-    private WorktreeSandboxContext resolveTrunkWorktreeContext(DecoratorContext context) {
-        if (context.lastRequest() instanceof AgentModels.AgentRequest lastRequest) {
+    private void publishSkippedMergePhase(String nodeId, String trunkId, String childId, String reason) {
+        publishIfAvailable(new Events.MergePhaseStartedEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                nodeId,
+                "TRUNK_TO_CHILD",
+                trunkId != null ? trunkId : "unknown",
+                childId != null ? childId : "unknown",
+                1
+        ));
+        publishIfAvailable(new Events.MergePhaseCompletedEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                nodeId,
+                "TRUNK_TO_CHILD",
+                false,
+                0,
+                0,
+                List.of(),
+                reason
+        ));
+    }
+
+    private boolean isDispatchResult(AgentModels.AgentResult result) {
+        return result instanceof AgentModels.TicketAgentResult
+                || result instanceof AgentModels.PlanningAgentResult
+                || result instanceof AgentModels.DiscoveryAgentResult;
+    }
+
+    private WorktreeSandboxContext resolveTrunkWorktreeContext(WorktreeSandboxContext childContext, DecoratorContext context) {
+        if (context != null
+                && context.lastRequest() instanceof AgentModels.AgentRequest lastRequest
+                && lastRequest.worktreeContext() != null) {
             return lastRequest.worktreeContext();
         }
-        return null;
+
+        if (childContext == null || childContext.mainWorktree() == null) {
+            return null;
+        }
+
+        String parentWorktreeId = childContext.mainWorktree().parentWorktreeId();
+        if (parentWorktreeId == null || parentWorktreeId.isBlank()) {
+            return null;
+        }
+
+        return gitWorktreeService.getMainWorktree(parentWorktreeId)
+                .map(main -> new WorktreeSandboxContext(main, gitWorktreeService.getSubmoduleWorktrees(parentWorktreeId)))
+                .orElse(null);
     }
 
+    private String resolveNodeId(AgentModels.AgentResult result) {
+        if (result != null && result.contextId() != null && result.contextId().value() != null) {
+            return result.contextId().value();
+        }
+        return "unknown";
+    }
+
+    private ArtifactKey safeKey(String nodeId) {
+        if (nodeId == null || nodeId.isBlank() || "unknown".equals(nodeId)) {
+            return ArtifactKey.createRoot();
+        }
+        try {
+            return new ArtifactKey(nodeId);
+        } catch (IllegalArgumentException e) {
+            log.error("Could not create artifact key for nodeId {}", nodeId, e);
+            return ArtifactKey.createRoot();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends AgentModels.AgentResult> T withWorktreeContext(T result, DecoratorContext context) {
+        if (result.worktreeContext() != null) {
+            return result;
+        }
+
+        WorktreeSandboxContext resolved = null;
+        if (context.agentRequest() instanceof AgentModels.AgentRequest request && request.worktreeContext() != null) {
+            resolved = request.worktreeContext();
+        } else if (context.lastRequest() instanceof AgentModels.AgentRequest request && request.worktreeContext() != null) {
+            resolved = request.worktreeContext();
+        }
+
+        if (resolved == null) {
+            return result;
+        }
+
+        return switch (result) {
+            case AgentModels.TicketAgentResult r -> (T) r.toBuilder().worktreeContext(resolved).build();
+            case AgentModels.PlanningAgentResult r -> (T) r.toBuilder().worktreeContext(resolved).build();
+            case AgentModels.DiscoveryAgentResult r -> (T) r.toBuilder().worktreeContext(resolved).build();
+            default -> result;
+        };
+    }
+
+    @SuppressWarnings("unchecked")
     private <T extends AgentModels.AgentResult> T addMergeDescriptor(T result, MergeDescriptor descriptor) {
         return switch (result) {
             case AgentModels.TicketAgentResult r -> (T) r.toBuilder().mergeDescriptor(descriptor).build();

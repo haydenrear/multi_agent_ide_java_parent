@@ -59,7 +59,9 @@ public class AddIntellij implements LlmCallDecorator {
                 .build();
     }
 
-    Set<String> enabledTools = Set.of("build_project", "get_file_problems", "get_project_dependencies", "get_project_modules", "get_symbol_info", "rename_refactoring", "get_repositories");
+    Set<String> enabledTools = Set.of(
+        "build_project", "get_file_problems", "get_project_dependencies",
+        "get_project_modules", "get_symbol_info", "rename_refactoring", "get_repositories");
 
     private @NonNull List<ToolAbstraction> withIntellij(LlmCallContext promptContext) {
         var t = new ArrayList<>(promptContext.tcc().tools());

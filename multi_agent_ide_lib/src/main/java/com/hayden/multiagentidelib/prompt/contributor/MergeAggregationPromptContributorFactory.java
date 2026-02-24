@@ -375,6 +375,13 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
         if (resultsRequest.worktreeContext() != null) {
             contexts.add(resultsRequest.worktreeContext());
         }
+        if (resultsRequest.childResults() != null) {
+            for (AgentModels.AgentResult childResult : resultsRequest.childResults()) {
+                if (childResult != null && childResult.worktreeContext() != null) {
+                    contexts.add(childResult.worktreeContext());
+                }
+            }
+        }
         if (resultsRequest.mergeAggregation() == null) {
             return contexts;
         }

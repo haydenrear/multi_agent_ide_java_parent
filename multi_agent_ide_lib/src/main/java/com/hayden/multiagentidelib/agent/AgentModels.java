@@ -52,6 +52,8 @@ public interface AgentModels {
             permits DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
 
     {
+        WorktreeSandboxContext worktreeContext();
+
         @Override
         default String computeHash(Artifact.HashContext hashContext) {
             return hashContext.hash(prettyPrint());
@@ -1020,10 +1022,16 @@ public interface AgentModels {
     record OrchestratorAgentResult(
             @SkipPropertyFilter
             ArtifactKey contextId,
-            String output
+            String output,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
+        public OrchestratorAgentResult(ArtifactKey contextId, String output) {
+            this(contextId, output, null);
+        }
+
         public OrchestratorAgentResult(String output) {
-            this(null, output);
+            this(null, output, null);
         }
 
         @Override
@@ -1037,10 +1045,16 @@ public interface AgentModels {
     record DiscoveryOrchestratorResult(
             @SkipPropertyFilter
             ArtifactKey contextId,
-            String output
+            String output,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
+        public DiscoveryOrchestratorResult(ArtifactKey contextId, String output) {
+            this(contextId, output, null);
+        }
+
         public DiscoveryOrchestratorResult(String output) {
-            this(null, output);
+            this(null, output, null);
         }
 
         @Override
@@ -1054,10 +1068,16 @@ public interface AgentModels {
     record PlanningOrchestratorResult(
             @SkipPropertyFilter
             ArtifactKey contextId,
-            String output
+            String output,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
+        public PlanningOrchestratorResult(ArtifactKey contextId, String output) {
+            this(contextId, output, null);
+        }
+
         public PlanningOrchestratorResult(String output) {
-            this(null, output);
+            this(null, output, null);
         }
 
         @Override
@@ -1074,10 +1094,16 @@ public interface AgentModels {
             @SkipPropertyFilter
             ArtifactKey contextId,
             @JsonPropertyDescription("Human-readable summary output.")
-            String output
+            String output,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
+        public TicketOrchestratorResult(ArtifactKey contextId, String output) {
+            this(contextId, output, null);
+        }
+
         public TicketOrchestratorResult(String output) {
-            this(null, output);
+            this(null, output, null);
         }
 
         @Override
@@ -1103,7 +1129,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Human-readable summary output.")
             String output,
             @JsonPropertyDescription("Merge descriptor from trunk→child merge. Relevant only when code changes were produced and merge metadata exists.")
-            MergeDescriptor mergeDescriptor
+            MergeDescriptor mergeDescriptor,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -1122,8 +1150,12 @@ public interface AgentModels {
                     .build();
         }
 
+        public DiscoveryAgentResult(ArtifactKey contextId, DiscoveryReport report, String output, MergeDescriptor mergeDescriptor) {
+            this(contextId, report, output, mergeDescriptor, null);
+        }
+
         public DiscoveryAgentResult(String output) {
-            this(null, null, output, null);
+            this(null, null, output, null, null);
         }
 
         @Override
@@ -1154,7 +1186,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Human-readable summary output.")
             String output,
             @JsonPropertyDescription("Merge descriptor from trunk→child merge. Relevant only when code changes were produced and merge metadata exists.")
-            MergeDescriptor mergeDescriptor
+            MergeDescriptor mergeDescriptor,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -1177,8 +1211,12 @@ public interface AgentModels {
                     .build();
         }
 
+        public PlanningAgentResult(ArtifactKey contextId, List<PlanningTicket> tickets, String output, MergeDescriptor mergeDescriptor) {
+            this(contextId, tickets, output, mergeDescriptor, null);
+        }
+
         public PlanningAgentResult(String output) {
-            this(null, null, output, null);
+            this(null, null, output, null, null);
         }
 
         @Override
@@ -1227,10 +1265,39 @@ public interface AgentModels {
             @JsonPropertyDescription("Human-readable summary output.")
             String output,
             @JsonPropertyDescription("Merge descriptor from trunk→child merge. Relevant only when code changes were produced and merge metadata exists.")
-            MergeDescriptor mergeDescriptor
+            MergeDescriptor mergeDescriptor,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
+        public TicketAgentResult(
+                ArtifactKey contextId,
+                String ticketId,
+                String implementationSummary,
+                List<String> filesModified,
+                List<String> testResults,
+                List<String> commits,
+                String verificationStatus,
+                List<MemoryReference> memoryReferences,
+                String output,
+                MergeDescriptor mergeDescriptor
+        ) {
+            this(
+                    contextId,
+                    ticketId,
+                    implementationSummary,
+                    filesModified,
+                    testResults,
+                    commits,
+                    verificationStatus,
+                    memoryReferences,
+                    output,
+                    mergeDescriptor,
+                    null
+            );
+        }
+
         public TicketAgentResult(String output) {
-            this(null, null, null, null, null, null, null, null, output, null);
+            this(null, null, null, null, null, null, null, null, output, null, null);
         }
 
         @Override
@@ -1265,10 +1332,16 @@ public interface AgentModels {
             String feedback,
             List<String> suggestions,
             List<String> contentLinks,
-            String output
+            String output,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
+        public ReviewAgentResult(ArtifactKey contextId, String assessmentStatus, String feedback, List<String> suggestions, List<String> contentLinks, String output) {
+            this(contextId, assessmentStatus, feedback, suggestions, contentLinks, output, null);
+        }
+
         public ReviewAgentResult(String output) {
-            this(null, null, output, null, null, output);
+            this(null, null, output, null, null, output, null);
         }
 
         @Override
@@ -1319,10 +1392,16 @@ public interface AgentModels {
             @JsonPropertyDescription("Guidance for resolving conflicts.")
             List<String> resolutionGuidance,
             @JsonPropertyDescription("Human-readable summary output.")
-            String output
+            String output,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
+        public MergerAgentResult(ArtifactKey contextId, String acceptability, List<String> conflictDetails, List<String> resolutionGuidance, String output) {
+            this(contextId, acceptability, conflictDetails, resolutionGuidance, output, null);
+        }
+
         public MergerAgentResult(String output) {
-            this(null, null, null, null, output);
+            this(null, null, null, null, output, null);
         }
 
         @Override
@@ -1389,7 +1468,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Query-specific findings keyed by query name.")
             Map<String, QueryFindings> querySpecificFindings,
             @JsonPropertyDescription("Curated discovery context for downstream agents.")
-            UpstreamContext.DiscoveryCollectorContext discoveryCollectorContext
+            UpstreamContext.DiscoveryCollectorContext discoveryCollectorContext,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements ConsolidationTemplate, AgentResult {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -1409,8 +1490,31 @@ public interface AgentModels {
                     .build();
         }
 
+        public DiscoveryCollectorResult(
+                ArtifactKey contextId,
+                String consolidatedOutput,
+                CollectorDecision collectorDecision,
+                Map<String, String> metadata,
+                CodeMap unifiedCodeMap,
+                List<Recommendation> recommendations,
+                Map<String, QueryFindings> querySpecificFindings,
+                UpstreamContext.DiscoveryCollectorContext discoveryCollectorContext
+        ) {
+            this(
+                    contextId,
+                    consolidatedOutput,
+                    collectorDecision,
+                    metadata,
+                    unifiedCodeMap,
+                    recommendations,
+                    querySpecificFindings,
+                    discoveryCollectorContext,
+                    null
+            );
+        }
+
         public DiscoveryCollectorResult(String consolidatedOutput, CollectorDecision collectorDecision) {
-            this(null, consolidatedOutput, collectorDecision, Map.of(), null, List.of(), Map.of(), null);
+            this(null, consolidatedOutput, collectorDecision, Map.of(), null, List.of(), Map.of(), null, null);
         }
 
         @Override
@@ -1461,7 +1565,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Dependency graph between tickets.")
             List<TicketDependency> dependencyGraph,
             @JsonPropertyDescription("Curated planning context for downstream agents.")
-            UpstreamContext.PlanningCollectorContext planningCuration
+            UpstreamContext.PlanningCollectorContext planningCuration,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements ConsolidationTemplate, AgentResult {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -1481,8 +1587,29 @@ public interface AgentModels {
                     .build();
         }
 
+        public PlanningCollectorResult(
+                ArtifactKey contextId,
+                String consolidatedOutput,
+                CollectorDecision collectorDecision,
+                Map<String, String> metadata,
+                List<PlanningTicket> finalizedTickets,
+                List<TicketDependency> dependencyGraph,
+                UpstreamContext.PlanningCollectorContext planningCuration
+        ) {
+            this(
+                    contextId,
+                    consolidatedOutput,
+                    collectorDecision,
+                    metadata,
+                    finalizedTickets,
+                    dependencyGraph,
+                    planningCuration,
+                    null
+            );
+        }
+
         public PlanningCollectorResult(String consolidatedOutput, CollectorDecision collectorDecision) {
-            this(null, consolidatedOutput, collectorDecision, Map.of(), List.of(), List.of(), null);
+            this(null, consolidatedOutput, collectorDecision, Map.of(), List.of(), List.of(), null, null);
         }
 
         @Override
@@ -1542,7 +1669,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Planning collector result included in consolidation.")
             PlanningCollectorResult planningCollectorResult,
             @JsonPropertyDescription("Ticket collector result included in consolidation.")
-            TicketCollectorResult ticketCollectorResult
+            TicketCollectorResult ticketCollectorResult,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements ConsolidationTemplate, AgentResult {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -1574,8 +1703,29 @@ public interface AgentModels {
                     .build();
         }
 
+        public OrchestratorCollectorResult(
+                ArtifactKey contextId,
+                String consolidatedOutput,
+                CollectorDecision collectorDecision,
+                Map<String, String> metadata,
+                DiscoveryCollectorResult discoveryCollectorResult,
+                PlanningCollectorResult planningCollectorResult,
+                TicketCollectorResult ticketCollectorResult
+        ) {
+            this(
+                    contextId,
+                    consolidatedOutput,
+                    collectorDecision,
+                    metadata,
+                    discoveryCollectorResult,
+                    planningCollectorResult,
+                    ticketCollectorResult,
+                    null
+            );
+        }
+
         public OrchestratorCollectorResult(String consolidatedOutput, CollectorDecision collectorDecision) {
-            this(null, consolidatedOutput, collectorDecision, Map.of(), null, null, null);
+            this(null, consolidatedOutput, collectorDecision, Map.of(), null, null, null, null);
         }
 
         @Override
@@ -1633,11 +1783,34 @@ public interface AgentModels {
             List<String> followUps,
             @JsonPropertyDescription("Curated ticket context for downstream agents.")
             @SkipPropertyFilter
-            UpstreamContext.TicketCollectorContext ticketCuration
+            UpstreamContext.TicketCollectorContext ticketCuration,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
     ) implements ConsolidationTemplate, AgentResult {
 
+        public TicketCollectorResult(
+                ArtifactKey contextId,
+                String consolidatedOutput,
+                CollectorDecision collectorDecision,
+                Map<String, String> metadata,
+                String completionStatus,
+                List<String> followUps,
+                UpstreamContext.TicketCollectorContext ticketCuration
+        ) {
+            this(
+                    contextId,
+                    consolidatedOutput,
+                    collectorDecision,
+                    metadata,
+                    completionStatus,
+                    followUps,
+                    ticketCuration,
+                    null
+            );
+        }
+
         public TicketCollectorResult(String consolidatedOutput, CollectorDecision collectorDecision) {
-            this(null, consolidatedOutput, collectorDecision, Map.of(), "", List.of(), null);
+            this(null, consolidatedOutput, collectorDecision, Map.of(), "", List.of(), null, null);
         }
 
         @Override

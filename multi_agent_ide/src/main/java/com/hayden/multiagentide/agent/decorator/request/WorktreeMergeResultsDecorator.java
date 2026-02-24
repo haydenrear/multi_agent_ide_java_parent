@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.DecoratorContext;
@@ -53,10 +54,19 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
         if (resultsRequest == null) {
             return resultsRequest;
         }
+        String nodeId = resolveNodeId(resultsRequest);
 
         WorktreeSandboxContext trunkContext = resolveTrunkWorktreeContext(context);
         if (trunkContext == null) {
-            log.debug("Skipping child→trunk merge: no trunk worktree context");
+            String reason = "Skipping child->trunk merge: no trunk worktree context";
+            publishNodeError(nodeId, reason);
+            publishIfAvailable(new Events.MergePhaseCompletedEvent(
+                    UUID.randomUUID().toString(), Instant.now(), nodeId,
+                    "CHILD_TO_TRUNK", false,
+                    0,
+                    0,
+                    List.of(),
+                    reason));
             return resultsRequest;
         }
 
@@ -66,14 +76,13 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
             return resultsRequest;
         }
 
-        String nodeId = resolveNodeId(resultsRequest);
         String trunkId = trunkContext.mainWorktree() != null ? trunkContext.mainWorktree().worktreeId() : "unknown";
 
         publishIfAvailable(new Events.MergePhaseStartedEvent(
                 UUID.randomUUID().toString(), Instant.now(), nodeId,
                 "CHILD_TO_TRUNK", trunkId, null, childResults.size()));
 
-        MergeAggregation aggregation = performChildToTrunkMerges(childResults, trunkContext);
+        MergeAggregation aggregation = performChildToTrunkMerges(childResults, trunkContext, nodeId);
 
         int conflictCount = aggregation.conflicted() != null ? 1 : 0;
         List<String> conflictFiles = aggregation.conflicted() != null && aggregation.conflicted().mergeDescriptor() != null
@@ -101,6 +110,26 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
         }
     }
 
+    private void publishNodeError(String nodeId, String reason) {
+        log.error(reason);
+        if (eventBus == null) {
+            return;
+        }
+        eventBus.publish(Events.NodeErrorEvent.err(reason, safeKey(nodeId)));
+    }
+
+    private ArtifactKey safeKey(String nodeId) {
+        if (nodeId == null || nodeId.isBlank() || "unknown".equals(nodeId)) {
+            return ArtifactKey.createRoot();
+        }
+        try {
+            return new ArtifactKey(nodeId);
+        } catch (IllegalArgumentException e) {
+            log.error("Could not create artifact key for nodeId {}", nodeId, e);
+            return ArtifactKey.createRoot();
+        }
+    }
+
     private String resolveNodeId(AgentModels.ResultsRequest resultsRequest) {
         if (resultsRequest.contextId() != null && resultsRequest.contextId().value() != null) {
             return resultsRequest.contextId().value();
@@ -110,7 +139,8 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
 
     private MergeAggregation performChildToTrunkMerges(
             List<? extends AgentModels.AgentResult> childResults,
-            WorktreeSandboxContext trunkContext) {
+            WorktreeSandboxContext trunkContext,
+            String nodeId) {
         
         List<AgentMergeStatus> merged = new ArrayList<>();
         List<AgentMergeStatus> pending = new ArrayList<>();
@@ -127,8 +157,8 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
 
             if (childContext == null) {
                 pendingIterator.remove();
-                merged.add(status);
-                log.debug("Child {} has no worktree context, treating as merged", status.agentResultId());
+                merged.add(status.withMergeDescriptor(MergeDescriptor.noOp(MergeDirection.CHILD_TO_TRUNK)));
+                publishNodeError(nodeId, "Child " + status.agentResultId() + " has no worktree context, marking as no-op merge");
                 continue;
             }
 
@@ -138,7 +168,7 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
             if (!descriptor.successful()) {
                 pendingIterator.remove();
                 conflicted = updatedStatus;
-                log.info("Merge conflict detected for child {}, stopping merge iteration", status.agentResultId());
+                publishNodeError(nodeId, "Merge conflict detected for child " + status.agentResultId() + ", stopping merge iteration");
                 break;
             }
 
@@ -156,7 +186,10 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
 
     private AgentMergeStatus createPendingStatus(AgentModels.AgentResult result) {
         String agentResultId = (result.contextId() != null && result.contextId().value() != null) ? result.contextId().value() : "unknown";
-        WorktreeSandboxContext worktreeContext = resolveChildWorktreeFromResult(result);
+        WorktreeSandboxContext worktreeContext = result != null ? result.worktreeContext() : null;
+        if (worktreeContext == null) {
+            worktreeContext = resolveChildWorktreeFromMergeDescriptor(result);
+        }
         
         return AgentMergeStatus.builder()
                 .agentResultId(agentResultId)
@@ -165,7 +198,7 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
                 .build();
     }
 
-    private WorktreeSandboxContext resolveChildWorktreeFromResult(AgentModels.AgentResult result) {
+    private WorktreeSandboxContext resolveChildWorktreeFromMergeDescriptor(AgentModels.AgentResult result) {
         MergeDescriptor descriptor = switch (result) {
             case AgentModels.TicketAgentResult r -> r.mergeDescriptor();
             case AgentModels.PlanningAgentResult r -> r.mergeDescriptor();

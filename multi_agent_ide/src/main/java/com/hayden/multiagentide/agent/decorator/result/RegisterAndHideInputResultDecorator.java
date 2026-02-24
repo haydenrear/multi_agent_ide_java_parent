@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @RequiredArgsConstructor
-public class RegisterAndHideInputResultDecorator implements DispatchedAgentResultDecorator, ResultDecorator {
+public class RegisterAndHideInputResultDecorator implements DispatchedAgentResultDecorator, ResultDecorator, FinalResultDecorator {
 
     private final BlackboardHistoryService blackboardHistoryService;
 
@@ -47,6 +47,15 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
     public <T extends AgentModels.AgentRequest> T decorateRequestResult(T t, DecoratorContext context) {
         blackboardHistoryService.hideInput(
                 context.operationContext()
+        );
+
+        return t;
+    }
+
+    @Override
+    public <T extends AgentModels.AgentResult> T decorateFinalResult(T t, FinalResultDecoratorContext context) {
+        blackboardHistoryService.hideInput(
+                context.decoratorContext().operationContext()
         );
 
         return t;

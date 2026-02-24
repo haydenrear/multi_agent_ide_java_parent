@@ -1194,10 +1194,17 @@ public class GitWorktreeService implements WorktreeService {
             return toMergeDescriptor(result, MergeDirection.TRUNK_TO_CHILD);
         } catch (Exception e) {
             log.error("Trunk-to-child merge failed", e);
-            return MergeDescriptor.builder()
-                    .mergeDirection(MergeDirection.TRUNK_TO_CHILD)
-                    .successful(false)
-                    .errorMessage("Trunk-to-child merge failed: " + e.getMessage())
+            String errorMessage = "Trunk-to-child merge failed: " + e.getMessage();
+            MergeResult failed = failedMergeResult(
+                    trunk != null && trunk.mainWorktree() != null ? trunk.mainWorktree().worktreeId() : "unknown-child",
+                    child != null && child.mainWorktree() != null ? child.mainWorktree().worktreeId() : "unknown-parent",
+                    trunk != null && trunk.mainWorktree() != null ? trunk.mainWorktree().worktreePath() : null,
+                    child != null && child.mainWorktree() != null ? child.mainWorktree().worktreePath() : null,
+                    errorMessage
+            );
+            return toMergeDescriptor(failed, MergeDirection.TRUNK_TO_CHILD)
+                    .toBuilder()
+                    .errorMessage(errorMessage)
                     .build();
         }
     }
@@ -1227,10 +1234,17 @@ public class GitWorktreeService implements WorktreeService {
             return toMergeDescriptor(result, MergeDirection.CHILD_TO_TRUNK);
         } catch (Exception e) {
             log.error("Child-to-trunk merge failed", e);
-            return MergeDescriptor.builder()
-                    .mergeDirection(MergeDirection.CHILD_TO_TRUNK)
-                    .successful(false)
-                    .errorMessage("Child-to-trunk merge failed: " + e.getMessage())
+            String errorMessage = "Child-to-trunk merge failed: " + e.getMessage();
+            MergeResult failed = failedMergeResult(
+                    child != null && child.mainWorktree() != null ? child.mainWorktree().worktreeId() : "unknown-child",
+                    trunk != null && trunk.mainWorktree() != null ? trunk.mainWorktree().worktreeId() : "unknown-parent",
+                    child != null && child.mainWorktree() != null ? child.mainWorktree().worktreePath() : null,
+                    trunk != null && trunk.mainWorktree() != null ? trunk.mainWorktree().worktreePath() : null,
+                    errorMessage
+            );
+            return toMergeDescriptor(failed, MergeDirection.CHILD_TO_TRUNK)
+                    .toBuilder()
+                    .errorMessage(errorMessage)
                     .build();
         }
     }
@@ -1250,12 +1264,45 @@ public class GitWorktreeService implements WorktreeService {
             return toMergeDescriptor(result, MergeDirection.WORKTREE_TO_SOURCE);
         } catch (Exception e) {
             log.error("Final merge to source descriptor failed", e);
-            return MergeDescriptor.builder()
-                    .mergeDirection(MergeDirection.WORKTREE_TO_SOURCE)
-                    .successful(false)
-                    .errorMessage("Final merge to source failed: " + e.getMessage())
+            String errorMessage = "Final merge to source failed: " + e.getMessage();
+            WorktreeContext main = worktreeRepository.findById(mainWorktreeId).orElse(null);
+            String sourceWorktreeId = main != null && main.parentWorktreeId() != null && !main.parentWorktreeId().isBlank()
+                    ? main.parentWorktreeId()
+                    : "source-repo";
+            MergeResult failed = failedMergeResult(
+                    mainWorktreeId != null && !mainWorktreeId.isBlank() ? mainWorktreeId : "unknown-child",
+                    sourceWorktreeId,
+                    main != null ? main.worktreePath() : null,
+                    null,
+                    errorMessage
+            );
+            return toMergeDescriptor(failed, MergeDirection.WORKTREE_TO_SOURCE)
+                    .toBuilder()
+                    .errorMessage(errorMessage)
                     .build();
         }
+    }
+
+    private MergeResult failedMergeResult(
+            String childWorktreeId,
+            String parentWorktreeId,
+            Path childWorktreePath,
+            Path parentWorktreePath,
+            String message
+    ) {
+        return new MergeResult(
+                UUID.randomUUID().toString(),
+                childWorktreeId,
+                parentWorktreeId,
+                childWorktreePath != null ? normalizePath(childWorktreePath) : null,
+                parentWorktreePath != null ? normalizePath(parentWorktreePath) : null,
+                false,
+                null,
+                List.of(),
+                List.of(),
+                message,
+                Instant.now()
+        );
     }
 
     private MergeDescriptor toMergeDescriptor(MergeResult result, MergeDirection direction) {
