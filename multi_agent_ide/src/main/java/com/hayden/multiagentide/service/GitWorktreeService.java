@@ -1491,7 +1491,18 @@ public class GitWorktreeService implements WorktreeService {
             }
             return new WorktreeSandboxContext(main, submodules);
         } catch (Exception ex) {
-            return parentContext;
+            String parentMainId = parentContext != null && parentContext.mainWorktree() != null
+                    ? parentContext.mainWorktree().worktreeId()
+                    : "unknown-parent";
+            String message = "Failed to branch sandbox worktree context for nodeId=" + nodeId
+                    + ", branchName=" + branchName
+                    + ", parentMainWorktreeId=" + parentMainId
+                    + ". Manual review required before retrying worktree operations.";
+            log.error(message, ex);
+            if (eventBus != null && nodeId != null && !nodeId.isBlank()) {
+                eventBus.publish(Events.NodeErrorEvent.err(message, getKey(nodeId)));
+            }
+            throw new IllegalStateException(message, ex);
         }
     }
 
@@ -1557,8 +1568,9 @@ public class GitWorktreeService implements WorktreeService {
 
             // Phase 2: Execute each step with lifecycle.
             MergeExecutionState state = new MergeExecutionState();
+            WorktreeContext sourceContext = createSourceMergeContext(mainContext, sourcePath, baseBranch);
             for (MergePlanStep step : plan) {
-                executeStepWithLifecycle(step, state, mainContext, mainContext);
+                executeStepWithLifecycle(step, state, mainContext, sourceContext);
             }
 
             // Phase 3: Finalize.
@@ -1594,6 +1606,38 @@ public class GitWorktreeService implements WorktreeService {
                     Instant.now()
             );
         }
+    }
+
+    private WorktreeContext createSourceMergeContext(
+            MainWorktreeContext childContext,
+            Path sourcePath,
+            String baseBranch
+    ) {
+        if (childContext == null) {
+            throw new IllegalArgumentException("childContext is required to build source merge context");
+        }
+        String sourceId = "source:" + childContext.worktreeId();
+        String sourceCommit = null;
+        try {
+            sourceCommit = getCurrentCommitHashInternal(sourcePath);
+        } catch (Exception ignored) {
+            // Best-effort only for event enrichment.
+        }
+        return new MainWorktreeContext(
+                sourceId,
+                sourcePath,
+                baseBranch,
+                baseBranch,
+                WorktreeContext.WorktreeStatus.ACTIVE,
+                null,
+                childContext.associatedNodeId(),
+                Instant.now(),
+                sourceCommit,
+                sourcePath != null ? sourcePath.toString() : sourceId,
+                false,
+                List.of(),
+                new HashMap<>()
+        );
     }
 
     /**

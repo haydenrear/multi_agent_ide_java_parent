@@ -160,15 +160,64 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
         }
         switch (request) {
             case AgentModels.DiscoveryAgentResults ignored ->
-                    storeRequiredNode(context, request,
-                            () -> workflowGraphService.requireDiscoveryCollector(context));
+                    storeResultsNodeWithFallback(
+                            context,
+                            request,
+                            () -> workflowGraphService.requireDiscoveryCollector(context),
+                            () -> workflowGraphService.requireDiscoveryOrchestrator(context),
+                            "discovery"
+                    );
             case AgentModels.PlanningAgentResults ignored ->
-                    storeRequiredNode(context, request,
-                            () -> workflowGraphService.requirePlanningCollector(context));
+                    storeResultsNodeWithFallback(
+                            context,
+                            request,
+                            () -> workflowGraphService.requirePlanningCollector(context),
+                            () -> workflowGraphService.requirePlanningOrchestrator(context),
+                            "planning"
+                    );
             case AgentModels.TicketAgentResults ignored ->
-                    storeRequiredNode(context, request,
-                            () -> workflowGraphService.requireTicketCollector(context));
+                    storeResultsNodeWithFallback(
+                            context,
+                            request,
+                            () -> workflowGraphService.requireTicketCollector(context),
+                            () -> workflowGraphService.requireTicketOrchestrator(context),
+                            "ticket"
+                    );
         }
+    }
+
+    private void storeResultsNodeWithFallback(
+            OperationContext context,
+            AgentModels.ResultsRequest request,
+            Supplier<? extends GraphNode> primaryNode,
+            Supplier<? extends GraphNode> fallbackNode,
+            String workflowType
+    ) {
+        GraphNode node = null;
+        try {
+            node = primaryNode.get();
+        } catch (RuntimeException expectedMissingCollector) {
+            log.debug(
+                    "Collector node unavailable for {} results (contextId={}), falling back to orchestrator: {}",
+                    workflowType,
+                    request != null && request.contextId() != null ? request.contextId().value() : "unknown",
+                    expectedMissingCollector.getMessage()
+            );
+        }
+
+        if (node == null) {
+            try {
+                node = fallbackNode.get();
+            } catch (RuntimeException e) {
+                String message = "Failed to resolve node for " + requestType(request)
+                        + " (collector + orchestrator fallback): " + e.getMessage();
+                log.error(message, e);
+                workflowGraphService.emitDecoratorError(context, message);
+                return;
+            }
+        }
+
+        storeRunning(context, node);
     }
 
     private void handleInterrupt(

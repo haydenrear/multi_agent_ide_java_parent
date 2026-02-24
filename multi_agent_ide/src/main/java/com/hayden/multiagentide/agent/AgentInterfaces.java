@@ -3127,8 +3127,11 @@ public interface AgentInterfaces {
         if (routing == null || decorators == null || decorators.isEmpty()) {
             return routing;
         }
+        AgentModels.AgentRequest currentRequest = context != null
+                ? context.last(AgentModels.AgentRequest.class)
+                : null;
         DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest, null
+                context, agentName, actionName, methodName, lastRequest, currentRequest
         );
         T decorated = routing;
         // Sort decorators by order (lower values first)

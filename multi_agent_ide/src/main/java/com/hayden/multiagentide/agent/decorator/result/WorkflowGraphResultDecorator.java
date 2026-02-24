@@ -207,11 +207,17 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
         if (decoratorContext == null) {
             return null;
         }
-        if (!(decoratorContext.lastRequest() instanceof AgentContext requestContext)) {
+        AgentContext requestContext = null;
+        if (decoratorContext.agentRequest() instanceof AgentContext agentRequestContext) {
+            requestContext = agentRequestContext;
+        } else if (decoratorContext.lastRequest() instanceof AgentContext lastRequestContext) {
+            requestContext = lastRequestContext;
+        }
+        if (requestContext == null) {
             reportMissingNode(
                     decoratorContext.operationContext(),
                     routing,
-                    new IllegalStateException("Missing request context in DecoratorContext")
+                    new IllegalStateException("Missing agent request context in DecoratorContext")
             );
             return null;
         }
