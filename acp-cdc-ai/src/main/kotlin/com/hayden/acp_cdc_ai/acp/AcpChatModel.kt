@@ -47,6 +47,7 @@ import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import java.io.File
+import java.io.IOException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.*
@@ -111,7 +112,11 @@ class AcpChatModel(
         val hasSession = sessionExists(memoryId)
         val sessionContext = getOrCreateSession(memoryId, chatRequest)
         val messages = resolveToSendMessages(chatRequest, hasSession)
-        return invokeChat(Prompt.builder().messages(messages).chatOptions(chatRequest.options).build(), sessionContext, memoryId)
+        return invokeChat(
+            Prompt.builder().messages(messages).chatOptions(chatRequest.options).build(),
+            sessionContext,
+            memoryId
+        )
     }
 
     fun resolveToSendMessages(messages: Prompt, hasSession: Boolean): List<Message> {
@@ -119,17 +124,23 @@ class AcpChatModel(
 //        return if (hasSession) {
 //            messages.instructions
 //        } else {
-            return resolveMessages(messages, memoryId)
+        return resolveMessages(messages, memoryId)
 //        }
     }
 
-    suspend fun streamChat(prompt: Prompt, memoryId: Any?): Flow<Generation>  {
+    suspend fun streamChat(prompt: Prompt, memoryId: Any?): Flow<Generation> {
         val hasSession = sessionExists(memoryId)
         val session = getOrCreateSession(memoryId, prompt)
 
         val messages = resolveToSendMessages(prompt, hasSession)
 
-        val content = listOf(ContentBlock.Text(formatPromptMessages(Prompt.builder().messages(messages).chatOptions(prompt.options).build())))
+        val content = listOf(
+            ContentBlock.Text(
+                formatPromptMessages(
+                    Prompt.builder().messages(messages).chatOptions(prompt.options).build()
+                )
+            )
+        )
 
         return session.prompt(content)
             .transform { event ->
@@ -140,7 +151,11 @@ class AcpChatModel(
             }
     }
 
-    fun invokeChat(messages: Prompt, sessionContext: AcpSessionManager.AcpSessionContext, memoryId: Any?): ChatResponse = runBlocking {
+    fun invokeChat(
+        messages: Prompt,
+        sessionContext: AcpSessionManager.AcpSessionContext,
+        memoryId: Any?
+    ): ChatResponse = runBlocking {
         val session = getOrCreateSession(memoryId, messages)
         val generations = mutableListOf<Generation>()
         val content = listOf(ContentBlock.Text(formatPromptMessages(messages)))
@@ -191,21 +206,48 @@ class AcpChatModel(
         extraEnv: Map<String, String>,
         dir: Path
     ): Transport {
-        val pb = ProcessBuilder(*command)
+        val mergedEnv = mutableMapOf<String, String>()
+        this.properties.envCopy()
+            ?.forEach { (envKey, envValue) -> mergedEnv[envKey] = envValue }
+        extraEnv.forEach { (envKey, envValue) -> mergedEnv[envKey] = envValue }
+        val effectivePath = sanitizePath(
+            mergedEnv["PATH"]
+                ?: System.getenv("PATH")
+        )
+        if (!effectivePath.isNullOrBlank()) {
+            mergedEnv["PATH"] = effectivePath
+        }
+
+        val resolvedCommand = resolveExecutableCommand(command, effectivePath)
+        val errLogName = run {
+            val first = resolvedCommand.firstOrNull().orEmpty()
+            val pathFirst = if (first.isBlank()) "acp-command" else first
+            val fileName = Path.of(pathFirst).fileName?.toString()
+            if (fileName.isNullOrBlank()) "acp-command" else fileName
+        }
+
+        val pb = ProcessBuilder(*resolvedCommand)
             .redirectInput(ProcessBuilder.Redirect.PIPE)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
-            .redirectError(File("%s-errs.log".format(command.first())))
+            .redirectError(File("%s-errs.log".format(errLogName)))
             .directory(dir.toFile())
 
         pb.environment()["CLAUDECODE"] = "0"
+        mergedEnv.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
+        if (!effectivePath.isNullOrBlank()) {
+            pb.environment()["PATH"] = effectivePath
+        }
 
-       this.properties.envCopy()
-           ?.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
-
-        extraEnv.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
-
-        val process = pb
-            .start()
+        val process = try {
+            pb.start()
+        } catch (ex: IOException) {
+            val renderedCommand = resolvedCommand.joinToString(" ")
+            val renderedPath = pb.environment()["PATH"].orEmpty()
+            throw IOException(
+                "Failed to start ACP command '$renderedCommand' in '$dir' (PATH='$renderedPath'): ${ex.message}",
+                ex
+            )
+        }
 
         val stdin = process.outputStream.asSink().buffered()
         val stdout = process.inputStream.asSource().buffered()
@@ -215,6 +257,78 @@ class AcpChatModel(
             input = stdout,
             output = stdin
         )
+    }
+
+    private fun sanitizePath(pathValue: String?): String? {
+        if (pathValue.isNullOrBlank()) {
+            return pathValue
+        }
+
+        val cleaned = pathValue.split(File.pathSeparator)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .filter { File(it).isDirectory }
+            .distinct()
+            .toMutableList()
+
+        val home = System.getProperty("user.home")
+        val preferred = listOf(
+            "$home/.asdf/bin",
+            "$home/.asdf/shims",
+            "$home/.local/bin"
+        )
+        preferred.asReversed()
+            .filter { File(it).isDirectory }
+            .forEach { preferredDir ->
+                if (!cleaned.contains(preferredDir)) {
+                    cleaned.add(0, preferredDir)
+                }
+            }
+
+        return cleaned.joinToString(File.pathSeparator)
+    }
+
+    private fun resolveExecutableCommand(command: Array<String>, pathValue: String?): Array<String> {
+        if (command.isEmpty()) {
+            return command
+        }
+
+        val executable = command.first()
+        val hasPathSeparator = executable.contains("/") || executable.contains("\\")
+        if (hasPathSeparator) {
+            return command
+        }
+
+        val resolved = findExecutableOnPath(executable, pathValue)
+        if (resolved == null) {
+            return command
+        }
+
+        val args = command.drop(1).toTypedArray()
+        return arrayOf(resolved, *args)
+    }
+
+    private fun findExecutableOnPath(executable: String, pathValue: String?): String? {
+        if (pathValue.isNullOrBlank()) {
+            return null
+        }
+
+        val pathEntries = pathValue.split(File.pathSeparator)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        for (entry in pathEntries) {
+            val candidate = File(entry, executable)
+            if (!candidate.isFile) {
+                continue
+            }
+            if (!candidate.canExecute()) {
+                continue
+            }
+            return candidate.absolutePath
+        }
+
+        return null
     }
 
     private fun sessionExists(memoryId: Any?): Boolean {
@@ -237,12 +351,12 @@ class AcpChatModel(
             return splitted[0]
         }
 
-       try {
-           return chatModel
-       } catch (e: IllegalArgumentException) {
+        try {
+            return chatModel
+        } catch (e: IllegalArgumentException) {
             log.error("Error attempting to cast artifact key to root: {}", e.message, e)
-           return ArtifactKey.createRoot()
-       }
+            return ArtifactKey.createRoot()
+        }
     }
 
     private fun getOrCreateSession(memoryId: Any?, chatRequest: Prompt?): AcpSessionManager.AcpSessionContext {
@@ -252,7 +366,10 @@ class AcpChatModel(
         }
     }
 
-    private suspend fun createSessionContext(memoryId: Any?, chatRequest: Prompt?): AcpSessionManager.AcpSessionContext {
+    private suspend fun createSessionContext(
+        memoryId: Any?,
+        chatRequest: Prompt?
+    ): AcpSessionManager.AcpSessionContext {
         log.info("Creating session context for $memoryId")
 
         if (!properties.transport.equals("stdio", ignoreCase = true)) {
@@ -282,7 +399,7 @@ class AcpChatModel(
                 else
                     workingDirectory
             }
-            .or {  System.getProperty("user.dir") }!!
+            .or { System.getProperty("user.dir") }!!
 
         if (cwd.isBlank())
             cwd = System.getProperty("user.dir")
@@ -378,11 +495,13 @@ class AcpChatModel(
 
             val messageParent = chatKey.createChild()
 
-            val session=  client.newSession(sessionParams)
-             { _, _ -> AcpSessionOperations(permissionGate, chatKey.value) }
+            val session = client.newSession(sessionParams)
+            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value) }
 
-            sessionManager.AcpSessionContext(scope, transport, protocol, client, session,
-                messageParent= messageParent, chatModelKey = chatKey)
+            sessionManager.AcpSessionContext(
+                scope, transport, protocol, client, session,
+                messageParent = messageParent, chatModelKey = chatKey
+            )
 
         } catch (ex: Exception) {
             throw IllegalStateException("Failed to initialize ACP session", ex)
@@ -412,7 +531,8 @@ class AcpChatModel(
 
     fun resolveSandboxTranslation(memoryId: Any?, args: String?): SandboxTranslation {
         val sessionId = memoryId?.toString() ?: return SandboxTranslation.empty()
-        val context = requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
+        val context =
+            requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
         val providerKey = resolveProviderKey()
         val direct = sandboxTranslationRegistry.find(providerKey).orElse(null)
         if (direct != null) {
@@ -528,7 +648,7 @@ class AcpChatModel(
             if (builder.isNotEmpty()) {
                 builder.append('\n')
             }
-            when(message) {
+            when (message) {
                 is UserMessage -> builder.append(formatMessageRole(role, message))
                 is AssistantMessage -> builder.append(formatMessageRole(role, message))
                 is SystemMessage -> builder.append(formatMessageRole(role, message))
