@@ -100,7 +100,7 @@ public class WorktreeAutoCommitService {
 
             String worktreeId = worktree.worktreeId();
             try {
-                if (!gitWorktreeService.hasUncommittedChanges(worktreeId)) {
+                if (!gitWorktreeService.hasUncommittedChanges(worktreeId, worktree.derivedBranch())) {
                     continue;
                 }
 
@@ -146,7 +146,7 @@ public class WorktreeAutoCommitService {
                     return commitFailure(sourceResult, sourceRequest, worktreeContext, committed, notes, message);
                 }
 
-                if (gitWorktreeService.hasUncommittedChanges(worktreeId)) {
+                if (gitWorktreeService.hasUncommittedChanges(worktreeId, worktree.derivedBranch())) {
                     return commitFailure(
                             sourceResult,
                             sourceRequest,

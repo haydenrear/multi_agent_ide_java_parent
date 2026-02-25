@@ -84,7 +84,7 @@ public class GitWorktreeService implements WorktreeService {
             Files.createDirectories(worktreePath);
             cloneRepository(repositoryUrl, worktreePath, baseBranch);
             checkoutNewBranch(worktreePath, derivedBranch, null);
-            List<String> submodulePaths = initializeSubmodule(worktreePath);
+            List<String> submodulePaths = initializeSubmodule(worktreePath, derivedBranch);
 
 //            we pass in the baseBranch of the parent here because when we clone the
 //            submodules it puts it in a detached head. So we do a checkout -b ...
@@ -133,7 +133,7 @@ public class GitWorktreeService implements WorktreeService {
         Path submoduleFullPath = parentWorktreePath.resolve(submodulePath);
 
         try {
-            List<String> updatedSubmodules = initializeSubmodule(parentWorktreePath);
+            List<String> updatedSubmodules = initializeSubmodule(parentWorktreePath, parentBranch);
             if (submodulePath != null && !submodulePath.isBlank()
                     && updatedSubmodules.stream().noneMatch(p -> p.equals(submodulePath))) {
                 throw new RuntimeException("Failed to initialize submodule path: " + submodulePath);
@@ -761,7 +761,7 @@ public class GitWorktreeService implements WorktreeService {
                     new HashMap<>()
             );
 
-            List<String> submodulePaths = initializeSubmodule(newWorktreePath);
+            List<String> submodulePaths = initializeSubmodule(newWorktreePath, newBranchName);
 
 //            we pass in the baseBranch of the parent here because when we clone the
 //            submodules it puts it in a detached head. So we do a checkout -b ...
@@ -938,7 +938,7 @@ public class GitWorktreeService implements WorktreeService {
         return getCurrentCommitHashInternal(wt.get().worktreePath());
     }
 
-    public boolean hasUncommittedChanges(String worktreeId) {
+    public boolean hasUncommittedChanges(String worktreeId, String derivedBranch) {
         Optional<WorktreeContext> wt = worktreeRepository.findById(worktreeId);
         if (wt.isEmpty()) {
             String message = "Worktree not found: " + worktreeId;
@@ -952,7 +952,7 @@ public class GitWorktreeService implements WorktreeService {
             if (hasCause(e, MissingObjectException.class)) {
                 log.warn("MissingObjectException checking worktree status for {} - attempting to fix detached HEAD submodules", worktreeId);
                 try {
-                    fixDetachedHeadSubmodules(wt.get().worktreePath());
+                    fixDetachedHeadSubmodules(wt.get().worktreePath(), derivedBranch);
                     try (var git = openGit(wt.get().worktreePath())) {
                         return !git.status().call().isClean();
                     }
@@ -978,7 +978,7 @@ public class GitWorktreeService implements WorktreeService {
         return false;
     }
 
-    private void fixDetachedHeadSubmodules(Path worktreePath) {
+    private void fixDetachedHeadSubmodules(Path worktreePath, String derivedBranch) {
         try (var git = openGit(worktreePath)) {
             Map<String, SubmoduleStatus> submodules = git.submoduleStatus().call();
             for (Map.Entry<String, SubmoduleStatus> entry : submodules.entrySet()) {
@@ -992,7 +992,7 @@ public class GitWorktreeService implements WorktreeService {
                         continue; // already on a branch
                     }
                     // Detached HEAD - create or checkout a branch from current commit
-                    String branchName = worktreePath.getFileName().toString();
+                    String branchName = derivedBranch;
                     log.info("Fixing detached HEAD in submodule {} by checking out branch {}", entry.getKey(), branchName);
                     try {
                         subGit.checkout().setName(branchName).setCreateBranch(true).call();
@@ -1700,13 +1700,13 @@ public class GitWorktreeService implements WorktreeService {
         return refName;
     }
 
-    private List<String> initializeSubmodule(Path parentWorktreePath) {
+    private List<String> initializeSubmodule(Path parentWorktreePath, String derivedBranch) {
         var result = RepoUtil.updateSubmodulesRecursively(parentWorktreePath);
         if (result.isErr()) {
             throw new RuntimeException(result.errorMessage());
         }
         // Fix detached HEAD submodules left by git submodule update --init
-        fixDetachedHeadSubmodules(parentWorktreePath);
+        fixDetachedHeadSubmodules(parentWorktreePath, derivedBranch);
         return result.unwrap();
     }
 
@@ -1930,7 +1930,7 @@ public class GitWorktreeService implements WorktreeService {
 
         // Ensure source repo submodules are initialized.
         try {
-            initializeSubmodule(sourcePath);
+            initializeSubmodule(sourcePath, derivedBranch);
         } catch (Exception e) {
             log.debug("Source submodule init skipped: {}", e.getMessage());
         }
