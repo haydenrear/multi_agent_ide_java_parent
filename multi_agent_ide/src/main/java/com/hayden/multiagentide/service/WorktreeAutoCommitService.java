@@ -20,6 +20,8 @@ import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -44,11 +46,17 @@ public class WorktreeAutoCommitService {
 
     private final GitWorktreeService gitWorktreeService;
     private final LlmRunner llmRunner;
-    private final EventBus eventBus;
-    private final List<RequestDecorator> requestDecorators;
-    private final List<PromptContextDecorator> promptContextDecorators;
-    private final List<ToolContextDecorator> toolContextDecorators;
-    private final List<FinalResultDecorator> finalResultDecorators;
+
+    @Autowired @Lazy
+    private EventBus eventBus;
+    @Autowired @Lazy
+    private List<RequestDecorator> requestDecorators;
+    @Autowired @Lazy
+    private List<PromptContextDecorator> promptContextDecorators;
+    @Autowired @Lazy
+    private List<ToolContextDecorator> toolContextDecorators;
+    @Autowired @Lazy
+    private List<FinalResultDecorator> finalResultDecorators;
 
     public AgentModels.CommitAgentResult autoCommitDirtyWorktrees(
             AgentModels.AgentResult sourceResult,
@@ -56,11 +64,30 @@ public class WorktreeAutoCommitService {
             DecoratorContext decoratorContext,
             String goalHint
     ) {
+        return autoCommitDirtyWorktreesInternal(sourceResult, null, worktreeContext, decoratorContext, goalHint);
+    }
+
+    public AgentModels.CommitAgentResult autoCommitDirtyWorktreesForRequest(
+            AgentModels.AgentRequest sourceRequest,
+            WorktreeSandboxContext worktreeContext,
+            DecoratorContext decoratorContext,
+            String goalHint
+    ) {
+        return autoCommitDirtyWorktreesInternal(null, sourceRequest, worktreeContext, decoratorContext, goalHint);
+    }
+
+    private AgentModels.CommitAgentResult autoCommitDirtyWorktreesInternal(
+            AgentModels.AgentResult sourceResult,
+            AgentModels.AgentRequest explicitSourceRequest,
+            WorktreeSandboxContext worktreeContext,
+            DecoratorContext decoratorContext,
+            String goalHint
+    ) {
         if (worktreeContext == null || worktreeContext.mainWorktree() == null) {
-            return commitSuccess(sourceResult, worktreeContext, List.of(), List.of(), "No worktree context to auto-commit.");
+            return commitSuccess(sourceResult, explicitSourceRequest, worktreeContext, List.of(), List.of(), "No worktree context to auto-commit.");
         }
 
-        AgentModels.AgentRequest sourceRequest = resolveSourceRequest(decoratorContext);
+        AgentModels.AgentRequest sourceRequest = explicitSourceRequest != null ? explicitSourceRequest : resolveSourceRequest(decoratorContext);
         AgentType sourceAgentType = resolveSourceAgentType(sourceResult, sourceRequest);
         AgentModels.AgentRequest lastRequest = resolveLastRequest(decoratorContext);
         List<WorktreeCommitMetadata> committed = new ArrayList<>();
@@ -84,7 +111,7 @@ public class WorktreeAutoCommitService {
                         goalHint,
                         sourceAgentType,
                         sourceRequest,
-                        summarizeResult(sourceResult)
+                        summarizeSource(sourceResult, sourceRequest)
                 );
 
                 AgentModels.CommitAgentRequest decoratedRequest = decorateCommitRequest(
@@ -116,12 +143,13 @@ public class WorktreeAutoCommitService {
                     String message = commitResult.errorMessage() != null && !commitResult.errorMessage().isBlank()
                             ? commitResult.errorMessage()
                             : "Commit agent returned unsuccessful response for worktree " + worktreeId;
-                    return commitFailure(sourceResult, worktreeContext, committed, notes, message);
+                    return commitFailure(sourceResult, sourceRequest, worktreeContext, committed, notes, message);
                 }
 
                 if (gitWorktreeService.hasUncommittedChanges(worktreeId)) {
                     return commitFailure(
                             sourceResult,
+                            sourceRequest,
                             worktreeContext,
                             committed,
                             notes,
@@ -133,6 +161,7 @@ public class WorktreeAutoCommitService {
                 log.error("Commit agent failed for worktree {}", worktreeId, e);
                 return commitFailure(
                         sourceResult,
+                        sourceRequest,
                         worktreeContext,
                         committed,
                         notes,
@@ -141,7 +170,7 @@ public class WorktreeAutoCommitService {
             }
         }
 
-        return commitSuccess(sourceResult, worktreeContext, committed, notes, "Auto-commit completed.");
+        return commitSuccess(sourceResult, sourceRequest, worktreeContext, committed, notes, "Auto-commit completed.");
     }
 
     private AgentModels.CommitAgentResult executeCommitAgent(
@@ -365,13 +394,14 @@ public class WorktreeAutoCommitService {
 
     private AgentModels.CommitAgentResult commitSuccess(
             AgentModels.AgentResult sourceResult,
+            AgentModels.AgentRequest sourceRequest,
             WorktreeSandboxContext worktreeContext,
             List<WorktreeCommitMetadata> metadata,
             List<String> notes,
             String output
     ) {
         return AgentModels.CommitAgentResult.builder()
-                .contextId(sourceResult != null ? sourceResult.contextId() : null)
+                .contextId(resolveSourceContextId(sourceResult, sourceRequest))
                 .successful(true)
                 .output(output)
                 .errorMessage(null)
@@ -383,14 +413,15 @@ public class WorktreeAutoCommitService {
 
     private AgentModels.CommitAgentResult commitFailure(
             AgentModels.AgentResult sourceResult,
+            AgentModels.AgentRequest sourceRequest,
             WorktreeSandboxContext worktreeContext,
             List<WorktreeCommitMetadata> metadata,
             List<String> notes,
             String errorMessage
     ) {
-        publishNodeError(sourceResult, errorMessage);
+        publishNodeError(sourceResult, sourceRequest, errorMessage);
         return AgentModels.CommitAgentResult.builder()
-                .contextId(sourceResult != null ? sourceResult.contextId() : null)
+                .contextId(resolveSourceContextId(sourceResult, sourceRequest))
                 .successful(false)
                 .output("Auto-commit failed.")
                 .errorMessage(errorMessage)
@@ -400,14 +431,25 @@ public class WorktreeAutoCommitService {
                 .build();
     }
 
-    private void publishNodeError(AgentModels.AgentResult sourceResult, String reason) {
+    private ArtifactKey resolveSourceContextId(AgentModels.AgentResult sourceResult, AgentModels.AgentRequest sourceRequest) {
+        if (sourceResult != null && sourceResult.contextId() != null) {
+            return sourceResult.contextId();
+        }
+        if (sourceRequest != null && sourceRequest.contextId() != null) {
+            return sourceRequest.contextId();
+        }
+        return null;
+    }
+
+    private void publishNodeError(AgentModels.AgentResult sourceResult, AgentModels.AgentRequest sourceRequest, String reason) {
         log.error(reason);
         if (eventBus == null) {
             return;
         }
-        ArtifactKey key = sourceResult != null && sourceResult.contextId() != null
-                ? sourceResult.contextId()
-                : ArtifactKey.createRoot();
+        ArtifactKey key = resolveSourceContextId(sourceResult, sourceRequest);
+        if (key == null) {
+            key = ArtifactKey.createRoot();
+        }
         eventBus.publish(Events.NodeErrorEvent.err(reason, key));
     }
 
@@ -479,6 +521,22 @@ public class WorktreeAutoCommitService {
             return "";
         }
         String pretty = result.prettyPrint();
+        if (pretty == null || pretty.isBlank()) {
+            return "";
+        }
+        String normalized = pretty.trim().replace('\n', ' ');
+        return normalized.length() > 500 ? normalized.substring(0, 500) : normalized;
+    }
+
+    private String summarizeSource(AgentModels.AgentResult sourceResult, AgentModels.AgentRequest sourceRequest) {
+        String fromResult = summarizeResult(sourceResult);
+        if (!fromResult.isBlank()) {
+            return fromResult;
+        }
+        if (sourceRequest == null) {
+            return "";
+        }
+        String pretty = sourceRequest.prettyPrint();
         if (pretty == null || pretty.isBlank()) {
             return "";
         }

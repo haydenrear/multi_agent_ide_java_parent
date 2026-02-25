@@ -52,8 +52,8 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
 
     @Test
     void reviewApprovalCreatesMergeNode() {
-        TicketOrchestratorNode ticketOrchestrator = ticketOrchestrator("orchestrator-1", new HasWorktree.WorkTree("parent-wt", null, new ArrayList<>()));
-        TicketNode ticketNode = ticketNode("ticket-1", ticketOrchestrator.nodeId(), new HasWorktree.WorkTree("child-wt", "parent-wt", new ArrayList<>()));
+        TicketOrchestratorNode ticketOrchestrator = ticketOrchestrator("orchestrator-1");
+        TicketNode ticketNode = ticketNode("ticket-1", ticketOrchestrator.nodeId());
         ReviewNode reviewNode = reviewNode("review-1", ticketNode.nodeId());
 
         graphRepository.save(ticketOrchestrator);
@@ -108,8 +108,8 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
 
     @Test
     void reviewRejectionCreatesRevisionNode() {
-        TicketOrchestratorNode ticketOrchestrator = ticketOrchestrator("orchestrator-2", new HasWorktree.WorkTree("parent-wt-2", null, new ArrayList<>()));
-        TicketNode ticketNode = ticketNode("ticket-2", ticketOrchestrator.nodeId(), new HasWorktree.WorkTree("child-wt-2", "parent-wt-2", new ArrayList<>()));
+        TicketOrchestratorNode ticketOrchestrator = ticketOrchestrator("orchestrator-2");
+        TicketNode ticketNode = ticketNode("ticket-2", ticketOrchestrator.nodeId());
         ReviewNode reviewNode = reviewNode("review-2", ticketNode.nodeId());
 
         graphRepository.save(ticketOrchestrator);
@@ -188,7 +188,7 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
         assertThat(reloaded.status()).isEqualTo(WorktreeContext.WorktreeStatus.ACTIVE);
     }
 
-    private TicketOrchestratorNode ticketOrchestrator(String nodeId, HasWorktree.WorkTree mainWorktreeId) {
+    private TicketOrchestratorNode ticketOrchestrator(String nodeId) {
         return new TicketOrchestratorNode(
             nodeId,
             "Ticket Orchestrator",
@@ -199,8 +199,7 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
             new HashMap<>(),
             Instant.now(),
             Instant.now(),
-            mainWorktreeId,
-            0,
+                0,
             0,
             "ticket-orchestrator",
             "",
@@ -209,7 +208,7 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
         );
     }
 
-    private TicketNode ticketNode(String nodeId, String parentId, HasWorktree.WorkTree mainWorktreeId) {
+    private TicketNode ticketNode(String nodeId, String parentId) {
         return new TicketNode(
             nodeId,
             "Ticket 1",
@@ -219,14 +218,7 @@ class AgentRunnerWorkflowTest extends AgentTestBase {
             new ArrayList<>(),
             new HashMap<>(),
             Instant.now(),
-            Instant.now(),
-            mainWorktreeId,
-            0,
-            0,
-            "ticket-agent",
-            "",
-            true,
-            0
+            Instant.now()
         );
     }
 

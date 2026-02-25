@@ -3,13 +3,11 @@ package com.hayden.multiagentide.agent;
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import com.hayden.multiagentide.repository.GraphRepository;
-import com.hayden.multiagentide.service.WorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -31,11 +29,8 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class WorkflowGraphService {
 
-    private static final String META_PARENT_WORKTREE = "parent_worktree_id";
-
     private final ComputationGraphOrchestrator computationGraphOrchestrator;
     private final GraphRepository graphRepository;
-    private final WorktreeService worktreeService;
     private final GraphNodeFactory nodeFactory;
 
     public synchronized  <T> T resolveState(OperationContext context, Function<com.hayden.multiagentidelib.agent.WorkflowGraphState, T> t) {
@@ -675,41 +670,11 @@ public class WorkflowGraphService {
                             .lastUpdatedAt(Instant.now())
                             .build(),
                     () -> {
-                        String parentWorktreeId = root.mainWorktreeId();
-                        String ticketBranchName = "ticket-orch-" + shortId(parentId);
-                        String ticketMainWorktreeId = root.mainWorktreeId();
-                        List<HasWorktree.WorkTree> branchedSubmodules = new ArrayList<>();
-                        try {
-                            MainWorktreeContext branched = worktreeService.branchWorktree(
-                                    root.mainWorktreeId(),
-                                    ticketBranchName,
-                                    parentId
-                            );
-                            ticketMainWorktreeId = branched.worktreeId();
-                            if (root.submoduleWorktreeIds() != null) {
-                                branchedSubmodules = root.submoduleWorktreeIds()
-                                        .stream()
-                                        .map(submoduleId -> new HasWorktree.WorkTree(
-                                                worktreeService.branchSubmoduleWorktree(
-                                                        submoduleId,
-                                                        ticketBranchName,
-                                                        parentId
-                                                ).worktreeId(),
-                                                submoduleId,
-                                                new ArrayList<>()
-                                        ))
-                                        .toList();
-                            }
-                        } catch (Exception e) {
-                            ticketMainWorktreeId = root.mainWorktreeId();
-                        }
-                        Map<String, String> metadata = new ConcurrentHashMap<>();
-                        metadata.put(META_PARENT_WORKTREE, Optional.ofNullable(parentWorktreeId).orElse(""));
+
                         TicketOrchestratorNode ticketNode = nodeFactory.ticketOrchestratorNode(
                                 parentId,
                                 input != null ? input.goal() : "",
-                                metadata,
-                                new HasWorktree.WorkTree(ticketMainWorktreeId, root.mainWorktreeId(), branchedSubmodules),
+                                Map.of(),
                                 input != null ? input.contextId() : null
                         );
                         computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, ticketNode);
@@ -784,19 +749,12 @@ public class WorkflowGraphService {
                 "ticket orchestrator for dispatch"
         );
 
-        String branchedWorktreeId = ticketParent.mainWorktreeId();
-        List<HasWorktree.WorkTree> submoduleWorktrees = ticketParent.submoduleWorktreeIds();
         String title = firstNonBlank(request.ticketDetailsFilePath(), "Ticket " + index);
         TicketNode ticketNode = nodeFactory.ticketNode(
                 parent.nodeId(),
                 title,
                 Objects.toString(request.ticketDetails(), ""),
                 Map.of(),
-                new HasWorktree.WorkTree(
-                        branchedWorktreeId,
-                        ticketParent.mainWorktreeId(),
-                        submoduleWorktrees
-                ),
                 request != null ? request.contextId() : null
         );
         return startChildNode(parent.nodeId(), ticketNode);
@@ -815,7 +773,7 @@ public class WorkflowGraphService {
             markNodeCompleted(running);
             return;
         }
-        TicketNode completed = running.withTicketAgentResult(response).withOutput(response.output(), 0);
+        TicketNode completed = running.withTicketAgentResult(response).withOutput(response.output());
         persistNode(completed);
         markNodeCompleted(completed);
     }

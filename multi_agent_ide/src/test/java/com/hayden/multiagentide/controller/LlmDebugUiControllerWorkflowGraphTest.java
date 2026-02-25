@@ -309,7 +309,6 @@ class LlmDebugUiControllerWorkflowGraphTest {
         graphRepository.save(mergeNode);
 
         // Ticket Orchestrator
-        HasWorktree.WorkTree ticketWorktree = new HasWorktree.WorkTree("wt-ticket-1", null, List.of());
         TicketOrchestratorNode ticketOrch = TicketOrchestratorNode.builder()
                 .nodeId(ticketOrchId)
                 .title("Ticket Orchestrator")
@@ -319,12 +318,10 @@ class LlmDebugUiControllerWorkflowGraphTest {
                 .childNodeIds(new ArrayList<>(List.of(ticketAgentId)))
                 .createdAt(NOW.minusSeconds(120))
                 .lastUpdatedAt(NOW.minusSeconds(50))
-                .worktree(ticketWorktree)
                 .build();
         graphRepository.save(ticketOrch);
 
         // Ticket Agent (with pending permission + pending interrupt)
-        HasWorktree.WorkTree ticketAgentWorktree = new HasWorktree.WorkTree("wt-ticket-agent-1", "wt-ticket-1", List.of());
         TicketNode ticketAgent = TicketNode.builder()
                 .nodeId(ticketAgentId)
                 .title("Ticket 1")
@@ -334,7 +331,6 @@ class LlmDebugUiControllerWorkflowGraphTest {
                 .childNodeIds(new ArrayList<>(List.of(permNodeId, interruptNodeId)))
                 .createdAt(NOW.minusSeconds(100))
                 .lastUpdatedAt(NOW.minusSeconds(50))
-                .worktree(ticketAgentWorktree)
                 .build();
         graphRepository.save(ticketAgent);
 

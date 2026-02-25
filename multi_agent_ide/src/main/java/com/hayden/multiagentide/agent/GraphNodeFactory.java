@@ -8,7 +8,6 @@ import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
@@ -230,7 +229,6 @@ public class GraphNodeFactory {
             String parentId,
             String goal,
             Map<String, String> metadata,
-            HasWorktree.WorkTree worktree,
             ArtifactKey artifactKey
     ) {
         Instant now = Instant.now();
@@ -244,7 +242,6 @@ public class GraphNodeFactory {
                 new ConcurrentHashMap<>(metadata),
                 now,
                 now,
-                worktree,
                 0,
                 0,
                 "ticket-orchestrator",
@@ -259,7 +256,6 @@ public class GraphNodeFactory {
             String title,
             String ticketDetails,
             Map<String, String> metadata,
-            HasWorktree.WorkTree worktree,
             ArtifactKey artifactKey
     ) {
         Instant now = Instant.now();
@@ -272,14 +268,7 @@ public class GraphNodeFactory {
                 new ArrayList<>(),
                 new ConcurrentHashMap<>(metadata),
                 now,
-                now,
-                worktree,
-                0,
-                0,
-                "ticket-agent",
-                "",
-                true,
-                0
+                now
         );
     }
 

@@ -6,6 +6,7 @@ import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.model.merge.AgentMergeStatus;
 import com.hayden.multiagentidelib.model.merge.MergeAggregation;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
+import com.hayden.multiagentidelib.model.merge.WorktreeCommitMetadata;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
@@ -63,6 +64,12 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             Merge commit trail (one per line, or `none`):
             %s
 
+            Auto-commit trail (one per line, or `none`):
+            %s
+
+            Commit execution outcomes (one per line, or `none`):
+            %s
+
             Reported commits from dispatched agents (one per line, or `none`):
             %s
 
@@ -113,6 +120,12 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             Merge commit trail (one per line, or `none`):
             %s
 
+            Auto-commit trail (one per line, or `none`):
+            %s
+
+            Commit execution outcomes (one per line, or `none`):
+            %s
+
             Reported commits from dispatched agents (one per line, or `none`):
             %s
 
@@ -120,6 +133,8 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             %s
 
             Final merge-to-source status: %s
+            Final merge history (one per line, or `none`):
+            %s
             Final merge conflict files (one per line, or `none`):
             %s
             Final merge error (single line, or `none`): %s
@@ -180,13 +195,21 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             Set<DispatchFamily> families
     ) {
         MergePromptData data = collectMergePromptData(context, families, false);
-        MergeDescriptor finalMergeDescriptor = extractFinalMergeDescriptor(context);
+        List<MergeDescriptor> finalMergeDescriptors = extractFinalMergeDescriptors(context);
+        MergeDescriptor finalMergeDescriptor = finalMergeDescriptors.isEmpty()
+                ? null
+                : finalMergeDescriptors.getLast();
 
         if (!data.hasData() && finalMergeDescriptor == null) {
             return List.of();
         }
 
-        return List.of(new CollectorMergeValidationPromptContributor(collectorKind, data, finalMergeDescriptor));
+        return List.of(new CollectorMergeValidationPromptContributor(
+                collectorKind,
+                data,
+                finalMergeDescriptors,
+                finalMergeDescriptor
+        ));
     }
 
     private MergePromptData collectMergePromptData(
@@ -234,6 +257,10 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             }
 
             String source = String.format("history:%02d:%s", sequence++, input.getClass().getSimpleName());
+
+            if (input instanceof AgentModels.CommitAgentResult commitAgentResult) {
+                data.commitResults().add(toCommitExecutionSummary(source, commitAgentResult));
+            }
 
             for (DispatchFamily family : families) {
                 collectFamilyData(source, input, family, data);
@@ -461,6 +488,29 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
         };
     }
 
+    private CommitExecutionSummary toCommitExecutionSummary(String source, AgentModels.CommitAgentResult result) {
+        if (result == null) {
+            return new CommitExecutionSummary(
+                    nonBlankOrFallback(source, "unknown-source"),
+                    "unknown-context",
+                    false,
+                    "none",
+                    "none",
+                    List.of(),
+                    List.of()
+            );
+        }
+        return new CommitExecutionSummary(
+                nonBlankOrFallback(source, "unknown-source"),
+                safeContextId(result.contextId()),
+                result.successful(),
+                summarizeOneLine(result.output()),
+                summarizeOneLine(result.errorMessage()),
+                result.notes() != null ? nonBlankValues(result.notes()) : List.of(),
+                result.commitMetadata() != null ? result.commitMetadata() : List.of()
+        );
+    }
+
     private MergeAggregation extractMergeAggregationFromMetadata(PromptContext context) {
         Object metadataValue = context.metadata().get(MERGE_AGGREGATION_METADATA_KEY);
         if (metadataValue instanceof MergeAggregation aggregation) {
@@ -470,30 +520,40 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
     }
 
     private MergeDescriptor extractFinalMergeDescriptor(PromptContext context) {
+        List<MergeDescriptor> descriptors = extractFinalMergeDescriptors(context);
+        if (descriptors.isEmpty()) {
+            return null;
+        }
+        return descriptors.getLast();
+    }
+
+    private List<MergeDescriptor> extractFinalMergeDescriptors(PromptContext context) {
+        LinkedHashSet<String> seenFingerprints = new LinkedHashSet<>();
+        List<MergeDescriptor> descriptors = new ArrayList<>();
+
         AgentModels.AgentRequest currentRequest = context.currentRequest();
         if (currentRequest instanceof AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest
                 && orchestratorCollectorRequest.mergeDescriptor() != null) {
-            return orchestratorCollectorRequest.mergeDescriptor();
+            addFinalMergeDescriptor(descriptors, seenFingerprints, orchestratorCollectorRequest.mergeDescriptor());
         }
 
         Object descriptorFromMetadata = context.metadata().get(MERGE_DESCRIPTOR_METADATA_KEY);
         if (descriptorFromMetadata instanceof MergeDescriptor descriptor) {
-            return descriptor;
+            addFinalMergeDescriptor(descriptors, seenFingerprints, descriptor);
         }
 
         Object finalDescriptorFromMetadata = context.metadata().get(FINAL_MERGE_DESCRIPTOR_METADATA_KEY);
         if (finalDescriptorFromMetadata instanceof MergeDescriptor descriptor) {
-            return descriptor;
+            addFinalMergeDescriptor(descriptors, seenFingerprints, descriptor);
         }
 
         BlackboardHistory history = context.blackboardHistory();
         if (history == null) {
-            return null;
+            return descriptors;
         }
 
         List<BlackboardHistory.Entry> entries = history.copyOfEntries();
-        for (int i = entries.size() - 1; i >= 0; i--) {
-            BlackboardHistory.Entry entry = entries.get(i);
+        for (BlackboardHistory.Entry entry : entries) {
             if (!(entry instanceof BlackboardHistory.DefaultEntry defaultEntry)) {
                 continue;
             }
@@ -501,11 +561,37 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
                 continue;
             }
             if (request.mergeDescriptor() != null) {
-                return request.mergeDescriptor();
+                addFinalMergeDescriptor(descriptors, seenFingerprints, request.mergeDescriptor());
             }
         }
 
-        return null;
+        return descriptors;
+    }
+
+    private void addFinalMergeDescriptor(
+            List<MergeDescriptor> descriptors,
+            LinkedHashSet<String> seenFingerprints,
+            MergeDescriptor descriptor
+    ) {
+        if (descriptor == null) {
+            return;
+        }
+        String fingerprint = descriptorFingerprint(descriptor);
+        if (seenFingerprints.add(fingerprint)) {
+            descriptors.add(descriptor);
+        }
+    }
+
+    private String descriptorFingerprint(MergeDescriptor descriptor) {
+        String mergeId = descriptor.mainWorktreeMergeResult() != null
+                ? nonBlankOrFallback(descriptor.mainWorktreeMergeResult().mergeId(), "none")
+                : "none";
+        String mergeCommit = descriptor.mainWorktreeMergeResult() != null
+                ? nonBlankOrFallback(descriptor.mainWorktreeMergeResult().mergeCommitHash(), "none")
+                : "none";
+        String error = nonBlankOrFallback(descriptor.errorMessage(), "none");
+        String direction = descriptor.mergeDirection() != null ? descriptor.mergeDirection().name() : "none";
+        return direction + "|" + mergeId + "|" + mergeCommit + "|" + error;
     }
 
     private DispatchFamily resolveDispatchFamily(AgentModels.ResultsRequest request) {
@@ -808,7 +894,11 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
         }
     }
 
-    private List<String> toMergeCommitLines(List<DispatchedResultSummary> results, List<AgentMergeStatusSnapshot> statuses, MergeDescriptor finalMergeDescriptor) {
+    private List<String> toMergeCommitLines(
+            List<DispatchedResultSummary> results,
+            List<AgentMergeStatusSnapshot> statuses,
+            List<MergeDescriptor> finalMergeDescriptors
+    ) {
         LinkedHashSet<String> lines = new LinkedHashSet<>();
 
         if (results != null) {
@@ -829,11 +919,124 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             }
         }
 
-        if (finalMergeDescriptor != null) {
-            lines.add(toMergeCommitLine("final-merge", "orchestrator-collector", finalMergeDescriptor));
+        if (finalMergeDescriptors != null) {
+            int index = 0;
+            for (MergeDescriptor descriptor : finalMergeDescriptors) {
+                if (descriptor == null) {
+                    continue;
+                }
+                String source = String.format("final-merge:%02d", ++index);
+                lines.add(toMergeCommitLine(source, "orchestrator-collector", descriptor));
+            }
         }
 
         return new ArrayList<>(lines);
+    }
+
+    private List<String> toAutoCommitLines(
+            List<DispatchedResultSummary> results,
+            List<AgentMergeStatusSnapshot> statuses,
+            List<MergeDescriptor> finalMergeDescriptors
+    ) {
+        LinkedHashSet<String> lines = new LinkedHashSet<>();
+
+        if (results != null) {
+            for (DispatchedResultSummary result : results) {
+                if (result == null || result.mergeDescriptor() == null) {
+                    continue;
+                }
+                addAutoCommitLines(lines, result.source(), result.contextId(), result.mergeDescriptor());
+            }
+        }
+
+        if (statuses != null) {
+            for (AgentMergeStatusSnapshot status : statuses) {
+                if (status == null || status.status() == null || status.status().mergeDescriptor() == null) {
+                    continue;
+                }
+                addAutoCommitLines(lines, status.source(), status.status().agentResultId(), status.status().mergeDescriptor());
+            }
+        }
+
+        if (finalMergeDescriptors != null) {
+            int index = 0;
+            for (MergeDescriptor descriptor : finalMergeDescriptors) {
+                if (descriptor == null) {
+                    continue;
+                }
+                String source = String.format("final-merge:%02d", ++index);
+                addAutoCommitLines(lines, source, "orchestrator-collector", descriptor);
+            }
+        }
+
+        return new ArrayList<>(lines);
+    }
+
+    private List<String> toCommitExecutionLines(List<CommitExecutionSummary> commitResults) {
+        if (commitResults == null || commitResults.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> lines = new ArrayList<>();
+        for (CommitExecutionSummary commitResult : commitResults) {
+            if (commitResult == null) {
+                continue;
+            }
+            lines.add(String.format(
+                    "%s | %s | successful=%s | commits=%s | notes=%s | output=%s | error=%s",
+                    nonBlankOrFallback(commitResult.source(), "unknown-source"),
+                    nonBlankOrFallback(commitResult.contextId(), "unknown-context"),
+                    Boolean.toString(commitResult.successful()),
+                    summarizeCommitMetadata(commitResult.commitMetadata()),
+                    commaOrNone(nonBlankValues(commitResult.notes())),
+                    nonBlankOrFallback(summarizeOneLine(commitResult.output()), "none"),
+                    nonBlankOrFallback(summarizeOneLine(commitResult.errorMessage()), "none")
+            ));
+        }
+        return lines;
+    }
+
+    private String summarizeCommitMetadata(List<WorktreeCommitMetadata> commitMetadata) {
+        if (commitMetadata == null || commitMetadata.isEmpty()) {
+            return "none";
+        }
+
+        List<String> hashes = new ArrayList<>();
+        int count = 0;
+        for (WorktreeCommitMetadata metadata : commitMetadata) {
+            if (metadata == null) {
+                continue;
+            }
+            count++;
+            if (hashes.size() < 4 && metadata.commitHash() != null && !metadata.commitHash().isBlank()) {
+                hashes.add(metadata.commitHash().trim());
+            }
+        }
+        if (count == 0) {
+            return "none";
+        }
+        return "count=" + count + ", hashes=" + commaOrNone(hashes);
+    }
+
+    private void addAutoCommitLines(Set<String> lines, String source, String entityId, MergeDescriptor descriptor) {
+        if (descriptor == null || descriptor.commitMetadata() == null || descriptor.commitMetadata().isEmpty()) {
+            return;
+        }
+        for (WorktreeCommitMetadata commitMetadata : descriptor.commitMetadata()) {
+            if (commitMetadata == null) {
+                continue;
+            }
+            lines.add(String.format(
+                    "%s | %s | worktree=%s | commit=%s | message=%s | summary=%s | files=%s",
+                    nonBlankOrFallback(source, "unknown-source"),
+                    nonBlankOrFallback(entityId, "unknown-entity"),
+                    nonBlankOrFallback(commitMetadata.worktreeId(), "unknown-worktree"),
+                    nonBlankOrFallback(commitMetadata.commitHash(), "none"),
+                    summarizeOneLine(nonBlankOrFallback(commitMetadata.commitMessage(), "none")),
+                    summarizeOneLine(nonBlankOrFallback(commitMetadata.summary(), "none")),
+                    commaOrNone(nonBlankValues(commitMetadata.changedFiles()))
+            ));
+        }
     }
 
     private String toMergeCommitLine(String source, String entityId, MergeDescriptor descriptor) {
@@ -998,7 +1201,9 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
                     helper.linesOrNone(helper.toMergeStatusLines(statuses)),
                     helper.linesOrNone(helper.toMainWorktreeLines(data.worktreeContexts().values(), statuses)),
                     helper.linesOrNone(helper.toSubmoduleWorktreeLines(data.worktreeContexts().values(), statuses)),
-                    helper.linesOrNone(helper.toMergeCommitLines(data.dispatchedResults(), statuses, null)),
+                    helper.linesOrNone(helper.toMergeCommitLines(data.dispatchedResults(), statuses, List.of())),
+                    helper.linesOrNone(helper.toAutoCommitLines(data.dispatchedResults(), statuses, List.of())),
+                    helper.linesOrNone(helper.toCommitExecutionLines(data.commitResults())),
                     helper.linesOrNone(helper.toReportedCommitLines(data.dispatchedResults())),
                     helper.linesOrNone(helper.toReportedFilesLines(data.dispatchedResults()))
             );
@@ -1018,6 +1223,7 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
     public record CollectorMergeValidationPromptContributor(
             CollectorKind collectorKind,
             MergePromptData data,
+            List<MergeDescriptor> finalMergeDescriptors,
             MergeDescriptor finalMergeDescriptor
     ) implements PromptContributor {
 
@@ -1062,10 +1268,13 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
                     helper.linesOrNone(helper.toMergeStatusLines(statuses)),
                     helper.linesOrNone(helper.toMainWorktreeLines(data.worktreeContexts().values(), statuses)),
                     helper.linesOrNone(helper.toSubmoduleWorktreeLines(data.worktreeContexts().values(), statuses)),
-                    helper.linesOrNone(helper.toMergeCommitLines(data.dispatchedResults(), statuses, finalMergeDescriptor)),
+                    helper.linesOrNone(helper.toMergeCommitLines(data.dispatchedResults(), statuses, finalMergeDescriptors)),
+                    helper.linesOrNone(helper.toAutoCommitLines(data.dispatchedResults(), statuses, finalMergeDescriptors)),
+                    helper.linesOrNone(helper.toCommitExecutionLines(data.commitResults())),
                     helper.linesOrNone(helper.toReportedCommitLines(data.dispatchedResults())),
                     helper.linesOrNone(helper.toReportedFilesLines(data.dispatchedResults())),
                     finalStatus,
+                    helper.linesOrNone(helper.toMergeCommitLines(List.of(), List.of(), finalMergeDescriptors)),
                     finalConflictFiles,
                     finalError,
                     finalMergeCommit
@@ -1164,15 +1373,28 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
     ) {
     }
 
+    private record CommitExecutionSummary(
+            String source,
+            String contextId,
+            boolean successful,
+            String output,
+            String errorMessage,
+            List<String> notes,
+            List<WorktreeCommitMetadata> commitMetadata
+    ) {
+    }
+
     private record MergePromptData(
             List<MergeAggregationSource> aggregationSources,
             List<DispatchEnvelope> dispatchEnvelopes,
             List<DispatchedRequestSummary> dispatchedRequests,
             List<DispatchedResultSummary> dispatchedResults,
+            List<CommitExecutionSummary> commitResults,
             WorktreeContextBag worktreeContexts
     ) {
         static MergePromptData empty() {
             return new MergePromptData(
+                    new ArrayList<>(),
                     new ArrayList<>(),
                     new ArrayList<>(),
                     new ArrayList<>(),
@@ -1186,6 +1408,7 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
                     || !dispatchEnvelopes.isEmpty()
                     || !dispatchedRequests.isEmpty()
                     || !dispatchedResults.isEmpty()
+                    || !commitResults.isEmpty()
                     || !worktreeContexts.values().isEmpty();
         }
     }

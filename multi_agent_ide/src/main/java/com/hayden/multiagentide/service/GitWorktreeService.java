@@ -732,6 +732,7 @@ public class GitWorktreeService implements WorktreeService {
             String worktreeId = UUID.randomUUID().toString();
             Path newWorktreePath = Paths.get(baseWorktreesPath, worktreeId);
             String parentBranch = resolveBranchForBranching(sourceContext);
+
             validateCloneSource(sourceContext.worktreePath().toString(), parentBranch, nodeId);
 
             // Clone from the source worktree itself so derived branches created in the sandbox
@@ -757,6 +758,26 @@ public class GitWorktreeService implements WorktreeService {
                     new ArrayList<>(),
                     new HashMap<>()
             );
+
+            List<String> submodulePaths = initializeSubmodule(newWorktreePath);
+
+//            we pass in the baseBranch of the parent here because when we clone the
+//            submodules it puts it in a detached head. So we do a checkout -b ...
+//            and we assume that it's either on that same commit as the branch or will
+//            create a new branch with the name of the commit.
+            List<SubmoduleWorktreeContext> submodules = createSubmoduleContexts(
+                    submodulePaths,
+                    worktreeId,
+                    newWorktreePath,
+                    nodeId,
+                    newBranchName
+            );
+
+            for (var s : submodules) {
+                worktreeRepository.save(s);
+            }
+
+            context.submoduleWorktrees().addAll(submodules);
 
             worktreeRepository.save(context);
             return context;
@@ -1683,20 +1704,7 @@ public class GitWorktreeService implements WorktreeService {
                     branchName,
                     nodeId
             );
-            List<SubmoduleWorktreeContext> submodules = new ArrayList<>();
-            if (parentContext.submoduleWorktrees() != null) {
-                for (SubmoduleWorktreeContext submodule : parentContext.submoduleWorktrees()) {
-                    if (submodule == null) {
-                        continue;
-                    }
-                    submodules.add(branchSubmoduleWorktree(
-                            submodule.worktreeId(),
-                            branchName,
-                            nodeId
-                    ));
-                }
-            }
-            return new WorktreeSandboxContext(main, submodules);
+            return new WorktreeSandboxContext(main, main.submoduleWorktrees());
         } catch (Exception ex) {
             String parentMainId = parentContext != null && parentContext.mainWorktree() != null
                     ? parentContext.mainWorktree().worktreeId()

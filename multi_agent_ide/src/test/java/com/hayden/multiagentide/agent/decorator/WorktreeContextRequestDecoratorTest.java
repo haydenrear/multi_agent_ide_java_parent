@@ -7,7 +7,6 @@ import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.WorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.model.nodes.HasWorktree;
 import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
 import com.hayden.multiagentidelib.model.nodes.TicketNode;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
@@ -159,42 +158,6 @@ class WorktreeContextRequestDecoratorTest {
         DecoratorContext ctx = new DecoratorContext(operationContext, "agent", "action", "method", null, request);
 
         AgentModels.OrchestratorRequest decorated = decorator.decorate(request, ctx);
-        assertThat(decorated.worktreeContext()).isNotNull();
-        assertThat(decorated.worktreeContext().mainWorktree()).isEqualTo(main);
-        assertThat(decorated.worktreeContext().submoduleWorktrees()).containsExactly(sub);
-    }
-
-    @Test
-    @DisplayName("decorate resolves sandbox context from HasWorktree nodes")
-    void decorateResolvesFromHasWorktreeNode() {
-        OperationContext operationContext = mock(OperationContext.class, RETURNS_DEEP_STUBS);
-        when(operationContext.getProcessContext().getAgentProcess().getId()).thenReturn("node-2");
-
-        MainWorktreeContext main = mainContext("main-2", "/tmp/main-2");
-        SubmoduleWorktreeContext sub = submoduleContext("sub-2", "sub-2", "/tmp/main-2/sub2", "main-2");
-
-        HasWorktree.WorkTree worktree = new HasWorktree.WorkTree(
-                "main-2",
-                null,
-                List.of(new HasWorktree.WorkTree("sub-2", "main-2", List.of()))
-        );
-        TicketNode node = TicketNode.builder()
-                .nodeId("node-2")
-                .goal("goal")
-                .worktree(worktree)
-                .build();
-
-        when(graphRepository.findById("node-2")).thenReturn(Optional.of(node));
-        when(worktreeRepository.findById("main-2")).thenReturn(Optional.of(main));
-        when(worktreeRepository.findById("sub-2")).thenReturn(Optional.of(sub));
-
-        AgentModels.TicketAgentRequest request = AgentModels.TicketAgentRequest.builder()
-                .contextId(ArtifactKey.createRoot())
-                .build();
-
-        DecoratorContext ctx = new DecoratorContext(operationContext, "agent", "action", "method", null, request);
-
-        AgentModels.TicketAgentRequest decorated = decorator.decorate(request, ctx);
         assertThat(decorated.worktreeContext()).isNotNull();
         assertThat(decorated.worktreeContext().mainWorktree()).isEqualTo(main);
         assertThat(decorated.worktreeContext().submoduleWorktrees()).containsExactly(sub);

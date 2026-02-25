@@ -22,7 +22,6 @@ public record TicketOrchestratorNode(
         Map<String, String> metadata,
         Instant createdAt,
         Instant lastUpdatedAt,
-        WorkTree worktree,
         int completedSubtasks,
         int totalSubtasks,
         String agentType,  // Type of agent handling this work
@@ -32,12 +31,12 @@ public record TicketOrchestratorNode(
         AgentModels.TicketOrchestratorResult ticketOrchestratorResult,
         InterruptContext interruptibleContext,
         WorkflowContext workflowContext
-) implements GraphNode, Viewable<String>, Orchestrator, HasWorktree, Interruptible, HasWorkflowContext<TicketOrchestratorNode> {
+) implements GraphNode, Viewable<String>, Orchestrator, Interruptible, HasWorkflowContext<TicketOrchestratorNode> {
 
     public TicketOrchestratorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata,
-                                  Instant createdAt, Instant lastUpdatedAt, WorkTree worktree, int completedSubtasks, int totalSubtasks, String agentType, String workOutput, boolean mergeRequired, int streamingTokenCount) {
+                                  Instant createdAt, Instant lastUpdatedAt, int completedSubtasks, int totalSubtasks, String agentType, String workOutput, boolean mergeRequired, int streamingTokenCount) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                worktree, completedSubtasks, totalSubtasks, agentType,
+                completedSubtasks, totalSubtasks, agentType,
                 workOutput, mergeRequired, streamingTokenCount, null, null, WorkflowContext.initial());
     }
 
@@ -45,7 +44,6 @@ public record TicketOrchestratorNode(
     public TicketOrchestratorNode {
         if (nodeId == null || nodeId.isEmpty()) throw new IllegalArgumentException("nodeId required");
         if (goal == null || goal.isEmpty()) throw new IllegalArgumentException("goal required");
-        if (worktree == null) throw new IllegalArgumentException("mainWorktreeId required");
         if (childNodeIds == null) childNodeIds = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
         if (workflowContext == null) workflowContext = WorkflowContext.initial();
@@ -137,11 +135,4 @@ public record TicketOrchestratorNode(
                 .build();
     }
 
-    public String mainWorktreeId() {
-        return worktree.worktreeId();
-    }
-
-    public List<WorkTree> submoduleWorktreeIds() {
-        return this.worktree.submoduleWorktrees();
-    }
 }

@@ -10,7 +10,6 @@ import com.hayden.multiagentide.service.WorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.events.DegenerateLoopException;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
-import com.hayden.multiagentidelib.model.nodes.HasWorktree;
 import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
@@ -155,14 +154,6 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
         if (node instanceof OrchestratorNode orchestratorNode) {
             mainWorktreeId = orchestratorNode.mainWorktreeId();
             return buildSandboxContextFrom(mainWorktreeId, orchestratorNode.submoduleWorktrees());
-        } else if (node instanceof HasWorktree hasWorktree && hasWorktree.worktree() != null) {
-            mainWorktreeId = hasWorktree.worktree().worktreeId();
-            if (hasWorktree.worktree().submoduleWorktrees() != null) {
-                submoduleIds = hasWorktree.worktree().submoduleWorktrees().stream()
-                        .map(HasWorktree.WorkTree::worktreeId)
-                        .toList();
-            }
-            return buildSandboxContext(mainWorktreeId, submoduleIds);
         }
 
         return null;

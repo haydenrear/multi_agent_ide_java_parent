@@ -258,7 +258,6 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
         }
     }
 
-    @SuppressWarnings("unchecked")
     private <T extends AgentModels.AgentResult> T withWorktreeContext(T result, DecoratorContext context) {
         if (result.worktreeContext() != null) {
             return result;

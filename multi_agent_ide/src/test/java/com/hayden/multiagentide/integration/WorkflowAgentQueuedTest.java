@@ -178,9 +178,6 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         doThrow(new RuntimeException("worktree disabled"))
                 .when(worktreeService)
                 .branchWorktree(any(), any(), any());
-        doThrow(new RuntimeException("worktree disabled"))
-                .when(worktreeService)
-                .branchSubmoduleWorktree(any(), any(), any());
 
         Mockito.when(worktreeService.attachWorktreesToDiscoveryRequests(any(AgentModels.DiscoveryAgentRequests.class), anyString()))
                 .thenAnswer(inv -> {

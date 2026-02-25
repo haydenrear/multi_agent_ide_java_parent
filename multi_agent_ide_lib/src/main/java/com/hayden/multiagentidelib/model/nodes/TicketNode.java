@@ -21,42 +21,25 @@ public record TicketNode(
         Map<String, String> metadata,
         Instant createdAt,
         Instant lastUpdatedAt,
-
-        // Work-specific fields
-        WorkTree worktree,
-        int completedSubtasks,
-        int totalSubtasks,
-        String agentType,  // Type of agent handling this work
         String workOutput,
-        boolean mergeRequired,
-        int streamingTokenCount,
         AgentModels.TicketAgentResult ticketAgentResult,
         InterruptContext interruptibleContext
-) implements GraphNode, Viewable<String>, HasWorktree, Interruptible {
-
-    public TicketNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds,
-                      Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, WorkTree worktree, int completedSubtasks, int totalSubtasks, String agentType, String workOutput, boolean mergeRequired, int streamingTokenCount) {
-        this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                worktree, completedSubtasks, totalSubtasks, agentType,
-                workOutput, mergeRequired, streamingTokenCount, null, null);
-    }
+) implements GraphNode, Interruptible {
 
     public TicketNode {
         if (nodeId == null || nodeId.isEmpty()) throw new IllegalArgumentException("nodeId required");
         if (goal == null || goal.isEmpty()) throw new IllegalArgumentException("goal required");
-        if (worktree == null ) throw new IllegalArgumentException("mainWorktreeId required");
         if (childNodeIds == null) childNodeIds = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
+    }
+
+    public TicketNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt) {
+        this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt, "", null, null);
     }
 
     @Override
     public Events.NodeType nodeType() {
         return Events.NodeType.WORK;
-    }
-
-    @Override
-    public String getView() {
-        return workOutput;
     }
 
     /**
@@ -73,43 +56,9 @@ public record TicketNode(
     /**
      * Update work output and streaming progress.
      */
-    public TicketNode withOutput(String output, int tokens) {
+    public TicketNode withOutput(String output) {
         return toBuilder()
                 .workOutput(output)
-                .streamingTokenCount(tokens)
-                .lastUpdatedAt(Instant.now())
-                .build();
-    }
-
-    /**
-     * Update progress.
-     */
-    public TicketNode withProgress(int completed, int total) {
-        return toBuilder()
-                .completedSubtasks(completed)
-                .totalSubtasks(total)
-                .lastUpdatedAt(Instant.now())
-                .build();
-    }
-
-    /**
-     * Mark that merge is required.
-     */
-    public TicketNode requireMerge() {
-        return toBuilder()
-                .mergeRequired(true)
-                .lastUpdatedAt(Instant.now())
-                .build();
-    }
-
-    /**
-     * Add a child node ID.
-     */
-    public TicketNode addChildNode(String childNodeId) {
-        List<String> newChildren = new ArrayList<>(childNodeIds);
-        newChildren.add(childNodeId);
-        return toBuilder()
-                .childNodeIds(newChildren)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }
