@@ -26,6 +26,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.submodule.SubmoduleWalk;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.util.FS;
@@ -706,14 +707,6 @@ public class GitWorktreeService implements WorktreeService {
             return false;
         }
         try (var git = openGit(parentContext.worktreePath())) {
-            Status status = git.status().call();
-            Set<String> modified = status.getModified();
-            boolean changed = modified.contains(submodulePath)
-                    || status.getChanged().contains(submodulePath)
-                    || status.getAdded().contains(submodulePath);
-            if (!changed) {
-                return false;
-            }
             git.add().addFilepattern(submodulePath).call();
             git.commit().setMessage("Update " + submodulePath + " pointer").call();
             return true;
@@ -947,7 +940,7 @@ public class GitWorktreeService implements WorktreeService {
             return true;
         }
         try (var git = openGit(wt.get().worktreePath())) {
-            return !git.status().call().isClean();
+            return !git.status().setIgnoreSubmodules(SubmoduleWalk.IgnoreSubmoduleMode.ALL).call().isClean();
         } catch (Exception e) {
             if (hasCause(e, MissingObjectException.class)) {
                 log.warn("MissingObjectException checking worktree status for {} - attempting to fix detached HEAD submodules", worktreeId);

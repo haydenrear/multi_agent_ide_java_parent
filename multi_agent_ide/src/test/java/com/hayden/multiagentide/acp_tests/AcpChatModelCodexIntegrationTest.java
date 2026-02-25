@@ -185,7 +185,7 @@ class AcpChatModelCodexIntegrationTest {
 
         CompletableFuture.runAsync(() -> {
             var s = orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
-                    "Please add centralization of artifacts pulled by any of the LibsDownloader into centralized repository.",
+                    "Please add a README.md with text HELLO to the source of the repo.",
                     "/Users/hayde/IdeaProjects/multi_agent_ide_parent/libs-resolver",
                     "main", "Artifact Centralization"));
         });
@@ -306,11 +306,13 @@ class AcpChatModelCodexIntegrationTest {
                                                     request.getRequestId(),
                                                     permissions.stream().filter(po -> po.getKind() == PermissionOptionKind.ALLOW_ONCE).findAny().orElseThrow()
                                             );
+                                            System.out.println("Resolved selected");
                                             return;
                                         }
                                         var trimmed = input.trim();
                                         if ("cancel".equalsIgnoreCase(trimmed)) {
                                             permissionGateAdapter.resolveCancelled(request.getRequestId());
+                                            System.out.println("Resolved selected");
                                             return;
                                         }
                                         try {
@@ -318,12 +320,14 @@ class AcpChatModelCodexIntegrationTest {
                                             if (index >= 1 && index <= permissions.size()) {
                                                 var selected = permissions.get(index - 1);
                                                 permissionGateAdapter.resolveSelected(request.getRequestId(), selected);
+                                                System.out.println("Resolved selected");
                                                 return;
                                             }
                                         } catch (
                                                 NumberFormatException ignored) {
                                         }
                                         permissionGateAdapter.resolveSelected(request.getRequestId(), trimmed);
+                                        System.out.println("Resolved selected");
                                     } catch (
                                             IOException e) {
                                         throw new RuntimeException(e);

@@ -166,24 +166,24 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
                     storeResultsNodeWithFallback(
                             context,
                             request,
-                            () -> workflowGraphService.requireDiscoveryCollector(context),
                             () -> workflowGraphService.requireDiscoveryOrchestrator(context),
+                            () -> workflowGraphService.requireDiscoveryCollector(context),
                             "discovery"
                     );
             case AgentModels.PlanningAgentResults ignored ->
                     storeResultsNodeWithFallback(
                             context,
                             request,
-                            () -> workflowGraphService.requirePlanningCollector(context),
                             () -> workflowGraphService.requirePlanningOrchestrator(context),
+                            () -> workflowGraphService.requirePlanningCollector(context),
                             "planning"
                     );
             case AgentModels.TicketAgentResults ignored ->
                     storeResultsNodeWithFallback(
                             context,
                             request,
-                            () -> workflowGraphService.requireTicketCollector(context),
                             () -> workflowGraphService.requireTicketOrchestrator(context),
+                            () -> workflowGraphService.requireTicketCollector(context),
                             "ticket"
                     );
         }
