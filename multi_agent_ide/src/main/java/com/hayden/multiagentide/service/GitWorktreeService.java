@@ -939,12 +939,18 @@ public class GitWorktreeService implements WorktreeService {
     public boolean hasUncommittedChanges(String worktreeId) {
         Optional<WorktreeContext> wt = worktreeRepository.findById(worktreeId);
         if (wt.isEmpty()) {
-            throw new RuntimeException("Worktree not found: " + worktreeId);
+            String message = "Worktree not found: " + worktreeId;
+            log.error(message);
+            eventBus.publish(Events.NodeErrorEvent.err(message, ArtifactKey.createRoot()));
+            return true;
         }
         try (var git = openGit(wt.get().worktreePath())) {
             return !git.status().call().isClean();
         } catch (Exception e) {
-            throw new RuntimeException("Could not determine worktree status for " + worktreeId, e);
+            String message = "Could not determine worktree status for " + worktreeId;
+            log.error(message, e);
+            eventBus.publish(Events.NodeErrorEvent.err(message + ": " + e.getMessage(), ArtifactKey.createRoot()));
+            return true;
         }
     }
 
