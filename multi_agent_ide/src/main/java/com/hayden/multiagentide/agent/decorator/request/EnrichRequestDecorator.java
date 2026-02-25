@@ -23,7 +23,7 @@ public class EnrichRequestDecorator implements RequestDecorator {
 
     @Override
     public <T extends AgentModels.AgentRequest> T decorate(T request, DecoratorContext context) {
-        return requestEnrichment.enrich(request, context.operationContext());
+        return requestEnrichment.enrich(request, context.operationContext(), context.lastRequest());
     }
 
 }

@@ -5,15 +5,18 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.service.GitWorktreeService;
+import com.hayden.multiagentide.service.WorktreeAutoCommitService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.merge.MergeDirection;
+import com.hayden.multiagentidelib.model.merge.WorktreeCommitMetadata;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,6 +32,7 @@ import java.util.UUID;
 public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecorator, ResultDecorator {
 
     private final GitWorktreeService gitWorktreeService;
+    private final WorktreeAutoCommitService worktreeAutoCommitService;
     private final EventBus eventBus;
 
     @Override
@@ -74,13 +78,36 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
             return addMergeDescriptor(withContext, MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD));
         }
 
+        AgentModels.CommitAgentResult autoCommitResult = worktreeAutoCommitService.autoCommitDirtyWorktrees(
+                withContext,
+                childContext,
+                context,
+                extractGoalHint(context)
+        );
+        if (!autoCommitResult.successful()) {
+            String reason = "Auto-commit failed before trunk->child merge: " + autoCommitResult.errorMessage();
+            publishNodeError(nodeId, reason);
+            publishSkippedMergePhase(nodeId, "unknown", childContext.mainWorktree().worktreeId(), reason);
+            MergeDescriptor failed = MergeDescriptor.conflict(
+                    MergeDirection.TRUNK_TO_CHILD,
+                    List.of(),
+                    null,
+                    List.of(),
+                    reason
+            ).withCommitMetadata(autoCommitResult.commitMetadata());
+            return addMergeDescriptor(withContext, failed);
+        }
+
         WorktreeSandboxContext trunkContext = resolveTrunkWorktreeContext(childContext, context);
         if (trunkContext == null || trunkContext.mainWorktree() == null) {
             String childId = childContext.mainWorktree().worktreeId() != null ? childContext.mainWorktree().worktreeId() : "unknown";
             String reason = "Skipping trunk->child merge: missing trunk worktree context for child " + childId;
             publishNodeError(nodeId, reason);
             publishSkippedMergePhase(nodeId, "unknown", childId, reason);
-            return addMergeDescriptor(withContext, MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD));
+            return addMergeDescriptor(
+                    withContext,
+                    MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD).withCommitMetadata(autoCommitResult.commitMetadata())
+            );
         }
 
         String childId = childContext.mainWorktree().worktreeId();
@@ -89,7 +116,10 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
             String reason = "Skipping trunk->child merge: child and trunk worktree are the same (" + childId + ")";
             publishNodeError(nodeId, reason);
             publishSkippedMergePhase(nodeId, trunkId, childId, reason);
-            return addMergeDescriptor(withContext, MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD));
+            return addMergeDescriptor(
+                    withContext,
+                    MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD).withCommitMetadata(autoCommitResult.commitMetadata())
+            );
         }
 
         publishIfAvailable(new Events.MergePhaseStartedEvent(
@@ -102,6 +132,10 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
                 1));
 
         MergeDescriptor descriptor = gitWorktreeService.mergeTrunkToChild(trunkContext, childContext);
+        descriptor = descriptor.withCommitMetadata(mergeCommitMetadata(
+                descriptor.commitMetadata(),
+                autoCommitResult.commitMetadata()
+        ));
 
         publishIfAvailable(new Events.MergePhaseCompletedEvent(
                 UUID.randomUUID().toString(),
@@ -115,6 +149,30 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
                 descriptor.errorMessage()));
 
         return addMergeDescriptor(withContext, descriptor);
+    }
+
+    private List<WorktreeCommitMetadata> mergeCommitMetadata(
+            List<WorktreeCommitMetadata> existing,
+            List<WorktreeCommitMetadata> autoCommits
+    ) {
+        List<WorktreeCommitMetadata> merged = new ArrayList<>();
+        if (existing != null) {
+            merged.addAll(existing);
+        }
+        if (autoCommits != null) {
+            merged.addAll(autoCommits);
+        }
+        return merged;
+    }
+
+    private String extractGoalHint(DecoratorContext context) {
+        if (context == null) {
+            return "";
+        }
+        if (context.agentRequest() instanceof AgentModels.AgentRequest request) {
+            return request.goalExtraction();
+        }
+        return "";
     }
 
     private void publishIfAvailable(Events.GraphEvent event) {

@@ -3,6 +3,7 @@ package com.hayden.multiagentide.agent.decorator;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.request.WorktreeMergeResultsDecorator;
 import com.hayden.multiagentide.service.GitWorktreeService;
+import com.hayden.multiagentide.service.WorktreeAutoCommitService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.MergeAggregation;
@@ -39,12 +40,19 @@ class WorktreeMergeResultsDecoratorTest {
 
     @Mock
     private GitWorktreeService gitWorktreeService;
+    @Mock
+    private WorktreeAutoCommitService worktreeAutoCommitService;
 
     private WorktreeMergeResultsDecorator decorator;
 
     @BeforeEach
     void setUp() {
-        decorator = new WorktreeMergeResultsDecorator(gitWorktreeService, null);
+        when(worktreeAutoCommitService.autoCommitDirtyWorktrees(any(), any(), any(), any()))
+                .thenReturn(AgentModels.CommitAgentResult.builder()
+                        .successful(true)
+                        .commitMetadata(List.of())
+                        .build());
+        decorator = new WorktreeMergeResultsDecorator(gitWorktreeService, worktreeAutoCommitService, null);
     }
 
     @Test

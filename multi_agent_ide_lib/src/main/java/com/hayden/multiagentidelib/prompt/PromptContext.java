@@ -11,6 +11,7 @@ import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.Builder;
 import lombok.With;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,7 @@ import java.util.Map;
  */
 @Builder(toBuilder = true)
 @With
+@Slf4j
 public record PromptContext(
         AgentType agentType,
         ArtifactKey currentContextId,
@@ -42,6 +44,16 @@ public record PromptContext(
     public PromptContext(AgentType agentType, ArtifactKey currentContextId, List<UpstreamContext> upstreamContexts, PreviousContext previousContext, BlackboardHistory blackboardHistory, AgentModels.AgentRequest previousRequest, AgentModels.AgentRequest currentRequest,
                          Map<String, Object> metadata, String templateName, Map<String, Object> modelWithFeedback, String modelName, OperationContext operationContext) {
         this(agentType, currentContextId, upstreamContexts, previousContext, blackboardHistory, previousRequest, currentRequest, metadata, new ArrayList<>(), templateName, Artifact.HashContext.defaultHashContext(), modelWithFeedback, modelName, operationContext);
+    }
+
+    public ArtifactKey chatId() {
+        return switch(currentRequest)  {
+            case AgentModels.CommitAgentRequest car ->  car.contextId().parent().orElseGet(() -> {
+                log.error("CommitAgentRequest {} could not get parent. Returning regular.", car.contextId());
+                return car.contextId();
+            });
+            case AgentModels.AgentRequest ar -> ar.contextId();
+        };
     }
 
     /**

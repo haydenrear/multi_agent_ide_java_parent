@@ -296,6 +296,9 @@ public class CliEventFormatter {
                     "TicketAgentRequest ticket=" + summarize(args, r.ticketDetails())
                             + " path=" + summarize(args, r.ticketDetailsFilePath())
                             + " summary=" + summary;
+            case AgentModels.CommitAgentRequest r ->
+                    "CommitAgentRequest sourceAgentType=" + summarize(args, r.sourceAgentType())
+                            + " summary=" + summary;
             case AgentModels.TicketCollectorRequest r ->
                     "TicketCollectorRequest goal=" + summarize(args, r.goal())
                             + " summary=" + summary;
@@ -351,6 +354,10 @@ public class CliEventFormatter {
                             + " summary=" + summary;
             case AgentModels.TicketAgentResult r ->
                     "TicketAgentResult summary=" + summary;
+            case AgentModels.CommitAgentResult r ->
+                    "CommitAgentResult successful=" + r.successful()
+                            + " commits=" + countOf(r.commitMetadata())
+                            + " summary=" + summary;
             case AgentModels.ReviewAgentResult r ->
                     "ReviewAgentResult summary=" + summary;
             case AgentModels.MergerAgentResult r ->

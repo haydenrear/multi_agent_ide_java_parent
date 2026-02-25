@@ -5,6 +5,7 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.service.GitWorktreeService;
+import com.hayden.multiagentide.service.WorktreeAutoCommitService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.AgentMergeStatus;
@@ -12,6 +13,7 @@ import com.hayden.multiagentidelib.model.merge.MergeAggregation;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.merge.SubmoduleMergeResult;
+import com.hayden.multiagentidelib.model.merge.WorktreeCommitMetadata;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +22,10 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -42,6 +46,7 @@ import java.util.UUID;
 public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
 
     private final GitWorktreeService gitWorktreeService;
+    private final WorktreeAutoCommitService worktreeAutoCommitService;
     private final EventBus eventBus;
 
     @Override
@@ -82,7 +87,7 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
                 UUID.randomUUID().toString(), Instant.now(), nodeId,
                 "CHILD_TO_TRUNK", trunkId, null, childResults.size()));
 
-        MergeAggregation aggregation = performChildToTrunkMerges(childResults, trunkContext, nodeId);
+        MergeAggregation aggregation = performChildToTrunkMerges(childResults, trunkContext, nodeId, context);
 
         int conflictCount = aggregation.conflicted() != null ? 1 : 0;
         List<String> conflictFiles = aggregation.conflicted() != null && aggregation.conflicted().mergeDescriptor() != null
@@ -140,14 +145,18 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
     private MergeAggregation performChildToTrunkMerges(
             List<? extends AgentModels.AgentResult> childResults,
             WorktreeSandboxContext trunkContext,
-            String nodeId) {
-        
+            String nodeId,
+            DecoratorContext decoratorContext) {
+
         List<AgentMergeStatus> merged = new ArrayList<>();
         List<AgentMergeStatus> pending = new ArrayList<>();
         AgentMergeStatus conflicted = null;
+        Map<String, AgentModels.AgentResult> resultsById = new HashMap<>();
 
         for (AgentModels.AgentResult result : childResults) {
-            pending.add(createPendingStatus(result));
+            AgentMergeStatus status = createPendingStatus(result);
+            pending.add(status);
+            resultsById.put(status.agentResultId(), result);
         }
 
         Iterator<AgentMergeStatus> pendingIterator = pending.iterator();
@@ -162,7 +171,30 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
                 continue;
             }
 
+            AgentModels.AgentResult sourceResult = resultsById.get(status.agentResultId());
+            AgentModels.CommitAgentResult autoCommitResult = worktreeAutoCommitService.autoCommitDirtyWorktrees(
+                    sourceResult,
+                    childContext,
+                    decoratorContext,
+                    extractGoalHint(decoratorContext)
+            );
+            if (!autoCommitResult.successful()) {
+                pendingIterator.remove();
+                conflicted = status.withMergeDescriptor(
+                        MergeDescriptor.conflict(
+                                MergeDirection.CHILD_TO_TRUNK,
+                                List.of(),
+                                null,
+                                List.of(),
+                                "Auto-commit failed before child->trunk merge: " + autoCommitResult.errorMessage()
+                        ).withCommitMetadata(autoCommitResult.commitMetadata())
+                );
+                publishNodeError(nodeId, "Auto-commit failed for child " + status.agentResultId() + ": " + autoCommitResult.errorMessage());
+                break;
+            }
+
             MergeDescriptor descriptor = gitWorktreeService.mergeChildToTrunk(childContext, trunkContext);
+            descriptor = descriptor.withCommitMetadata(mergeCommitMetadata(descriptor.commitMetadata(), autoCommitResult.commitMetadata()));
             AgentMergeStatus updatedStatus = status.withMergeDescriptor(descriptor);
 
             if (!descriptor.successful()) {
@@ -182,6 +214,30 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
                 .pending(new ArrayList<>(pending))
                 .conflicted(conflicted)
                 .build();
+    }
+
+    private List<WorktreeCommitMetadata> mergeCommitMetadata(
+            List<WorktreeCommitMetadata> existing,
+            List<WorktreeCommitMetadata> autoCommits
+    ) {
+        List<WorktreeCommitMetadata> merged = new ArrayList<>();
+        if (existing != null) {
+            merged.addAll(existing);
+        }
+        if (autoCommits != null) {
+            merged.addAll(autoCommits);
+        }
+        return merged;
+    }
+
+    private String extractGoalHint(DecoratorContext context) {
+        if (context == null) {
+            return "";
+        }
+        if (context.agentRequest() instanceof AgentModels.AgentRequest request) {
+            return request.goalExtraction();
+        }
+        return "";
     }
 
     private AgentMergeStatus createPendingStatus(AgentModels.AgentResult result) {

@@ -87,6 +87,11 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             Merge assessment and conflict-resolution guidance from the merger agent.
             """;
 
+    static final String COMMIT_AGENT_RESULT_HEADER = """
+            ## Commit Agent Result
+            Pre-merge commit execution summary, including commit linkage metadata and notable decisions.
+            """;
+
     static final String CURRENT_PHASE_HEADER = """
             ## Request Context
             Current request context in this step. Route using exactly one non-null routing field.
@@ -106,6 +111,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         ORCHESTRATOR_COLLECTOR_RESULT,
         REVIEW_AGENT_RESULT,
         MERGER_AGENT_RESULT,
+        COMMIT_AGENT_RESULT,
         INTERRUPT_REQUEST
     }
 
@@ -181,6 +187,9 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             return List.of();
         }
 
+        if (context.currentRequest() instanceof AgentModels.CommitAgentRequest)
+            return List.of();
+
         var bh = context.blackboardHistory();
         if (bh == null || CollectionUtils.isEmpty(bh.copyOfEntries())) {
             return List.of();
@@ -221,6 +230,16 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
 
             if (input instanceof AgentModels.AgentResult result) {
                 switch (result) {
+                    case AgentModels.CommitAgentResult commitAgentResult -> {
+                        if (allowedTypes.contains(AllowedHistoryType.COMMIT_AGENT_RESULT)
+                                && hasRenderableOutput(commitAgentResult)) {
+                            AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.OTHER;
+                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
+                            contributors.add(new DataCurationContributor("curation-commit-agent-result",
+                                    COMMIT_AGENT_RESULT_HEADER, commitAgentResult, BASE_PRIORITY + seq++));
+                            lastPhase = newPhase;
+                        }
+                    }
                     case AgentModels.DiscoveryCollectorResult discoveryCollectorResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.DISCOVERY_COLLECTOR_RESULT)
                                 && !emittedCurationTypes.contains(CurationType.DISCOVERY)
@@ -460,6 +479,9 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     addAllTypes(allowed);
             case AgentModels.TicketAgentRequests ignored ->
                     addAllTypes(allowed);
+            case AgentModels.CommitAgentRequest ignored -> {
+//                TODO: validate - this already uses previous session - no reason to rewrite these.
+            }
             case AgentModels.ContextManagerRequest ignored ->
                     addAllTypes(allowed);
             case AgentModels.ContextManagerRoutingRequest ignored ->
@@ -613,7 +635,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                 AllowedHistoryType.ORCHESTRATOR_AGENT_RESULT,
                 AllowedHistoryType.ORCHESTRATOR_COLLECTOR_RESULT,
                 AllowedHistoryType.REVIEW_AGENT_RESULT,
-                AllowedHistoryType.MERGER_AGENT_RESULT);
+                AllowedHistoryType.MERGER_AGENT_RESULT,
+                AllowedHistoryType.COMMIT_AGENT_RESULT);
     }
 
     private static boolean hasRenderableRequest(AgentModels.AgentRequest request) {

@@ -15,6 +15,7 @@ import com.hayden.multiagentidelib.template.MemoryReference;
 import com.hayden.multiagentidelib.template.PlanningTicket;
 import com.hayden.multiagentidelib.model.merge.MergeAggregation;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
+import com.hayden.multiagentidelib.model.merge.WorktreeCommitMetadata;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
@@ -49,7 +50,7 @@ public interface AgentModels {
     }
 
     sealed interface AgentResult extends AgentContext
-            permits DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
+            permits CommitAgentResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
 
     {
         WorktreeSandboxContext worktreeContext();
@@ -78,6 +79,7 @@ public interface AgentModels {
             TicketOrchestratorRequest,
             TicketAgentRequests,
             TicketAgentRequest,
+            CommitAgentRequest,
 //            TicketAgentResults,
             TicketCollectorRequest,
             OrchestratorCollectorRequest,
@@ -110,6 +112,7 @@ public interface AgentModels {
                 case PlanningCollectorRequest r -> r.goal();
                 case TicketOrchestratorRequest r -> r.goal();
                 case TicketAgentRequest r -> r.ticketDetails();
+                case CommitAgentRequest r -> r.goal();
                 case TicketAgentRequests r -> r.goal();
                 case TicketCollectorRequest r -> r.goal();
                 case ContextManagerRequest r -> r.goal();
@@ -156,6 +159,7 @@ public interface AgentModels {
                 case TicketOrchestratorRequest ignored -> "TICKET_ORCHESTRATOR";
                 case TicketAgentRequests ignored -> "TICKET_DISPATCH";
                 case TicketAgentRequest ignored -> "TICKET_AGENT";
+                case CommitAgentRequest ignored -> "COMMIT_AGENT";
                 case TicketCollectorRequest ignored -> "TICKET_COLLECTOR";
                 case ContextManagerRequest ignored -> "CONTEXT_MANAGER";
                 case ContextManagerRoutingRequest ignored -> "CONTEXT_MANAGER_ROUTING";
@@ -202,6 +206,7 @@ public interface AgentModels {
                 case TicketOrchestratorRequest ignored -> CurationPhase.TICKET_AGENT;
                 case TicketAgentRequest ignored -> CurationPhase.TICKET_AGENT;
                 case TicketAgentRequests ignored -> CurationPhase.TICKET_AGENT;
+                case CommitAgentRequest ignored -> CurationPhase.OTHER;
                 case TicketAgentResults ignored -> CurationPhase.TICKET_AGENT;
                 case InterruptRequest ignored -> CurationPhase.INTERRUPT;
                 case OrchestratorRequest ignored -> CurationPhase.OTHER;
@@ -1324,6 +1329,63 @@ public interface AgentModels {
 
 
     @Builder(toBuilder=true)
+    @JsonClassDescription("Result payload from commit execution before merge.")
+    @With
+    record CommitAgentResult(
+            @JsonPropertyDescription("Unique context id for this result.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Whether commit execution completed successfully.")
+            boolean successful,
+            @JsonPropertyDescription("Human-readable summary output.")
+            String output,
+            @JsonPropertyDescription("Error message when commit execution fails.")
+            String errorMessage,
+            @JsonPropertyDescription("Commit metadata emitted by commit execution.")
+            List<WorktreeCommitMetadata> commitMetadata,
+            @JsonPropertyDescription("Optional short notes about notable file-specific decisions.")
+            List<String> notes,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
+    ) implements AgentResult {
+        public CommitAgentResult(ArtifactKey contextId, boolean successful, String output, String errorMessage, List<WorktreeCommitMetadata> commitMetadata) {
+            this(contextId, successful, output, errorMessage, commitMetadata, List.of(), null);
+        }
+
+        public CommitAgentResult(String output) {
+            this(null, true, output, null, List.of(), List.of(), null);
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("Successful: ").append(successful).append("\n");
+            if (output != null && !output.isBlank()) {
+                builder.append("Output:\n").append(output.trim()).append("\n");
+            }
+            if (errorMessage != null && !errorMessage.isBlank()) {
+                builder.append("Error: ").append(errorMessage.trim()).append("\n");
+            }
+            builder.append("Commit Metadata:\n");
+            if (commitMetadata == null || commitMetadata.isEmpty()) {
+                builder.append("(none)\n");
+            } else {
+                for (WorktreeCommitMetadata metadata : commitMetadata) {
+                    if (metadata == null) {
+                        continue;
+                    }
+                    builder.append("- worktreeId=").append(metadata.worktreeId())
+                            .append(", commit=").append(metadata.commitHash())
+                            .append(", message=").append(metadata.commitMessage())
+                            .append("\n");
+                }
+            }
+            appendList(builder, "Notes", notes);
+            return builder.toString().trim();
+        }
+    }
+
+    @Builder(toBuilder=true)
     @With
     record ReviewAgentResult(
             @SkipPropertyFilter
@@ -2195,6 +2257,23 @@ public interface AgentModels {
         } else {
             for (String conflict : descriptor.conflictFiles()) {
                 builder.append("\t\t- ").append(conflict).append("\n");
+            }
+        }
+        builder.append("\tPre-Merge Auto Commits:\n");
+        if (descriptor.commitMetadata() == null || descriptor.commitMetadata().isEmpty()) {
+            builder.append("\t\t(none)\n");
+        } else {
+            int commitIndex = 1;
+            for (WorktreeCommitMetadata commitMetadata : descriptor.commitMetadata()) {
+                builder.append("\t\t").append(commitIndex++).append(". ");
+                if (commitMetadata == null) {
+                    builder.append("(none)\n");
+                    continue;
+                }
+                builder.append("worktreeId=").append(commitMetadata.worktreeId())
+                        .append(", commit=").append(commitMetadata.commitHash())
+                        .append(", message=").append(commitMetadata.commitMessage())
+                        .append("\n");
             }
         }
         appendPrettyMergeResult(builder, "\tMain Worktree Merge Result", descriptor.mainWorktreeMergeResult());
@@ -3899,6 +3978,61 @@ public interface AgentModels {
         }
     }
 
+    @Builder(toBuilder=true)
+    @JsonClassDescription("Internal request to commit dirty worktree changes before merge.")
+    @With
+    record CommitAgentRequest(
+            @JsonPropertyDescription("Unique context id for this request.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Worktree sandbox context for this request.")
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Original request that routed into this commit request.")
+            @SkipPropertyFilter
+            AgentRequest routedFromRequest,
+            @JsonPropertyDescription("Goal context for commit execution.")
+            String goal,
+            @JsonPropertyDescription("Source agent type that produced pending changes.")
+            AgentType sourceAgentType,
+            @JsonPropertyDescription("Source request type for commit execution context.")
+            String sourceRequestType,
+            @JsonPropertyDescription("Explicit commit execution instructions.")
+            String commitInstructions,
+            @JsonPropertyDescription("Summary of source result output.")
+            String sourceResultSummary
+    ) implements AgentRequest {
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this.toBuilder().goal(goal).build();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            StringBuilder builder = new StringBuilder();
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Source Agent Type", sourceAgentType != null ? sourceAgentType.name() : null);
+            appendPrettyLine(builder, "Source Request Type", sourceRequestType);
+            appendPrettyText(builder, "Commit Instructions", commitInstructions);
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Commit Agent Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Routed From Request Type",
+                    routedFromRequest != null ? routedFromRequest.getClass().getSimpleName() : null);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Source Agent Type", sourceAgentType != null ? sourceAgentType.name() : null);
+            appendPrettyLine(builder, "Source Request Type", sourceRequestType);
+            appendPrettyText(builder, "Commit Instructions", commitInstructions);
+            appendPrettyText(builder, "Source Result Summary", sourceResultSummary);
+            return builder.toString().trim();
+        }
+    }
+
     /**
      * DelegationTemplate for ticket orchestrator - contains multiple sub-agent requests.
      * The model returns this to delegate work to ticket agents.
@@ -4830,6 +4964,8 @@ public interface AgentModels {
                         builder = builder.returnToTicketCollector(ticketCollectorRequest);
                 case TicketOrchestratorRequest ticketOrchestratorRequest ->
                         builder = builder.returnToTicketOrchestrator(ticketOrchestratorRequest);
+                case CommitAgentRequest commitAgentRequest -> {
+                }
                 case ContextManagerRoutingRequest contextManagerRoutingRequest -> {
                 }
             }

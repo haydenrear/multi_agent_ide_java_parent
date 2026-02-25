@@ -180,6 +180,7 @@ public class InterruptLoopBreakerPromptContributorFactory implements PromptContr
             // Context Manager - dynamically resolved from blackboard history
             case AgentModels.ContextManagerRequest ignored -> resolveContextManagerMapping(context);
             case AgentModels.ContextManagerRoutingRequest ignored -> resolveContextManagerMapping(context);
+            case AgentModels.CommitAgentRequest ignored -> null;
             case AgentModels.ResultsRequest ignored -> null;
             case InterruptRequest ignored -> null;
         };

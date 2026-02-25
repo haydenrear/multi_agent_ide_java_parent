@@ -74,6 +74,9 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
                 }
                 storeRunning(operationContext, workflowGraphService.startTicketAgent(parent, req));
             }
+            case AgentModels.CommitAgentRequest ignored -> {
+                // Internal commit action: do not create a dedicated workflow node.
+            }
             case AgentModels.ContextManagerRequest req ->
                     storeRequiredNode(operationContext, req,
                             () -> workflowGraphService.requireOrchestrator(operationContext));

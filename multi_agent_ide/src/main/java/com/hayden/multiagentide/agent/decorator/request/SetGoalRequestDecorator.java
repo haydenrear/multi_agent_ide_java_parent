@@ -28,6 +28,8 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
             log.info("Last request was null - must be starting orchestrator request.");
             return request;
         }
+        if (request instanceof AgentModels.CommitAgentRequest ca)
+            return request;
 
         var goal
                 = BlackboardHistory.getEntireBlackboardHistory(context.operationContext())
@@ -85,6 +87,9 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                                         }
                                         case AgentModels.TicketAgentRequest ctx -> {
                                             return new GoalState(ctx, "");
+                                        }
+                                        case AgentModels.CommitAgentRequest ctx -> {
+                                            return new GoalState(ctx, ctx.goal());
                                         }
                                         case AgentModels.TicketAgentRequests ctx -> {
                                             return new GoalState(ctx, ctx.goal());

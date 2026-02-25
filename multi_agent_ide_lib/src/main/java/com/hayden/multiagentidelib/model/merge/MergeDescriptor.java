@@ -2,6 +2,7 @@ package com.hayden.multiagentidelib.model.merge;
 
 import com.hayden.multiagentidelib.model.MergeResult;
 import lombok.Builder;
+import lombok.With;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,13 +12,15 @@ import java.util.List;
  * Attached to individual agent results after merge attempts.
  */
 @Builder(toBuilder = true)
+@With
 public record MergeDescriptor(
         MergeDirection mergeDirection,
         boolean successful,
         List<String> conflictFiles,
         List<SubmoduleMergeResult> submoduleMergeResults,
         MergeResult mainWorktreeMergeResult,
-        String errorMessage
+        String errorMessage,
+        List<WorktreeCommitMetadata> commitMetadata
 ) {
     public MergeDescriptor {
         if (mergeDirection == null) {
@@ -28,6 +31,9 @@ public record MergeDescriptor(
         }
         if (submoduleMergeResults == null) {
             submoduleMergeResults = new ArrayList<>();
+        }
+        if (commitMetadata == null) {
+            commitMetadata = new ArrayList<>();
         }
     }
     
@@ -42,6 +48,7 @@ public record MergeDescriptor(
                 .conflictFiles(List.of())
                 .submoduleMergeResults(submoduleResults != null ? submoduleResults : List.of())
                 .mainWorktreeMergeResult(mainResult)
+                .commitMetadata(List.of())
                 .build();
     }
     
@@ -58,6 +65,7 @@ public record MergeDescriptor(
                 .submoduleMergeResults(submoduleResults != null ? submoduleResults : List.of())
                 .mainWorktreeMergeResult(mainResult)
                 .errorMessage(errorMessage)
+                .commitMetadata(List.of())
                 .build();
     }
     
@@ -70,6 +78,7 @@ public record MergeDescriptor(
                 .successful(true)
                 .conflictFiles(List.of())
                 .submoduleMergeResults(List.of())
+                .commitMetadata(List.of())
                 .build();
     }
 }

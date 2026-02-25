@@ -915,6 +915,39 @@ public class GitWorktreeService implements WorktreeService {
         return getCurrentCommitHashInternal(wt.get().worktreePath());
     }
 
+    public boolean hasUncommittedChanges(String worktreeId) {
+        Optional<WorktreeContext> wt = worktreeRepository.findById(worktreeId);
+        if (wt.isEmpty()) {
+            throw new RuntimeException("Worktree not found: " + worktreeId);
+        }
+        try (var git = openGit(wt.get().worktreePath())) {
+            return !git.status().call().isClean();
+        } catch (Exception e) {
+            throw new RuntimeException("Could not determine worktree status for " + worktreeId, e);
+        }
+    }
+
+    public List<String> changedFiles(String worktreeId) {
+        Optional<WorktreeContext> wt = worktreeRepository.findById(worktreeId);
+        if (wt.isEmpty()) {
+            throw new RuntimeException("Worktree not found: " + worktreeId);
+        }
+        try (var git = openGit(wt.get().worktreePath())) {
+            Status status = git.status().call();
+            Set<String> files = new TreeSet<>();
+            files.addAll(status.getAdded());
+            files.addAll(status.getChanged());
+            files.addAll(status.getModified());
+            files.addAll(status.getRemoved());
+            files.addAll(status.getMissing());
+            files.addAll(status.getUntracked());
+            files.addAll(status.getConflicting());
+            return new ArrayList<>(files);
+        } catch (Exception e) {
+            throw new RuntimeException("Could not read changed files for worktree " + worktreeId, e);
+        }
+    }
+
     public String commitChanges(String worktreeId, String message) {
         Optional<WorktreeContext> wt = worktreeRepository.findById(worktreeId);
         if (wt.isEmpty()) {

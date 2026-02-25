@@ -1,6 +1,7 @@
 package com.hayden.multiagentidelib.service;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.embabel.agent.core.Blackboard;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
@@ -50,7 +51,7 @@ public class RequestEnrichment {
         if (input.key() != null)
             log.error("Found input without key.");
 
-        Artifact.AgentModel parent = findParentForInput(input, history);
+        Artifact.AgentModel parent = findParentForInput(input, context);
         T enrich = enrich(input, context, parent);
         return enrich;
     }
@@ -73,7 +74,7 @@ public class RequestEnrichment {
         return input;
     }
 
-    private Artifact.AgentModel findParentForInput(Artifact.AgentModel input, BlackboardHistory history) {
+    private Artifact.AgentModel findParentForInput(Artifact.AgentModel input, Blackboard history) {
         if (input == null || history == null) {
             return null;
         }
@@ -90,8 +91,10 @@ public class RequestEnrichment {
         };
     }
 
-    private Artifact.AgentModel findParentForAgentResultTypes(BlackboardHistory history, AgentModels.AgentResult res) {
+    private Artifact.AgentModel findParentForAgentResultTypes(Blackboard history, AgentModels.AgentResult res) {
         return switch (res) {
+            case AgentModels.CommitAgentResult ignored ->
+                    findLastFromHistory(history, AgentModels.CommitAgentRequest.class);
             case AgentModels.DiscoveryAgentResult ignored ->
                     findLastFromHistory(history, AgentModels.DiscoveryAgentRequest.class);
             case AgentModels.DiscoveryCollectorResult ignored ->
@@ -121,7 +124,7 @@ public class RequestEnrichment {
         };
     }
 
-    private Artifact.AgentModel findParentForAgentRequests(BlackboardHistory history, AgentModels.AgentRequest req) {
+    private Artifact.AgentModel findParentForAgentRequests(Blackboard history, AgentModels.AgentRequest req) {
         return switch (req) {
             // Existing cases (migrated from old switch)
             case AgentModels.ContextManagerRequest ignored ->
@@ -180,6 +183,8 @@ public class RequestEnrichment {
             case AgentModels.TicketAgentRequest ignored ->
                     findLastFromHistory(history,
                             AgentModels.TicketOrchestratorRequest.class);
+            case AgentModels.CommitAgentRequest commitReq ->
+                    commitReq.routedFromRequest();
             case AgentModels.TicketAgentRequests ignored ->
                     findLastFromHistory(history,
                             AgentModels.TicketOrchestratorRequest.class);
@@ -195,7 +200,7 @@ public class RequestEnrichment {
         };
     }
 
-    private Artifact.AgentModel findParentForInterruptTypes(BlackboardHistory history, AgentModels.InterruptRequest interruptRequest) {
+    private Artifact.AgentModel findParentForInterruptTypes(Blackboard history, AgentModels.InterruptRequest interruptRequest) {
         return switch (interruptRequest) {
             case AgentModels.InterruptRequest.ContextManagerInterruptRequest ignored ->
                     findLastFromHistory(history, AgentModels.ContextManagerRequest.class);
@@ -236,29 +241,16 @@ public class RequestEnrichment {
         };
     }
 
-    private Artifact.AgentModel findLastFromHistory(BlackboardHistory history, Class<?>... types) {
-        if (history == null || types == null || types.length == 0) {
-            return null;
+    private Artifact.AgentModel findLastFromHistory(Blackboard history, Class<?>... types) {
+
+        for (var t : types) {
+            var m = BlackboardHistory.getLastFromHistory(history, t);
+            if (m instanceof Artifact.AgentModel agentModel)
+                return agentModel;
         }
-        List<BlackboardHistory.Entry> entries = history.copyOfEntries();
-        for (int i = entries.size() - 1; i >= 0; i--) {
-            BlackboardHistory.Entry entry = entries.get(i);
-            if (entry == null) {
-                continue;
-            }
-            Object input = entry.input();
-            if (!(input instanceof Artifact.AgentModel model)) {
-                continue;
-            }
-            for (Class<?> type : types) {
-                if (type != null && type.isInstance(model)) {
-                    return model;
-                }
-            }
-        }
+
         return null;
     }
-
 
     private <T extends AgentModels.Routing> T enrichRouting(T model, OperationContext context, Artifact.AgentModel parent) {
 //        doesn't need to be enriched - any request will be enriched in the action it routes to when it routes to that action.
@@ -300,6 +292,16 @@ public class RequestEnrichment {
                     (T) enrichTicketOrchestratorRequest(req, context, parent);
             case AgentModels.TicketAgentRequest req ->
                     (T) enrichTicketAgentRequest(req, context, parent);
+            case AgentModels.CommitAgentRequest req -> {
+                Artifact.AgentModel commitParent = req.routedFromRequest() != null ? req.routedFromRequest() : parent;
+                AgentModels.AgentRequest routedFrom = req.routedFromRequest() != null
+                        ? req.routedFromRequest()
+                        : (parent instanceof AgentModels.AgentRequest ar ? ar : null);
+                yield (T) req.toBuilder()
+                        .contextId(resolveContextId(context, req, commitParent))
+                        .routedFromRequest(routedFrom)
+                        .build();
+            }
             case AgentModels.TicketCollectorRequest req ->
                     (T) enrichTicketCollectorRequest(req, context, parent);
             case AgentModels.ReviewRequest req ->
@@ -376,6 +378,12 @@ public class RequestEnrichment {
             case AgentModels.TicketAgentResult result -> {
                 var enriched = result.toBuilder()
                         .contextId(resolveContextId(context, AgentType.TICKET_AGENT, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
+            }
+            case AgentModels.CommitAgentResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.COMMIT_AGENT, parent))
                         .build();
                 yield withEnrichedChildren(enriched, enriched.children(), context);
             }
@@ -823,7 +831,8 @@ public class RequestEnrichment {
     private boolean shouldCreateNewSession(Artifact.AgentModel model) {
         return model instanceof AgentModels.DiscoveryAgentRequest
                 || model instanceof AgentModels.PlanningAgentRequest
-                || model instanceof AgentModels.TicketAgentRequest;
+                || model instanceof AgentModels.TicketAgentRequest
+                || model instanceof AgentModels.CommitAgentRequest;
     }
 
     /**

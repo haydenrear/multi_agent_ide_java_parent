@@ -67,8 +67,24 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                 history,
                 a -> !(a instanceof AgentModels.InterruptRequest)
                         && !(a instanceof AgentModels.ContextManagerRequest)
-                        && !(a instanceof AgentModels.ContextManagerRoutingRequest));
+                        && !(a instanceof AgentModels.ContextManagerRoutingRequest)
+                        && !(a instanceof AgentModels.CommitAgentRequest));
         return lastRequest;
+    }
+
+    public static AgentModels.@Nullable AgentRequest findLastWorkflowRequest(BlackboardHistory history) {
+        return findLastRequest(
+                history,
+                a -> !(a instanceof AgentModels.InterruptRequest)
+                        && !(a instanceof AgentModels.ContextManagerRequest)
+                        && !(a instanceof AgentModels.ContextManagerRoutingRequest)
+                        && !(a instanceof AgentModels.CommitAgentRequest)
+        );
+    }
+
+    public static <T> boolean isAssignableType(Class<T> type, Entry entry) {
+        return entry.inputType() != null
+                && (type.isAssignableFrom(entry.inputType()) || type.equals(entry.inputType()));
     }
 
     /**
@@ -166,6 +182,11 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         if (history == null) {
             return null;
         }
+
+        if (Objects.equals(inputType, AgentModels.AgentRequest.class))  {
+            return (T) BlackboardHistory.findLastWorkflowRequest(history);
+        }
+
 
         return history.getLastOfType(inputType);
     }
@@ -333,21 +354,16 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         @SuppressWarnings("unchecked")
         public <T> Optional<T> getLastOfType(Class<T> type) {
             return getLastMatching(entry -> {
-                if (entry.inputType() != null && entry.inputType().equals(type)) {
+                if (isExactlyType(type, entry)) {
                     return Optional.of((T) entry.input());
                 }
                 return Optional.empty();
             }).or(() -> getLastMatching(entry -> {
-                if (isTy(type, entry)) {
+                if (isAssignableType(type, entry)) {
                     return Optional.of((T) entry.input());
                 }
                 return Optional.empty();
             }));
-        }
-
-        private <T> boolean isTy(Class<T> type, Entry entry) {
-            return entry.inputType() != null
-                    && (type.isAssignableFrom(entry.inputType()) || type.equals(entry.inputType()));
         }
 
         /**
@@ -437,15 +453,19 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         }
 
         public <T> List<T> getLast(Class<T> contextManagerRequestClass) {
-            if (!isTy(contextManagerRequestClass, this.entries.getLast())) {
+            if (!isAssignableType(contextManagerRequestClass, this.entries.getLast())) {
                 return new ArrayList<>();
             }
 
             return this.entries.reversed().stream()
-                    .takeWhile(e -> isTy(contextManagerRequestClass, e))
+                    .takeWhile(e -> isAssignableType(contextManagerRequestClass, e))
                     .map(e -> (T) e.input())
                     .toList();
         }
+    }
+
+    private static <T> boolean isExactlyType(Class<T> type, Entry entry) {
+        return entry.inputType() != null && entry.inputType().equals(type);
     }
 
     @Override

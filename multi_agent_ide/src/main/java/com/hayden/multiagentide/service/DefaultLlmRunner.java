@@ -52,7 +52,7 @@ public class DefaultLlmRunner implements LlmRunner {
         // Get applicable prompt contributors using the full PromptContext
         var aiQuery = context
                 .ai()
-                .withFirstAvailableLlmOf("acp-chat-model", promptContext.modelName(), promptContext.currentRequest().contextId().value())
+                .withFirstAvailableLlmOf("acp-chat-model", promptContext.modelName(), promptContext.chatId().value())
                 .withPromptElements(promptContext.promptContributors().toArray(ContextualPromptElement[]::new));
 
         aiQuery = applyToolContext(aiQuery, toolContext);

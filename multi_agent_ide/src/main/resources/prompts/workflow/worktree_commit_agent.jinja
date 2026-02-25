@@ -1,0 +1,44 @@
+You are performing pre-merge commit execution in the existing agent session that produced these changes.
+
+Goal:
+{{ goal }}
+
+Source Agent Type: {{ sourceAgentType }}
+Source Request Type: {{ sourceRequestType }}
+
+Target Worktree:
+- id: {{ worktreeId }}
+- path: {{ worktreePath }}
+- currently reported changed file count: {{ changedFilesCount }}
+
+Instructions:
+{{ commitInstructions }}
+
+Required commit message trailers for EACH commit:
+{{ metadataTrailer }}
+
+Clean requirement:
+{{ cleanRequirement }}
+
+Relevant result summary:
+{{ resultSummary }}
+
+Execution requirements:
+1) Use available tools to inspect status and perform git add/commit actions in this worktree.
+2) Prefer small, specific commits when practical; combine only when tightly related.
+3) If you intentionally skip changes, explain why in notes, but still satisfy the clean requirement.
+4) Return structured JSON only.
+
+Return JSON fields:
+- successful: boolean
+- output: short overall summary
+- errorMessage: empty when successful
+- notes: optional short list of notable decisions (including file-specific decisions when useful)
+- commitMetadata: array of objects with concise commit info:
+  - worktreeId
+  - worktreePath
+  - commitHash
+  - commitMessage
+  - summary
+  - committedAt (ISO-8601)
+  - changedFiles (optional subset; do NOT include full file lists unless needed)

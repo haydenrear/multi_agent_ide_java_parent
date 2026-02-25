@@ -101,6 +101,7 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             case AgentModels.PlanningAgentResults r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.TicketOrchestratorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.TicketAgentRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
+            case AgentModels.CommitAgentRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.TicketCollectorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.TicketAgentResults r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.ReviewRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();

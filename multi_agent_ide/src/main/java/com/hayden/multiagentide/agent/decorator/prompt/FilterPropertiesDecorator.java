@@ -144,6 +144,7 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case AgentModels.DiscoveryAgentRequest discoveryAgentRequest -> null;
             case AgentModels.PlanningAgentRequest planningAgentRequest -> null;
             case AgentModels.TicketAgentRequest ticketAgentRequest -> null;
+            case AgentModels.CommitAgentRequest commitAgentRequest -> null;
             case AgentModels.DiscoveryAgentResults discoveryAgentResults -> null;
             case AgentModels.PlanningAgentResults planningAgentResults -> null;
             case AgentModels.TicketAgentResults ticketAgentResults -> null;
@@ -172,7 +173,7 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case DISCOVERY_AGENT_DISPATCH -> DiscoveryDispatchRoute.class;
             case PLANNING_AGENT_DISPATCH -> PlanningDispatchRoute.class;
             case TICKET_AGENT_DISPATCH -> TicketDispatchRoute.class;
-            case ALL, DISCOVERY_AGENT, PLANNING_AGENT, TICKET_AGENT -> null;
+            case ALL, DISCOVERY_AGENT, PLANNING_AGENT, TICKET_AGENT, COMMIT_AGENT -> null;
         };
     }
 
