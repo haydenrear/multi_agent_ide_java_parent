@@ -468,6 +468,7 @@ public class WorktreeAutoCommitService {
                 case AgentModels.TicketAgentRequest ignored -> AgentType.TICKET_AGENT;
                 case AgentModels.PlanningAgentRequest ignored -> AgentType.PLANNING_AGENT;
                 case AgentModels.DiscoveryAgentRequest ignored -> AgentType.DISCOVERY_AGENT;
+                case AgentModels.OrchestratorCollectorRequest ignored -> AgentType.ORCHESTRATOR_COLLECTOR;
                 default -> null;
             };
             if (fromRequest != null) {

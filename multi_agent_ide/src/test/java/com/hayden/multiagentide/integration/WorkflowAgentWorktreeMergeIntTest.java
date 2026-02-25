@@ -260,6 +260,11 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         @DisplayName("Full workflow with submodule changes — propagate to source")
         void fullWorkflow_withSubmoduleChanges_propagateToSource() throws Exception {
             setLogFile("fullWorkflow_withSubmoduleChanges_propagateToSource");
+            String initialSubmodulePointer = gitSubmodulePointer(sourceRepo, "libs/test-sub");
+            int initialSubmodulePathCommitCount = gitRevisionCountForPath(sourceRepo, "libs/test-sub");
+            Path sourceSubPath = sourceRepo.resolve("libs/test-sub");
+            String initialSourceSubmoduleHead = gitOutput(sourceSubPath, "git", "rev-parse", "HEAD").trim();
+
             var contextId = seedOrchestratorWithRealWorktree();
 
             enqueueHappyPathWithSubmoduleWork("Implement feature with lib changes");
@@ -278,9 +283,19 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                     .contains("discovery findings");
 
             // Verify submodule changes propagated to source
-            Path sourceSubPath = sourceRepo.resolve("libs/test-sub");
             assertThat(Files.readString(sourceSubPath.resolve("lib.txt")))
                     .contains("updated by discovery agent");
+
+            // Verify submodule pointer in source superproject advanced and points to
+            // the same commit as the checked-out source submodule.
+            String finalSubmodulePointer = gitSubmodulePointer(sourceRepo, "libs/test-sub");
+            String sourceSubmoduleHead = gitOutput(sourceSubPath, "git", "rev-parse", "HEAD").trim();
+            int finalSubmodulePathCommitCount = gitRevisionCountForPath(sourceRepo, "libs/test-sub");
+
+            assertThat(finalSubmodulePointer).isNotEqualTo(initialSubmodulePointer);
+            assertThat(finalSubmodulePathCommitCount).isGreaterThan(initialSubmodulePathCommitCount);
+            assertThat(finalSubmodulePointer).isEqualTo(sourceSubmoduleHead);
+            assertThat(sourceSubmoduleHead).isNotEqualTo(initialSourceSubmoduleHead);
 
             assertClean(sourceRepo);
         }
@@ -893,6 +908,15 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
     private void assertClean(Path repoDir) throws Exception {
         String status = gitOutput(repoDir, "git", "status", "--porcelain").trim();
         assertThat(status).isEmpty();
+    }
+
+    private String gitSubmodulePointer(Path repoDir, String submodulePath) throws Exception {
+        return gitOutput(repoDir, "git", "rev-parse", "HEAD:" + submodulePath).trim();
+    }
+
+    private int gitRevisionCountForPath(Path repoDir, String filePath) throws Exception {
+        String count = gitOutput(repoDir, "git", "rev-list", "--count", "HEAD", "--", filePath).trim();
+        return Integer.parseInt(count);
     }
 
     private String gitOutput(Path repoDir, String... command) throws Exception {

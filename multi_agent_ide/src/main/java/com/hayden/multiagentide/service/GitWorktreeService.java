@@ -18,6 +18,7 @@ import org.eclipse.jgit.api.FetchCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeCommand;
 import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.api.errors.EmptyCommitException;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.submodule.SubmoduleStatus;
@@ -622,12 +623,10 @@ public class GitWorktreeService implements WorktreeService {
             for (String path : submodulePaths) {
                 git.add().addFilepattern(path).call();
             }
-            Status status = git.status().call();
-            boolean hasChanges = submodulePaths.stream()
-                    .anyMatch(p -> status.getChanged().contains(p)
-                            || status.getAdded().contains(p));
-            if (hasChanges) {
+            try {
                 git.commit().setMessage("Update submodule pointer(s)").call();
+            } catch (EmptyCommitException ignored) {
+                // No pointer changes staged.
             }
         } catch (Exception e) {
             // best-effort; leave as-is
@@ -1851,6 +1850,15 @@ public class GitWorktreeService implements WorktreeService {
                 return buildConflictResult(mainWorktreeId, "source", state.allConflicts);
             }
 
+            // Reconcile each submodule repo directly against the worktree tree, even if the
+            // root repo appears up-to-date. Parent commit equality does not guarantee
+            // submodule repos (or pointer commits) were propagated in source.
+            List<MergeResult.MergeConflict> reconciliationConflicts =
+                    reconcileFinalMergeSubmoduleRepos(worktreePath, sourcePath, "");
+            if (!reconciliationConflicts.isEmpty()) {
+                return buildConflictResult(mainWorktreeId, "source", reconciliationConflicts);
+            }
+
             // Commit submodule pointers, ensure source is on baseBranch.
             commitDirtySubmodulePointers(sourcePath);
             ensureBranchMatchesContext(sourcePath, baseBranch);
@@ -1879,6 +1887,94 @@ public class GitWorktreeService implements WorktreeService {
                     Instant.now()
             );
         }
+    }
+
+    private List<MergeResult.MergeConflict> reconcileFinalMergeSubmoduleRepos(
+            Path worktreeRepoPath,
+            Path sourceRepoPath,
+            String parentRelPath
+    ) {
+        List<MergeResult.MergeConflict> conflicts = new ArrayList<>();
+        List<String> submoduleNames;
+        try {
+            submoduleNames = getSubmoduleNames(worktreeRepoPath);
+        } catch (Exception e) {
+            return conflicts;
+        }
+
+        for (String submoduleName : submoduleNames) {
+            Path worktreeSubmodulePath;
+            Path sourceSubmodulePath;
+            String relPath = (parentRelPath == null || parentRelPath.isBlank())
+                    ? submoduleName
+                    : parentRelPath + "/" + submoduleName;
+            try {
+                worktreeSubmodulePath = getSubmodulePath(worktreeRepoPath, submoduleName);
+                sourceSubmodulePath = getSubmodulePath(sourceRepoPath, submoduleName);
+            } catch (Exception e) {
+                continue;
+            }
+
+            conflicts.addAll(reconcileFinalMergeSubmoduleRepos(worktreeSubmodulePath, sourceSubmodulePath, relPath));
+
+            String childHead = getCurrentCommitHashInternal(worktreeSubmodulePath);
+            String parentHead = getCurrentCommitHashInternal(sourceSubmodulePath);
+            if (Objects.equals(childHead, parentHead)) {
+                continue;
+            }
+
+            try {
+                String childBranch = resolveBranch(worktreeSubmodulePath, getBranchSafe(worktreeSubmodulePath));
+                org.eclipse.jgit.api.MergeResult mergeResult = mergeFromChildRepo(
+                        sourceSubmodulePath,
+                        worktreeSubmodulePath,
+                        childBranch
+                );
+                if (!mergeResult.getMergeStatus().isSuccessful()) {
+                    conflicts.addAll(extractMergeConflicts(mergeResult, relPath));
+                    continue;
+                }
+                commitDirtySubmodulePointers(sourceRepoPath);
+            } catch (Exception e) {
+                conflicts.add(new MergeResult.MergeConflict(
+                        relPath,
+                        "merge-error",
+                        "",
+                        "",
+                        "",
+                        formatSubmodulePath(relPath)
+                ));
+            }
+        }
+
+        return conflicts;
+    }
+
+    private List<MergeResult.MergeConflict> extractMergeConflicts(
+            org.eclipse.jgit.api.MergeResult mergeResult,
+            String relPath
+    ) {
+        Map<String, int[][]> conflictMap = mergeResult.getConflicts();
+        if (conflictMap == null || conflictMap.isEmpty()) {
+            return List.of(new MergeResult.MergeConflict(
+                    relPath,
+                    "merge-conflict",
+                    "",
+                    "",
+                    "",
+                    formatSubmodulePath(relPath)
+            ));
+        }
+        return conflictMap.keySet().stream()
+                .map(file -> new MergeResult.MergeConflict(
+                        file,
+                        "content",
+                        "",
+                        "",
+                        "",
+                        formatSubmodulePath(relPath)
+                ))
+                .toList();
     }
 
     private WorktreeContext createSourceMergeContext(

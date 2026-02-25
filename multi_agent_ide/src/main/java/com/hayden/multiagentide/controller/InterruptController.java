@@ -11,6 +11,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/interrupts")
@@ -140,6 +142,70 @@ public class InterruptController {
     ) {
     }
 
+    public record ToolCallInfo(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String toolCallId,
+            String title,
+            String kind,
+            String status,
+            String phase,
+            Object rawInput,
+            Object rawOutput
+    ) {
+    }
+
+    public record InterruptDetailResponse(
+            String interruptId,
+            String requestId,
+            String originNodeId,
+            String nodeId,
+            String interruptType,
+            String sourceAgentType,
+            String rerouteToAgentType,
+            String reason,
+            String contextForDecision,
+            String status,
+            List<ToolCallInfo> toolCalls
+    ) {
+    }
+
+    @GetMapping("/detail")
+    public InterruptDetailResponse detail(@RequestParam("id") String id) {
+        Events.InterruptRequestEvent interruptEvent = findInterruptRequestEvent(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Interrupt request not found"));
+
+        boolean pending = permissionGate.pendingInterruptRequests().stream()
+                .anyMatch(p -> Objects.equals(p.getInterruptId(), interruptEvent.requestId())
+                        || Objects.equals(p.getInterruptId(), interruptEvent.nodeId()));
+        String status = pending ? "PENDING" : "RESOLVED_OR_UNKNOWN";
+
+        List<ToolCallInfo> toolCalls = eventStreamRepository.list().stream()
+                .filter(Events.ToolCallEvent.class::isInstance)
+                .map(Events.ToolCallEvent.class::cast)
+                .filter(tc -> matchesNodeScope(interruptEvent.nodeId(), tc.nodeId())
+                        || matchesNodeScope(interruptEvent.requestId(), tc.nodeId()))
+                .sorted(Comparator.comparing(Events.ToolCallEvent::timestamp).reversed())
+                .limit(40)
+                .map(this::toToolCallInfo)
+                .toList();
+
+        return new InterruptDetailResponse(
+                interruptEvent.requestId(),
+                interruptEvent.requestId(),
+                interruptEvent.nodeId(),
+                interruptEvent.nodeId(),
+                interruptEvent.interruptType().name(),
+                interruptEvent.sourceAgentType(),
+                interruptEvent.rerouteToAgentType(),
+                interruptEvent.reason(),
+                interruptEvent.contextForDecision(),
+                status,
+                toolCalls
+        );
+    }
+
     private List<String> findInterruptIdsInScope(String scopeNodeId) {
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
         eventStreamRepository.list().stream()
@@ -160,6 +226,41 @@ public class InterruptController {
                     }
                 });
         return candidates.stream().toList();
+    }
+
+    private Optional<Events.InterruptRequestEvent> findInterruptRequestEvent(String id) {
+        if (id == null || id.isBlank()) {
+            return Optional.empty();
+        }
+        return eventStreamRepository.list().stream()
+                .filter(Events.InterruptRequestEvent.class::isInstance)
+                .map(Events.InterruptRequestEvent.class::cast)
+                .filter(event -> matchesInterruptIdentifier(id, event))
+                .sorted(Comparator.comparing(Events.InterruptRequestEvent::timestamp).reversed())
+                .findFirst();
+    }
+
+    private boolean matchesInterruptIdentifier(String id, Events.InterruptRequestEvent event) {
+        if (isArtifactKey(id)) {
+            return matchesNodeScope(id, event.nodeId());
+        }
+        return id.equals(event.requestId())
+                || id.equals(event.nodeId());
+    }
+
+    private ToolCallInfo toToolCallInfo(Events.ToolCallEvent event) {
+        return new ToolCallInfo(
+                event.eventId(),
+                event.timestamp(),
+                event.nodeId(),
+                event.toolCallId(),
+                event.title(),
+                event.kind(),
+                event.status(),
+                event.phase(),
+                event.rawInput(),
+                event.rawOutput()
+        );
     }
 
     private boolean isArtifactKey(String value) {
