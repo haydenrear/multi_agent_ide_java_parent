@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
 import com.hayden.acp_cdc_ai.acp.config.McpProperties
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
+import com.hayden.acp_cdc_ai.acp.events.EventBus
 import com.hayden.acp_cdc_ai.acp.events.Events
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository
@@ -44,6 +45,8 @@ import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.mcp.AsyncMcpToolCallback
 import org.springframework.ai.mcp.SyncMcpToolCallback
 import org.springframework.ai.model.tool.ToolCallingChatOptions
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import java.io.File
@@ -72,6 +75,10 @@ class AcpChatModel(
 ) : ChatModel, StreamingChatModel {
 
     private val log: Logger = LoggerFactory.getLogger(AcpChatModel::class.java)
+
+    @Autowired
+    @Lazy
+    private lateinit var eventBus: EventBus
 
     companion object AcpChatModel {
 
@@ -287,6 +294,11 @@ class AcpChatModel(
         if (cwd.isBlank())
             cwd = System.getProperty("user.dir")
 
+        val chatKey = memoryId
+            .mapNullable { ArtifactKey(it.toString()) }
+            .or { ArtifactKey.createRoot() }
+            ?: ArtifactKey.createRoot()
+
         return try {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             val transport = createProcessStdioTransport(scope, process, joinedEnv, Path.of(cwd))
@@ -371,11 +383,6 @@ class AcpChatModel(
 
             val sessionParams = SessionCreationParameters(cwd, mcpSyncServers.toList())
 
-            val chatKey = memoryId
-                .mapNullable { ArtifactKey(it.toString()) }
-                .or { ArtifactKey.createRoot() }
-                ?: ArtifactKey.createRoot()
-
             val messageParent = chatKey.createChild()
 
             val session=  client.newSession(sessionParams)
@@ -385,6 +392,7 @@ class AcpChatModel(
                 messageParent= messageParent, chatModelKey = chatKey)
 
         } catch (ex: Exception) {
+            eventBus.publish(Events.NodeErrorEvent.err("Error when attempting to establish ACP connection for %s: %s".format(chatKey.value, ex.message), chatKey))
             throw IllegalStateException("Failed to initialize ACP session", ex)
         }
     }
