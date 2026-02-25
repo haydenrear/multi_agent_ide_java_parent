@@ -19,6 +19,8 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.submodule.SubmoduleStatus;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -947,10 +949,65 @@ public class GitWorktreeService implements WorktreeService {
         try (var git = openGit(wt.get().worktreePath())) {
             return !git.status().call().isClean();
         } catch (Exception e) {
+            if (hasCause(e, MissingObjectException.class)) {
+                log.warn("MissingObjectException checking worktree status for {} - attempting to fix detached HEAD submodules", worktreeId);
+                try {
+                    fixDetachedHeadSubmodules(wt.get().worktreePath());
+                    try (var git = openGit(wt.get().worktreePath())) {
+                        return !git.status().call().isClean();
+                    }
+                } catch (Exception retryEx) {
+                    String message = "Could not determine worktree status for " + worktreeId + " after fixing detached HEAD";
+                    log.error(message, retryEx);
+                    eventBus.publish(Events.NodeErrorEvent.err(message + ": " + retryEx.getMessage(), ArtifactKey.createRoot()));
+                    return true;
+                }
+            }
             String message = "Could not determine worktree status for " + worktreeId;
             log.error(message, e);
             eventBus.publish(Events.NodeErrorEvent.err(message + ": " + e.getMessage(), ArtifactKey.createRoot()));
             return true;
+        }
+    }
+
+    private static boolean hasCause(Throwable t, Class<? extends Throwable> causeType) {
+        while (t != null) {
+            if (causeType.isInstance(t)) return true;
+            t = t.getCause();
+        }
+        return false;
+    }
+
+    private void fixDetachedHeadSubmodules(Path worktreePath) {
+        try (var git = openGit(worktreePath)) {
+            Map<String, SubmoduleStatus> submodules = git.submoduleStatus().call();
+            for (Map.Entry<String, SubmoduleStatus> entry : submodules.entrySet()) {
+                Path submodulePath = worktreePath.resolve(entry.getKey());
+                if (!Files.isDirectory(submodulePath.resolve(".git")) && !Files.isRegularFile(submodulePath.resolve(".git"))) {
+                    continue;
+                }
+                try (var subGit = openGit(submodulePath)) {
+                    Repository subRepo = subGit.getRepository();
+                    if (subRepo.resolve("HEAD") != null && subRepo.getFullBranch().startsWith("refs/heads/")) {
+                        continue; // already on a branch
+                    }
+                    // Detached HEAD - create or checkout a branch from current commit
+                    String branchName = worktreePath.getFileName().toString();
+                    log.info("Fixing detached HEAD in submodule {} by checking out branch {}", entry.getKey(), branchName);
+                    try {
+                        subGit.checkout().setName(branchName).setCreateBranch(true).call();
+                    } catch (Exception checkoutEx) {
+                        // Branch may already exist, try switching to it
+                        try {
+                            subGit.checkout().setName(branchName).call();
+                        } catch (Exception switchEx) {
+                            log.warn("Could not fix detached HEAD for submodule {}: {}", entry.getKey(), switchEx.getMessage());
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error fixing detached HEAD submodules in {}: {}", worktreePath, e.getMessage());
         }
     }
 
@@ -1648,6 +1705,8 @@ public class GitWorktreeService implements WorktreeService {
         if (result.isErr()) {
             throw new RuntimeException(result.errorMessage());
         }
+        // Fix detached HEAD submodules left by git submodule update --init
+        fixDetachedHeadSubmodules(parentWorktreePath);
         return result.unwrap();
     }
 
