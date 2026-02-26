@@ -1,4 +1,4 @@
-package com.hayden.multiagentide.worktree;
+package com.hayden.multiagentide.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,14 +13,17 @@ import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 
+import com.hayden.utilitymodule.git.RepoUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +58,35 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
     @AfterEach
     void tearDown() throws Exception {
         deleteRecursively(Path.of(WORKTREE_BASE));
+    }
+
+//    @Test
+    void testTest() throws IOException {
+        WorktreeContext parent = MainWorktreeContext.builder()
+                .worktreePath(Path.of("/Users/hayde/.multi-agent-ide/worktrees/f2d243d2-47b1-4308-b998-d3203d6857f2"))
+                .worktreeId("id1")
+                .repositoryUrl("/Users/hayde/.multi-agent-ide/worktrees/f2d243d2-47b1-4308-b998-d3203d6857f2")
+                .submoduleWorktrees(List.of(
+                        SubmoduleWorktreeContext.builder()
+                                .worktreeId("id1-1")
+                                .submoduleName("hello ???")
+                                .worktreePath(Path.of("/Users/hayde/.multi-agent-ide/worktrees/f2d243d2-47b1-4308-b998-d3203d6857f2/multi_agent_ide_java_parent"))
+                                .build()
+                ))
+                .build();
+        WorktreeContext child = MainWorktreeContext.builder()
+                .worktreeId("id2")
+                .worktreePath(Path.of("/Users/hayde/.multi-agent-ide/worktrees/beb51000-3ec0-4eff-ab4d-329516ec3ffa"))
+                .submoduleWorktrees(List.of(
+                        SubmoduleWorktreeContext.builder()
+                                .worktreeId("id2-1")
+                                .submoduleName("hello ???")
+                                .worktreePath(Path.of("/Users/hayde/.multi-agent-ide/worktrees/beb51000-3ec0-4eff-ab4d-329516ec3ffa/multi_agent_ide_java_parent"))
+                                .build()
+                ))
+                .build();
+        var f = gitWorktreeService.mergeWorktrees(child, parent);
+        log.info("");
     }
 
     @Test
@@ -1440,7 +1472,10 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
 
         MainWorktreeContext worktree = gitWorktreeService.createMainWorktree(
                 sourceRepo.toString(), "main", "main-wt", "node-main");
+
         Files.writeString(worktree.worktreePath().resolve("README.md"), "dirty worktree change");
+        RepoUtil.runGitCommand(worktree.worktreePath(), List.of("add", "."));
+        RepoUtil.runGitCommand(worktree.worktreePath(), List.of("commit", "-m", "updated"));
 
         WorktreeSandboxContext worktreeContext = buildSandboxContext(worktree);
         AgentModels.OrchestratorCollectorRequest request = AgentModels.OrchestratorCollectorRequest.builder()

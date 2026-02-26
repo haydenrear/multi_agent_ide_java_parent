@@ -183,12 +183,10 @@ class AcpChatModelCodexIntegrationTest {
     @Test
     void testCreateGoal() {
 
-
-
         CompletableFuture.runAsync(() -> {
             var s = orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
-                    "Please add a README.md with text HELLO to the source of the repo. For discovery, just create one agent request that says code map does not have readme, for planner have one planner agent that says only to write readme, for ticket, have one agent that says to write readme.",
-                    "/Users/hayde/IdeaProjects/multi_agent_ide_parent/libs-resolver",
+                    "Please add a README.md with text HELLO to the path multi_agent_ide_java_parent/README.md. For discovery, just create one agent request that says code map does not have readme, for planner have one planner agent that says only to write readme, for ticket, have one agent that says to write readme.",
+                    "/Users/hayde/IdeaProjects/multi_agent_ide_parent",
                     "main", "Artifact Centralization"));
         });
 
