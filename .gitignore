@@ -47,3 +47,5 @@ node_modules/
 dist/
 
 build
+
+multi_agent_ide/test_work
