@@ -17,7 +17,7 @@ Create a unified discovery document with:
 {% include "workflow/_collector_base.jinja" %}
 
 Happy path: return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "PLANNING".
-If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest.
+If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest or handle the conflicts yourself and commit them.
 If you believe discovery is insufficient, follow the Route-Back Review Protocol:
 in your structured JSON response, return a result with only `interruptRequest` populated, explaining the discovery gaps.
 After review, if approved: set collectorResult with ROUTE_BACK so discovery runs again.

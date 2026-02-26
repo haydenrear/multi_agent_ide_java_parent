@@ -6,13 +6,14 @@ multi-agent-embabel:
   acp:
     transport: stdio
     command: ${ACP_COMMAND:claude-agent-acp}
-    args: ${ACP_ARGS:--model anthropic/claude-haiku-4.5}
+    args: ${ACP_ARGS:--model openrouter/free }
     working-directory: ${ACP_WORKING_DIR:}
     env:
       ANTHROPIC_BASE_URL: https://openrouter.ai/api
       ANTHROPIC_AUTH_TOKEN: ${X_OPENROUTER_API_KEY}
-      ANTHROPIC_API_KEY:
+      ANTHROPIC_API_KEY: ""
       OPENROUTER_API_KEY: ${X_OPENROUTER_API_KEY}
+      ANTHROPIC_MODEL: openrouter/free
 acp.mcp:
   http:
     #    - name: deepwiki

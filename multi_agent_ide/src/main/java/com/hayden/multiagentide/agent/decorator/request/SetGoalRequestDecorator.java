@@ -30,6 +30,8 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
         }
         if (request instanceof AgentModels.CommitAgentRequest ca)
             return request;
+        if (request instanceof AgentModels.MergeConflictRequest mcr)
+            return request;
 
         var goal
                 = BlackboardHistory.getEntireBlackboardHistory(context.operationContext())
@@ -91,6 +93,9 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                                         case AgentModels.CommitAgentRequest ctx -> {
                                             return new GoalState(ctx, ctx.goal());
                                         }
+                                        case AgentModels.MergeConflictRequest ctx -> {
+                                            return new GoalState(ctx, ctx.goal());
+                                        }
                                         case AgentModels.TicketAgentRequests ctx -> {
                                             return new GoalState(ctx, ctx.goal());
                                         }
@@ -121,22 +126,11 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                     
                     Goal: %s
                     
-                    The goal has changed a bit since we initialized. For context, and so you can resolve with the original goal,
-                    here is the history of the goal:
-                    
-                    # Goal History
-                    %s
-                    
-                    ---
-                    
-                    # Original Goal:
-                    
-                    In particular, all changes to the goal should be take as in addition to the original goal:
-                    Original Goal: %s
+                    The goal may have changed a bit since we initialized.
+ 
+                    Here is the original goal: %s
                     """
-                    .formatted(goal.getLast().goal,
-                            goal.stream().map(gs -> "%s: %s".formatted(gs.agentRequest.getClass().getSimpleName(), gs.goal))
-                            .collect(Collectors.joining(System.lineSeparator())), goal.getFirst().goal);
+                    .formatted(goal.getLast().goal, goal.getFirst().goal);
             request = (T) request.withGoal(g);
         }
 

@@ -77,6 +77,9 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
             case AgentModels.CommitAgentRequest ignored -> {
                 // Internal commit action: do not create a dedicated workflow node.
             }
+            case AgentModels.MergeConflictRequest ignored -> {
+                // Internal merge-conflict action: do not create a dedicated workflow node.
+            }
             case AgentModels.ContextManagerRequest req ->
                     storeRequiredNode(operationContext, req,
                             () -> workflowGraphService.requireOrchestrator(operationContext));

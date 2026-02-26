@@ -201,13 +201,16 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
 
     private void setLogFile(String testName) {
         Path file = TEST_WORK_DIR.resolve(testName + ".md");
+        Path historyFile = TEST_WORK_DIR.resolve(testName + ".blackboard.md");
         try {
             Files.createDirectories(TEST_WORK_DIR);
             Files.deleteIfExists(file);
+            Files.deleteIfExists(historyFile);
         } catch (Exception e) {
             log.warn("Failed to clean log file: {}", file, e);
         }
         queuedLlmRunner.setLogFile(file);
+        queuedLlmRunner.setBlackboardHistoryLogFile(historyFile);
         queuedLlmRunner.setTestClassName(WorkflowAgentWorktreeMergeIntTest.class.getSimpleName());
         queuedLlmRunner.setTestMethodName(testName);
     }
@@ -445,6 +448,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 (BiConsumer<AgentModels.DiscoveryAgentRouting, OperationContext>)
                         (response, ctx) -> simulateAgentWork(ctx, "agent1-findings.md", "agent 1 findings")
         );
+        enqueueMergeConflictResult();
 
         // Agent 2 result — commits a different file
         queuedLlmRunner.enqueue(
@@ -456,6 +460,11 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 (BiConsumer<AgentModels.DiscoveryAgentRouting, OperationContext>)
                         (response, ctx) -> simulateAgentWork(ctx, "agent2-findings.md", "agent 2 findings")
         );
+
+        enqueueMergeConflictResult();
+        enqueueMergeConflictResult();
+        enqueueMergeConflictResult();
+        enqueueMergeConflictResult();
 
         // Dispatch routing → collector
         queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
@@ -512,6 +521,8 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                         (response, ctx) -> simulateAgentWork(ctx, "shared-findings.md", "Agent 1 wrote this content")
         );
 
+        enqueueMergeConflictResult();
+
         // Agent 2 — edits SAME file with conflicting content
         queuedLlmRunner.enqueue(
                 AgentModels.DiscoveryAgentRouting.builder()
@@ -522,6 +533,11 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 (BiConsumer<AgentModels.DiscoveryAgentRouting, OperationContext>)
                         (response, ctx) -> simulateAgentWork(ctx, "shared-findings.md", "Agent 2 wrote completely different content")
         );
+
+        enqueueMergeConflictResult();
+        enqueueMergeConflictResult();
+        enqueueMergeConflictResult();
+        enqueueMergeConflictResult();
 
         // Dispatch routing → collector
         queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
@@ -584,6 +600,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 (BiConsumer<AgentModels.DiscoveryAgentRouting, OperationContext>)
                         (response, ctx) -> simulateAgentWork(ctx, fileName, content)
         );
+        enqueueMergeConflictResults(3);
 
         queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
                 .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
@@ -625,6 +642,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 (BiConsumer<AgentModels.DiscoveryAgentRouting, OperationContext>)
                         (response, ctx) -> simulateAgentWorkWithSubmodule(ctx)
         );
+        enqueueMergeConflictResults(3);
 
         queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
                 .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
@@ -665,6 +683,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 (BiConsumer<AgentModels.PlanningAgentRouting, OperationContext>)
                         (response, ctx) -> simulateAgentWork(ctx, fileName, content)
         );
+        enqueueMergeConflictResults(3);
 
         queuedLlmRunner.enqueue(AgentModels.PlanningAgentDispatchRouting.builder()
                 .planningCollectorRequest(AgentModels.PlanningCollectorRequest.builder()
@@ -706,6 +725,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 (BiConsumer<AgentModels.TicketAgentRouting, OperationContext>)
                         (response, ctx) -> simulateAgentWork(ctx, fileName, content)
         );
+        enqueueMergeConflictResults(3);
 
         queuedLlmRunner.enqueue(AgentModels.TicketAgentDispatchRouting.builder()
                 .ticketCollectorRequest(AgentModels.TicketCollectorRequest.builder()
@@ -727,6 +747,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
     }
 
     private void finalOrchestratorCollector() {
+        enqueueMergeConflictResult();
         queuedLlmRunner.enqueue(AgentModels.OrchestratorCollectorRouting.builder()
                 .collectorResult(AgentModels.OrchestratorCollectorResult.builder()
                         .consolidatedOutput("Workflow complete")
@@ -749,6 +770,21 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 .output("Auto-committed changes")
                 .commitMetadata(List.of())
                 .notes(List.of())
+                .build());
+    }
+
+    private void enqueueMergeConflictResults(int count) {
+        for (int i = 0; i < count; i++) {
+            enqueueMergeConflictResult();
+        }
+    }
+
+    private void enqueueMergeConflictResult() {
+        queuedLlmRunner.enqueue(AgentModels.MergeConflictResult.builder()
+                .successful(true)
+                .output("Merge conflict validation complete.")
+                .resolvedConflictFiles(List.of())
+                .notes(List.of("No further conflict action required"))
                 .build());
     }
 
@@ -951,4 +987,5 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         }
         Files.deleteIfExists(path);
     }
+
 }

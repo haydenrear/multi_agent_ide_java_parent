@@ -14,8 +14,7 @@ import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
-import com.hayden.multiagentide.service.GitWorktreeService;
-import com.hayden.multiagentide.service.LlmRunner;
+import com.hayden.multiagentide.service.*;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentide.support.QueuedLlmRunner;
 import com.hayden.multiagentide.support.TestEventListener;
@@ -25,6 +24,8 @@ import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentidelib.model.MergeResult;
+import com.hayden.multiagentidelib.model.merge.MergeAggregation;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.nodes.*;
@@ -137,6 +138,13 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
     @MockitoSpyBean
     private ComputationGraphOrchestrator computationGraphOrchestrator;
 
+    @MockitoSpyBean
+    private WorktreeMergeConflictService conflictService;
+    @MockitoBean
+    private GitMergeService gitMergeService;
+    @MockitoBean
+    private WorktreeAutoCommitService worktreeAutoCommitService;
+
     @TempDir
     Path path;
 
@@ -173,11 +181,40 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                 workflowGraphService,
                 computationGraphOrchestrator,
                 worktreeService,
+                gitMergeService,
+                conflictService,
+                worktreeAutoCommitService,
                 eventBus
         );
         doThrow(new RuntimeException("worktree disabled"))
                 .when(worktreeService)
                 .branchWorktree(any(), any(), any());
+
+        Mockito.when(worktreeService.finalMergeToSourceDescriptor(anyString()))
+                .thenAnswer(inv -> MergeDescriptor.builder().mergeDirection(MergeDirection.WORKTREE_TO_SOURCE).build());
+        Mockito.when(worktreeAutoCommitService.autoCommitDirtyWorktrees(any(), any(), any(), any()))
+                .thenAnswer(inv -> AgentModels.CommitAgentResult.builder().build());
+        Mockito.when(worktreeAutoCommitService.autoCommitDirtyWorktreesForRequest(any(), any(), any(), any()))
+                .thenAnswer(inv -> AgentModels.CommitAgentResult.builder().build());
+        Mockito.when(worktreeService.mergeChildToTrunk(any(), any()))
+                .thenAnswer(inv -> MergeDescriptor.builder().mergeDirection(MergeDirection.CHILD_TO_TRUNK).build());
+        Mockito.when(worktreeService.mergeTrunkToChild(any(), any()))
+                .thenAnswer(inv -> MergeDescriptor.builder().mergeDirection(MergeDirection.TRUNK_TO_CHILD).build());
+        Mockito.when(gitMergeService.mergeTrunkToChildWithAutoCommit(any(), any(), any(), any(), any()))
+                        .thenAnswer(inv -> MergeDescriptor.success(MergeDirection.TRUNK_TO_CHILD, MergeResult.builder().build(), new ArrayList<>()));
+        Mockito.when(gitMergeService.mergeChildResultsToTrunkWithAutoCommit(any(), any(), any(), any()))
+                .thenAnswer(inv -> MergeAggregation.builder().build());
+        Mockito.when(gitMergeService.runFinalAggregationConflictPass(any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> MergeAggregation.builder().build());
+        Mockito.when(gitMergeService.finalMergeToSourceWithAutoCommit(any(), any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> MergeDescriptor.success(MergeDirection.CHILD_TO_TRUNK, MergeResult.builder().build(), new ArrayList<>()));
+        Mockito.when(conflictService.runForRequest(any(), any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> AgentModels.MergeConflictResult.builder().build());
+        Mockito.when(conflictService.runForResult(any(), any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> AgentModels.MergeConflictResult.builder().build());
+        Mockito.when(conflictService.runForResultsAggregation(any(), any(), any(), any()))
+                .thenAnswer(inv -> AgentModels.MergeConflictResult.builder().build());
+
 
         Mockito.when(worktreeService.attachWorktreesToDiscoveryRequests(any(AgentModels.DiscoveryAgentRequests.class), anyString()))
                 .thenAnswer(inv -> {
@@ -200,12 +237,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                             .requests(d.requests().stream().map(dar -> dar.withWorktreeContext(d.worktreeContext())).toList())
                             .build();
                 });
-        Mockito.when(worktreeService.mergeChildToTrunk(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
-                        .thenAnswer(inv -> MergeDescriptor.builder().mergeDirection(MergeDirection.CHILD_TO_TRUNK).build());
-        Mockito.when(worktreeService.mergeTrunkToChild(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
-                .thenAnswer(inv -> MergeDescriptor.builder().mergeDirection(MergeDirection.TRUNK_TO_CHILD).build());
-        Mockito.when(worktreeService.finalMergeToSourceDescriptor(anyString()))
-                .thenAnswer(inv -> MergeDescriptor.builder().mergeDirection(MergeDirection.WORKTREE_TO_SOURCE).build());
+
 
         artifactRepository.deleteAll();
         artifactRepository.flush();

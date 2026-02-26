@@ -95,14 +95,16 @@ public class RequestEnrichment {
         return switch (res) {
             case AgentModels.CommitAgentResult ignored ->
                     findLastFromHistory(history, AgentModels.CommitAgentRequest.class);
+            case AgentModels.MergeConflictResult ignored ->
+                    findLastFromHistory(history, AgentModels.MergeConflictRequest.class);
+            case AgentModels.MergerAgentResult ignored ->
+                    findLastFromHistory(history, AgentModels.MergerRequest.class);
             case AgentModels.DiscoveryAgentResult ignored ->
                     findLastFromHistory(history, AgentModels.DiscoveryAgentRequest.class);
             case AgentModels.DiscoveryCollectorResult ignored ->
                     findLastFromHistory(history, AgentModels.DiscoveryCollectorRequest.class);
             case AgentModels.DiscoveryOrchestratorResult ignored ->
                     findLastFromHistory(history, AgentModels.DiscoveryOrchestratorRequest.class);
-            case AgentModels.MergerAgentResult ignored ->
-                    findLastFromHistory(history, AgentModels.MergerRequest.class);
             case AgentModels.OrchestratorAgentResult ignored ->
                     findLastFromHistory(history, AgentModels.OrchestratorRequest.class);
             case AgentModels.OrchestratorCollectorResult ignored ->
@@ -185,6 +187,8 @@ public class RequestEnrichment {
                             AgentModels.TicketOrchestratorRequest.class);
             case AgentModels.CommitAgentRequest commitReq ->
                     commitReq.routedFromRequest();
+            case AgentModels.MergeConflictRequest mergeConflictRequest ->
+                    mergeConflictRequest.routedFromRequest();
             case AgentModels.TicketAgentRequests ignored ->
                     findLastFromHistory(history,
                             AgentModels.TicketOrchestratorRequest.class);
@@ -302,6 +306,16 @@ public class RequestEnrichment {
                         .routedFromRequest(routedFrom)
                         .build();
             }
+            case AgentModels.MergeConflictRequest req -> {
+                Artifact.AgentModel mergeParent = req.routedFromRequest() != null ? req.routedFromRequest() : parent;
+                AgentModels.AgentRequest routedFrom = req.routedFromRequest() != null
+                        ? req.routedFromRequest()
+                        : (parent instanceof AgentModels.AgentRequest ar ? ar : null);
+                yield (T) req.toBuilder()
+                        .contextId(resolveContextId(context, req, mergeParent))
+                        .routedFromRequest(routedFrom)
+                        .build();
+            }
             case AgentModels.TicketCollectorRequest req ->
                     (T) enrichTicketCollectorRequest(req, context, parent);
             case AgentModels.ReviewRequest req ->
@@ -384,6 +398,12 @@ public class RequestEnrichment {
             case AgentModels.CommitAgentResult result -> {
                 var enriched = result.toBuilder()
                         .contextId(resolveContextId(context, AgentType.COMMIT_AGENT, parent))
+                        .build();
+                yield withEnrichedChildren(enriched, enriched.children(), context);
+            }
+            case AgentModels.MergeConflictResult result -> {
+                var enriched = result.toBuilder()
+                        .contextId(resolveContextId(context, AgentType.ALL, parent))
                         .build();
                 yield withEnrichedChildren(enriched, enriched.children(), context);
             }

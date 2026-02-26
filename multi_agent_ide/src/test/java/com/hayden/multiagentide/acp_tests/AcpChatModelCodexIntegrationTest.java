@@ -59,7 +59,7 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles({"claudeopenrouter", "testdocker"})
+@ActiveProfiles({"codex", "testdocker"})
 @ExtendWith(SpringExtension.class)
 @TestPropertySource(properties = {"spring.ai.mcp.server.stdio=false"})
 class AcpChatModelCodexIntegrationTest {
@@ -183,9 +183,11 @@ class AcpChatModelCodexIntegrationTest {
     @Test
     void testCreateGoal() {
 
+
+
         CompletableFuture.runAsync(() -> {
             var s = orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
-                    "Please add a README.md with text HELLO to the source of the repo.",
+                    "Please add a README.md with text HELLO to the source of the repo. For discovery, just create one agent request that says code map does not have readme, for planner have one planner agent that says only to write readme, for ticket, have one agent that says to write readme.",
                     "/Users/hayde/IdeaProjects/multi_agent_ide_parent/libs-resolver",
                     "main", "Artifact Centralization"));
         });
@@ -260,9 +262,7 @@ class AcpChatModelCodexIntegrationTest {
                     .filter(agent -> agent.getName().equals(agentName))
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException("Agent not found: " + agentName));
-            RequestValue v1 = new RequestValue("Can you use your read tool to read the file %s/hello, return the result, ".formatted(workingDir.toAbsolutePath().toString()) +
-                    "then write that result to another file named log.log using your write tool, " +
-                    "then update that file and add the words WHATEVER!??");
+            RequestValue v1 = new RequestValue("What model are you?");
             AgentProcess process = agentPlatform.runAgentFrom(
                     thisAgent,
                     processOptions,

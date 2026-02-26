@@ -44,7 +44,7 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
 
     @Override
     public int order() {
-        return 20_000;
+        return -5_000;
     }
 
     @Override
@@ -101,6 +101,7 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             case AgentModels.TicketOrchestratorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.TicketAgentRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.CommitAgentRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
+            case AgentModels.MergeConflictRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.TicketCollectorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.TicketAgentResults r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.ReviewRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();

@@ -33,7 +33,7 @@ public class ClaudeCodeSandboxStrategy implements SandboxTranslationStrategy {
 
     @Override
     public String providerKey() {
-        return "claude-code-acp";
+        return "claude-agent-acp";
     }
 
     @Override

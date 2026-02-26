@@ -15,7 +15,7 @@ Create structured tickets with:
 {% include "workflow/_collector_base.jinja" %}
 
 Happy path: return collectorResult with collectorDecision.decisionType = ADVANCE_PHASE and requestedPhase = "TICKETS".
-If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest.
+If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest or handle the conflicts yourself and commit them.
 If you believe planning is insufficient, follow the Route-Back Review Protocol:
 in your structured JSON response, return a result with only `interruptRequest` populated, explaining the planning gaps.
 After review, if approved: set collectorResult with ROUTE_BACK so planning runs again.

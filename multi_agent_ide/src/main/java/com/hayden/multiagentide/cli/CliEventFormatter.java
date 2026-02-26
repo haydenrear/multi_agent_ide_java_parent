@@ -299,6 +299,10 @@ public class CliEventFormatter {
             case AgentModels.CommitAgentRequest r ->
                     "CommitAgentRequest sourceAgentType=" + summarize(args, r.sourceAgentType())
                             + " summary=" + summary;
+            case AgentModels.MergeConflictRequest r ->
+                    "MergeConflictRequest direction=" + summarize(args, r.mergeDirection())
+                            + " conflicts=" + summarize(args, r.conflictFiles())
+                            + " summary=" + summary;
             case AgentModels.TicketCollectorRequest r ->
                     "TicketCollectorRequest goal=" + summarize(args, r.goal())
                             + " summary=" + summary;
@@ -357,6 +361,10 @@ public class CliEventFormatter {
             case AgentModels.CommitAgentResult r ->
                     "CommitAgentResult successful=" + r.successful()
                             + " commits=" + countOf(r.commitMetadata())
+                            + " summary=" + summary;
+            case AgentModels.MergeConflictResult r ->
+                    "MergeConflictResult successful=" + r.successful()
+                            + " resolved=" + countOf(r.resolvedConflictFiles())
                             + " summary=" + summary;
             case AgentModels.ReviewAgentResult r ->
                     "ReviewAgentResult summary=" + summary;

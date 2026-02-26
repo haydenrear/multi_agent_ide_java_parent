@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.hayden.multiagentide.service.LlmRunner;
 import com.hayden.multiagentide.tool.ToolContext;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import lombok.Getter;
 import lombok.Setter;
@@ -66,6 +67,13 @@ public class QueuedLlmRunner implements LlmRunner {
     @Getter @Setter
     private Path logFile;
 
+    /**
+     * Optional markdown file where a snapshot of blackboard history is appended
+     * for each LLM call.
+     */
+    @Getter @Setter
+    private Path blackboardHistoryLogFile;
+
     /** Test class name written into the markdown header. */
     @Getter @Setter
     private String testClassName;
@@ -75,6 +83,7 @@ public class QueuedLlmRunner implements LlmRunner {
     private String testMethodName;
 
     private boolean headerWritten = false;
+    private boolean historyHeaderWritten = false;
 
     /**
      * Collected call records (always populated, regardless of logFile).
@@ -134,9 +143,11 @@ public class QueuedLlmRunner implements LlmRunner {
         callCount = 0;
         callRecords.clear();
         logFile = null;
+        blackboardHistoryLogFile = null;
         testClassName = null;
         testMethodName = null;
         headerWritten = false;
+        historyHeaderWritten = false;
     }
 
     @Override
@@ -191,6 +202,7 @@ public class QueuedLlmRunner implements LlmRunner {
         );
         callRecords.add(record);
         appendToLog(record);
+        appendBlackboardHistory(record, context);
 
         return (T) response;
     }
@@ -249,6 +261,70 @@ public class QueuedLlmRunner implements LlmRunner {
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (Exception e) {
             log.warn("Failed to write header to {}", logFile, e);
+        }
+    }
+
+    private void appendBlackboardHistory(CallRecord record, OperationContext context) {
+        if (blackboardHistoryLogFile == null) {
+            return;
+        }
+        try {
+            Files.createDirectories(blackboardHistoryLogFile.getParent());
+            if (!historyHeaderWritten) {
+                writeHistoryHeader();
+                historyHeaderWritten = true;
+            }
+
+            BlackboardHistory history = context != null ? BlackboardHistory.getEntireBlackboardHistory(context) : null;
+            List<BlackboardHistory.Entry> entries = history != null ? history.copyOfEntries() : List.of();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("## Call %d: `%s`\n\n".formatted(record.callIndex(), record.templateName()));
+            sb.append("History entries: `%d`\n\n".formatted(entries.size()));
+            if (entries.isEmpty()) {
+                sb.append("- (none)\n\n");
+            } else {
+                int index = 1;
+                for (BlackboardHistory.Entry entry : entries) {
+                    if (entry == null) {
+                        continue;
+                    }
+                    Object input = entry.input();
+                    String inputType = input != null ? input.getClass().getSimpleName() : "null";
+                    sb.append("### Entry %d\n\n".formatted(index++));
+                    sb.append("- action: `%s`\n".formatted(entry.actionName()));
+                    sb.append("- inputType: `%s`\n".formatted(inputType));
+                    sb.append("- timestamp: `%s`\n\n".formatted(entry.timestamp()));
+                    sb.append("```json\n");
+                    sb.append(safeSerialize(input));
+                    sb.append("\n```\n\n");
+                }
+            }
+            sb.append("---\n\n");
+
+            Files.writeString(blackboardHistoryLogFile, sb.toString(), StandardOpenOption.APPEND);
+        } catch (Exception e) {
+            log.warn("Failed to append blackboard history for call {} to {}", record.callIndex(), blackboardHistoryLogFile, e);
+        }
+    }
+
+    private void writeHistoryHeader() {
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("# QueuedLlmRunner Blackboard History Log\n\n");
+            sb.append("| Field | Value |\n");
+            sb.append("|-------|-------|\n");
+            sb.append("| **Test class** | `%s` |\n".formatted(
+                    testClassName != null ? testClassName : "unknown"));
+            sb.append("| **Test method** | `%s` |\n".formatted(
+                    testMethodName != null ? testMethodName : "unknown"));
+            sb.append("| **Started at** | %s |\n".formatted(Instant.now()));
+            sb.append("\n---\n\n");
+
+            Files.writeString(blackboardHistoryLogFile, sb.toString(),
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (Exception e) {
+            log.warn("Failed to write blackboard history header to {}", blackboardHistoryLogFile, e);
         }
     }
 

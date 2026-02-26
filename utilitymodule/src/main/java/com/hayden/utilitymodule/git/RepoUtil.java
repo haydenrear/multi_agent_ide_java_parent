@@ -104,10 +104,20 @@ public interface RepoUtil {
 
     static void doTempCommit(Git holder) throws GitAPIException {
         holder.add().addFilepattern(".").call();
-        var s = holder.status().call().getUncommittedChanges();
-        var toDelete = holder.status().call().getUncommittedChanges()
+        Collection<String> uncommitted;
+        try {
+            var status = holder.status()
+                    .setIgnoreSubmodules(SubmoduleWalk.IgnoreSubmoduleMode.ALL)
+                    .call();
+            uncommitted = status.getUncommittedChanges();
+        } catch (Exception e) {
+            log.warn("JGit status failed during temp commit. Falling back to git CLI.", e);
+            uncommitted = parseChangedFilesFromStatusCli(holder.getRepository().getDirectory().toPath());
+        }
+        var s = uncommitted;
+        var toDelete = uncommitted
                 .stream()
-                .filter(Predicate.not(uncommitted -> holder.getRepository().getDirectory().getParentFile().toPath().resolve(uncommitted).toFile().exists()))
+                .filter(Predicate.not(path -> holder.getRepository().getDirectory().getParentFile().toPath().resolve(path).toFile().exists()))
                 .toList();
 
         for (var d : toDelete) {
@@ -118,6 +128,36 @@ public interface RepoUtil {
 
         var committed = holder.commit().setMessage("temp").call();
         log.debug("Temp commit: {}, {}", committed, s);
+    }
+
+    private static List<String> parseChangedFilesFromStatusCli(Path repoPath) {
+        var status = runGitCommand(
+                repoPath,
+                List.of("-c", "core.quotepath=false", "status", "--porcelain", "--ignore-submodules=all")
+        );
+        if (status.isErr()) {
+            log.warn("CLI fallback status failed in temp commit: {}", status.errorMessage());
+            return List.of();
+        }
+
+        String output = status.r().get();
+        if (output == null || output.isBlank()) {
+            return List.of();
+        }
+
+        return output.lines()
+                .map(String::trim)
+                .filter(line -> !line.isBlank())
+                .map(line -> line.length() > 3 ? line.substring(3).trim() : line)
+                .map(path -> {
+                    int renameSep = path.indexOf(" -> ");
+                    return renameSep >= 0 ? path.substring(renameSep + 4).trim() : path;
+                })
+                .map(path -> path.startsWith("\"") && path.endsWith("\"") && path.length() > 1
+                        ? path.substring(1, path.length() - 1)
+                        : path)
+                .filter(path -> !path.isBlank())
+                .toList();
     }
 
     static <T> @NotNull OneResult<T, RepoUtilError> doInsideCommitStaged(Git git, Supplier<T> toDo) {

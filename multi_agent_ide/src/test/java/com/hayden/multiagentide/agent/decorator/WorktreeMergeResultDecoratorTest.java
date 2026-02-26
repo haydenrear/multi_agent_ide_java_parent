@@ -2,8 +2,8 @@ package com.hayden.multiagentide.agent.decorator;
 
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.result.WorktreeMergeResultDecorator;
+import com.hayden.multiagentide.service.GitMergeService;
 import com.hayden.multiagentide.service.GitWorktreeService;
-import com.hayden.multiagentide.service.WorktreeAutoCommitService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
@@ -27,8 +27,8 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class WorktreeMergeResultDecoratorTest {
@@ -36,18 +36,13 @@ class WorktreeMergeResultDecoratorTest {
     @Mock
     private GitWorktreeService gitWorktreeService;
     @Mock
-    private WorktreeAutoCommitService worktreeAutoCommitService;
+    private GitMergeService gitMergeService;
 
     private WorktreeMergeResultDecorator decorator;
 
     @BeforeEach
     void setUp() {
-        when(worktreeAutoCommitService.autoCommitDirtyWorktrees(any(), any(), any(), any()))
-                .thenReturn(AgentModels.CommitAgentResult.builder()
-                        .successful(true)
-                        .commitMetadata(List.of())
-                        .build());
-        decorator = new WorktreeMergeResultDecorator(gitWorktreeService, worktreeAutoCommitService, null);
+        decorator = new WorktreeMergeResultDecorator(gitMergeService, gitWorktreeService, null);
     }
 
     @Test
@@ -74,7 +69,7 @@ class WorktreeMergeResultDecoratorTest {
                 .mainWorktreeMergeResult(successMerge("trunk-main", "child-main"))
                 .build();
 
-        when(gitWorktreeService.mergeTrunkToChild(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
+        when(gitMergeService.mergeTrunkToChildWithAutoCommit(any(), any(), any(), any(), any()))
                 .thenReturn(successDescriptor);
 
         ArtifactKey contextId = ArtifactKey.createRoot();
@@ -102,7 +97,7 @@ class WorktreeMergeResultDecoratorTest {
         assertThat(descriptor.conflictFiles()).isEmpty();
         assertThat(descriptor.mainWorktreeMergeResult()).isNotNull();
 
-        verify(gitWorktreeService).mergeTrunkToChild(trunk, child);
+        verify(gitMergeService).mergeTrunkToChildWithAutoCommit(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -117,7 +112,7 @@ class WorktreeMergeResultDecoratorTest {
                 .mainWorktreeMergeResult(successMerge("trunk-main", "child-main"))
                 .build();
 
-        when(gitWorktreeService.mergeTrunkToChild(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
+        when(gitMergeService.mergeTrunkToChildWithAutoCommit(any(), any(), any(), any(), any()))
                 .thenReturn(successDescriptor);
 
         ArtifactKey contextId = ArtifactKey.createRoot();
@@ -141,7 +136,7 @@ class WorktreeMergeResultDecoratorTest {
         assertThat(decorated.mergeDescriptor().mergeDirection()).isEqualTo(MergeDirection.TRUNK_TO_CHILD);
         assertThat(decorated.mergeDescriptor().successful()).isTrue();
 
-        verify(gitWorktreeService).mergeTrunkToChild(trunk, child);
+        verify(gitMergeService).mergeTrunkToChildWithAutoCommit(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -156,7 +151,7 @@ class WorktreeMergeResultDecoratorTest {
                 .mainWorktreeMergeResult(successMerge("trunk-main", "child-main"))
                 .build();
 
-        when(gitWorktreeService.mergeTrunkToChild(any(WorktreeSandboxContext.class), any(WorktreeSandboxContext.class)))
+        when(gitMergeService.mergeTrunkToChildWithAutoCommit(any(), any(), any(), any(), any()))
                 .thenReturn(successDescriptor);
 
         ArtifactKey contextId = ArtifactKey.createRoot();
@@ -180,7 +175,7 @@ class WorktreeMergeResultDecoratorTest {
         assertThat(decorated.mergeDescriptor().mergeDirection()).isEqualTo(MergeDirection.TRUNK_TO_CHILD);
         assertThat(decorated.mergeDescriptor().successful()).isTrue();
 
-        verify(gitWorktreeService).mergeTrunkToChild(trunk, child);
+        verify(gitMergeService).mergeTrunkToChildWithAutoCommit(any(), any(), any(), any(), any());
     }
 
     private MergeResult successMerge(String childId, String parentId) {

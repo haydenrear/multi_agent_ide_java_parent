@@ -145,6 +145,8 @@ public class PromptContextFactory {
             }
             case AgentModels.CommitAgentRequest req -> {
             }
+            case AgentModels.MergeConflictRequest req -> {
+            }
             case AgentModels.TicketCollectorRequest req -> {
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 collectNonNull(upstreamContexts, req.planningCuration());

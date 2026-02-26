@@ -50,7 +50,7 @@ public interface AgentModels {
     }
 
     sealed interface AgentResult extends AgentContext
-            permits CommitAgentResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
+            permits CommitAgentResult, MergeConflictResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
 
     {
         WorktreeSandboxContext worktreeContext();
@@ -80,6 +80,7 @@ public interface AgentModels {
             TicketAgentRequests,
             TicketAgentRequest,
             CommitAgentRequest,
+            MergeConflictRequest,
 //            TicketAgentResults,
             TicketCollectorRequest,
             OrchestratorCollectorRequest,
@@ -113,6 +114,7 @@ public interface AgentModels {
                 case TicketOrchestratorRequest r -> r.goal();
                 case TicketAgentRequest r -> r.ticketDetails();
                 case CommitAgentRequest r -> r.goal();
+                case MergeConflictRequest r -> r.goal();
                 case TicketAgentRequests r -> r.goal();
                 case TicketCollectorRequest r -> r.goal();
                 case ContextManagerRequest r -> r.goal();
@@ -160,6 +162,7 @@ public interface AgentModels {
                 case TicketAgentRequests ignored -> "TICKET_DISPATCH";
                 case TicketAgentRequest ignored -> "TICKET_AGENT";
                 case CommitAgentRequest ignored -> "COMMIT_AGENT";
+                case MergeConflictRequest ignored -> "MERGE_CONFLICT_AGENT";
                 case TicketCollectorRequest ignored -> "TICKET_COLLECTOR";
                 case ContextManagerRequest ignored -> "CONTEXT_MANAGER";
                 case ContextManagerRoutingRequest ignored -> "CONTEXT_MANAGER_ROUTING";
@@ -207,6 +210,7 @@ public interface AgentModels {
                 case TicketAgentRequest ignored -> CurationPhase.TICKET_AGENT;
                 case TicketAgentRequests ignored -> CurationPhase.TICKET_AGENT;
                 case CommitAgentRequest ignored -> CurationPhase.OTHER;
+                case MergeConflictRequest ignored -> CurationPhase.OTHER;
                 case TicketAgentResults ignored -> CurationPhase.TICKET_AGENT;
                 case InterruptRequest ignored -> CurationPhase.INTERRUPT;
                 case OrchestratorRequest ignored -> CurationPhase.OTHER;
@@ -305,10 +309,24 @@ public interface AgentModels {
     interface HasOrchestratorRequestRouteBack {}
 
     /**
+     * Marker for models that carry a merge descriptor.
+     */
+    interface HasMergeDescriptor {
+        MergeDescriptor mergeDescriptor();
+    }
+
+    /**
+     * Marker for models that carry merge aggregation state.
+     */
+    interface HasMergeAggregation {
+        MergeAggregation mergeAggregation();
+    }
+
+    /**
      * Interface for agent results containers that can have merge aggregation.
      * Implemented by TicketAgentResults, PlanningAgentResults, and DiscoveryAgentResults.
      */
-    sealed interface ResultsRequest extends AgentRequest
+    sealed interface ResultsRequest extends AgentRequest, HasMergeAggregation
         permits
             DiscoveryAgentResults,
             PlanningAgentResults,
@@ -1030,7 +1048,7 @@ public interface AgentModels {
             String output,
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext
-    ) implements AgentResult {
+    ) implements AgentResult{
         public OrchestratorAgentResult(ArtifactKey contextId, String output) {
             this(contextId, output, null);
         }
@@ -1380,6 +1398,46 @@ public interface AgentModels {
                             .append("\n");
                 }
             }
+            appendList(builder, "Notes", notes);
+            return builder.toString().trim();
+        }
+    }
+
+    @Builder(toBuilder=true)
+    @JsonClassDescription("Result payload from merge conflict resolution execution.")
+    @With
+    record MergeConflictResult(
+            @JsonPropertyDescription("Unique context id for this result.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Whether merge conflict resolution completed successfully.")
+            boolean successful,
+            @JsonPropertyDescription("Human-readable summary output.")
+            String output,
+            @JsonPropertyDescription("Error message when merge conflict resolution fails.")
+            String errorMessage,
+            @JsonPropertyDescription("Files resolved during merge conflict handling.")
+            List<String> resolvedConflictFiles,
+            @JsonPropertyDescription("Optional short notes about conflict decisions.")
+            List<String> notes,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
+    ) implements AgentResult {
+        public MergeConflictResult(String output) {
+            this(null, true, output, null, List.of(), List.of(), null);
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("Successful: ").append(successful).append("\n");
+            if (output != null && !output.isBlank()) {
+                builder.append("Output:\n").append(output.trim()).append("\n");
+            }
+            if (errorMessage != null && !errorMessage.isBlank()) {
+                builder.append("Error: ").append(errorMessage.trim()).append("\n");
+            }
+            appendList(builder, "Resolved Conflict Files", resolvedConflictFiles);
             appendList(builder, "Notes", notes);
             return builder.toString().trim();
         }
@@ -2764,7 +2822,7 @@ public interface AgentModels {
             PreviousContext.OrchestratorCollectorPreviousContext previousContext,
             @JsonPropertyDescription("Merge descriptor from final merge to source repository.")
             MergeDescriptor mergeDescriptor
-    ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
+    ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack, HasMergeDescriptor {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -4033,6 +4091,64 @@ public interface AgentModels {
         }
     }
 
+    @Builder(toBuilder=true)
+    @JsonClassDescription("Internal request to resolve merge conflicts after merge execution.")
+    @With
+    record MergeConflictRequest(
+            @JsonPropertyDescription("Unique context id for this request.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Worktree sandbox context for this request.")
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Original request that routed into this merge conflict request.")
+            @SkipPropertyFilter
+            AgentRequest routedFromRequest,
+            @JsonPropertyDescription("Goal context for conflict resolution.")
+            String goal,
+            @JsonPropertyDescription("Source agent type that produced merge state.")
+            AgentType sourceAgentType,
+            @JsonPropertyDescription("Source request type for conflict resolution context.")
+            String sourceRequestType,
+            @JsonPropertyDescription("Merge direction being resolved.")
+            String mergeDirection,
+            @JsonPropertyDescription("Current merge conflict files to validate and repair.")
+            List<String> conflictFiles,
+            @JsonPropertyDescription("Current merge error message.")
+            String mergeError
+    ) implements AgentRequest {
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this.toBuilder().goal(goal).build();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            StringBuilder builder = new StringBuilder();
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Source Agent Type", sourceAgentType != null ? sourceAgentType.name() : null);
+            appendPrettyLine(builder, "Source Request Type", sourceRequestType);
+            appendPrettyLine(builder, "Merge Direction", mergeDirection);
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Merge Conflict Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Routed From Request Type",
+                    routedFromRequest != null ? routedFromRequest.getClass().getSimpleName() : null);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Source Agent Type", sourceAgentType != null ? sourceAgentType.name() : null);
+            appendPrettyLine(builder, "Source Request Type", sourceRequestType);
+            appendPrettyLine(builder, "Merge Direction", mergeDirection);
+            appendList(builder, "Conflict Files", conflictFiles);
+            appendPrettyLine(builder, "Merge Error", mergeError);
+            return builder.toString().trim();
+        }
+    }
+
     /**
      * DelegationTemplate for ticket orchestrator - contains multiple sub-agent requests.
      * The model returns this to delegate work to ticket agents.
@@ -4965,6 +5081,8 @@ public interface AgentModels {
                 case TicketOrchestratorRequest ticketOrchestratorRequest ->
                         builder = builder.returnToTicketOrchestrator(ticketOrchestratorRequest);
                 case CommitAgentRequest commitAgentRequest -> {
+                }
+                case MergeConflictRequest mergeConflictRequest -> {
                 }
                 case ContextManagerRoutingRequest contextManagerRoutingRequest -> {
                 }

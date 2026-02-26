@@ -19,6 +19,7 @@ public record MergeDescriptor(
         List<String> conflictFiles,
         List<SubmoduleMergeResult> submoduleMergeResults,
         MergeResult mainWorktreeMergeResult,
+        MergeErrorType errorType,
         String errorMessage,
         List<WorktreeCommitMetadata> commitMetadata
 ) {
@@ -48,6 +49,7 @@ public record MergeDescriptor(
                 .conflictFiles(List.of())
                 .submoduleMergeResults(submoduleResults != null ? submoduleResults : List.of())
                 .mainWorktreeMergeResult(mainResult)
+                .errorType(MergeErrorType.NONE)
                 .commitMetadata(List.of())
                 .build();
     }
@@ -58,12 +60,20 @@ public record MergeDescriptor(
     public static MergeDescriptor conflict(MergeDirection direction, List<String> conflictFiles,
                                            MergeResult mainResult, List<SubmoduleMergeResult> submoduleResults,
                                            String errorMessage) {
+        return conflict(direction, conflictFiles, mainResult, submoduleResults, errorMessage, MergeErrorType.MERGE_CONFLICT);
+    }
+
+    public static MergeDescriptor conflict(MergeDirection direction, List<String> conflictFiles,
+                                           MergeResult mainResult, List<SubmoduleMergeResult> submoduleResults,
+                                           String errorMessage,
+                                           MergeErrorType errorType) {
         return MergeDescriptor.builder()
                 .mergeDirection(direction)
                 .successful(false)
                 .conflictFiles(conflictFiles != null ? conflictFiles : List.of())
                 .submoduleMergeResults(submoduleResults != null ? submoduleResults : List.of())
                 .mainWorktreeMergeResult(mainResult)
+                .errorType(errorType != null ? errorType : MergeErrorType.UNKNOWN)
                 .errorMessage(errorMessage)
                 .commitMetadata(List.of())
                 .build();
@@ -78,6 +88,7 @@ public record MergeDescriptor(
                 .successful(true)
                 .conflictFiles(List.of())
                 .submoduleMergeResults(List.of())
+                .errorType(MergeErrorType.NONE)
                 .commitMetadata(List.of())
                 .build();
     }

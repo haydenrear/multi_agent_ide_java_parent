@@ -3,8 +3,11 @@ package com.hayden.multiagentide.worktree;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hayden.multiagentide.repository.WorktreeRepository;
+import com.hayden.multiagentide.service.GitMergeService;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.support.AgentTestBase;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.merge.MergeDirection;
@@ -40,6 +43,8 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
 
     @Autowired
     private WorktreeRepository worktreeRepository;
+    @Autowired
+    private GitMergeService gitMergeService;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -1392,6 +1397,70 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(descriptor.mergeDirection()).isEqualTo(MergeDirection.WORKTREE_TO_SOURCE);
         assertThat(descriptor.successful()).isTrue();
         assertThat(descriptor.conflictFiles()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("gitMergeService merges child to trunk with auto-commit")
+    void gitMergeServiceMergesChildToTrunkWithAutoCommit() throws Exception {
+        Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
+
+        MainWorktreeContext trunk = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-trunk", "node-trunk");
+        MainWorktreeContext child = gitWorktreeService.createMainWorktree(
+                mainRepo.toString(), "main", "main-child", "node-child");
+
+        Files.writeString(child.worktreePath().resolve("README.md"), "child dirty change");
+
+        WorktreeSandboxContext trunkContext = buildSandboxContext(trunk);
+        WorktreeSandboxContext childContext = buildSandboxContext(child);
+
+        AgentModels.TicketAgentResult childResult = AgentModels.TicketAgentResult.builder()
+                .contextId(ArtifactKey.createRoot().createChild())
+                .output("done")
+                .worktreeContext(childContext)
+                .build();
+
+        var aggregation = gitMergeService.mergeChildResultsToTrunkWithAutoCommit(
+                List.of(childResult),
+                trunkContext,
+                null,
+                "merge child into trunk"
+        );
+
+        assertThat(aggregation.conflicted()).isNull();
+        assertThat(aggregation.pending()).isEmpty();
+        assertThat(aggregation.merged()).hasSize(1);
+        assertThat(Files.readString(trunk.worktreePath().resolve("README.md"))).isEqualTo("child dirty change");
+    }
+
+    @Test
+    @DisplayName("gitMergeService final merge to source auto-commits dirty worktree")
+    void gitMergeServiceFinalMergeToSourceWithAutoCommit() throws Exception {
+        Path sourceRepo = createRepoWithFile("source-repo", "README.md", "base", "init main");
+
+        MainWorktreeContext worktree = gitWorktreeService.createMainWorktree(
+                sourceRepo.toString(), "main", "main-wt", "node-main");
+        Files.writeString(worktree.worktreePath().resolve("README.md"), "dirty worktree change");
+
+        WorktreeSandboxContext worktreeContext = buildSandboxContext(worktree);
+        AgentModels.OrchestratorCollectorRequest request = AgentModels.OrchestratorCollectorRequest.builder()
+                .contextId(ArtifactKey.createRoot().createChild())
+                .goal("propagate dirty change")
+                .worktreeContext(worktreeContext)
+                .build();
+
+        MergeDescriptor descriptor = gitMergeService.finalMergeToSourceWithAutoCommit(
+                request,
+                worktreeContext,
+                null,
+                null,
+                request.goal(),
+                worktree.worktreeId()
+        );
+
+        assertThat(descriptor.successful()).isTrue();
+        assertThat(descriptor.errorMessage()).isNull();
+        assertThat(Files.readString(sourceRepo.resolve("README.md"))).isEqualTo("dirty worktree change");
     }
 
     // ========================================================================

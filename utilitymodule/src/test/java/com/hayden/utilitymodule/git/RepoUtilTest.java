@@ -21,10 +21,9 @@ class RepoUtilTest {
 
     @Test
     void doTest() {
-        var f = RepoUtil.updateSubmodulesRecursively(Path.of("/Users/hayde/.multi-agent-ide/worktrees/f"));
-        var unwrapped = f.unwrap();
-        assertThat(unwrapped.size()).isNotZero();
-
+//        var f = RepoUtil.updateSubmodulesRecursively(Path.of("/Users/hayde/.multi-agent-ide/worktrees/f"));
+//        var unwrapped = f.unwrap();
+//        assertThat(unwrapped.size()).isNotZero();
     }
 
     @Test

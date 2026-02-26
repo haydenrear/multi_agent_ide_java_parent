@@ -240,6 +240,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                             lastPhase = newPhase;
                         }
                     }
+                    case AgentModels.MergeConflictResult ignored -> {
+                    }
                     case AgentModels.DiscoveryCollectorResult discoveryCollectorResult -> {
                         if (allowedTypes.contains(AllowedHistoryType.DISCOVERY_COLLECTOR_RESULT)
                                 && !emittedCurationTypes.contains(CurationType.DISCOVERY)
@@ -454,6 +456,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         // Prepend instructions preamble
         contributors.addFirst(new CurationWorkflowInstructionsContributor(BASE_PRIORITY - 1));
 
+        contributors.add(new CurationWorkflowFooterContributor(BASE_PRIORITY + contributors.size() + 1));
+
         return contributors;
     }
 
@@ -481,6 +485,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     addAllTypes(allowed);
             case AgentModels.CommitAgentRequest ignored -> {
 //                TODO: validate - this already uses previous session - no reason to rewrite these.
+            }
+            case AgentModels.MergeConflictRequest ignored -> {
             }
             case AgentModels.ContextManagerRequest ignored ->
                     addAllTypes(allowed);
@@ -799,6 +805,39 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         @Override
         public int priority() {
             return binderPriority;
+        }
+    }
+
+    record CurationWorkflowFooterContributor(
+            int contributorPriority) implements PromptContributor {
+
+        private static final String TEMPLATE = """
+                --- End Curated Workflow Context ---
+                """;
+
+        @Override
+        public String name() {
+            return "curation-workflow-footer";
+        }
+
+        @Override
+        public boolean include(PromptContext ctx) {
+            return true;
+        }
+
+        @Override
+        public String contribute(PromptContext ctx) {
+            return TEMPLATE;
+        }
+
+        @Override
+        public String template() {
+            return TEMPLATE;
+        }
+
+        @Override
+        public int priority() {
+            return contributorPriority;
         }
     }
 

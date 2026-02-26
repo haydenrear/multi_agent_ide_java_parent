@@ -1,5 +1,7 @@
 package com.hayden.multiagentidelib.model;
 
+import lombok.Builder;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -8,6 +10,7 @@ import java.util.List;
  * Result of merging a child worktree into parent.
  * Tracks merge status, conflicts, and submodule pointer updates.
  */
+@Builder
 public record MergeResult(
         String mergeId,
         String childWorktreeId,

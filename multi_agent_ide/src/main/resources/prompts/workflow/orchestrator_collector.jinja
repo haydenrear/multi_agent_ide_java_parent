@@ -4,7 +4,7 @@ Happy path guidance:
 - This is the final consolidation step.
 - Validate whether the ticket implementation is complete against the stated goal and acceptance context.
 - If complete, return collectorResult and set collectorDecision.decisionType = ADVANCE_PHASE with requestedPhase = "COMPLETE".
-- If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest.
+- If you need review/validation, set reviewRequest. If you need merge/conflict handling, set mergerRequest or handle the conflicts yourself and commit them.
 - If you believe the implementation is incomplete or has gaps, follow the Route-Back Review Protocol:
   in your structured JSON response, return a result with only `interruptRequest` populated (leave collectorResult null) with the gaps and let the reviewer decide.
 - After review, if approved for route-back: set collectorResult with ROUTE_BACK. Widen the goal in

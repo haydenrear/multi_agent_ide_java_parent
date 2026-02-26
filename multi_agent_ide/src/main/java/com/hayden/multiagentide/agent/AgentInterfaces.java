@@ -410,7 +410,8 @@ public interface AgentInterfaces {
             return AgentInterfaces.decorateRequestResult(
                     contextManagerRequest,
                     context,
-                    resultDecorators,
+                    resultDecorators.stream().filter(r -> !(r instanceof RequestDecorator))
+                            .toList(),
                     multiAgentAgentName(),
                     ACTION_CONTEXT_MANAGER_ROUTE,
                     METHOD_ROUTE_TO_CONTEXT_MANAGER,
@@ -3145,6 +3146,32 @@ public interface AgentInterfaces {
         return decorated;
     }
 
+    static <T extends AgentModels.AgentResult> T decorateResult(
+            T result,
+            OperationContext context,
+            List<? extends ResultDecorator> decorators,
+            String agentName,
+            String actionName,
+            String methodName,
+            Artifact.AgentModel lastRequest
+    ) {
+        if (result == null || decorators == null || decorators.isEmpty()) {
+            return result;
+        }
+        DecoratorContext decoratorContext = new DecoratorContext(
+                context, agentName, actionName, methodName, lastRequest, result
+        );
+        List<? extends ResultDecorator> sortedDecorators = decorators.stream()
+                .filter(d -> d != null)
+                .sorted(Comparator.comparingInt(ResultDecorator::order))
+                .toList();
+        T decorated = result;
+        for (ResultDecorator decorator : sortedDecorators) {
+            decorated = decorator.decorate(decorated, decoratorContext);
+        }
+        return decorated;
+    }
+
     static <T extends AgentModels.AgentRequest> T decorateRequestResult(
             T result,
             OperationContext context,
@@ -3310,6 +3337,7 @@ public interface AgentInterfaces {
         List<? extends RequestDecorator> sortedRequest = r.stream()
                 .filter(d -> d != null)
                 .sorted(Comparator.comparingInt(RequestDecorator::order))
+                .filter(c -> !(c instanceof ResultsRequestDecorator))
                 .toList();
         for (RequestDecorator decorator : sortedRequest) {
             decorated = decorator.decorate(decorated, decoratorContext);

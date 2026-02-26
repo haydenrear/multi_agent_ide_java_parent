@@ -8,8 +8,8 @@ import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
-import com.hayden.multiagentide.agent.decorator.result.FinalResultDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
+import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentide.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
@@ -56,7 +56,7 @@ public class WorktreeAutoCommitService {
     @Autowired @Lazy
     private List<ToolContextDecorator> toolContextDecorators;
     @Autowired @Lazy
-    private List<FinalResultDecorator> finalResultDecorators;
+    private List<ResultDecorator> resultDecorators;
 
     public AgentModels.CommitAgentResult autoCommitDirtyWorktrees(
             AgentModels.AgentResult sourceResult,
@@ -240,15 +240,14 @@ public class WorktreeAutoCommitService {
 
             AgentModels.CommitAgentResult normalized = normalizeCommitResult(raw, request, sourceResult);
 
-            return AgentInterfaces.decorateFinalResult(
+            return AgentInterfaces.decorateResult(
                     normalized,
-                    request,
-                    previousRequest,
                     operationContext,
-                    finalResultDecorators,
+                    resultDecorators,
                     AGENT_NAME,
                     ACTION_NAME,
-                    METHOD_NAME
+                    METHOD_NAME,
+                    request
             );
         } catch (Exception e) {
             log.warn("Commit agent LLM/tool execution failed for worktree {}. Falling back to direct commit.", targetWorktree.worktreeId(), e);
