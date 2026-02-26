@@ -33,6 +33,14 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
         if (request instanceof AgentModels.MergeConflictRequest mcr)
             return request;
 
+        var firstGoal
+                = BlackboardHistory.getEntireBlackboardHistory(context.operationContext())
+                .fromHistory(h -> h.getEntriesOfTypeOrSuper(AgentModels.OrchestratorRequest.class))
+                .stream()
+                .findFirst()
+                .map(AgentModels.OrchestratorRequest::goal)
+                .orElse("Could not find original goal.");
+
         var goal
                 = BlackboardHistory.getEntireBlackboardHistory(context.operationContext())
                         .fromHistory(h -> h.getEntriesOfTypeOrSuper(AgentModels.AgentRequest.class)
@@ -118,19 +126,27 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                 .toList();
 
         if (goal.size() == 1) {
-            request = (T) request.withGoal(goal.getFirst().goal);
+            request = (T) request.withGoal(firstGoal);
         } else if (!goal.isEmpty()) {
+
+            String[] split = goal.getLast().goal.split("# Original Goal");
+            String s = split[0];
+
+            if (s.isEmpty() && split.length == 2)
+                s = split[1];
 
             var g = """
                     # Current Goal
                     
                     Goal: %s
                     
+                    # Original Goal
+                    
                     The goal may have changed a bit since we initialized.
  
                     Here is the original goal: %s
                     """
-                    .formatted(goal.getLast().goal, goal.getFirst().goal);
+                    .formatted(s, firstGoal);
             request = (T) request.withGoal(g);
         }
 

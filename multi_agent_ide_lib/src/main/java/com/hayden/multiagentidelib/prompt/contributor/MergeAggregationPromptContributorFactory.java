@@ -36,9 +36,6 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
 
             Merge conflict agent outcomes (one per line or `none`):
             %s
-
-            Worktree contexts touched (one per line or `none`):
-            %s
             """;
 
     private static final String COLLECTOR_TEMPLATE = """
@@ -51,9 +48,6 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             %s
 
             Merge conflict agent outcomes (one per line or `none`):
-            %s
-
-            Worktree contexts touched (one per line or `none`):
             %s
 
             Final collector merge descriptors (one per line or `none`):
@@ -305,8 +299,7 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
             return DISPATCH_TEMPLATE.formatted(
                     linesOrNone(snapshot.descriptorLines()),
                     linesOrNone(snapshot.aggregationLines()),
-                    linesOrNone(snapshot.conflictOutcomeLines()),
-                    linesOrNone(snapshot.worktreeLines())
+                    linesOrNone(snapshot.conflictOutcomeLines())
             );
         }
 
@@ -352,7 +345,6 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
                     linesOrNone(snapshot.descriptorLines()),
                     linesOrNone(snapshot.aggregationLines()),
                     linesOrNone(snapshot.conflictOutcomeLines()),
-                    linesOrNone(snapshot.worktreeLines()),
                     linesOrNone(snapshot.finalCollectorLines())
             );
         }

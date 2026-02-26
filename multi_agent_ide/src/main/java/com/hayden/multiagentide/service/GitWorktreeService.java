@@ -295,7 +295,7 @@ public class GitWorktreeService implements WorktreeService {
             return !allConflicts.isEmpty();
         }
     }
-
+   
     @Override
     public MergeResult mergeWorktrees(String childWorktreeId, String parentWorktreeId) {
         Optional<WorktreeContext> childWt = worktreeRepository.findById(childWorktreeId);
@@ -318,20 +318,38 @@ public class GitWorktreeService implements WorktreeService {
             emitMergeFailure(result, childWt.orElse(null), parentWt.orElse(null), "Worktree not found for merge request.");
             return result;
         }
+        
+        Path parentPath = parentWt.get().worktreePath();
+        Path childPath = childWt.get().worktreePath();
+        String childBranch = childWt.get().derivedBranch();
+        WorktreeContext childContext = childWt.get();
+        WorktreeContext parentContext = parentWt.get();
 
         try {
-            WorktreeContext childContext = childWt.get();
-            WorktreeContext parentContext = parentWt.get();
-            Path childPath = childContext.worktreePath();
-            Path parentPath = parentContext.worktreePath();
+            return mergeWorktrees(childContext, parentContext);
+        } catch (Exception e) {
+            return getMergeResult(childContext, parentContext, e, parentPath, childPath, childBranch, childWorktreeId, parentWorktreeId);
+        }
+    }
 
-            // Phase 1: Build comprehensive merge plan (leaves first, root last).
+    @NonNull
+    public MergeResult mergeWorktrees(WorktreeContext childContext, WorktreeContext parentContext)  {
+        String childWorktreeId = childContext.worktreeId();
+        String parentWorktreeId = parentContext.worktreeId();
+        Path childPath = childContext.worktreePath();
+        Path parentPath = parentContext.worktreePath();
+        String childBranch = childContext.derivedBranch();
+
+        // Phase 1: Build comprehensive merge plan (leaves first, root last).
+        try {
             List<MergePlanStep> plan = buildMergePlan(childPath, parentPath, childContext.derivedBranch());
-            log.debug("Merge plan has {} steps", plan.size());
+            log.info("Merge plan has {} steps", plan.size());
+            log.info("Merge plan: {}", plan);
 
             // Phase 2: Execute each step with before/after actions and verification.
             MergeExecutionState state = new MergeExecutionState();
             for (MergePlanStep step : plan) {
+                log.info("Merging next step in plan: {}", step);
                 executeStepWithLifecycle(step, state, childContext, parentContext);
             }
 
@@ -346,27 +364,28 @@ public class GitWorktreeService implements WorktreeService {
             MergeResult success = finalizeSuccessfulMerge(childWorktreeId, parentWorktreeId, childContext, parentContext);
             emitMergeLifecycleEvent(success, childContext, parentContext, "main");
             return success;
-
         } catch (Exception e) {
-            if (childWt.isPresent() && parentWt.isPresent()) {
-                switchToBranches(parentWt.get().worktreePath(), childWt.get().worktreePath(), childWt.get().derivedBranch());
-            }
-            MergeResult result = new MergeResult(
-                    UUID.randomUUID().toString(),
-                    childWorktreeId,
-                    parentWorktreeId,
-                    childWt.map(WorktreeContext::worktreePath).map(this::normalizePath).orElse(null),
-                    parentWt.map(WorktreeContext::worktreePath).map(this::normalizePath).orElse(null),
-                    false,
-                    null,
-                    List.of(),
-                    List.of(),
-                    "Merge failed: " + e.getMessage(),
-                    Instant.now()
-            );
-            emitMergeFailure(result, childWt.orElse(null), parentWt.orElse(null), "Merge execution failed: " + e.getMessage());
-            return result;
+            return getMergeResult(childContext, parentContext, e, parentPath, childPath, childBranch, childWorktreeId, parentWorktreeId);
         }
+    }
+
+    private @NonNull MergeResult getMergeResult(WorktreeContext childContext, WorktreeContext parentContext, Exception e, Path parentPath, Path childPath, String childBranch, String childWorktreeId, String parentWorktreeId) {
+        switchToBranches(parentPath, childPath, childBranch);
+        MergeResult result = new MergeResult(
+                UUID.randomUUID().toString(),
+                childWorktreeId,
+                parentWorktreeId,
+                this.normalizePath(childPath),
+                this.normalizePath(parentPath),
+                false,
+                null,
+                List.of(),
+                List.of(),
+                "Merge failed: " + e.getMessage(),
+                Instant.now()
+        );
+        emitMergeFailure(result, childContext, parentContext, "Merge execution failed: " + e.getMessage());
+        return result;
     }
 
     /**
@@ -407,6 +426,7 @@ public class GitWorktreeService implements WorktreeService {
 
             // After-actions: commit dirty submodule pointers in the merged repo and its parent.
             commitDirtySubmodulePointers(step.parentPath());
+
             if (step.parentOfParentPath() != null) {
                 commitDirtySubmodulePointers(step.parentOfParentPath());
             }
@@ -418,14 +438,12 @@ public class GitWorktreeService implements WorktreeService {
 
             verifyStepResult(step, parentBefore, parentAfter);
             emitMergeStepSuccess(step, rootChildContext, rootParentContext);
-
         } catch (Exception e) {
             String label = step.submodulePath() != null ? step.submodulePath() : "root";
             List<MergeResult.MergeConflict> conflicts = List.of(new MergeResult.MergeConflict(
                     label, "merge-error", "", "", "", step.formattedSubmodulePath()
             ));
             emitMergeStepConflict(step, rootChildContext, rootParentContext, conflicts);
-            state.addConflicts(conflicts, step);
         }
     }
 
@@ -2235,7 +2253,7 @@ public class GitWorktreeService implements WorktreeService {
      * Each step knows its parent-of-parent path so that after a successful merge,
      * dirty submodule pointers can be committed in the correct containing repo.
      */
-    private List<MergePlanStep> buildMergePlan(Path childPath, Path parentPath, String rootChildBranch) throws IOException {
+    public List<MergePlanStep> buildMergePlan(Path childPath, Path parentPath, String rootChildBranch) throws IOException {
         List<MergePlanStep> plan = new ArrayList<>();
         collectSubmoduleSteps(childPath, parentPath, parentPath, "", plan);
 
@@ -2293,6 +2311,9 @@ public class GitWorktreeService implements WorktreeService {
             String childBranch;
             try (var g = openGit(childSubPath)) {
                 childBranch = g.getRepository().getBranch();
+            } catch (IOException e) {
+                log.info("Skipping submodule {}: {}.", childPath, e.getMessage());
+                continue;
             }
             String parentBranch;
             try (var g = openGit(parentSubPath)) {
@@ -2314,7 +2335,7 @@ public class GitWorktreeService implements WorktreeService {
      * A single step in the merge plan. Includes the parent-of-parent path so that
      * after a successful submodule merge, we commit dirty pointers in the containing repo.
      */
-    private record MergePlanStep(
+    public record MergePlanStep(
             Path childPath,
             Path parentPath,
             String submodulePath,

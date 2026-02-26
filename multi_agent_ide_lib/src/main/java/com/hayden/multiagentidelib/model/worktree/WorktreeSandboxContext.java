@@ -3,6 +3,7 @@ package com.hayden.multiagentidelib.model.worktree;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hayden.acp_cdc_ai.sandbox.SandboxContext;
 import com.hayden.utilitymodule.stream.StreamUtil;
+import lombok.Builder;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+@Builder
 public record WorktreeSandboxContext(
         MainWorktreeContext mainWorktree,
         List<SubmoduleWorktreeContext> submoduleWorktrees

@@ -66,6 +66,7 @@ public class GitMergeService {
         }
 
         if (trunkContext == null || trunkContext.mainWorktree() == null) {
+            log.error("Trunk context was null - skipping merge.");
             return MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD)
                     .withCommitMetadata(autoCommitResult.commitMetadata());
         }
@@ -73,11 +74,13 @@ public class GitMergeService {
         String childId = childContext.mainWorktree().worktreeId();
         String trunkId = trunkContext.mainWorktree().worktreeId();
         if (childId != null && childId.equals(trunkId)) {
+            log.error("Child ID didn't match - skipping merge.");
             return MergeDescriptor.noOp(MergeDirection.TRUNK_TO_CHILD)
                     .withCommitMetadata(autoCommitResult.commitMetadata());
         }
 
         MergeDescriptor descriptor = gitWorktreeService.mergeTrunkToChild(trunkContext, childContext);
+
         descriptor = descriptor.withCommitMetadata(mergeCommitMetadata(
                 descriptor.commitMetadata(),
                 autoCommitResult.commitMetadata()

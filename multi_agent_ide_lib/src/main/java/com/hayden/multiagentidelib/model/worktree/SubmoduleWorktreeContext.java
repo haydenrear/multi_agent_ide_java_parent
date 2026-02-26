@@ -1,6 +1,7 @@
 package com.hayden.multiagentidelib.model.worktree;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.Builder;
 
 import java.nio.file.Path;
 import java.time.Instant;
@@ -10,6 +11,7 @@ import java.util.Map;
 /**
  * Worktree for a git submodule within a main worktree.
  */
+@Builder
 public record SubmoduleWorktreeContext(
         String worktreeId,
         Path worktreePath,
