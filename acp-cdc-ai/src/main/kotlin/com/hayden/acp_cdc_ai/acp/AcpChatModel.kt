@@ -1,5 +1,6 @@
 package com.hayden.acp_cdc_ai.acp
 
+import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.client.ClientInfo
 import com.agentclientprotocol.common.ClientSessionOperations
@@ -259,6 +260,7 @@ class AcpChatModel(
         }
     }
 
+    @OptIn(UnstableApi::class)
     private suspend fun createSessionContext(memoryId: Any?, chatRequest: Prompt?): AcpSessionManager.AcpSessionContext {
         log.info("Creating session context for $memoryId")
 
@@ -387,6 +389,11 @@ class AcpChatModel(
 
             val session=  client.newSession(sessionParams)
              { _, _ -> AcpSessionOperations(permissionGate, chatKey.value) }
+
+            sandboxTranslation.model?.let {
+                log.info("Setting model to {}", it)
+                session.setModel(ModelId(it))
+            }
 
             sessionManager.AcpSessionContext(scope, transport, protocol, client, session,
                 messageParent= messageParent, chatModelKey = chatKey)

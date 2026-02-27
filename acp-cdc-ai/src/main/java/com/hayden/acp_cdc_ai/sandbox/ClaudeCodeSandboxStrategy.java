@@ -38,7 +38,8 @@ public class ClaudeCodeSandboxStrategy implements SandboxTranslationStrategy {
 
     @Override
     public SandboxTranslation translate(RequestContext context, List<String> acpArgs, String modelName) {
-        var args = SandboxTranslationStrategy.parseFromAcpArgsClaude(acpArgs, modelName);
+        var acp = SandboxTranslationStrategy.parseFromAcpArgsClaude(acpArgs, modelName);
+        var args = acp.args();
         if (context == null || context.mainWorktreePath() == null) {
             return SandboxTranslation.empty();
         }
@@ -72,6 +73,6 @@ public class ClaudeCodeSandboxStrategy implements SandboxTranslationStrategy {
             args.add("acceptEdits");
         }
 
-        return new SandboxTranslation(env, args, mainPath);
+        return new SandboxTranslation(env, args, mainPath, acp.model());
     }
 }

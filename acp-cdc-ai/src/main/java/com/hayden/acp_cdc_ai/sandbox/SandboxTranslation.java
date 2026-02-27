@@ -1,5 +1,7 @@
 package com.hayden.acp_cdc_ai.sandbox;
 
+import jakarta.annotation.Nullable;
+
 import java.util.List;
 import java.util.Map;
 
@@ -13,17 +15,21 @@ import java.util.Map;
 public record SandboxTranslation(
         Map<String, String> env,
         List<String> args,
-        String workingDirectory
+        String workingDirectory,
+        @Nullable String model
 ) {
-
 
     /**
      * Constructor for backward compatibility without workingDirectory.
      */
-    public SandboxTranslation(Map<String, String> env, List<String> args) {
-        this(env, args, null);
+    public SandboxTranslation(Map<String, String> env, List<String> args, String model) {
+        this(env, args, null, model);
     }
-    
+
+    public SandboxTranslation(Map<String, String> env, List<String> args) {
+        this(env, args, null, null);
+    }
+
     public static SandboxTranslation empty() {
         return new SandboxTranslation(Map.of(), List.of(), null);
     }

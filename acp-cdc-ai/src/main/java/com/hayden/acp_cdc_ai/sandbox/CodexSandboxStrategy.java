@@ -39,7 +39,8 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
 
     @Override
     public SandboxTranslation translate(RequestContext context, List<String> acpArgs, String modelName) {
-        var args = SandboxTranslationStrategy.parseFromAcpArgsCodex(acpArgs, modelName);
+        var acp = SandboxTranslationStrategy.parseFromAcpArgsCodex(acpArgs, modelName);
+        var args = acp.args();
 
         if (context == null || context.mainWorktreePath() == null) {
             return SandboxTranslation.empty();
@@ -78,7 +79,7 @@ public class CodexSandboxStrategy implements SandboxTranslationStrategy {
             }
         }
 
-        return new SandboxTranslation(env, args, mainPath);
+        return new SandboxTranslation(env, args, mainPath, acp.model());
     }
 
     /**

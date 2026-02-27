@@ -19,7 +19,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation(project(":multi_agent_ide_java_parent:utilitymodule"))
     implementation(project(":multi_agent_ide_java_parent:acp-cdc-ai"))
-    implementation("com.agentclientprotocol:acp:0.10.2")
+    implementation("com.agentclientprotocol:acp:0.15.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.9.0")
     implementation("com.ag-ui.community:kotlin-core-jvm:0.2.4")
     implementation("com.embabel.agent:embabel-agent-starter:0.3.3-SNAPSHOT")
