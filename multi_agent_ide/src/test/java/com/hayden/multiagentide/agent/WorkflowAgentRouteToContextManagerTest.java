@@ -2,12 +2,10 @@ package com.hayden.multiagentide.agent;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentProcess;
-import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.service.InterruptService;
-import com.hayden.multiagentide.service.LlmRunner;
+import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentidelib.prompt.ContextIdService;
-import com.hayden.multiagentidelib.prompt.PromptAssembly;
 import com.hayden.multiagentidelib.prompt.PromptContextFactory;
 import com.hayden.multiagentidelib.service.RequestEnrichment;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;

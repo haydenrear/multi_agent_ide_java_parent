@@ -164,3 +164,7 @@ skills:
 
 logging.level.com.hayden.acp_cdc_ai.acp: INFO
 logging.level.com.hayden.multiagentide.artifacts: DEBUG
+
+filter:
+  uv: uv
+  bins: {{PROJ_DIR}}/bin

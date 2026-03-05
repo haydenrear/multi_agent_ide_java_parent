@@ -6,6 +6,8 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -25,8 +27,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 @Slf4j
 public class ExecutionScopeService {
-    
-    private final EventBus eventBus;
+
+    @Autowired @Lazy
+    private EventBus eventBus;
 
     private final ArtifactEventListener artifactListener;
     
@@ -46,15 +49,6 @@ public class ExecutionScopeService {
         }
     }
     
-    /**
-     * Required child groups for a valid execution artifact.
-     */
-    public static final String GROUP_EXECUTION_CONFIG = "ExecutionConfig";
-    public static final String GROUP_INPUT_ARTIFACTS = "InputArtifacts";
-    public static final String GROUP_AGENT_EXECUTION = "AgentExecutionArtifacts";
-    public static final String GROUP_OUTCOME_EVIDENCE = "OutcomeEvidenceArtifacts";
-    
-
     /**
      * Starts a new execution scope and creates the root artifact.
      * 

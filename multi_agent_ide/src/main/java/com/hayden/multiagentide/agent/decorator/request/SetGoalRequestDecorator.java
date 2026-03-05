@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -113,8 +114,12 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                                         case AgentModels.TicketOrchestratorRequest ctx -> {
                                             return new GoalState(ctx, ctx.goal());
                                         }
+                                        case AgentModels.AiFilterRequest aiFilterRequest -> {
+                                            return null;
+                                        }
                                     }
                                 })
+                                .filter(Objects::nonNull)
                                 .filter(s -> StringUtils.isNotBlank(s.goal))
                                 .toList());
 

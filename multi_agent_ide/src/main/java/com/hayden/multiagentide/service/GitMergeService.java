@@ -17,6 +17,8 @@ import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -33,7 +35,14 @@ public class GitMergeService {
     private final GitWorktreeService gitWorktreeService;
     private final WorktreeAutoCommitService worktreeAutoCommitService;
     private final WorktreeMergeConflictService worktreeMergeConflictService;
-    private final EventBus eventBus;
+
+    private EventBus eventBus;
+
+    @Autowired
+    @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     public MergeDescriptor mergeTrunkToChildWithAutoCommit(
             AgentModels.AgentResult sourceResult,

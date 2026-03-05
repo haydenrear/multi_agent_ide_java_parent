@@ -42,12 +42,6 @@ public class RequestEnrichment {
             return null;
         }
 
-        BlackboardHistory history = null;
-
-        if (context != null) {
-            history = context.getAgentProcess().getBlackboard().last(BlackboardHistory.class);
-        }
-
         if (input.key() != null)
             log.error("Found input without key.");
 
@@ -123,6 +117,8 @@ public class RequestEnrichment {
                     findLastFromHistory(history, AgentModels.TicketCollectorRequest.class);
             case AgentModels.TicketOrchestratorResult ignored ->
                     findLastFromHistory(history, AgentModels.TicketOrchestratorRequest.class);
+            case AgentModels.AiFilterResult ignored ->
+                    findLastFromHistory(history, AgentModels.AiFilterRequest.class);
         };
     }
 
@@ -201,6 +197,9 @@ public class RequestEnrichment {
             case AgentModels.TicketOrchestratorRequest ignored ->
                     findLastFromHistory(history,
                             AgentModels.OrchestratorRequest.class);
+            case AgentModels.AiFilterRequest ignored ->
+                    findLastFromHistory(history,
+                            AgentModels.AgentRequest.class);
         };
     }
 
@@ -342,6 +341,10 @@ public class RequestEnrichment {
                     (T) req.toBuilder()
                             .contextId(resolveContextId(context, req, parent))
                             .build();
+            case AgentModels.AiFilterRequest req ->
+                    (T) req.toBuilder()
+                            .contextId(resolveContextId(context, req, parent))
+                            .build();
         };
     }
 
@@ -441,6 +444,10 @@ public class RequestEnrichment {
                         .build();
                 yield withEnrichedChildren(collectorResult, collectorResult.children(), context);
             }
+            case AgentModels.AiFilterResult aiFilterResult ->
+                    aiFilterResult.toBuilder()
+                            .contextId(resolveContextId(context, AgentType.AI_FILTER, parent))
+                            .build();
         };
 
         return (T) res;

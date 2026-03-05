@@ -1,8 +1,9 @@
-package com.hayden.multiagentide.service;
+package com.hayden.multiagentidelib.llm;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentide.tool.ToolContext;
+import com.hayden.multiagentidelib.tool.ToolContext;
 
 import java.util.Map;
 
@@ -39,4 +40,5 @@ public interface LlmRunner {
             Class<T> responseClass,
             OperationContext context
     );
+
 }

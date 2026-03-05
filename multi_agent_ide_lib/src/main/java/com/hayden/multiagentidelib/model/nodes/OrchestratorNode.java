@@ -33,7 +33,7 @@ public record OrchestratorNode(
         AgentModels.OrchestratorAgentResult orchestratorResult,
         InterruptContext interruptibleContext,
         WorkflowContext workflowContext
-) implements GraphNode, Viewable<String>, Orchestrator, Interruptible, HasWorkflowContext<OrchestratorNode> {
+) implements GraphNode, Viewable<String>, Orchestrator, Interruptible, HasWorkflowContext<OrchestratorNode>, ExecutionNode {
 
     public OrchestratorNode {
         if (nodeId == null || nodeId.isEmpty()) throw new IllegalArgumentException("nodeId required");
@@ -128,5 +128,10 @@ public record OrchestratorNode(
         return StreamUtil.toStream(submoduleWorktrees())
                 .map(SubmoduleWorktreeContext::worktreeId)
                 .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    @Override
+    public String agent() {
+        return "WORKFLOW_AGENT";
     }
 }

@@ -1,0 +1,72 @@
+package com.hayden.multiagentidelib.filter.model.layer;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentidelib.filter.config.FilterConfigProperties;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+
+/**
+ * Filter context for controller event filtering before user-facing emission.
+ */
+@Slf4j
+@Data
+public final class GraphEventObjectContext implements FilterContext {
+
+
+    private final String layerId;
+
+    private ArtifactKey key;
+
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    @Autowired
+    private FilterConfigProperties filterConfigProperties;
+
+    @JsonIgnore
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private ObjectMapper objectMapper;
+
+    @Override
+    public ArtifactKey key() {
+        return key;
+    }
+
+    @Override
+    public FilterConfigProperties filterConfigProperties() {
+        return filterConfigProperties;
+    }
+
+    @Override
+    public ObjectMapper objectMapper() {
+        return objectMapper;
+    }
+
+    /**
+     *
+     */
+    public GraphEventObjectContext(
+            String layerId,
+            Events.GraphEvent key
+    ) {
+        this.layerId = layerId;
+        try {
+            this.key = new ArtifactKey(key.nodeId()).createChild();
+        } catch (Exception e) {
+            log.error("Error attempting to create artifact key for graph event.", e);
+        }
+    }
+
+    @Override
+    public String layerId() {
+        return layerId;
+    }
+
+
+}

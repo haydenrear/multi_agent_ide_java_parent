@@ -390,8 +390,12 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                             lastPhase = newPhase;
                         }
                     }
+                    case AgentModels.AiFilterResult ignored -> {
+                    }
                 }
             }
+
+            Bind b = new Bind(seq, lastPhase);
 
             if (input instanceof AgentModels.AgentRequest req) {
                 switch (req) {
@@ -399,27 +403,59 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                         if (allowedTypes.contains(AllowedHistoryType.INTERRUPT_REQUEST)) {
                             String resolution = findResolutionAfter(entries, i);
                             AgentModels.CurationPhase newPhase = AgentModels.CurationPhase.INTERRUPT;
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
+                            seq = maybeAddBinder(contributors, b.phase, newPhase, seq);
                             interruptIndex++;
                             contributors.add(new InterruptResolutionContributor(
                                     new InterruptResolutionEntry(interrupt, de.timestamp(), resolution, null),
                                     interruptIndex, BASE_PRIORITY + seq++));
-                            lastPhase = newPhase;
+                            b = new Bind(seq, newPhase);
                         }
                     }
-                    default -> {
-                        if (hasRenderableRequest(req)) {
-                            AgentModels.CurationPhase newPhase = req.curationPhaseExtraction();
-                            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
-                            contributors.add(new RequestContextContributor(
-                                    requestContributorName(req),
-                                    req,
-                                    de.actionName(),
-                                    BASE_PRIORITY + seq++));
-                            lastPhase = newPhase;
-                        }
-                    }
+                    case AgentModels.AiFilterRequest aiFilterRequest -> {}
+                    case AgentModels.CommitAgentRequest commitAgentRequest -> {}
+                    case AgentModels.MergeConflictRequest mergeConflictRequest -> {}
+                    case AgentModels.ContextManagerRequest contextManagerRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.ContextManagerRoutingRequest contextManagerRoutingRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.DiscoveryAgentRequest discoveryAgentRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.DiscoveryAgentRequests discoveryAgentRequests ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.DiscoveryCollectorRequest discoveryCollectorRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.DiscoveryOrchestratorRequest discoveryOrchestratorRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.MergerRequest mergerRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.OrchestratorRequest orchestratorRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.PlanningAgentRequest planningAgentRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.PlanningAgentRequests planningAgentRequests ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.PlanningCollectorRequest planningCollectorRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.PlanningOrchestratorRequest planningOrchestratorRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.ResultsRequest resultsRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.ReviewRequest reviewRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.TicketAgentRequest ticketAgentRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.TicketAgentRequests ticketAgentRequests ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.TicketCollectorRequest ticketCollectorRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                    case AgentModels.TicketOrchestratorRequest ticketOrchestratorRequest ->
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
                 }
+
+                lastPhase = b.phase;
+                seq = b.seq;
             }
         }
 
@@ -461,6 +497,25 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         return contributors;
     }
 
+    Bind addPromptContributor(AgentModels.AgentRequest req, List<PromptContributor> contributors,
+                              AgentModels.CurationPhase lastPhase, int seq,
+                              BlackboardHistory.Entry de) {
+        if (hasRenderableRequest(req)) {
+            AgentModels.CurationPhase newPhase = req.curationPhaseExtraction();
+            seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
+            contributors.add(new RequestContextContributor(
+                    requestContributorName(req),
+                    req,
+                    de.actionName(),
+                    BASE_PRIORITY + seq++));
+            lastPhase = newPhase;
+        }
+
+        return new Bind(seq, lastPhase);
+    }
+
+    record Bind(int seq, AgentModels.CurationPhase phase) {}
+
     // -----------------------------------------------------------------------
     // Allowed-types population (preserves the original switch semantics)
     // -----------------------------------------------------------------------
@@ -485,6 +540,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     addAllTypes(allowed);
             case AgentModels.CommitAgentRequest ignored -> {
 //                TODO: validate - this already uses previous session - no reason to rewrite these.
+            }
+            case AgentModels.AiFilterRequest aiFilterRequest -> {
             }
             case AgentModels.MergeConflictRequest ignored -> {
             }

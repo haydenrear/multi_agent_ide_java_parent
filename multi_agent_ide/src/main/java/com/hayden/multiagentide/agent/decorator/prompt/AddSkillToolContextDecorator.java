@@ -2,8 +2,8 @@ package com.hayden.multiagentide.agent.decorator.prompt;
 
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.skills.SkillFinder;
-import com.hayden.multiagentide.tool.ToolAbstraction;
-import com.hayden.multiagentide.tool.ToolContext;
+import com.hayden.multiagentidelib.tool.ToolAbstraction;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

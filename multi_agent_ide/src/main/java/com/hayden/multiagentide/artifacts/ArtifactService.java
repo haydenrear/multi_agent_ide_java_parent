@@ -45,7 +45,7 @@ public class ArtifactService {
     @PostConstruct
     public void configure() {
         var j = new Jackson2ObjectMapperBuilder();
-        new SerdesConfiguration().artifactAndAgentModelMixIn().customize(j);
+        SerdesConfiguration.artifactAndAgentModelMixIn().customize(j);
 
         this.objectMapper = j.build();
     }

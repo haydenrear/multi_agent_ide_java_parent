@@ -2,9 +2,16 @@ package com.hayden.multiagentide.cli;
 
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentide.filter.integration.ControllerEventFilterIntegration;
+import com.hayden.multiagentide.filter.integration.PathFilterIntegration;
+import com.hayden.multiagentide.filter.service.LayerIdResolver;
+import com.hayden.multiagentidelib.filter.model.FilterSource;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentPretty;
+import com.hayden.multiagentidelib.filter.model.layer.GraphEventObjectContext;
+import com.hayden.multiagentidelib.filter.model.layer.DefaultPathFilterContext;
 import org.jspecify.annotations.NonNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -15,9 +22,23 @@ public class CliEventFormatter {
 
     private static final int MAX_FIELD_LENGTH = 160;
     private final ArtifactKeyFormatter artifactKeyFormatter;
+    private final LayerIdResolver layerIdResolver;
+    private final ControllerEventFilterIntegration controllerEventFilterIntegration;
+    private final PathFilterIntegration pathFilterIntegration;
+
+    @Autowired
+    public CliEventFormatter(ArtifactKeyFormatter artifactKeyFormatter,
+                             LayerIdResolver layerIdResolver,
+                             ControllerEventFilterIntegration controllerEventFilterIntegration,
+                             PathFilterIntegration pathFilterIntegration) {
+        this.artifactKeyFormatter = artifactKeyFormatter;
+        this.layerIdResolver = layerIdResolver;
+        this.controllerEventFilterIntegration = controllerEventFilterIntegration;
+        this.pathFilterIntegration = pathFilterIntegration;
+    }
 
     public CliEventFormatter(ArtifactKeyFormatter artifactKeyFormatter) {
-        this.artifactKeyFormatter = artifactKeyFormatter;
+        this(artifactKeyFormatter, null, null, null);
     }
 
     public String format(Events.GraphEvent event) {
@@ -28,9 +49,13 @@ public class CliEventFormatter {
         if (args == null) {
             return "[EVENT] null";
         }
-        Events.GraphEvent event = args.graphEvent();
-        if (event == null) {
+        Events.GraphEvent rawEvent = args.graphEvent();
+        if (rawEvent == null) {
             return "[EVENT] null";
+        }
+        Events.GraphEvent event = filterGraphEvent(args, rawEvent);
+        if (event == null) {
+            return "[EVENT] filtered";
         }
         CliEventArgs normalizedArgs = normArgs(args, event);
         return switch (event) {
@@ -45,63 +70,71 @@ public class CliEventFormatter {
                 case Events.NodePrunedEvent e -> formatNodePruned(normalizedArgs, e);
                 case Events.NodeReviewRequestedEvent e -> formatNodeReviewRequested(normalizedArgs, e);
                 case Events.InterruptStatusEvent e -> formatInterruptStatus(normalizedArgs, e);
-                case Events.PauseEvent e -> format(args, "INTERRUPT", e, "message=" + summarize(args, e.toAddMessage()));
-                case Events.ResumeEvent e -> format(args, "INTERRUPT", e, "message=" + summarize(args, e.message()));
-                case Events.ResolveInterruptEvent e -> format(args, "INTERRUPT", e, "message=" + summarize(args, e.toAddMessage()));
-                case Events.StopAgentEvent e -> format(args, "ACTION", e, "node=" + e.nodeId());
-                case Events.AddMessageEvent e -> format(args, "MESSAGE", e, "message=" + summarize(args, e.toAddMessage()));
-                case Events.InterruptRequestEvent e -> format(args, "INTERRUPT", e,
-                        "source=" + summarize(args, e.sourceAgentType())
-                                + " reroute=" + summarize(args, e.rerouteToAgentType())
-                                + " reason=" + summarize(args, e.reason()));
+                case Events.PauseEvent e -> format(normalizedArgs, "INTERRUPT", e, "message=" + summarize(normalizedArgs, e.toAddMessage()));
+                case Events.ResumeEvent e -> format(normalizedArgs, "INTERRUPT", e, "message=" + summarize(normalizedArgs, e.message()));
+                case Events.ResolveInterruptEvent e -> format(normalizedArgs, "INTERRUPT", e, "message=" + summarize(normalizedArgs, e.toAddMessage()));
+                case Events.StopAgentEvent e -> format(normalizedArgs, "ACTION", e, "node=" + e.nodeId());
+                case Events.AddMessageEvent e -> format(normalizedArgs, "MESSAGE", e, "message=" + summarize(normalizedArgs, e.toAddMessage()));
+                case Events.InterruptRequestEvent e -> format(normalizedArgs, "INTERRUPT", e,
+                        "source=" + summarize(normalizedArgs, e.sourceAgentType())
+                                + " reroute=" + summarize(normalizedArgs, e.rerouteToAgentType())
+                                + " reason=" + summarize(normalizedArgs, e.reason()));
                 case Events.WorktreeCreatedEvent e -> formatWorktreeCreated(normalizedArgs, e);
                 case Events.WorktreeBranchedEvent e -> formatWorktreeBranched(normalizedArgs, e);
                 case Events.WorktreeMergedEvent e -> formatWorktreeMerged(normalizedArgs, e);
                 case Events.WorktreeDiscardedEvent e -> formatWorktreeDiscarded(normalizedArgs, e);
-                case Events.NodeUpdatedEvent e -> format(args, "NODE", e, "updates=" + countOf(e.updates()));
-                case Events.NodeDeletedEvent e -> format(args, "NODE", e, "reason=" + summarize(args, e.reason()));
-                case Events.ChatSessionCreatedEvent e -> format(args, "CHAT", e, "nodeId=" + summarize(args, e.nodeId()));
-                case Events.ChatSessionClosedEvent e -> format(args, "CHAT", e, "sessionId=" + summarize(args, e.sessionId()));
-                case Events.NodeStreamDeltaEvent e -> format(args, "STREAM", e, "tokens=" + e.tokenCount() + " final=" + e.isFinal());
-                case Events.NodeThoughtDeltaEvent e -> format(args, "THOUGHT", e, "tokens=" + e.tokenCount() + " final=" + e.isFinal());
-                case Events.GuiRenderEvent e -> format(args, "UI", e, "sessionId=" + e.sessionId());
-                case Events.UiDiffAppliedEvent e -> format(args, "UI", e, "revision=" + e.revision() + " summary=" + summarize(args, e.summary()));
-                case Events.UiDiffRejectedEvent e -> format(args, "UI", e, "error=" + summarize(args, e.errorCode()) + " message=" + summarize(args, e.message()));
-                case Events.UiDiffRevertedEvent e -> format(args, "UI", e, "revision=" + e.revision() + " source=" + summarize(args, e.sourceEventId()));
-                case Events.UiFeedbackEvent e -> format(args, "UI", e, "message=" + summarize(args, e.message()));
-                case Events.NodeBranchRequestedEvent e -> format(args, "NODE", e, "message=" + summarize(args, e.message()));
-                case Events.PlanUpdateEvent e -> format(args, "PLAN", e, "entries=" + countOf(e.entries()));
-                case Events.UserMessageChunkEvent e -> format(args, "MESSAGE", e, "content=" + summarize(args, e.content()));
-                case Events.CurrentModeUpdateEvent e -> format(args, "MODE", e, "mode=" + summarize(args, e.currentModeId()));
-                case Events.AvailableCommandsUpdateEvent e -> format(args, "MODE", e, "commands=" + countOf(e.commands()));
-                case Events.PermissionRequestedEvent e -> format(args, "PERMISSION", e, "requestId=" + e.requestId() + " toolCallId=" + e.toolCallId());
-                case Events.PermissionResolvedEvent e -> format(args, "PERMISSION", e, "requestId=" + e.requestId() + " outcome=" + summarize(args, e.outcome()));
-                case Events.GoalCompletedEvent e -> format(args, "GOAL", e, "workflowId=" + summarize(args, e.workflowId()));
+                case Events.NodeUpdatedEvent e -> format(normalizedArgs, "NODE", e, "updates=" + countOf(e.updates()));
+                case Events.NodeDeletedEvent e -> format(normalizedArgs, "NODE", e, "reason=" + summarize(normalizedArgs, e.reason()));
+                case Events.ChatSessionCreatedEvent e -> format(normalizedArgs, "CHAT", e, "nodeId=" + summarize(normalizedArgs, e.nodeId()));
+                case Events.ChatSessionClosedEvent e -> format(normalizedArgs, "CHAT", e, "sessionId=" + summarize(normalizedArgs, e.sessionId()));
+                case Events.AiFilterSessionEvent e -> format(normalizedArgs, "AI_FILTER", e,
+                        "policyId=" + summarize(normalizedArgs, e.policyId())
+                                + " mode=" + summarize(normalizedArgs, e.sessionMode())
+                                + " scope=" + summarize(normalizedArgs, e.scopeNodeId())
+                                + " sessionId=" + summarize(normalizedArgs, e.sessionContextId() == null ? null : e.sessionContextId().value()));
+                case Events.NodeStreamDeltaEvent e -> format(normalizedArgs, "STREAM", e, "tokens=" + e.tokenCount() + " final=" + e.isFinal());
+                case Events.NodeThoughtDeltaEvent e -> format(normalizedArgs, "THOUGHT", e, "tokens=" + e.tokenCount() + " final=" + e.isFinal());
+                case Events.GuiRenderEvent e -> format(normalizedArgs, "UI", e, "sessionId=" + e.sessionId());
+                case Events.UiDiffAppliedEvent e -> format(normalizedArgs, "UI", e, "revision=" + e.revision() + " summary=" + summarize(normalizedArgs, e.summary()));
+                case Events.UiDiffRejectedEvent e -> format(normalizedArgs, "UI", e, "error=" + summarize(normalizedArgs, e.errorCode()) + " message=" + summarize(normalizedArgs, e.message()));
+                case Events.UiDiffRevertedEvent e -> format(normalizedArgs, "UI", e, "revision=" + e.revision() + " source=" + summarize(normalizedArgs, e.sourceEventId()));
+                case Events.UiFeedbackEvent e -> format(normalizedArgs, "UI", e, "message=" + summarize(normalizedArgs, e.message()));
+                case Events.NodeBranchRequestedEvent e -> format(normalizedArgs, "NODE", e, "message=" + summarize(normalizedArgs, e.message()));
+                case Events.PlanUpdateEvent e -> format(normalizedArgs, "PLAN", e, "entries=" + countOf(e.entries()));
+                case Events.UserMessageChunkEvent e -> format(normalizedArgs, "MESSAGE", e, "content=" + summarize(normalizedArgs, e.content()));
+                case Events.CurrentModeUpdateEvent e -> format(normalizedArgs, "MODE", e, "mode=" + summarize(normalizedArgs, e.currentModeId()));
+                case Events.AvailableCommandsUpdateEvent e -> format(normalizedArgs, "MODE", e, "commands=" + countOf(e.commands()));
+                case Events.PermissionRequestedEvent e -> format(normalizedArgs, "PERMISSION", e, "requestId=" + e.requestId() + " toolCallId=" + e.toolCallId());
+                case Events.PermissionResolvedEvent e -> format(normalizedArgs, "PERMISSION", e, "requestId=" + e.requestId() + " outcome=" + summarize(normalizedArgs, e.outcome()));
+                case Events.GoalCompletedEvent e -> format(normalizedArgs, "GOAL", e, "workflowId=" + summarize(normalizedArgs, e.workflowId()));
                 case Events.ArtifactEvent e -> formatArtifactEvent(normalizedArgs, e);
-                case Events.TuiInteractionGraphEvent e -> format(args, "TUI", e, "sessionId=" + summarize(args, e.sessionId())
-                        + " event=" + summarize(args, e.tuiEvent() == null ? null : e.tuiEvent().getClass().getSimpleName()));
-                case Events.TuiSystemGraphEvent e -> format(args, "TUI", e, "sessionId=" + summarize(args, e.sessionId())
-                        + " event=" + summarize(args, e.tuiEvent() == null ? null : e.tuiEvent().getClass().getSimpleName()));
-                case Events.MergePhaseStartedEvent e -> format(args, "MERGE", e, "direction=" + e.mergeDirection()
-                        + " trunk=" + summarize(args, e.trunkWorktreeId()) + " child=" + summarize(args, e.childWorktreeId())
+                case Events.TuiInteractionGraphEvent e -> format(normalizedArgs, "TUI", e, "sessionId=" + summarize(normalizedArgs, e.sessionId())
+                        + " event=" + summarize(normalizedArgs, e.tuiEvent() == null ? null : e.tuiEvent().getClass().getSimpleName()));
+                case Events.TuiSystemGraphEvent e -> format(normalizedArgs, "TUI", e, "sessionId=" + summarize(normalizedArgs, e.sessionId())
+                        + " event=" + summarize(normalizedArgs, e.tuiEvent() == null ? null : e.tuiEvent().getClass().getSimpleName()));
+                case Events.MergePhaseStartedEvent e -> format(normalizedArgs, "MERGE", e, "direction=" + e.mergeDirection()
+                        + " trunk=" + summarize(normalizedArgs, e.trunkWorktreeId()) + " child=" + summarize(normalizedArgs, e.childWorktreeId())
                         + " children=" + e.childCount());
-                case Events.MergePhaseCompletedEvent e -> format(args, "MERGE", e, "direction=" + e.mergeDirection()
+                case Events.MergePhaseCompletedEvent e -> format(normalizedArgs, "MERGE", e, "direction=" + e.mergeDirection()
                         + " successful=" + e.successful() + " merged=" + e.mergedCount()
                         + " conflicts=" + e.conflictCount());
             };
     }
 
-    private static @NonNull CliEventArgs normArgs(CliEventArgs args, Events.GraphEvent event) {
+    private @NonNull CliEventArgs normArgs(CliEventArgs args, Events.GraphEvent event) {
         int maxFieldLength = Math.max(0, args.maxFieldLength());
-        CliEventArgs normalizedArgs = maxFieldLength == args.maxFieldLength()
+        return maxFieldLength == args.maxFieldLength() && event == args.graphEvent()
                 ? args
-                : new CliEventArgs(maxFieldLength, event);
-        return normalizedArgs;
+                : new CliEventArgs(maxFieldLength, event, args.prettyPrint(), args.layerId());
     }
 
-    public record CliEventArgs(int maxFieldLength, Events.GraphEvent graphEvent, boolean prettyPrint) {
+    public record CliEventArgs(int maxFieldLength, Events.GraphEvent graphEvent, boolean prettyPrint, String layerId) {
         public CliEventArgs(int maxFieldLength, Events.GraphEvent graphEvent) {
-            this(maxFieldLength, graphEvent, false);
+            this(maxFieldLength, graphEvent, false, null);
+        }
+
+        public CliEventArgs(int maxFieldLength, Events.GraphEvent graphEvent, boolean prettyPrint) {
+            this(maxFieldLength, graphEvent, prettyPrint, null);
         }
     }
 
@@ -328,6 +361,8 @@ public class CliEventFormatter {
                             + " results=" + countOf(r.childResults())
                             + " summary=" + summary;
             case AgentModels.InterruptRequest r -> "InterruptRequest summary=" + summary;
+            case AgentModels.AiFilterRequest aiFilterRequest ->
+                    "AiFilterResult";
         };
     }
 
@@ -370,6 +405,8 @@ public class CliEventFormatter {
                     "ReviewAgentResult summary=" + summary;
             case AgentModels.MergerAgentResult r ->
                     "MergerAgentResult summary=" + summary;
+            case AgentModels.AiFilterResult r ->
+                    "AiFilterResult " + summary;
         };
     }
 
@@ -492,9 +529,41 @@ public class CliEventFormatter {
     private String serializeEvent(CliEventArgs args, Events.GraphEvent event) {
         String pretty = event.prettyPrint();
         if (pretty == null || pretty.isBlank()) {
-            return summarize(args, event.eventType());
+            pretty = summarize(args, event.eventType());
         }
-        return pretty;
+        String layerId = resolveLayerId(args, event);
+        if (layerId == null || pathFilterIntegration == null) {
+            return pretty;
+        }
+        return pathFilterIntegration.applyTextPathFilters(
+                        layerId,
+                        FilterSource.graphEvent(event),
+                        pretty,
+                        new DefaultPathFilterContext(layerId, new GraphEventObjectContext(layerId, event))
+
+                )
+                .t();
+    }
+
+    private Events.GraphEvent filterGraphEvent(CliEventArgs args, Events.GraphEvent event) {
+        if (event == null || controllerEventFilterIntegration == null) {
+            return event;
+        }
+        String layerId = resolveLayerId(args, event);
+        if (layerId == null) {
+            return event;
+        }
+        return controllerEventFilterIntegration.applyFilters(layerId, event).t();
+    }
+
+    private String resolveLayerId(CliEventArgs args, Events.GraphEvent event) {
+        if (args != null && args.layerId() != null && !args.layerId().isBlank()) {
+            return args.layerId();
+        }
+        if (layerIdResolver == null) {
+            return null;
+        }
+        return layerIdResolver.resolveForGraphEvent(event).orElse(null);
     }
 
     private String summarize(CliEventArgs args, Object value) {

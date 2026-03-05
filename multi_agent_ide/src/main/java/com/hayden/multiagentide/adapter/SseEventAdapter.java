@@ -3,7 +3,13 @@ package com.hayden.multiagentide.adapter;
 import com.hayden.multiagentide.infrastructure.EventAdapter;
 import com.hayden.acp_cdc_ai.acp.events.AgUiSerdes;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentide.filter.integration.ControllerEventFilterIntegration;
+import com.hayden.multiagentide.filter.integration.PathFilterIntegration;
+import com.hayden.multiagentide.filter.service.LayerIdResolver;
 import com.hayden.multiagentide.repository.EventStreamRepository;
+import com.hayden.multiagentidelib.filter.model.FilterSource;
+import com.hayden.multiagentidelib.filter.model.layer.GraphEventObjectContext;
+import com.hayden.multiagentidelib.filter.model.layer.DefaultPathFilterContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -24,6 +30,12 @@ public class SseEventAdapter extends EventAdapter {
 
     @Autowired
     private EventStreamRepository graphRepository;
+    @Autowired
+    private LayerIdResolver layerIdResolver;
+    @Autowired
+    private ControllerEventFilterIntegration controllerEventFilterIntegration;
+    @Autowired
+    private PathFilterIntegration pathFilterIntegration;
 
     public SseEventAdapter() {
         super("sse-adapter");
@@ -35,12 +47,20 @@ public class SseEventAdapter extends EventAdapter {
     }
 
     public SseEmitter registerEmitter() {
-        return registerEmitter(event -> true);
+        return registerEmitter(event -> true, null);
     }
 
     public SseEmitter registerEmitter(Predicate<Events.GraphEvent> filter) {
+        return registerEmitter(filter, null);
+    }
+
+    public SseEmitter registerEmitter(Predicate<Events.GraphEvent> filter, String controllerId) {
         SseEmitter emitter = new SseEmitter(0L);
-        RegisteredEmitter registered = new RegisteredEmitter(emitter, filter == null ? event -> true : filter);
+        RegisteredEmitter registered = new RegisteredEmitter(
+                emitter,
+                filter == null ? event -> true : filter,
+                controllerId
+        );
         emitters.add(registered);
         emitter.onCompletion(() -> emitters.remove(registered));
         emitter.onTimeout(() -> emitters.remove(registered));
@@ -51,7 +71,10 @@ public class SseEventAdapter extends EventAdapter {
             if (!registered.filter().test(event)) {
                 continue;
             }
-            String payload = serdes.serializeEvent(Events.mapToEvent(event));
+            String payload = serializeEventForScope(event, registered.controllerId());
+            if (payload == null) {
+                continue;
+            }
             try {
                 emitter.send(SseEmitter.event().name("ag-ui").data(payload));
             } catch (IOException e) {
@@ -64,9 +87,12 @@ public class SseEventAdapter extends EventAdapter {
 
     @Override
     protected void adaptEvent(Events.GraphEvent event) {
-        String payload = serdes.serializeEvent(Events.mapToEvent(event));
         for (RegisteredEmitter registered : emitters) {
             if (!registered.filter().test(event)) {
+                continue;
+            }
+            String payload = serializeEventForScope(event, registered.controllerId());
+            if (payload == null) {
                 continue;
             }
             try {
@@ -90,6 +116,40 @@ public class SseEventAdapter extends EventAdapter {
         return "sse";
     }
 
-    private record RegisteredEmitter(SseEmitter emitter, Predicate<Events.GraphEvent> filter) {
+    private String serializeEventForScope(Events.GraphEvent event, String controllerId) {
+        if (event == null) {
+            return null;
+        }
+
+        String layerId = layerIdResolver == null
+                ? null
+                : layerIdResolver.resolveForGraphEvent(controllerId, event).orElse(null);
+
+        Events.GraphEvent filteredEvent = event;
+        if (layerId != null && controllerEventFilterIntegration != null) {
+            filteredEvent = controllerEventFilterIntegration.applyFilters(layerId, event)
+                    .t();
+        }
+        if (filteredEvent == null) {
+            return null;
+        }
+
+        String payload = serdes.serializeEvent(Events.mapToEvent(filteredEvent));
+        if (layerId != null && pathFilterIntegration != null) {
+            payload = pathFilterIntegration.applyJsonPathFilters(
+                            layerId,
+                            FilterSource.graphEvent(filteredEvent),
+                            payload,
+                            new DefaultPathFilterContext(layerId, new GraphEventObjectContext(layerId, event))
+                    )
+                    .t();
+        }
+        return payload;
+    }
+
+    private record RegisteredEmitter(
+            SseEmitter emitter,
+            Predicate<Events.GraphEvent> filter,
+            String controllerId) {
     }
 }

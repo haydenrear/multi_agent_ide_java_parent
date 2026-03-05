@@ -1,4 +1,4 @@
-package com.hayden.multiagentide.skills
+package com.hayden.multiagentidelib.skills
 
 import com.embabel.agent.skills.Skills
 

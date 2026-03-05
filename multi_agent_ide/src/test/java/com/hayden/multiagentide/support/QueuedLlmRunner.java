@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.hayden.multiagentide.service.LlmRunner;
-import com.hayden.multiagentide.tool.ToolContext;
+import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import lombok.Getter;
@@ -85,6 +85,9 @@ public class QueuedLlmRunner implements LlmRunner {
     private boolean headerWritten = false;
     private boolean historyHeaderWritten = false;
 
+    @Setter
+    private String thread;
+
     /**
      * Collected call records (always populated, regardless of logFile).
      */
@@ -136,6 +139,7 @@ public class QueuedLlmRunner implements LlmRunner {
             throw new AssertionError("Expected all queued responses to be consumed, but " +
                     responseQueue.size() + " remain");
         }
+
     }
 
     public void clear() {
@@ -160,6 +164,7 @@ public class QueuedLlmRunner implements LlmRunner {
             Class<T> responseClass,
             OperationContext context
     ) {
+
         callCount++;
 
         if (responseQueue.isEmpty()) {

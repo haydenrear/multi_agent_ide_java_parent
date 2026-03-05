@@ -126,6 +126,7 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             case AgentModels.InterruptRequest.MergerInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.InterruptRequest.ContextManagerInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
+            case AgentModels.AiFilterRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
         };
     }
 

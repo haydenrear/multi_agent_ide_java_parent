@@ -1,18 +1,15 @@
 package com.hayden.multiagentidelib.prompt;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactHashing;
-import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
-import com.hayden.acp_cdc_ai.acp.events.Templated;
+import com.hayden.acp_cdc_ai.acp.filter.FilteredObject;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
-public interface PromptContributor {
+public interface PromptContributor extends FilteredObject {
 
     String name();
 

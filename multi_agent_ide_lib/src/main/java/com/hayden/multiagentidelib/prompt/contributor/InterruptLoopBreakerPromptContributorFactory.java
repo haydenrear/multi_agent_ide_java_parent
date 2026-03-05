@@ -184,6 +184,7 @@ public class InterruptLoopBreakerPromptContributorFactory implements PromptContr
             case AgentModels.MergeConflictRequest ignored -> null;
             case AgentModels.ResultsRequest ignored -> null;
             case InterruptRequest ignored -> null;
+            case AgentModels.AiFilterRequest ignored -> null;
         };
     }
 

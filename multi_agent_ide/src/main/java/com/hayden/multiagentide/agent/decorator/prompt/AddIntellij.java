@@ -4,7 +4,7 @@ import com.embabel.agent.api.common.ToolObject;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
-import com.hayden.multiagentide.tool.ToolAbstraction;
+import com.hayden.multiagentidelib.tool.ToolAbstraction;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;

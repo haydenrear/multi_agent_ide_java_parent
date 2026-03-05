@@ -2,8 +2,7 @@ package com.hayden.multiagentide.agent.decorator.prompt;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.api.common.nested.ObjectCreator;
-import com.embabel.agent.api.common.nested.TemplateOperations;
-import com.hayden.multiagentide.tool.ToolContext;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import lombok.Builder;
 import lombok.With;

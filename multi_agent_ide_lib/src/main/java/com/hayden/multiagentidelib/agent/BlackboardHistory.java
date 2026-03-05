@@ -68,7 +68,8 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                 a -> !(a instanceof AgentModels.InterruptRequest)
                         && !(a instanceof AgentModels.ContextManagerRequest)
                         && !(a instanceof AgentModels.ContextManagerRoutingRequest)
-                        && !(a instanceof AgentModels.CommitAgentRequest));
+                        && !(a instanceof AgentModels.CommitAgentRequest)
+                        && !(a instanceof AgentModels.AiFilterRequest));
         return lastRequest;
     }
 
@@ -79,6 +80,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                         && !(a instanceof AgentModels.ContextManagerRequest)
                         && !(a instanceof AgentModels.ContextManagerRoutingRequest)
                         && !(a instanceof AgentModels.CommitAgentRequest)
+                        && !(a instanceof AgentModels.AiFilterRequest)
         );
     }
 
@@ -551,6 +553,8 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     new ArrayList<>();
             case Events.ChatSessionClosedEvent chatSessionClosedEvent ->
                     new ArrayList<>();
+            case Events.AiFilterSessionEvent aiFilterSessionEvent ->
+                    buildTargets(aiFilterSessionEvent.nodeId(), null);
             case Events.TuiInteractionGraphEvent tuiInteractionGraphEvent ->
                     new ArrayList<>();
             case Events.TuiSystemGraphEvent tuiSystemGraphEvent ->

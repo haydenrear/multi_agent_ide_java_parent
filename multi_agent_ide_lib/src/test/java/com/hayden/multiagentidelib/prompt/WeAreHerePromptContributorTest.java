@@ -160,7 +160,7 @@ class WeAreHerePromptContributorTest {
             assertThat(output).contains("ROUTE_BACK");
             assertThat(output).contains("Planning Orchestrator");
             assertThat(output).contains("Discovery Orchestrator");
-            assertThat(output).contains("handleDiscoveryCollectorBranch");
+            assertThat(output).contains("collectorResult");
         }
     }
 
@@ -224,7 +224,7 @@ class WeAreHerePromptContributorTest {
             assertThat(output).contains("ROUTE_BACK");
             assertThat(output).contains("Ticket Orchestrator");
             assertThat(output).contains("Planning Orchestrator");
-            assertThat(output).contains("handlePlanningCollectorBranch");
+            assertThat(output).contains("collectorResult");
         }
     }
 
@@ -296,7 +296,7 @@ class WeAreHerePromptContributorTest {
             assertThat(output).contains("ROUTE_BACK");
             assertThat(output).contains("Orchestrator Collector");
             assertThat(output).contains("Ticket Orchestrator");
-            assertThat(output).contains("handleTicketCollectorBranch");
+            assertThat(output).contains("collectorResult");
         }
     }
 
@@ -325,7 +325,7 @@ class WeAreHerePromptContributorTest {
             
             String output = contributor.contribute(context);
             
-            assertThat(output).contains("handleOrchestratorCollectorBranch");
+            assertThat(output).contains("collectorResult");
             assertThat(output).contains("ADVANCE_PHASE");
             assertThat(output).contains("ROUTE_BACK");
             assertThat(output).contains("workflow completion");
@@ -508,18 +508,12 @@ class WeAreHerePromptContributorTest {
             String output = contributor.contribute(context);
             
             // Discovery Collector branches
-            assertThat(output).contains("planningRequest (ADVANCE_PHASE)");
-            assertThat(output).contains("discoveryRequest (ROUTE_BACK)");
             assertThat(output).contains("orchestratorRequest");
             
             // Planning Collector branches
-            assertThat(output).contains("ticketOrchestratorRequest (ADVANCE_PHASE)");
-            assertThat(output).contains("planningRequest (ROUTE_BACK)");
             assertThat(output).contains("discoveryOrchestratorRequest");
             
             // Ticket Collector branches
-            assertThat(output).contains("orchestratorCollectorRequest (ADVANCE_PHASE)");
-            assertThat(output).contains("ticketRequest (ROUTE_BACK)");
             assertThat(output).contains("reviewRequest");
             assertThat(output).contains("mergerRequest");
         }

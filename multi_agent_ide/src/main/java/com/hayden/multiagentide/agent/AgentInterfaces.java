@@ -24,8 +24,9 @@ import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentidelib.events.DegenerateLoopException;
 import com.hayden.multiagentide.service.InterruptService;
-import com.hayden.multiagentide.tool.ToolAbstraction;
-import com.hayden.multiagentide.tool.ToolContext;
+import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.tool.ToolAbstraction;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import com.hayden.multiagentidelib.service.RequestEnrichment;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContextFactory;
@@ -187,6 +188,18 @@ public interface AgentInterfaces {
         return new DegenerateLoopException(reason, methodName, requestType, loopInvocation);
     }
 
+    static OperationContext buildOpContext(AgentProcess agentProcess, String name) {
+        if (agentProcess == null) {
+            return null;
+        }
+        Operation operation = InjectedType.Companion.named(name);
+        return OperationContext.Companion.invoke(
+                agentProcess.getProcessContext(),
+                operation,
+                Set.of()
+        );
+    }
+
     String multiAgentAgentName();
 
     String WORKFLOW_AGENT_NAME = WorkflowAgent.class.getName();
@@ -209,7 +222,7 @@ public interface AgentInterfaces {
         private final WorkflowGraphService workflowGraphService;
         private final InterruptService interruptService;
         private final PromptContextFactory promptContextFactory;
-        private final com.hayden.multiagentide.service.LlmRunner llmRunner;
+        private final LlmRunner llmRunner;
         private final ContextManagerTools contextManagerTools;
         private final BlackboardHistoryService blackboardHistoryService;
 
@@ -230,6 +243,7 @@ public interface AgentInterfaces {
 
         @Autowired(required = false)
         private List<ToolContextDecorator> toolContextDecorators = new ArrayList<>();
+
         @Autowired
         private EventBus eventBus;
 
@@ -242,7 +256,7 @@ public interface AgentInterfaces {
 
         @Override
         public StuckHandlerResult handleStuck(AgentProcess agentProcess) {
-            OperationContext context = buildStuckHandlerContext(agentProcess);
+            OperationContext context = buildOpContext(agentProcess, STUCK_HANDLER);
             BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
 
             if (history == null)
@@ -566,18 +580,6 @@ public interface AgentInterfaces {
                     ACTION_ORCHESTRATOR,
                     METHOD_COORDINATE_WORKFLOW,
                     lastRequest
-            );
-        }
-
-        private OperationContext buildStuckHandlerContext(AgentProcess agentProcess) {
-            if (agentProcess == null) {
-                return null;
-            }
-            Operation operation = InjectedType.Companion.named(STUCK_HANDLER);
-            return OperationContext.Companion.invoke(
-                    agentProcess.getProcessContext(),
-                    operation,
-                    Set.of()
             );
         }
 
@@ -2353,7 +2355,7 @@ public interface AgentInterfaces {
         private final EventBus eventBus;
         private final PromptContextFactory promptContextFactory;
         private final InterruptService interruptService;
-        private final com.hayden.multiagentide.service.LlmRunner llmRunner;
+        private final LlmRunner llmRunner;
         private final WorkflowGraphService workflowGraphService;
         private final BlackboardHistoryService blackboardHistoryService;
 
@@ -2597,7 +2599,7 @@ public interface AgentInterfaces {
         private final PromptContextFactory promptContextFactory;
         private final RequestEnrichment requestEnrichment;
         private final InterruptService interruptService;
-        private final com.hayden.multiagentide.service.LlmRunner llmRunner;
+        private final LlmRunner llmRunner;
         private final WorkflowGraphService workflowGraphService;
         private final BlackboardHistoryService blackboardHistoryService;
 
@@ -2834,7 +2836,7 @@ public interface AgentInterfaces {
         private final EventBus eventBus;
         private final PromptContextFactory promptContextFactory;
         private final InterruptService interruptService;
-        private final com.hayden.multiagentide.service.LlmRunner llmRunner;
+        private final LlmRunner llmRunner;
         private final WorkflowGraphService workflowGraphService;
         private final BlackboardHistoryService blackboardHistoryService;
 

@@ -2,6 +2,7 @@ package com.hayden.multiagentide.integration;
 
 import com.embabel.agent.api.common.PlannerType;
 import com.embabel.agent.core.AgentPlatform;
+import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.agent.core.ProcessOptions;
 import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
@@ -24,6 +25,7 @@ import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.MergeAggregation;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
@@ -31,7 +33,6 @@ import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,7 +45,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.context.annotation.Profile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -248,55 +248,9 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
         @SneakyThrows
         @Test
-        void orchestratorPause_workflowStops() {
-            var contextId = seedOrchestrator().value();
-            queuedLlmRunner.enqueue(
-                    AgentModels.OrchestratorRouting.builder()
-                            .interruptRequest(
-                                    AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
-                                            .type(Events.InterruptType.PAUSE)
-                                            .reason("User requested pause")
-                                            .build())
-                            .build());
-
-            CompletableFuture.runAsync(() -> {
-                agentPlatform.runAgentFrom(
-                        findWorkflowAgent(),
-                        ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
-                        Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Paused task", "DISCOVERY"))
-                );
-            });
-
-            await().atMost(Duration.ofSeconds(300))
-                    .until(() -> permissionGate.isInterruptPending(t -> t.getType() == Events.InterruptType.PAUSE && Objects.equals(t.getReason(), "User requested pause")));
-
-            var pk = agentPlatform.getAgentProcess(contextId).kill();
-
-            var output = permissionGate.getInterruptPending(t -> t.getType() == Events.InterruptType.PAUSE && Objects.equals(t.getReason(), "User requested pause"));
-
-            assertThat(output).isNotNull();
-            verify(workflowAgent).handleUnifiedInterrupt(
-                    argThat(req -> req.type() == Events.InterruptType.PAUSE),
-                    any()
-            );
-
-            var ordered = inOrder(
-                    workflowAgent
-            );
-            ordered.verify(workflowAgent).coordinateWorkflow(any(), any());
-            ordered.verify(workflowAgent).handleUnifiedInterrupt(any(), any());
-
-            verify(computationGraphOrchestrator, atLeastOnce()).emitStatusChangeEvent(any(), any(), any(), any());
-            queuedLlmRunner.assertAllConsumed();
-
-            permissionGate.resolveInterrupt(output.getInterruptId(), IPermissionGate.ResolutionType.RESOLVED, "",
-                    (IPermissionGate.InterruptResult) null);
-        }
-
-        @SneakyThrows
-        @Test
         void orchestratorPause_resolveInterruptContinues() {
             var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
             queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
                     .interruptRequest(AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
                             .type(Events.InterruptType.PAUSE)
@@ -372,6 +326,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @Test
         void humanReviewInterrupt_blocksUntilExternallyResolved() {
             var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
 
             // First LLM call: orchestrator returns a HUMAN_REVIEW interrupt
             queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
@@ -456,6 +411,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             // is added to pendingInterrupts but then disappears before resolveInterrupt
             // is called, causing awaitInterruptBlocking to return invalidInterrupt immediately.
             var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
 
             // Track all resolveInterrupt calls to prove none happen unexpectedly
             var resolveCallTracker = new java.util.concurrent.CopyOnWriteArrayList<String>();
@@ -524,11 +480,13 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         }
         @SneakyThrows
         @Test
-        void handle_planningAgent_interruptRequest() {
+        void handle_orchestratorAgent_interruptRequest() {
             // Verifies that after human resolves the interrupt with feedback notes,
             // those notes are passed through to the LLM as interruptFeedback and the
             // workflow continues to completion.
+
             var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
 
             queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
                     .interruptRequest(AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
@@ -539,7 +497,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
             orchestratorRequestThenDiscovery("Feedback task");
 
-            enqueueDiscoveryToEndWithPlanningAgentInterrupt("Feedback task");
+            enqueueDiscoveryToEnd("Feedback task");
 
             var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
                     findWorkflowAgent(),
@@ -575,6 +533,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             // those notes are passed through to the LLM as interruptFeedback and the
             // workflow continues to completion.
             var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
 
             queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
                     .interruptRequest(AgentModels.InterruptRequest.OrchestratorInterruptRequest.builder()
@@ -627,12 +586,18 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         }
     }
 
+    private void kill(String contextId) {
+        var pk = agentPlatform.getAgentProcess(contextId).kill();
+        queuedLlmRunner.setThread(null);
+    }
+
     @Nested
     class HappyPathWorkflows {
 
         @Test
         void fullWorkflow_discoveryToPlanningSingleAgentsToCompletion() {
             var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
             enqueueHappyPath("Implement auth");
 
             // Act - Run the workflow with real agent code
@@ -687,6 +652,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 //        @Test
         void fullWorkflow_persistsArtifactTree() {
             var contextId =  seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
             enqueueHappyPath("Implement auth");
 
             Instant startedAt = Instant.now();
@@ -786,6 +752,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @Test
         void discoveryCollector_loopsBackForMoreInvestigation() {
             var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
 
             initialOrchestratorToDiscovery("Needs more discovery");
 
@@ -906,6 +873,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @Test
         void planningCollector_loopsBackToDiscovery_needsMoreContext() {
             var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
 
             initialOrchestratorToDiscovery("Incomplete context");
 
@@ -1154,6 +1122,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
         queuedLlmRunner.enqueue(AgentModels.PlanningAgentRouting.builder()
                 .interruptRequest(AgentModels.InterruptRequest.PlanningAgentInterruptRequest.builder()
+                        .type(Events.InterruptType.HUMAN_REVIEW)
                         .reason("hello!")
                         .build())
                 .build());

@@ -6,14 +6,19 @@ import com.embabel.common.textio.template.TemplateRenderer;
 import com.google.common.collect.Lists;
 import com.hayden.multiagentide.artifacts.ArtifactService;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
-import com.hayden.multiagentide.tool.ToolAbstraction;
+import com.hayden.multiagentide.filter.prompt.FilteredPromptContributorAdapter;
+import com.hayden.multiagentidelib.tool.ToolAbstraction;
 import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
+import com.hayden.multiagentidelib.filter.service.FilterResult;
+import com.hayden.multiagentidelib.prompt.FilteredPromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorAdapter;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactHashing;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +52,7 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
     private final ExecutionScopeService executionScopeService;
 
     private final ArtifactService artifactService;
+
 
     @Override
     public int order() {
@@ -143,6 +150,9 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
         }
     }
 
+    public record DecoratedFilterPromptContributor(@Delegate PromptContributor promptContributor, FilterResult<String> result)
+            implements PromptContributor {}
+
     /**
      * Builds a RenderedPromptArtifact with all its children, checking hash for each child.
      */
@@ -190,9 +200,13 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
         List<Artifact> contributorArtifacts = promptContext.promptContributors()
                 .stream()
                 .flatMap(context -> {
+                    if (context instanceof FilteredPromptContributorAdapter f) {
+                        return Stream.of(new DecoratedFilterPromptContributor(f.getContributor(), f.getFilterResult()));
+                    }
                     if (context instanceof PromptContributorAdapter adapter) {
                         return Stream.of(adapter.getContributor());
                     }
+
                     log.error("Found prompt element {} that was unknown template and could not add artifact or versioning - {}: {}.",
                             context.getPromptContributionLocation(), promptContext.agentType(), promptContext.currentContextId());
                     return Stream.empty();
@@ -490,7 +504,9 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
     ) {
         var renderedText = pc.contribute(promptContext);
         var hash = promptContext.hashContext().hash(renderedText);
-        
+        String contributorName = pc.name();
+        Map<String, String> contributorMetadata = promptContributorMetadata(promptContext, pc);
+
         // Check if this contributor artifact already exists
         return getOrCreateArtifact(
                 () -> {
@@ -502,16 +518,21 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
                     // Build contribution args artifact (checking hash)
                     var contributionArgs = buildPromptContributorTemplate(promptContext, pc, promptTemplateVersionKey.createChild());
 
+                    // Build contribution args artifact (checking hash)
+                    var filterDescriptor = buildFilterDescriptor(promptContext, pc, promptTemplateVersionKey.createChild());
+
+                    List<Artifact> children = Lists.newArrayList(contributionTemplate, contributionArgs);
+
+                    Optional.ofNullable(filterDescriptor)
+                            .ifPresent(children::add);
+
                     return Artifact.RenderedPromptArtifact.builder()
                             .artifactKey(key)
                             .renderedText(renderedText)
                             .hash(hash)
-                            .metadata(Map.of(
-                                    "agentType", promptContext.agentType().toString(),
-                                    "templateName", promptContext.templateName()
-                            ))
-                            .children(Lists.newArrayList(contributionTemplate, contributionArgs))
-                            .promptName(pc.name())
+                            .metadata(contributorMetadata)
+                            .children(children)
+                            .promptName(contributorName)
                             .build();
                 },
                 hash,
@@ -537,13 +558,69 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
                         .contributorName(promptContributorName)
                         .templateText(contributedText)
                         .hash(hash)
-                        .metadata(Map.of(
-                                "agentType", context.agentType() != null ? context.agentType().name() : "UNKNOWN"
-                        ))
+                        .metadata(promptContributorMetadata(context, promptContributor))
                         .children(Lists.newArrayList())
                         .build(),
                 hash,
                 key
+        );
+    }
+
+    /**
+     * Builds a PromptArgsArtifact for a prompt contributor, checking hash for reuse.
+     */
+    private Artifact buildFilterDescriptor(
+            PromptContext context,
+            PromptContributor promptContributor,
+            ArtifactKey key
+    ) {
+        Map<String, String> metadata = new LinkedHashMap<>(promptContributorMetadata(context, promptContributor));
+
+        if (promptContributor instanceof DecoratedFilterPromptContributor f) {
+            var descriptorView = toDescriptorView(f.result.descriptor());
+            var hash = ArtifactHashing.hashJson(descriptorView);
+            return getOrCreateArtifact(
+                    () -> Artifact.FilterDescriptorArtifact.builder()
+                            .hash(hash)
+                            .children(Lists.newArrayList())
+                            .descriptorView(descriptorView)
+                            .artifactKey(key)
+                            .metadata(metadata)
+                            .build(),
+                    hash,
+                    key
+            );
+        }
+
+        return null;
+    }
+
+    private Artifact.FilterDescriptorArtifact.FilterDescriptorView toDescriptorView(com.hayden.multiagentidelib.filter.service.FilterDescriptor descriptor) {
+        if (descriptor == null) {
+            return new Artifact.FilterDescriptorArtifact.FilterDescriptorView(List.of(), List.of());
+        }
+        List<Artifact.FilterDescriptorArtifact.FilterDescriptorView.DescriptorEntry> descriptors = descriptor.entries().stream()
+                .map(this::toDescriptorEntry)
+                .toList();
+        return new Artifact.FilterDescriptorArtifact.FilterDescriptorView(
+                descriptor.instructions(),
+                descriptors
+        );
+    }
+
+    private Artifact.FilterDescriptorArtifact.FilterDescriptorView.DescriptorEntry toDescriptorEntry(
+            com.hayden.multiagentidelib.filter.service.FilterDescriptor.Entry entry) {
+        return new Artifact.FilterDescriptorArtifact.FilterDescriptorView.DescriptorEntry(
+                entry.descriptorType(),
+                entry.policyId(),
+                entry.filterId(),
+                entry.filterName(),
+                entry.filterKind(),
+                entry.sourcePath(),
+                entry.action(),
+                entry.executorType(),
+                entry.executorDetails(),
+                entry.instructions()
         );
     }
 
@@ -556,22 +633,42 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
             ArtifactKey key
     ) {
         var hash = context.hashContext().hashMap(promptContributor.args());
-        
-        return getOrCreateArtifact(
+        Map<String, String> metadata = new LinkedHashMap<>(promptContributorMetadata(context, promptContributor));
+        metadata.put("argCount", String.valueOf(promptContributor.args().size()));
+        var args = getOrCreateArtifact(
                 () -> Artifact.PromptArgsArtifact.builder()
                         .hash(hash)
                         .children(Lists.newArrayList())
                         .artifactKey(key)
                         .args(promptContributor.args())
-                        .metadata(Map.of(
-                                "argCount", String.valueOf(promptContributor.args().size()),
-                                "promptContributorName", promptContributor.name(),
-                                "agentType", context.agentType() != null ? context.agentType().name() : "UNKNOWN"
-                        ))
+                        .metadata(metadata)
                         .build(),
                 hash,
                 key
         );
+
+        return args;
+    }
+
+    private Map<String, String> promptContributorMetadata(PromptContext context, PromptContributor promptContributor) {
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put("agentType", context.agentType() != null ? context.agentType().name() : "UNKNOWN");
+        metadata.put("promptContributorName", promptContributor.name());
+        metadata.put("templateName", context.templateName());
+
+        if (promptContributor instanceof FilteredPromptContributor filteredPromptContributor) {
+            PromptContributor original = filteredPromptContributor.originalContributor();
+            metadata.put("isFilteredContributor", "true");
+            metadata.put("originalPromptContributorName", original.name());
+            metadata.put("originalPromptContributorPriority", String.valueOf(original.priority()));
+            if (context.hashContext() != null) {
+                if (original.template() != null) {
+                    metadata.put("originalPromptContributorTemplateHash", context.hashContext().hash(original.template()));
+                }
+            }
+        } else {
+            metadata.put("isFilteredContributor", "false");
+        }
+        return metadata;
     }
 }
-

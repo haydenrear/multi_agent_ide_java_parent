@@ -3,6 +3,10 @@ package com.hayden.acp_cdc_ai.acp.events;
 import com.agui.core.types.BaseEvent;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonClassDescription;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.hayden.acp_cdc_ai.acp.filter.FilteredObject;
 import lombok.Builder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +96,61 @@ public interface Events {
      * Base interface for all graph and worktree events.
      * Sealed to restrict implementations.
      */
-    sealed interface GraphEvent {
+    @JsonTypeInfo(
+            use = JsonTypeInfo.Id.NAME,
+            include = JsonTypeInfo.As.EXISTING_PROPERTY,
+            property = "eventType",
+            visible = false
+    )
+    @JsonSubTypes({
+            @JsonSubTypes.Type(value = NodeAddedEvent.class, name = "NODE_ADDED"),
+            @JsonSubTypes.Type(value = AddChildNodeEvent.class, name = "ADD_CHILD_NODE"),
+            @JsonSubTypes.Type(value = ActionStartedEvent.class, name = "ACTION_STARTED"),
+            @JsonSubTypes.Type(value = ActionCompletedEvent.class, name = "ACTION_COMPLETED"),
+            @JsonSubTypes.Type(value = StopAgentEvent.class, name = "STOP_AGENT"),
+            @JsonSubTypes.Type(value = PauseEvent.class, name = "PAUSE_EVENT"),
+            @JsonSubTypes.Type(value = ResumeEvent.class, name = "RESUME_EVENT"),
+            @JsonSubTypes.Type(value = ResolveInterruptEvent.class, name = "RESOLVE_INTERRUPT"),
+            @JsonSubTypes.Type(value = AddMessageEvent.class, name = "ADD_MESSAGE_EVENT"),
+            @JsonSubTypes.Type(value = InterruptRequestEvent.class, name = "INTERRUPT_REQUEST_EVENT"),
+            @JsonSubTypes.Type(value = NodeStatusChangedEvent.class, name = "NODE_STATUS_CHANGED"),
+            @JsonSubTypes.Type(value = NodeErrorEvent.class, name = "NODE_ERROR"),
+            @JsonSubTypes.Type(value = NodeBranchedEvent.class, name = "NODE_BRANCHED"),
+            @JsonSubTypes.Type(value = NodePrunedEvent.class, name = "NODE_PRUNED"),
+            @JsonSubTypes.Type(value = NodeReviewRequestedEvent.class, name = "NODE_REVIEW_REQUESTED"),
+            @JsonSubTypes.Type(value = InterruptStatusEvent.class, name = "INTERRUPT_STATUS"),
+            @JsonSubTypes.Type(value = GoalCompletedEvent.class, name = "GOAL_COMPLETED"),
+            @JsonSubTypes.Type(value = WorktreeCreatedEvent.class, name = "WORKTREE_CREATED"),
+            @JsonSubTypes.Type(value = WorktreeBranchedEvent.class, name = "WORKTREE_BRANCHED"),
+            @JsonSubTypes.Type(value = WorktreeMergedEvent.class, name = "WORKTREE_MERGED"),
+            @JsonSubTypes.Type(value = WorktreeDiscardedEvent.class, name = "WORKTREE_DISCARDED"),
+            @JsonSubTypes.Type(value = NodeUpdatedEvent.class, name = "NODE_UPDATED"),
+            @JsonSubTypes.Type(value = NodeDeletedEvent.class, name = "NODE_DELETED"),
+            @JsonSubTypes.Type(value = ChatSessionCreatedEvent.class, name = "CHAT_SESSION_CREATED"),
+            @JsonSubTypes.Type(value = ChatSessionClosedEvent.class, name = "CHAT_SESSION_CLOSED"),
+            @JsonSubTypes.Type(value = AiFilterSessionEvent.class, name = "AI_FILTER_SESSION"),
+            @JsonSubTypes.Type(value = NodeStreamDeltaEvent.class, name = "NODE_STREAM_DELTA"),
+            @JsonSubTypes.Type(value = NodeThoughtDeltaEvent.class, name = "NODE_THOUGHT_DELTA"),
+            @JsonSubTypes.Type(value = ToolCallEvent.class, name = "TOOL_CALL"),
+            @JsonSubTypes.Type(value = GuiRenderEvent.class, name = "GUI_RENDER"),
+            @JsonSubTypes.Type(value = UiDiffAppliedEvent.class, name = "UI_DIFF_APPLIED"),
+            @JsonSubTypes.Type(value = UiDiffRejectedEvent.class, name = "UI_DIFF_REJECTED"),
+            @JsonSubTypes.Type(value = UiDiffRevertedEvent.class, name = "UI_DIFF_REVERTED"),
+            @JsonSubTypes.Type(value = UiFeedbackEvent.class, name = "UI_FEEDBACK"),
+            @JsonSubTypes.Type(value = NodeBranchRequestedEvent.class, name = "NODE_BRANCH_REQUESTED"),
+            @JsonSubTypes.Type(value = PlanUpdateEvent.class, name = "PLAN_UPDATE"),
+            @JsonSubTypes.Type(value = UserMessageChunkEvent.class, name = "USER_MESSAGE_CHUNK"),
+            @JsonSubTypes.Type(value = CurrentModeUpdateEvent.class, name = "CURRENT_MODE_UPDATE"),
+            @JsonSubTypes.Type(value = AvailableCommandsUpdateEvent.class, name = "AVAILABLE_COMMANDS_UPDATE"),
+            @JsonSubTypes.Type(value = PermissionRequestedEvent.class, name = "PERMISSION_REQUESTED"),
+            @JsonSubTypes.Type(value = PermissionResolvedEvent.class, name = "PERMISSION_RESOLVED"),
+            @JsonSubTypes.Type(value = TuiInteractionGraphEvent.class, name = "TUI_INTERACTION"),
+            @JsonSubTypes.Type(value = TuiSystemGraphEvent.class, name = "TUI_SYSTEM"),
+            @JsonSubTypes.Type(value = MergePhaseStartedEvent.class, name = "MERGE_PHASE_STARTED"),
+            @JsonSubTypes.Type(value = MergePhaseCompletedEvent.class, name = "MERGE_PHASE_COMPLETED"),
+            @JsonSubTypes.Type(value = ArtifactEvent.class, name = "ARTIFACT_EMITTED")
+    })
+    sealed interface GraphEvent extends FilteredObject {
         /**
          * Unique event ID.
          */
@@ -108,6 +166,7 @@ public interface Events {
         /**
          * Type of event for classification.
          */
+        @JsonProperty("eventType")
         String eventType();
 
         default String prettyPrint() {
@@ -275,6 +334,16 @@ public interface Events {
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
                         line("sessionId", e.sessionId()));
+                case AiFilterSessionEvent e -> formatEvent("AI Filter Session Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("policyId", e.policyId()),
+                        line("sessionMode", e.sessionMode()),
+                        line("scopeNodeId", e.scopeNodeId()),
+                        line("scopeQualifier", e.scopeQualifier()),
+                        line("rootNodeId", e.rootNodeId()),
+                        line("sessionContextId", e.sessionContextId() == null ? null : e.sessionContextId().value()));
                 case NodeStreamDeltaEvent e -> formatEvent("Node Stream Delta Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
@@ -978,6 +1047,23 @@ public interface Events {
         }
     }
 
+    record AiFilterSessionEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String policyId,
+            String sessionMode,
+            String scopeNodeId,
+            String scopeQualifier,
+            String rootNodeId,
+            ArtifactKey sessionContextId
+    ) implements Events.GraphEvent {
+        @Override
+        public String eventType() {
+            return "AI_FILTER_SESSION";
+        }
+    }
+
     /**
      * Emitted during streaming output from an agent (e.g., code generation).
      */
@@ -1026,8 +1112,14 @@ public interface Events {
             Object rawInput,
             Object rawOutput
     ) implements GraphEvent {
+
         @Override
         public String eventType() {
+            return "TOOL_CALL";
+        }
+
+
+        public String toolCallType() {
             String normalized = phase != null ? phase.toUpperCase(Locale.ROOT) : "UPDATE";
             return "TOOL_CALL_" + normalized;
         }

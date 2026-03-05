@@ -151,6 +151,7 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case AgentModels.TicketAgentResults ticketAgentResults -> null;
             case AgentModels.InterruptRequest interruptRequest -> null;
             case AgentModels.ResultsRequest resultsRequest -> null;
+            case AgentModels.AiFilterRequest ignored -> null;
         };
     }
 
@@ -174,7 +175,7 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case DISCOVERY_AGENT_DISPATCH -> DiscoveryDispatchRoute.class;
             case PLANNING_AGENT_DISPATCH -> PlanningDispatchRoute.class;
             case TICKET_AGENT_DISPATCH -> TicketDispatchRoute.class;
-            case ALL, DISCOVERY_AGENT, PLANNING_AGENT, TICKET_AGENT, COMMIT_AGENT, MERGE_CONFLICT_AGENT -> null;
+            case ALL, DISCOVERY_AGENT, PLANNING_AGENT, TICKET_AGENT, COMMIT_AGENT, MERGE_CONFLICT_AGENT, AI_FILTER -> null;
         };
     }
 

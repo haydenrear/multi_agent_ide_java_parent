@@ -33,6 +33,8 @@ public class PromptContributorService {
     private final PromptContributorRegistry registry;
 
     private final List<PromptContributorFactory> factories;
+
+    private final PromptContributorAdapterFactory filteredPromptContributorAdapterFactory;
     
     /**
      * Get contributors for the given prompt context.
@@ -68,7 +70,7 @@ public class PromptContributorService {
                         .thenComparing(PromptContributor::name, String.CASE_INSENSITIVE_ORDER));
 
         return contributors.stream()
-                .map(contributor -> new PromptContributorAdapter(contributor, promptContext))
+                .map(contributor -> filteredPromptContributorAdapterFactory.create(contributor, promptContext))
                 .collect(Collectors.toList());
     }
 }

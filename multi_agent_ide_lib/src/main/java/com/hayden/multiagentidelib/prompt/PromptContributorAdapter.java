@@ -28,6 +28,10 @@ public class PromptContributorAdapter implements com.embabel.agent.api.common.Co
     public String contribution(@NotNull OperationContext context) {
         return contributor.contribute(promptContext);
     }
+
+    protected PromptContext promptContext() {
+        return promptContext;
+    }
     
     @Nullable
     @Override

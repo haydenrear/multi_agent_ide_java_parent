@@ -1,4 +1,4 @@
-package com.hayden.multiagentide.tool;
+package com.hayden.multiagentidelib.tool;
 
 import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.Builder;

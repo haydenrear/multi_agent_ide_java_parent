@@ -1,17 +1,14 @@
-package com.hayden.multiagentide.tool;
+package com.hayden.multiagentidelib.tool;
 
 import com.embabel.agent.api.common.ToolObject;
 import com.embabel.agent.api.tool.Tool;
 import com.embabel.agent.core.ToolGroup;
 import com.embabel.agent.core.ToolGroupRequirement;
-import com.embabel.agent.skills.Skills;
-import com.embabel.agent.skills.support.LoadedSkill;
 import com.hayden.commitdiffcontext.mcp.ToolCarrier;
-import com.hayden.multiagentide.skills.SkillDecorator;
+import com.hayden.multiagentidelib.skills.SkillDecorator;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 

@@ -39,7 +39,7 @@ public class RouteBackInterruptPromptContributorFactory implements PromptContrib
         // If previous request was an interrupt, the collector is being called back after review.
         // Provide the post-review translation prompt with the actual review feedback.
         var req = BlackboardHistory.getLastMatching(
-                context.operationContext().getAgentProcess(),
+                context.operationContext(),
                 s -> {
                     if (!Objects.equals(s.inputType(), context.currentRequest().getClass())) {
                         return Optional.of(s.input());

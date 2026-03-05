@@ -10,6 +10,8 @@ import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -23,9 +25,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EmitActionCompletedResultDecorator implements FinalResultDecorator, ResultDecorator, DispatchedAgentResultDecorator {
 
-    private final EventBus eventBus;
 
     private final ExecutionScopeService exec;
+
+    private EventBus eventBus;
+
+    @Autowired
+    @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     @Override
     public int order() {

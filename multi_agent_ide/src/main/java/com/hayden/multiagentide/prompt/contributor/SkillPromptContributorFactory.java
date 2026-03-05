@@ -1,7 +1,6 @@
 package com.hayden.multiagentide.prompt.contributor;
 
-import com.google.common.collect.Lists;
-import com.hayden.multiagentide.skills.SkillDecorator;
+import com.hayden.multiagentidelib.skills.SkillDecorator;
 import com.hayden.multiagentide.skills.SkillFinder;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;

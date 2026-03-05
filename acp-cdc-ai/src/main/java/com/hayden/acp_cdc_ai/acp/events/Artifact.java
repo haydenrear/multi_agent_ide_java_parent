@@ -2,6 +2,7 @@ package com.hayden.acp_cdc_ai.acp.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.hayden.acp_cdc_ai.acp.filter.Instruction;
 import com.hayden.utilitymodule.schema.SpecialJsonSchemaGenerator;
 import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.Builder;
@@ -41,18 +42,7 @@ import java.util.stream.Collectors;
 //})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public sealed interface Artifact
-        permits
-            Artifact.AgentModelArtifact,
-            Artifact.EventArtifact,
-            Artifact.ExecutionArtifact,
-            Artifact.ExecutionConfigArtifact,
-            Artifact.OutcomeEvidenceArtifact,
-            Artifact.PromptArgsArtifact,
-            Artifact.RenderedPromptArtifact,
-            Artifact.ToolCallArtifact,
-            MessageStreamArtifact,
-            Artifact.ArtifactDbRef,
-            Templated {
+        permits Artifact.AgentModelArtifact, Artifact.ArtifactDbRef, Artifact.EventArtifact, Artifact.ExecutionArtifact, Artifact.ExecutionConfigArtifact, Artifact.FilterDecisionRecordArtifact, Artifact.FilterDescriptorArtifact, Artifact.OutcomeEvidenceArtifact, Artifact.PromptArgsArtifact, Artifact.RenderedPromptArtifact, Artifact.ToolCallArtifact, MessageStreamArtifact, Templated {
 
     String SCHEMA = "schema";
 
@@ -366,6 +356,59 @@ public sealed interface Artifact
             List<Artifact> children
     ) implements Artifact {
 
+
+        @Override
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
+        }
+    }
+
+    @Builder(toBuilder = true)
+    @With
+    record FilterDecisionRecordArtifact(
+            ArtifactKey artifactKey,
+            String hash,
+            Map<String, String> metadata,
+            List<Artifact> children,
+            String inputJson,
+            String outputJson,
+            String instructionsJson
+    ) implements Artifact {
+
+        @Override
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
+        }
+    }
+
+    @Builder(toBuilder = true)
+    @With
+    record FilterDescriptorArtifact(
+            ArtifactKey artifactKey,
+            String hash,
+            Map<String, String> metadata,
+            List<Artifact> children,
+            FilterDescriptorView descriptorView
+    ) implements Artifact {
+
+        public record FilterDescriptorView(
+                List<Instruction> instructions,
+                List<DescriptorEntry> descriptors
+        ) {
+            public record DescriptorEntry(
+                    String descriptorType,
+                    String policyId,
+                    String filterId,
+                    String filterName,
+                    String filterKind,
+                    String sourcePath,
+                    String action,
+                    String executorType,
+                    Map<String, String> executorDetails,
+                    List<Instruction> instructions
+            ) {
+            }
+        }
 
         @Override
         public Optional<String> contentHash() {

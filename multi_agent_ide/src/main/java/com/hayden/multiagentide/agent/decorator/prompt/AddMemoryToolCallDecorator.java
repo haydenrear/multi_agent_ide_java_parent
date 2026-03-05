@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.prompt;
 
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
-import com.hayden.multiagentide.tool.ToolAbstraction;
+import com.hayden.multiagentidelib.tool.ToolAbstraction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;

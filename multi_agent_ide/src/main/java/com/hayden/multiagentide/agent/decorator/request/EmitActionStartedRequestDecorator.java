@@ -12,6 +12,8 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -27,7 +29,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EmitActionStartedRequestDecorator implements RequestDecorator, DispatchedAgentRequestDecorator {
 
-    private final EventBus eventBus;
+    private EventBus eventBus;
+
+    @Autowired
+    @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     private final ExecutionScopeService scopeService;
 

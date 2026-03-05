@@ -3,6 +3,12 @@ package com.hayden.multiagentide.adapter;
 import com.hayden.multiagentide.infrastructure.EventAdapter;
 import com.hayden.acp_cdc_ai.acp.events.AgUiSerdes;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentide.filter.integration.ControllerEventFilterIntegration;
+import com.hayden.multiagentide.filter.integration.PathFilterIntegration;
+import com.hayden.multiagentide.filter.service.LayerIdResolver;
+import com.hayden.multiagentidelib.filter.model.FilterSource;
+import com.hayden.multiagentidelib.filter.model.layer.GraphEventObjectContext;
+import com.hayden.multiagentidelib.filter.model.layer.DefaultPathFilterContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
@@ -20,6 +26,12 @@ public class WebSocketEventAdapter extends EventAdapter {
     private final List<WebSocketSession> connectedClients = new CopyOnWriteArrayList<>();
 
     private AgUiSerdes serdes;
+    @Autowired
+    private LayerIdResolver layerIdResolver;
+    @Autowired
+    private ControllerEventFilterIntegration controllerEventFilterIntegration;
+    @Autowired
+    private PathFilterIntegration pathFilterIntegration;
 
     public WebSocketEventAdapter() {
         super("websocket-adapter");
@@ -54,6 +66,9 @@ public class WebSocketEventAdapter extends EventAdapter {
     @Override
     protected void adaptEvent(Events.GraphEvent event) {
         String eventJson = serializeEvent(event);
+        if (eventJson == null) {
+            return;
+        }
 
         for (WebSocketSession session : connectedClients) {
             if (session.isOpen()) {
@@ -78,11 +93,34 @@ public class WebSocketEventAdapter extends EventAdapter {
     }
 
     /**
-     * Serialize event to JSON.
-     * In production, use Jackson or similar.
+     * Serialize event to JSON after object and path filters are applied.
      */
     private String serializeEvent(Events.GraphEvent event) {
-        return serdes.serializeEvent(Events.mapToEvent(event));
+        if (event == null) {
+            return null;
+        }
+        String layerId = layerIdResolver == null
+                ? null
+                : layerIdResolver.resolveForGraphEvent(event).orElse(null);
+
+        Events.GraphEvent filteredEvent = event;
+        if (layerId != null && controllerEventFilterIntegration != null) {
+            filteredEvent = controllerEventFilterIntegration.applyFilters(layerId, event).t();
+        }
+        if (filteredEvent == null) {
+            return null;
+        }
+
+        String payload = serdes.serializeEvent(Events.mapToEvent(filteredEvent));
+        if (layerId != null && pathFilterIntegration != null) {
+            payload = pathFilterIntegration.applyJsonPathFilters(
+                    layerId,
+                    FilterSource.graphEvent(filteredEvent),
+                    payload,
+                    new DefaultPathFilterContext(layerId, new GraphEventObjectContext(layerId, event))
+            ).t();
+        }
+        return payload;
     }
 
 }

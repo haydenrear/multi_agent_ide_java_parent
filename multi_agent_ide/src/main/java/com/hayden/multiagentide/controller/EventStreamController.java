@@ -1,6 +1,5 @@
 package com.hayden.multiagentide.controller;
 
-import com.embabel.agent.core.AgentPlatform;
 import com.hayden.multiagentide.adapter.SseEventAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -14,10 +13,12 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequiredArgsConstructor
 public class EventStreamController {
 
+    private static final String CONTROLLER_ID = "EventStreamController";
+
     private final SseEventAdapter sseEventAdapter;
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamEvents() {
-        return sseEventAdapter.registerEmitter();
+        return sseEventAdapter.registerEmitter(event -> true, CONTROLLER_ID);
     }
 }

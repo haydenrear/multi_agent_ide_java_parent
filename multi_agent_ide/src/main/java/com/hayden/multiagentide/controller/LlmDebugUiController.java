@@ -5,6 +5,7 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.adapter.SseEventAdapter;
 import com.hayden.multiagentide.cli.CliEventFormatter;
+import com.hayden.multiagentide.filter.service.LayerIdResolver;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentidelib.model.nodes.*;
@@ -34,6 +35,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @RequiredArgsConstructor
 public class LlmDebugUiController {
 
+    private static final String CONTROLLER_ID = "LlmDebugUiController";
+
     private final EventBus eventBus;
     private final SharedUiInteractionService sharedUiInteractionService;
     private final UiStateStore uiStateStore;
@@ -41,6 +44,7 @@ public class LlmDebugUiController {
     private final EventStreamRepository eventStreamRepository;
     private final GraphRepository graphRepository;
     private final CliEventFormatter cliEventFormatter;
+    private final LayerIdResolver layerIdResolver;
     private final OrchestrationController orchestrationController;
 
     @GetMapping("/nodes/{nodeId}/state")
@@ -143,6 +147,7 @@ public class LlmDebugUiController {
     ) {
         int safeLimit = Math.max(1, Math.min(500, limit));
         int safeTruncate = Math.max(80, Math.min(10_000, truncate));
+        String controllerLayerId = controllerLayerId();
 
         List<Events.GraphEvent> scopedEvents = eventStreamRepository.list().stream()
                 .filter(Objects::nonNull)
@@ -166,7 +171,7 @@ public class LlmDebugUiController {
                         event.nodeId(),
                         event.eventType(),
                         event.timestamp(),
-                        summarize(event, safeTruncate)
+                        summarize(event, safeTruncate, controllerLayerId)
                 ))
                 .toList();
 
@@ -191,20 +196,30 @@ public class LlmDebugUiController {
             throw new ResponseStatusException(NOT_FOUND, "Event not in node scope: " + eventId);
         }
         int safeMaxFieldLength = Math.max(120, Math.min(80_000, maxFieldLength));
-        String formatted = cliEventFormatter.format(new CliEventFormatter.CliEventArgs(safeMaxFieldLength, event, pretty));
+        String controllerLayerId = controllerLayerId();
+        String formatted = cliEventFormatter.format(
+                new CliEventFormatter.CliEventArgs(
+                        safeMaxFieldLength,
+                        event,
+                        pretty,
+                        controllerLayerId
+                ));
         return new UiEventDetail(
                 event.eventId(),
                 event.nodeId(),
                 event.eventType(),
                 event.timestamp(),
-                summarize(event, 220),
+                summarize(event, 220, controllerLayerId),
                 formatted
         );
     }
 
     @GetMapping(value = "/nodes/{nodeId}/events/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@PathVariable String nodeId) {
-        return sseEventAdapter.registerEmitter(event -> matchesNodeScope(nodeId, event.nodeId()));
+        return sseEventAdapter.registerEmitter(
+                event -> matchesNodeScope(nodeId, event.nodeId()),
+                CONTROLLER_ID
+        );
     }
 
     @GetMapping("/workflow-graph")
@@ -368,12 +383,18 @@ public class LlmDebugUiController {
         };
     }
 
-    private String summarize(Events.GraphEvent event, int maxLength) {
-        String formatted = cliEventFormatter.format(event);
+    private String summarize(Events.GraphEvent event, int maxLength, String layerId) {
+        String formatted = cliEventFormatter.format(
+                new CliEventFormatter.CliEventArgs(maxLength, event, false, layerId)
+        );
         if (formatted == null || formatted.length() <= maxLength) {
             return formatted;
         }
         return formatted.substring(0, Math.max(0, maxLength - 3)) + "...";
+    }
+
+    private String controllerLayerId() {
+        return layerIdResolver.resolveForController(CONTROLLER_ID).orElse(null);
     }
 
     private int parseCursor(String cursor) {

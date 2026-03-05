@@ -12,6 +12,8 @@ import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -31,7 +33,14 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
 
     private final GitMergeService gitMergeService;
     private final GitWorktreeService gitWorktreeService;
-    private final EventBus eventBus;
+
+    private EventBus eventBus;
+
+    @Autowired
+    @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     @Override
     public int order() {
@@ -39,7 +48,6 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T extends AgentModels.Routing> T decorate(T routing, DecoratorContext context) {
         if (routing == null) {
             return null;

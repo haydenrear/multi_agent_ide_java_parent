@@ -8,7 +8,6 @@ import com.embabel.agent.core.ProcessOptions;
 import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentide.artifacts.ArtifactEventListener;
-import com.hayden.multiagentide.artifacts.ArtifactTreeBuilder;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.multiagentide.gate.PermissionGate;
@@ -16,20 +15,16 @@ import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.GitWorktreeService;
-import com.hayden.multiagentide.service.LlmRunner;
+import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentide.service.WorktreeAutoCommitService;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentide.support.QueuedLlmRunner;
 import com.hayden.multiagentide.support.TestEventListener;
-import com.hayden.multiagentide.tool.EmbabelToolObjectRegistry;
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
-import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
@@ -227,6 +222,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         void fullWorkflow_realMerges_changesReachSource() throws Exception {
             setLogFile("fullWorkflow_realMerges_changesReachSource");
             var contextId = seedOrchestratorWithRealWorktree();
+            queuedLlmRunner.setThread(contextId.value());
 
             enqueueHappyPathWithWork("Implement feature");
 
@@ -269,6 +265,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
             String initialSourceSubmoduleHead = gitOutput(sourceSubPath, "git", "rev-parse", "HEAD").trim();
 
             var contextId = seedOrchestratorWithRealWorktree();
+            queuedLlmRunner.setThread(contextId.value());
 
             enqueueHappyPathWithSubmoduleWork("Implement feature with lib changes");
 
@@ -314,6 +311,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
             var contextId = seedOrchestratorWithRealWorktree();
 
             enqueueParallelDiscoveryWithDistinctFiles("Discover features");
+            queuedLlmRunner.setThread(contextId.value());
 
             var output = agentPlatform.runAgentFrom(
                     findWorkflowAgent(),
@@ -346,6 +344,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         void discoveryPhase_twoAgents_conflictDetected() {
             setLogFile("discoveryPhase_twoAgents_conflictDetected");
             var contextId = seedOrchestratorWithRealWorktree();
+            queuedLlmRunner.setThread(contextId.value());
 
             enqueueParallelDiscoveryWithConflict("Discover features");
 

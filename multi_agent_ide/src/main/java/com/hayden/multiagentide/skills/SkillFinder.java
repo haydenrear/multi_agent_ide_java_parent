@@ -1,10 +1,10 @@
 package com.hayden.multiagentide.skills;
 
+import com.hayden.multiagentidelib.skills.SkillDecorator;
 import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.Collection;
 import java.util.Optional;
 
 @Component

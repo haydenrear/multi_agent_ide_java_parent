@@ -6,9 +6,10 @@ import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.ToolObject;
 import com.hayden.multiagentide.agent.AskUserQuestionToolAdapter;
 import com.hayden.multiagentide.agent.decorator.prompt.LlmCallDecorator;
+import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentide.tool.ToolAbstraction;
-import com.hayden.multiagentide.tool.ToolContext;
+import com.hayden.multiagentidelib.tool.ToolAbstraction;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
@@ -18,7 +19,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Default implementation of LlmRunner using Embabel's native prompt contribution pattern.

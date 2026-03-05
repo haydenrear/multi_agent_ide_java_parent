@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.hayden.acp_cdc_ai.acp.filter.Instruction;
+import com.hayden.multiagentidelib.filter.model.AiPathFilter;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.AgentMergeStatus;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
@@ -50,7 +52,7 @@ public interface AgentModels {
     }
 
     sealed interface AgentResult extends AgentContext
-            permits CommitAgentResult, MergeConflictResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
+            permits AiFilterResult, CommitAgentResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergeConflictResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
 
     {
         WorktreeSandboxContext worktreeContext();
@@ -95,6 +97,7 @@ public interface AgentModels {
             InterruptRequest,
             MergerRequest,
             ReviewRequest,
+            AiFilterRequest,
             ResultsRequest
     {
 
@@ -142,6 +145,7 @@ public interface AgentModels {
                 case DiscoveryAgentResults ignored -> null;
                 case PlanningAgentResults ignored -> null;
                 case TicketAgentResults ignored -> null;
+                case AiFilterRequest aiFilterRequest -> aiFilterRequest.goal;
             };
         }
 
@@ -189,6 +193,7 @@ public interface AgentModels {
                 case DiscoveryAgentResults ignored -> "DISCOVERY_RESULTS";
                 case PlanningAgentResults ignored -> "PLANNING_RESULTS";
                 case TicketAgentResults ignored -> "TICKET_RESULTS";
+                case AiFilterRequest ignored -> "AI_FILTER";
             };
         }
 
@@ -227,6 +232,8 @@ public interface AgentModels {
                         r.returnToPlanningCollector(),
                         r.returnToDiscoveryCollector(),
                         r.returnToOrchestratorCollector());
+                case AiFilterRequest aiFilterRequest ->
+                        CurationPhase.OTHER;
             };
         }
 
@@ -1345,6 +1352,36 @@ public interface AgentModels {
         }
     }
 
+    @Builder(toBuilder=true)
+    @JsonClassDescription("Result payload from AI filter execution containing filtered instructions.")
+    @With
+    record AiFilterResult(
+            @JsonPropertyDescription("Unique context id for this result.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Whether the AI filter executed successfully.")
+            boolean successful,
+            @JsonPropertyDescription("The instructions produced by the AI filter.")
+            List<Instruction> output,
+            @JsonPropertyDescription("Error message if the AI filter execution failed.")
+            String errorMessage,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
+    ) implements AgentResult {
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("Successful: ").append(successful).append("\n");
+            if (errorMessage != null && !errorMessage.isBlank()) {
+                builder.append("Error: ").append(errorMessage.trim()).append("\n");
+            }
+            if (output != null && !output.isEmpty()) {
+                builder.append("Instructions: ").append(output.size()).append("\n");
+            }
+            return builder.toString().trim();
+        }
+    }
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Result payload from commit execution before merge.")
@@ -4037,6 +4074,44 @@ public interface AgentModels {
     }
 
     @Builder(toBuilder=true)
+    @JsonClassDescription("Request to execute an AI-backed filter against input content.")
+    @With
+    record AiFilterRequest(
+            @JsonPropertyDescription("Unique context id for this request.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Worktree sandbox context for this request.")
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Goal context for AI filter execution.")
+            String goal,
+            @JsonPropertyDescription("The serialized input content to be filtered.")
+            String input
+    ) implements AgentRequest {
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this.toBuilder().goal(goal).build();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            StringBuilder builder = new StringBuilder();
+            appendPrettyLine(builder, "Goal", goal);
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("AI Filter Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Input", input != null && input.length() > 200 ? input.substring(0, 200) + "..." : input);
+            return builder.toString().trim();
+        }
+    }
+
+    @Builder(toBuilder=true)
     @JsonClassDescription("Internal request to commit dirty worktree changes before merge.")
     @With
     record CommitAgentRequest(
@@ -5085,6 +5160,8 @@ public interface AgentModels {
                 case MergeConflictRequest mergeConflictRequest -> {
                 }
                 case ContextManagerRoutingRequest contextManagerRoutingRequest -> {
+                }
+                case AiFilterRequest ignored -> {
                 }
             }
 
