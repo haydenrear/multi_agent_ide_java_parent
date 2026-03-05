@@ -2,6 +2,8 @@ env-props:
   project-dir: {{PROJ_DIR}}
   home-dir: {{HOME_DIR}}
 
+ctx:
+  jupyter: /Users/hayde/jupyter/sessions/db
 spring:
   session:
     enabled: false

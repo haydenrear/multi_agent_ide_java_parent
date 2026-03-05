@@ -4,7 +4,6 @@ import com.embabel.agent.api.common.ContextualPromptElement;
 import com.embabel.agent.api.common.OperationContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.acp.filter.Instruction;
@@ -170,7 +169,6 @@ class FilterPolicyInfrastructureIT {
                 contributorName,
                 pythonExecutor(pythonScript, "markdown_instructions")
         );
-        normalizePathFilterType(markdownPolicyId, "MARKDOWN_PATH");
 
         PromptContext promptContext = PromptContext.builder()
                 .agentType(AgentType.ORCHESTRATOR)
@@ -240,7 +238,6 @@ class FilterPolicyInfrastructureIT {
                 "AddMessageEvent",
                 pythonExecutor(pythonScript, "json_instructions")
         );
-        normalizePathFilterType(jsonPolicyId, "JSON_PATH");
 
         Events.AddMessageEvent event = new Events.AddMessageEvent(
                 UUID.randomUUID().toString(),
@@ -328,10 +325,7 @@ class FilterPolicyInfrastructureIT {
                 .andExpect(jsonPath("$.policies[0].policyId").value(aiPolicyId))
                 .andExpect(jsonPath("$.policies[0].filterType").value("AI_PATH"));
 
-        // 4. Normalize the filter JSON so it deserializes as AiPathFilter with interpreter
-        normalizeAiPathFilter(aiPolicyId, "MARKDOWN_PATH");
-
-        // 5. Configure LlmRunner mock to return AiFilterResult with REPLACE instructions
+        // 4. Configure LlmRunner mock to return AiFilterResult with REPLACE instructions
         List<Instruction> mockInstructions = List.of(
                 new Instruction.Replace(
                         new com.hayden.acp_cdc_ai.acp.filter.path.MarkdownPath("## Target Section"),
@@ -357,7 +351,7 @@ class FilterPolicyInfrastructureIT {
                 Mockito.any(OperationContext.class)
         )).thenReturn(mockResult);
 
-        // 6. Build a PromptContext with OperationContext so AI filter can execute
+        // 5. Build a PromptContext with OperationContext so AI filter can execute
         var mockAgentProcess = Mockito.mock(com.embabel.agent.core.AgentProcess.class);
         OperationContext mockOperationContext = Mockito.mock(OperationContext.class);
         Mockito.when(mockOperationContext.getAgentProcess()).thenReturn(mockAgentProcess);
@@ -367,7 +361,7 @@ class FilterPolicyInfrastructureIT {
                 .operationContext(mockOperationContext)
                 .build();
 
-        // 7. Execute via the prompt contributor path (which goes through FilteredPromptContributorAdapter)
+        // 6. Execute via the prompt contributor path (which goes through FilteredPromptContributorAdapter)
         PromptContributor contributor = new StaticPromptContributor(
                 contributorName,
                 "Static template text",
@@ -392,7 +386,7 @@ class FilterPolicyInfrastructureIT {
                 new DefaultPathFilterContext(actionLayerId, promptContributorContext)
         );
 
-        // 8. Verify the AI-produced instructions were applied through the MarkdownPath interpreter
+        // 7. Verify the AI-produced instructions were applied through markdown-path dispatch
         String filtered = filterResult.t();
         assertThat(filtered).contains("AI_REPLACED_CONTENT");
         assertThat(filtered).doesNotContain("original content here");
@@ -401,7 +395,7 @@ class FilterPolicyInfrastructureIT {
         assertThat(filtered).contains("## Unaffected Section");
         assertThat(filtered).contains("this should remain");
 
-        // 9. Verify LlmRunner was called with the correct template and context
+        // 8. Verify LlmRunner was called with the correct template and context
         Mockito.verify(llmRunner).runWithTemplate(
                 Mockito.eq("filter/ai_filter"),
                 Mockito.any(PromptContext.class),
@@ -415,14 +409,14 @@ class FilterPolicyInfrastructureIT {
                 Mockito.eq(mockOperationContext)
         );
 
-        // 10. Verify decision record was persisted
+        // 9. Verify decision record was persisted
         assertRecentDecisionWithoutError(aiPolicyId, actionLayerId, "TRANSFORMED");
         assertRecentDecisionContainsExpectedInstructions(aiPolicyId, actionLayerId, Set.of(
                 "## Target Section",
                 "## Remove Section"
         ));
 
-        // 11. Verify filtered records can be retrieved via the inspection endpoint
+        // 10. Verify filtered records can be retrieved via the inspection endpoint
         mockMvc.perform(get("/api/filters/policies/{policyId}/layers/{layerId}/records/recent",
                         aiPolicyId, actionLayerId))
                 .andExpect(status().isOk())
@@ -446,8 +440,6 @@ class FilterPolicyInfrastructureIT {
                 "PROMPT_CONTRIBUTOR",
                 contributorName
         );
-        normalizeAiPathFilter(aiPolicyId, "MARKDOWN_PATH");
-
         // Build PromptContext WITHOUT OperationContext
         PromptContext promptContext = PromptContext.builder()
                 .agentType(AgentType.ORCHESTRATOR)
@@ -572,17 +564,6 @@ class FilterPolicyInfrastructureIT {
                 matcherText,
                 executor
         );
-    }
-
-    private void normalizeAiPathFilter(String policyId, String interpreterType) throws Exception {
-        var policy = policyRegistrationRepository.findByRegistrationId(policyId)
-                .orElseThrow();
-        ObjectNode filterJson = (ObjectNode) objectMapper.readTree(policy.getFilterJson());
-        filterJson.put("filterType", "AI");
-        filterJson.set("interpreter", objectMapper.createObjectNode()
-                .put("interpreterType", interpreterType));
-        policy.setFilterJson(objectMapper.writeValueAsString(filterJson));
-        policyRegistrationRepository.save(policy);
     }
 
     private void saveLayer(String layerId, String layerType, String layerKey, String parentLayerId, int depth) {
@@ -877,18 +858,6 @@ class FilterPolicyInfrastructureIT {
             assertThat(instructions).anyMatch(node -> node.has("matcher"));
         }
         assertThat(recent.getErrorMessage()).isNull();
-    }
-
-    private void normalizePathFilterType(String policyId, String interpreterType) throws Exception {
-        var policy = policyRegistrationRepository.findByRegistrationId(policyId)
-                .orElseThrow();
-        ObjectNode filterJson = (ObjectNode) objectMapper.readTree(policy.getFilterJson());
-        filterJson.put("filterType", "PATH");
-        filterJson.put("instructionLanguage", interpreterType);
-        filterJson.set("interpreter", objectMapper.createObjectNode()
-                .put("interpreterType", interpreterType));
-        policy.setFilterJson(objectMapper.writeValueAsString(filterJson));
-        policyRegistrationRepository.save(policy);
     }
 
     private record StaticPromptContributor(String name, String template, String contributionText) implements PromptContributor {

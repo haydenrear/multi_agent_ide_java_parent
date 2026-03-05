@@ -1,8 +1,9 @@
 package com.hayden.multiagentidelib.filter.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
 import com.hayden.acp_cdc_ai.acp.filter.Instruction;
-import com.hayden.multiagentidelib.filter.model.interpreter.Interpreter;
+import com.hayden.multiagentidelib.filter.model.interpreter.DispatchingInterpreter;
 import com.hayden.multiagentidelib.filter.model.layer.FilterContext;
 import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
@@ -16,6 +17,7 @@ import java.util.List;
  * All serialization (including instruction deserialization) is Jackson/JSON.
  */
 @Builder(toBuilder = true)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record PathFilter(
         String id,
         String name,
@@ -24,11 +26,11 @@ public record PathFilter(
         ExecutableTool<String, List<Instruction>, FilterContext.PathFilterContext> executor,
         com.hayden.acp_cdc_ai.acp.filter.FilterEnums.PolicyStatus status,
         int priority,
-        Interpreter interpreter,
-        com.hayden.acp_cdc_ai.acp.filter.FilterEnums.InstructionLanguage instructionLanguage,
         Instant createdAt,
         Instant updatedAt
 ) implements Filter<String, PathFilter.PathFilterResult, FilterContext.PathFilterContext> {
+
+    private static final DispatchingInterpreter DISPATCHING_INTERPRETER = new DispatchingInterpreter();
 
     public record PathFilterResult(String r, List<Instruction> instructions, FilterDescriptor descriptor) {}
 
@@ -43,7 +45,7 @@ public record PathFilter(
                 ? new FilterDescriptor.NoOpFilterDescriptor()
                 : executionResult.descriptor();
 
-        var r = interpreter.apply(s, instructions);
+        var r = DISPATCHING_INTERPRETER.apply(s, instructions);
 
         if (r.isOk())
             return new PathFilterResult(r.unwrap(), instructions, descriptor);

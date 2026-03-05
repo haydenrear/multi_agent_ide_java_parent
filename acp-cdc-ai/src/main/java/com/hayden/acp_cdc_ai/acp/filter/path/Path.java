@@ -9,11 +9,12 @@ import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "pathType")
 @JsonSubTypes({
+        @JsonSubTypes.Type(value = RegexPath.class, name = "REGEX"),
         @JsonSubTypes.Type(value = MarkdownPath.class, name = "MARKDOWN_PATH"),
         @JsonSubTypes.Type(value = JsonPath.class, name = "JSON_PATH")
 })
 public sealed interface Path
-        permits MarkdownPath, JsonPath {
+        permits RegexPath, MarkdownPath, JsonPath {
 
     FilterEnums.PathType pathType();
     String expression();

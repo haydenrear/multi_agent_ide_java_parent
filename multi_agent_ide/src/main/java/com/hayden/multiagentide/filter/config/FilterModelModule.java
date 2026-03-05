@@ -13,6 +13,7 @@ import com.hayden.multiagentidelib.filter.model.layer.LayerCtx;
 import com.hayden.multiagentidelib.filter.model.layer.PromptContributorContext;
 import com.hayden.acp_cdc_ai.acp.filter.path.JsonPath;
 import com.hayden.acp_cdc_ai.acp.filter.path.MarkdownPath;
+import com.hayden.acp_cdc_ai.acp.filter.path.RegexPath;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -50,6 +51,7 @@ public class FilterModelModule {
 
         // Path subtypes
         module.registerSubtypes(
+                new NamedType(RegexPath.class, "REGEX"),
                 new NamedType(MarkdownPath.class, "MARKDOWN_PATH"),
                 new NamedType(JsonPath.class, "JSON_PATH")
         );

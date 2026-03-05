@@ -5,6 +5,7 @@ import com.hayden.acp_cdc_ai.acp.filter.Instruction;
 import com.hayden.acp_cdc_ai.acp.filter.InstructionMatcher;
 import com.hayden.acp_cdc_ai.acp.filter.path.JsonPath;
 import com.hayden.acp_cdc_ai.acp.filter.path.MarkdownPath;
+import com.hayden.acp_cdc_ai.acp.filter.path.RegexPath;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class InterpreterTest {
         @DisplayName("Replace replaces all occurrences of pattern")
         void replaceAll() {
             var instruction = Instruction.Replace.builder()
-                    .targetPath(new MarkdownPath("foo"))
+                    .targetPath(new RegexPath("foo"))
                     .value("bar")
                     .order(0)
                     .build();
@@ -44,7 +45,7 @@ class InterpreterTest {
         @DisplayName("Set replaces all occurrences of pattern")
         void setAll() {
             var instruction = Instruction.Set.builder()
-                    .targetPath(new MarkdownPath("\\d+"))
+                    .targetPath(new RegexPath("\\d+"))
                     .value("NUM")
                     .order(0)
                     .build();
@@ -59,7 +60,7 @@ class InterpreterTest {
         @DisplayName("Remove deletes all matches")
         void removeAll() {
             var instruction = Instruction.Remove.builder()
-                    .targetPath(new MarkdownPath("\\s+extra"))
+                    .targetPath(new RegexPath("\\s+extra"))
                     .order(0)
                     .build();
 
@@ -73,7 +74,7 @@ class InterpreterTest {
         @DisplayName("Invalid regex returns error Result")
         void invalidRegex() {
             var instruction = Instruction.Remove.builder()
-                    .targetPath(new MarkdownPath("[invalid"))
+                    .targetPath(new RegexPath("[invalid"))
                     .order(0)
                     .build();
 
@@ -87,12 +88,12 @@ class InterpreterTest {
         @DisplayName("Multiple instructions applied in order")
         void multipleInstructionsOrdered() {
             var first = Instruction.Replace.builder()
-                    .targetPath(new MarkdownPath("A"))
+                    .targetPath(new RegexPath("A"))
                     .value("B")
                     .order(1)
                     .build();
             var second = Instruction.Replace.builder()
-                    .targetPath(new MarkdownPath("B"))
+                    .targetPath(new RegexPath("B"))
                     .value("C")
                     .order(2)
                     .build();
@@ -107,7 +108,7 @@ class InterpreterTest {
         @DisplayName("ReplaceIfMatch with REGEX matcher can replace target-path matches")
         void replaceIfMatchRegexOnMatchedTarget() {
             var instruction = Instruction.ReplaceIfMatch.builder()
-                    .targetPath(new MarkdownPath("item \\d+ done"))
+                    .targetPath(new RegexPath("item \\d+ done"))
                     .matcher(new InstructionMatcher(FilterEnums.MatcherType.REGEX, "\\d+"))
                     .value("X")
                     .order(0)
@@ -123,7 +124,7 @@ class InterpreterTest {
         @DisplayName("RemoveIfMatch with REGEX matcher can remove target-path matches")
         void removeIfMatchRegexOnMatchedTarget() {
             var instruction = Instruction.RemoveIfMatch.builder()
-                    .targetPath(new MarkdownPath("\\[.*?\\]"))
+                    .targetPath(new RegexPath("\\[.*?\\]"))
                     .matcher(new InstructionMatcher(FilterEnums.MatcherType.REGEX, "\\d+"))
                     .order(0)
                     .build();
@@ -138,7 +139,7 @@ class InterpreterTest {
         @DisplayName("ReplaceIfMatch with EQUALS matcher replaces only matching regions")
         void replaceIfMatchEquals() {
             var instruction = Instruction.ReplaceIfMatch.builder()
-                    .targetPath(new MarkdownPath("\\w+"))
+                    .targetPath(new RegexPath("\\w+"))
                     .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "foo"))
                     .value("REPLACED")
                     .order(0)
@@ -154,7 +155,7 @@ class InterpreterTest {
         @DisplayName("ReplaceIfMatch with REGEX matcher replaces only matching regions")
         void replaceIfMatchRegex() {
             var instruction = Instruction.ReplaceIfMatch.builder()
-                    .targetPath(new MarkdownPath("\\w+"))
+                    .targetPath(new RegexPath("\\w+"))
                     .matcher(new InstructionMatcher(FilterEnums.MatcherType.REGEX, "^f"))
                     .value("X")
                     .order(0)
@@ -170,7 +171,7 @@ class InterpreterTest {
         @DisplayName("RemoveIfMatch removes only regions where matcher evaluates true")
         void removeIfMatch() {
             var instruction = Instruction.RemoveIfMatch.builder()
-                    .targetPath(new MarkdownPath("\\[\\w+\\]"))
+                    .targetPath(new RegexPath("\\[\\w+\\]"))
                     .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "bad"))
                     .order(0)
                     .build();
@@ -179,6 +180,53 @@ class InterpreterTest {
 
             assertThat(result.isOk()).isTrue();
             assertThat(result.r().get()).isEqualTo("[good]  [ok]");
+        }
+    }
+
+    @Nested
+    @DisplayName("DispatchingInterpreter")
+    class DispatchingInterpreterTests {
+
+        private final DispatchingInterpreter interpreter = new DispatchingInterpreter();
+
+        @Test
+        @DisplayName("Dispatches regex path instructions to regex interpreter")
+        void dispatchesRegexPath() {
+            var instruction = Instruction.Replace.builder()
+                    .targetPath(new RegexPath("\\d+"))
+                    .value("X")
+                    .order(0)
+                    .build();
+
+            var result = interpreter.apply("ticket-42", List.of(instruction));
+
+            assertThat(result.isOk()).isTrue();
+            assertThat(result.r().get()).isEqualTo("ticket-X");
+        }
+
+        @Test
+        @DisplayName("Dispatches mixed instruction batches by path type in order")
+        void dispatchesMixedPathTypes() {
+            String input = """
+                    {"status":"error: timeout","debug":"remove me"}""";
+            List<Instruction> instructions = List.of(
+                    Instruction.ReplaceIfMatch.builder()
+                            .targetPath(new JsonPath("$.status"))
+                            .matcher(new InstructionMatcher(FilterEnums.MatcherType.REGEX, "error"))
+                            .value("CLEARED")
+                            .order(0)
+                            .build(),
+                    Instruction.Remove.builder()
+                            .targetPath(new JsonPath("$.debug"))
+                            .order(1)
+                            .build()
+            );
+
+            var result = interpreter.apply(input, instructions);
+
+            assertThat(result.isOk()).isTrue();
+            assertThat(result.r().get()).contains("\"status\":\"CLEARED\"");
+            assertThat(result.r().get()).doesNotContain("\"debug\"");
         }
     }
 

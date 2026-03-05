@@ -68,6 +68,7 @@ public interface FilterEnums {
     }
 
     enum PathType {
+        REGEX,
         MARKDOWN_PATH,
         JSON_PATH
     }

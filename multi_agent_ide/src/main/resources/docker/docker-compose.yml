@@ -1,4 +1,15 @@
 services:
+  jupyter-gateway:
+    build:
+      context: ./jupyter-gateway
+    container_name: jupyter-gateway
+    networks:
+      multi-agent-ide-network:
+    ports:
+      - "8101:8888"
+    volumes:
+#       https://github.com/jupyter/docker-stacks the host should be UID ~1000 (jovyan)
+      - /Users/hayde/jupyter/sessions/db:/home/jovyan/work/workspaces
   multi-agent-ide-postgres:
     image: localhost:5005/postgres-pgvector
     container_name: multi-agent-ide-postgres
