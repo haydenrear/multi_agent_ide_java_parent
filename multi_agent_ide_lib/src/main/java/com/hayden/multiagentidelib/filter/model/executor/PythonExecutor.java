@@ -129,7 +129,6 @@ public record PythonExecutor<I, O, CTX extends FilterContext>(
     private String buildRequestPayload(I input, CTX ctx, ObjectMapper objectMapper) throws Exception {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("input", ExecutableTool.serializeExecutorInput(input, objectMapper));
-        payload.put("context", ctx);
         payload.put("entryFunction", entryFunction);
         payload.put("runtimeArgsSchema", runtimeArgsSchema);
         return objectMapper.writeValueAsString(payload);
