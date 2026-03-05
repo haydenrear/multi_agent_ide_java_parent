@@ -23,23 +23,6 @@ import java.util.stream.Collectors;
  * - outcomes
  * - captured events
  */
-//TODO: maybe a polymorphic? However, the json will always be deserialized with a type in ArtifactEntity, matched over, so maybe not.
-//@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "artifactType")
-//@JsonSubTypes({
-//    @JsonSubTypes.Type(value = Artifact.ExecutionArtifact.class, name = "Execution"),
-//    @JsonSubTypes.Type(value = Artifact.ExecutionConfigArtifact.class, name = "ExecutionConfig"),
-//    @JsonSubTypes.Type(value = Artifact.RenderedPromptArtifact.class, name = "RenderedPrompt"),
-//    @JsonSubTypes.Type(value = Artifact.PromptArgsArtifact.class, name = "PromptArgs"),
-//    @JsonSubTypes.Type(value = Artifact.PromptContributionArtifact.class, name = "PromptContribution"),
-//    @JsonSubTypes.Type(value = Artifact.ToolCallArtifact.class, name = "ToolCall"),
-//    @JsonSubTypes.Type(value = Artifact.OutcomeEvidenceArtifact.class, name = "OutcomeEvidence"),
-//    @JsonSubTypes.Type(value = Artifact.EventArtifact.class, name = "EventArtifact"),
-//    @JsonSubTypes.Type(value = Artifact.AgentRequestArtifact.class, name = "AgentRequest"),
-//    @JsonSubTypes.Type(value = Artifact.AgentResultArtifact.class, name = "AgentResult"),
-//    @JsonSubTypes.Type(value = Artifact.GroupArtifact.class, name = "Group"),
-//    @JsonSubTypes.Type(value = RefArtifact.class, name = "RefArtifact"),
-//    @JsonSubTypes.Type(value = MessageStreamArtifact.class, name = "MessageStream")
-//})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public sealed interface Artifact
         permits Artifact.AgentModelArtifact, Artifact.ArtifactDbRef, Artifact.EventArtifact, Artifact.ExecutionArtifact, Artifact.ExecutionConfigArtifact, Artifact.FilterDecisionRecordArtifact, Artifact.FilterDescriptorArtifact, Artifact.OutcomeEvidenceArtifact, Artifact.PromptArgsArtifact, Artifact.RenderedPromptArtifact, Artifact.ToolCallArtifact, MessageStreamArtifact, Templated {
@@ -128,7 +111,7 @@ public sealed interface Artifact
         }
     }
 
-    interface AgentModel {
+    interface AgentModel extends HasContextId {
 
         String computeHash(HashContext hashContext);
 

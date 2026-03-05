@@ -4,6 +4,7 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.acp_cdc_ai.acp.events.HasContextId;
 import com.hayden.multiagentidelib.agent.UpstreamContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
@@ -274,11 +275,11 @@ class CurationHistoryContextContributorFactoryTest {
                 .build();
     }
 
-    private static BlackboardHistory historyOf(Object... inputs) {
+    private static BlackboardHistory historyOf(HasContextId... inputs) {
         List<BlackboardHistory.Entry> entries = new ArrayList<>();
         Instant base = Instant.parse("2025-01-01T00:00:00Z");
         for (int i = 0; i < inputs.length; i++) {
-            Object input = inputs[i];
+            HasContextId input = inputs[i];
             entries.add(new BlackboardHistory.DefaultEntry(
                     base.plusSeconds(i),
                     "action-" + i,

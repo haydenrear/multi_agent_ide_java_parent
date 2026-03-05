@@ -331,10 +331,10 @@ public class ContextManagerTools implements ToolCarrier {
                     if (messageEntry == null) {
                         return new HistorySearchResult("error", List.of(), 0, query, "Message entry not found");
                     }
-                    List<MessageEventView> matches = messageEntry.events().stream()
+                    List<MessageEventView> matches = messageEntry.events().events().stream()
                             .filter(event -> matchesQuery(event, lowerQuery))
                             .limit(limit)
-                            .map(event -> createMessageEventView(event, messageEntry.events().indexOf(event)))
+                            .map(event -> createMessageEventView(event, messageEntry.events().events().indexOf(event)))
                             .toList();
                     views = matches.stream()
                             .map(view -> new HistoryEntryView(
@@ -407,20 +407,20 @@ public class ContextManagerTools implements ToolCarrier {
                 int actualOffset = offset != null ? offset : 0;
                 int actualLimit = limit != null ? Math.min(limit, 100) : 50;
 
-                List<MessageEventView> page = IntStream.range(0, messageEntry.events().size())
+                List<MessageEventView> page = IntStream.range(0, messageEntry.events().events().size())
                         .skip(actualOffset)
                         .limit(actualLimit)
-                        .mapToObj(index -> createMessageEventView(messageEntry.events().get(index), index))
+                        .mapToObj(index -> createMessageEventView(messageEntry.events().events().get(index), index))
                         .toList();
 
                 return new MessagePageResult(
                         "success",
                         entryId,
                         page,
-                        messageEntry.events().size(),
+                        messageEntry.events().events().size(),
                         actualOffset,
                         actualLimit,
-                        (actualOffset + actualLimit) < messageEntry.events().size(),
+                        (actualOffset + actualLimit) < messageEntry.events().events().size(),
                         null
                 );
             });
@@ -628,7 +628,7 @@ public class ContextManagerTools implements ToolCarrier {
     }
 
     private HistoryEntryView createMessageEntryView(BlackboardHistory.MessageEntry entry, int index) {
-        int count = entry.events().size();
+        int count = entry.events().events().size();
         String summary = "Message entry id=" + messageEntryId(index) + ", totalEvents=" + count;
         return new HistoryEntryView(
                 index,

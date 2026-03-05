@@ -115,7 +115,7 @@ class ContextManagerToolsTest {
         entries.add(new BlackboardHistory.DefaultEntry(
                 Instant.now(),
                 "node:node-1::ACTION_STARTED",
-                "payload",
+                new BlackboardHistory.StringMessage(ArtifactKey.createRoot(), "payload"),
                 String.class
         ));
 
@@ -140,7 +140,7 @@ class ContextManagerToolsTest {
         entries.add(new BlackboardHistory.MessageEntry(
                 Instant.now(),
                 "node:node-1::messages",
-                new ArrayList<>(List.of(eventOne, eventTwo))
+                new BlackboardHistory.MessageEvents(new ArrayList<>(List.of(eventOne, eventTwo)), ArtifactKey.createRoot())
         ));
         String value = ArtifactKey.createRoot().value();
         return new BlackboardHistory(new BlackboardHistory.History(entries), value, WorkflowGraphState.initial(value));

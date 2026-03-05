@@ -1,7 +1,12 @@
 package com.hayden.multiagentidelib.model.nodes;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventNode;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.events.HasContextId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.List;
@@ -12,11 +17,27 @@ import java.util.Map;
  * Nodes can implement capability mixins (Branchable, Editable, etc.) for optional behaviors.
  * This is a data-oriented interface that composes capabilities.
  */
-public sealed interface GraphNode extends EventNode
+public sealed interface GraphNode extends EventNode, HasContextId
         permits
             AskPermissionNode, CollectorNode, DiscoveryCollectorNode, DiscoveryDispatchAgentNode, DiscoveryNode, DiscoveryOrchestratorNode, InterruptNode,
             MergeNode, OrchestratorNode, PlanningCollectorNode, PlanningDispatchAgentNode, PlanningNode, PlanningOrchestratorNode,
             ReviewNode, SummaryNode, TicketCollectorNode, TicketDispatchAgentNode, TicketNode, TicketOrchestratorNode {
+
+    Logger log = LoggerFactory.getLogger(GraphNode.class);
+
+    @JsonIgnore
+    default ArtifactKey contextId() {
+        var n = nodeId();
+
+        try {
+            return new ArtifactKey(n);
+        } catch (Exception e) {
+            log.error("Failed to parse node {} as artifact key.", n, e);
+        }
+
+        return ArtifactKey.createRoot();
+    }
+
 
     GraphNode withStatus(Events.NodeStatus nodeStatus);
 
@@ -70,12 +91,5 @@ public sealed interface GraphNode extends EventNode
      */
     Events.NodeType nodeType();
 
-    /**
-     * Check if this node implements a specific capability.
-     */
-    default boolean hasCapability(Class<?> capabilityClass) {
-        return this.getClass().isAssignableFrom(capabilityClass)
-                || capabilityClass.isAssignableFrom(this.getClass());
-    }
 
 }

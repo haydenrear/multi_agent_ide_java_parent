@@ -150,7 +150,24 @@ public interface Events {
             @JsonSubTypes.Type(value = MergePhaseCompletedEvent.class, name = "MERGE_PHASE_COMPLETED"),
             @JsonSubTypes.Type(value = ArtifactEvent.class, name = "ARTIFACT_EMITTED")
     })
-    sealed interface GraphEvent extends FilteredObject {
+    sealed interface GraphEvent extends FilteredObject, HasContextId {
+
+        Logger log = LoggerFactory.getLogger(GraphEvent.class);
+
+        @Override
+        @JsonIgnore
+        default ArtifactKey contextId() {
+            var n = nodeId();
+
+            try {
+                return new ArtifactKey(n);
+            } catch (Exception e) {
+                log.error("Failed to parse node {} as artifact key.", n, e);
+            }
+
+            return ArtifactKey.createRoot();
+        }
+
         /**
          * Unique event ID.
          */
@@ -569,8 +586,26 @@ public interface Events {
         return String.valueOf(value);
     }
 
-    sealed interface AgentEvent extends GraphEvent {
+    sealed interface AgentEvent extends GraphEvent, HasContextId {
+
+
         String nodeId();
+
+        Logger log = LoggerFactory.getLogger(AgentEvent.class);
+
+        @Override
+        @JsonIgnore
+        default ArtifactKey contextId() {
+            var n = nodeId();
+
+            try {
+                return new ArtifactKey(n);
+            } catch (Exception e) {
+                log.error("Failed to parse node {} as artifact key.", n, e);
+            }
+
+            return ArtifactKey.createRoot();
+        }
     }
 
     /**

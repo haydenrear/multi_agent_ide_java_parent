@@ -2,10 +2,9 @@ package com.hayden.multiagentidelib.agent;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.Blackboard;
-import com.hayden.commitdiffcontext.events.EventSubscriber;
-import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.*;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
-import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.commitdiffcontext.events.EventSubscriber;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 
@@ -93,11 +92,16 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
      * Tracks a single historical blackboard state entry.
      * Each entry represents a previous action's input that has been archived.
      */
-    public sealed interface Entry permits DefaultEntry, MessageEntry {
+    public sealed interface Entry extends HasContextId permits DefaultEntry, MessageEntry {
+
         Instant timestamp();
+
         String actionName();
-        Object input();
+
+        HasContextId input();
+
         Class<?> inputType();
+
     }
 
     public BlackboardHistory(History history, String nodeId, WorkflowGraphState state) {
@@ -129,7 +133,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         this.state = t.apply(this.state);
     }
 
-    synchronized void addEntry(String actionName, Object enrichedInput) {
+    synchronized void addEntry(String actionName, HasContextId enrichedInput) {
         this.history = this.history.withEntry(actionName, enrichedInput);
     }
 
@@ -255,28 +259,40 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         return List.copyOf(this.history.entries());
     }
 
+    public record StringMessage(ArtifactKey contextId, String message) implements HasContextId {}
 
     public record DefaultEntry(
             Instant timestamp,
             String actionName,
-            Object input,
+            HasContextId input,
             Class<?> inputType
     ) implements Entry {
+        @Override
+        public ArtifactKey contextId() {
+            return input.contextId();
+        }
     }
+
+    public record MessageEvents(List<Events.GraphEvent> events, ArtifactKey contextId) implements HasContextId {}
 
     public record MessageEntry(
             Instant timestamp,
             String actionName,
-            List<Events.GraphEvent> events
+            MessageEvents events
     ) implements Entry {
         @Override
-        public Object input() {
+        public HasContextId input() {
             return events;
         }
 
         @Override
         public Class<?> inputType() {
             return List.class;
+        }
+
+        @Override
+        public ArtifactKey contextId() {
+            return events.contextId;
         }
     }
 
@@ -298,7 +314,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         /**
          * Add an entry to the history
          */
-        public History withEntry(String actionName, Object input) {
+        public History withEntry(String actionName, HasContextId input) {
             List<Entry> newEntries = new ArrayList<>(entries);
             newEntries.add(new DefaultEntry(
                     Instant.now(),
@@ -441,7 +457,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             }
             for (Entry entry : entries) {
                 if (actionName.equals(entry.actionName()) && entry instanceof MessageEntry messageEntry) {
-                    messageEntry.events().add(event);
+                    messageEntry.events().events().add(event);
                     return;
                 }
             }
@@ -450,7 +466,10 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             entries.add(new MessageEntry(
                     event.timestamp(),
                     actionName,
-                    events
+                    new MessageEvents(events, event.contextId().parent().orElseGet(() -> {
+                        log.error("Error when attempting to get parent of contextId for {}.", event);
+                        return event.contextId();
+                    }))
             ));
         }
 

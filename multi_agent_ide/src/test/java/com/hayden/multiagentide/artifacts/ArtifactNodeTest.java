@@ -360,6 +360,11 @@ class ArtifactNodeTest {
         return Artifact.AgentModelArtifact.builder()
                 .agentModel(new Artifact.AgentModel() {
                     @Override
+                    public ArtifactKey contextId() {
+                        return key;
+                    }
+
+                    @Override
                     public String computeHash(Artifact.HashContext hashContext) {
                         return UUID.randomUUID().toString();
                     }
