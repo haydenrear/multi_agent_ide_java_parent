@@ -4,6 +4,7 @@ import static com.hayden.multiagentide.acp_tests.AcpChatModelCodexIntegrationTes
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.agentclientprotocol.model.PermissionOptionKind;
 import com.embabel.agent.api.annotation.AchievesGoal;
@@ -18,6 +19,7 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.IoBinding;
 import com.embabel.agent.core.ProcessOptions;
 import com.embabel.chat.support.InMemoryConversation;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
@@ -158,7 +160,14 @@ class AcpChatModelCodexIntegrationTest {
 //                    .isPresent();
 
             var c = context.ai()
-                    .withFirstAvailableLlmOf("acp-chat-model", context.getAgentProcess().getId())
+                    .withFirstAvailableLlmOf(
+                            "acp-chat-model",
+                            AcpChatOptionsString.create(
+                                    context.getAgentProcess().getId(),
+                                    "openrouter/free",
+                                    "claudeopenrouter",
+                                    Map.of("source", "integration-test")
+                            ).encodeModel(new ObjectMapper()))
                     .withId("hello!")
 //                    .withToolObjects(deepwiki.get())
 //                    .withToolObject(new ToolObject(guiEvent))

@@ -1,9 +1,11 @@
 package com.hayden.multiagentide.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.embabel.agent.api.common.ContextualPromptElement;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.ToolObject;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.multiagentide.agent.AskUserQuestionToolAdapter;
 import com.hayden.multiagentide.agent.decorator.prompt.LlmCallDecorator;
 import com.hayden.multiagentidelib.llm.LlmRunner;
@@ -19,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Default implementation of LlmRunner using Embabel's native prompt contribution pattern.
@@ -36,6 +39,7 @@ import java.util.Map;
 public class DefaultLlmRunner implements LlmRunner {
     
     private final AskUserQuestionToolAdapter askUserQuestionToolAdapter;
+    private final ObjectMapper objectMapper;
 
     @Autowired(required = false)
     private List<LlmCallDecorator> llmCallDecorators = new ArrayList<>();
@@ -49,10 +53,11 @@ public class DefaultLlmRunner implements LlmRunner {
             Class<T> responseClass,
             OperationContext context
     ) {
+        String encodedAcpOptions = resolveEncodedAcpOptions(promptContext);
         // Get applicable prompt contributors using the full PromptContext
         var aiQuery = context
                 .ai()
-                .withFirstAvailableLlmOf("acp-chat-model", promptContext.modelName(), promptContext.chatId().value())
+                .withFirstAvailableLlmOf("acp-chat-model", encodedAcpOptions)
                 .withPromptElements(promptContext.promptContributors().toArray(ContextualPromptElement[]::new));
 
         aiQuery = applyToolContext(aiQuery, toolContext);
@@ -72,6 +77,42 @@ public class DefaultLlmRunner implements LlmRunner {
                 .fromTemplate(templateName, model);
         
         return result;
+    }
+
+    private String resolveEncodedAcpOptions(PromptContext promptContext) {
+        if (AcpChatOptionsString.looksLikeEncodedModel(promptContext.modelName())) {
+            return promptContext.modelName();
+        }
+
+        String requestedModel = normalize(promptContext.modelName());
+        String requestedProvider = promptContext.metadata() == null
+                ? null
+                : normalize(Optional.ofNullable(promptContext.metadata().get("acpProvider"))
+                .map(Object::toString)
+                .orElse(null));
+        Map<String, Object> runtimeOptions = Map.of();
+        if (promptContext.metadata() != null && promptContext.metadata().get("acpOptions") instanceof Map<?, ?> rawOptions) {
+            runtimeOptions = rawOptions.entrySet().stream()
+                    .filter(entry -> entry.getKey() != null)
+                    .collect(java.util.stream.Collectors.toMap(
+                            entry -> entry.getKey().toString(),
+                            Map.Entry::getValue
+                    ));
+        }
+
+        return AcpChatOptionsString.create(
+                promptContext.chatId().value(),
+                requestedModel,
+                requestedProvider,
+                runtimeOptions
+        ).encodeModel(objectMapper);
+    }
+
+    private String normalize(String value) {
+        if (value == null || value.isBlank() || "DEFAULT".equalsIgnoreCase(value)) {
+            return null;
+        }
+        return value;
     }
 
     private PromptRunner applyToolContext(PromptRunner promptRunner, ToolContext toolContext) {

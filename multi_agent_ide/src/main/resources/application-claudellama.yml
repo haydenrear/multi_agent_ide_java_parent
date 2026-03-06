@@ -4,14 +4,18 @@ multi-agent-embabel:
   chat-model:
     provider: acp
   acp:
-    transport: stdio
-    command: ${ACP_COMMAND:claude-agent-acp}
-    args: ${ACP_ARGS:--model gpt-oss:120b-cloud}
-    working-directory: ${ACP_WORKING_DIR:}
-    env:
-      ANTHROPIC_AUTH_TOKEN: ollama
-      ANTHROPIC_BASE_URL: http://localhost:11434
-      ANTHROPIC_API_KEY: ""
+    default-provider: claudellama
+    providers:
+      claudellama:
+        transport: stdio
+        command: ${ACP_COMMAND:claude-agent-acp}
+        args: ${ACP_ARGS:--model gpt-oss:120b-cloud}
+        working-directory: ${ACP_WORKING_DIR:}
+        default-model: gpt-oss:120b-cloud
+        env:
+          ANTHROPIC_AUTH_TOKEN: ollama
+          ANTHROPIC_BASE_URL: http://localhost:11434
+          ANTHROPIC_API_KEY: ""
 acp.mcp:
   http:
     #    - name: deepwiki

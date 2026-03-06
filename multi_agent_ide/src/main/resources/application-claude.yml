@@ -4,10 +4,13 @@ multi-agent-embabel:
   chat-model:
     provider: acp
   acp:
-    transport: stdio
-    command: ${ACP_COMMAND:claude-agent-acp}
-    args: ${ACP_ARGS:}
-    working-directory: ${ACP_WORKING_DIR:}
+    default-provider: claude
+    providers:
+      claude:
+        transport: stdio
+        command: ${ACP_COMMAND:claude-agent-acp}
+        args: ${ACP_ARGS:}
+        working-directory: ${ACP_WORKING_DIR:}
 acp.mcp:
   http:
     #    - name: deepwiki

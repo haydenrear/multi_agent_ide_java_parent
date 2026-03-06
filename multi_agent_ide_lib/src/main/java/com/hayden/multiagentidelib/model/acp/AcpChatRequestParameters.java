@@ -28,6 +28,8 @@ public class AcpChatRequestParameters implements ChatOptions {
     private final List<String> stopSequences;
     private final ResponseFormat responseFormat;
     private final Object memoryId;
+    private final String providerName;
+    private final java.util.Map<String, Object> runtimeOptions;
 
     protected AcpChatRequestParameters(Builder<?> builder) {
         this.modelName = builder.modelName;
@@ -40,10 +42,20 @@ public class AcpChatRequestParameters implements ChatOptions {
         this.stopSequences = new ArrayList<>(builder.stopSequences);
         this.responseFormat = builder.responseFormat;
         this.memoryId = builder.memoryId;
+        this.providerName = builder.providerName;
+        this.runtimeOptions = builder.runtimeOptions == null ? java.util.Map.of() : java.util.Map.copyOf(builder.runtimeOptions);
     }
 
     public Object memoryId() {
         return memoryId;
+    }
+
+    public String providerName() {
+        return providerName;
+    }
+
+    public java.util.Map<String, Object> runtimeOptions() {
+        return runtimeOptions;
     }
 
     public AcpChatRequestParameters overrideWith(ChatOptions that) {
@@ -66,7 +78,9 @@ public class AcpChatRequestParameters implements ChatOptions {
                 && Objects.equals(presencePenalty, that.presencePenalty)
                 && Objects.equals(maxOutputTokens, that.maxOutputTokens)
                 && Objects.equals(stopSequences, that.stopSequences)
-                && Objects.equals(responseFormat, that.responseFormat);
+                && Objects.equals(responseFormat, that.responseFormat)
+                && Objects.equals(providerName, that.providerName)
+                && Objects.equals(runtimeOptions, that.runtimeOptions);
     }
 
     @Override
@@ -80,7 +94,9 @@ public class AcpChatRequestParameters implements ChatOptions {
                 presencePenalty,
                 maxOutputTokens,
                 stopSequences,
-                responseFormat);
+                responseFormat,
+                providerName,
+                runtimeOptions);
     }
 
     @Override
@@ -94,7 +110,9 @@ public class AcpChatRequestParameters implements ChatOptions {
                 + presencePenalty + ", maxOutputTokens="
                 + maxOutputTokens + ", stopSequences="
                 + stopSequences + ", responseFormat="
-                + responseFormat + '}';
+                + responseFormat + ", providerName="
+                + providerName + ", runtimeOptions="
+                + runtimeOptions + '}';
     }
 
     @Override
@@ -129,6 +147,8 @@ public class AcpChatRequestParameters implements ChatOptions {
         private List<String> stopSequences = new ArrayList<>();
         private ResponseFormat responseFormat;
         private Object memoryId;
+        private String providerName;
+        private java.util.Map<String, Object> runtimeOptions;
 
         public <U> U getOrDefault(U value, U other) {
             if (value != null) {
@@ -149,6 +169,12 @@ public class AcpChatRequestParameters implements ChatOptions {
 
             if (parameters instanceof AcpChatRequestParameters p && p.memoryId != null) {
                 memoryId(p.memoryId);
+            }
+            if (parameters instanceof AcpChatRequestParameters p && p.providerName != null) {
+                providerName(p.providerName);
+            }
+            if (parameters instanceof AcpChatRequestParameters p && p.runtimeOptions != null && !p.runtimeOptions.isEmpty()) {
+                runtimeOptions(p.runtimeOptions);
             }
 
             return (T) this;
@@ -205,6 +231,16 @@ public class AcpChatRequestParameters implements ChatOptions {
 
         public T memoryId(Object memId) {
             this.memoryId = memId;
+            return (T) this;
+        }
+
+        public T providerName(String providerName) {
+            this.providerName = providerName;
+            return (T) this;
+        }
+
+        public T runtimeOptions(java.util.Map<String, Object> runtimeOptions) {
+            this.runtimeOptions = runtimeOptions;
             return (T) this;
         }
 

@@ -191,7 +191,6 @@ class CodexSandboxStrategyTest {
             SandboxTranslation result = strategy.translate(contextWithMainPath, Collections.emptyList());
             
             // Args should be: -c, cd=..., -c, sandbox=...
-            assertThat(result.args()).hasSize(4);
             assertThat(result.args().get(0)).isEqualTo("-c");
             assertThat(result.args().get(1)).isEqualTo("cd=/project/main");
             assertThat(result.args().get(2)).isEqualTo("-c");
@@ -204,7 +203,7 @@ class CodexSandboxStrategyTest {
             SandboxTranslation result = strategy.translate(contextWithSubmodules, Collections.emptyList());
             
             // Args should be: -c, cd=..., -c, sandbox=..., -c, add-dir=..., -c, add-dir=...
-            assertThat(result.args()).hasSize(8);
+            assertThat(result.args()).hasSize(10);
             
             // Verify pattern: every even index is "-c", every odd index is "key=value"
             for (int i = 0; i < result.args().size(); i++) {

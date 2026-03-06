@@ -4,18 +4,22 @@ multi-agent-embabel:
   chat-model:
     provider: acp
   acp:
-    transport: stdio
-    command: ${ACP_COMMAND:claude-agent-acp}
-    args: ${ACP_ARGS:--model openrouter/free}
-    working-directory: ${ACP_WORKING_DIR:}
-    env:
-#     ANTHROPIC_BASE_URL=https://openrouter.ai/api  ANTHROPIC_AUTH_TOKEN=${X_OPENROUTER_API_KEY} ANTHROPIC_API_KEY="" OPENROUTER_API_KEY=${X_OPENROUTER_API_KEY} ANTHROPIC_MODEL=openrouter/free claude --model openrouter/free
-      ANTHROPIC_BASE_URL: https://openrouter.ai/api
-      ANTHROPIC_AUTH_TOKEN: ${X_OPENROUTER_API_KEY}
-      ANTHROPIC_API_KEY: ""
-      OPENROUTER_API_KEY: ${X_OPENROUTER_API_KEY}
-      ANTHROPIC_MODEL: openrouter/free
-      CLAUDE_CODE_EXECUTABLE: /Users/hayde/.local/bin/claude
+    default-provider: claudeopenrouter
+    providers:
+      claudeopenrouter:
+        transport: stdio
+        command: ${ACP_COMMAND:claude-agent-acp}
+        args: ${ACP_ARGS:--model openrouter/free}
+        working-directory: ${ACP_WORKING_DIR:}
+        default-model: openrouter/free
+        env:
+          #     ANTHROPIC_BASE_URL=https://openrouter.ai/api  ANTHROPIC_AUTH_TOKEN=${X_OPENROUTER_API_KEY} ANTHROPIC_API_KEY="" OPENROUTER_API_KEY=${X_OPENROUTER_API_KEY} ANTHROPIC_MODEL=openrouter/free claude --model openrouter/free
+          ANTHROPIC_BASE_URL: https://openrouter.ai/api
+          ANTHROPIC_AUTH_TOKEN: ${X_OPENROUTER_API_KEY}
+          ANTHROPIC_API_KEY: ""
+          OPENROUTER_API_KEY: ${X_OPENROUTER_API_KEY}
+          ANTHROPIC_MODEL: openrouter/free
+          CLAUDE_CODE_EXECUTABLE: /Users/hayde/.local/bin/claude
 acp.mcp:
   http:
     #    - name: deepwiki

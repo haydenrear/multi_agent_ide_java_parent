@@ -111,7 +111,7 @@ class BlackboardHistoryTest {
                     : (BlackboardHistory.DefaultEntry) second;
 
             assertThat(messageEntry.actionName()).isEqualTo("node:node-2::messages");
-            assertThat(messageEntry.events()).hasSize(2);
+            assertThat(messageEntry.events().events()).hasSize(2);
             assertThat(defaultEntry.actionName()).isEqualTo("node:node-2::NODE_ADDED");
             return true;
         });

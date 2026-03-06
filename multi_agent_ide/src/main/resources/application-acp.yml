@@ -3,19 +3,22 @@ logging.config: classpath:logback-multi-agent-ide.xml
 multi-agent-embabel:
   chat-model.provider: acp
   acp:
-    transport: stdio
-    command: ${ACP_COMMAND:codex-acp}
-    args: ${ACP_ARGS:}
-    working-directory: ${ACP_WORKING_DIR:}
-    auth-method: chatgpt
+    default-provider: ${ACP_PROVIDER:codex}
+    providers:
+      codex:
+        transport: stdio
+        command: ${ACP_COMMAND:codex-acp}
+        args: ${ACP_ARGS:}
+        working-directory: ${ACP_WORKING_DIR:}
+        auth-method: chatgpt
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 1s
 acp.mcp:
   http:
-#    - name: deepwiki
-#      url: https://mcp.deepwiki.com/mcp
-#      headers:
+    #    - name: deepwiki
+    #      url: https://mcp.deepwiki.com/mcp
+    #      headers:
     - name: hindsight
       url: http://localhost:8777/mcp/${HINDSIGHT_MEM_BANK:agentic-coding}
       headers:

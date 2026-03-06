@@ -4,13 +4,16 @@ multi-agent-embabel:
   chat-model:
     provider: acp
   acp:
-    transport: stdio
-    command: ${ACP_COMMAND:codex-acp}
-    args: ${ACP_ARGS:--sandbox danger-full-access --ask-for-approval never --yolo true}
-    working-directory: ${ACP_WORKING_DIR:}
-    auth-method: chatgpt
-#    env:
-#      PATH:
+    default-provider: codex
+    providers:
+      codex:
+        transport: stdio
+        command: ${ACP_COMMAND:codex-acp}
+        args: ${ACP_ARGS:--sandbox danger-full-access --ask-for-approval never --yolo true}
+        working-directory: ${ACP_WORKING_DIR:}
+        auth-method: chatgpt
+#        env:
+#          PATH:
 
 acp.mcp:
   http:

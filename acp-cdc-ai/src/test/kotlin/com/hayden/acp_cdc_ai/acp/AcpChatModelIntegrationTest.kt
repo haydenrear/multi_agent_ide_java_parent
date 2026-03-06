@@ -4,7 +4,10 @@ import com.agentclientprotocol.model.PermissionOption
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.RequestPermissionResponse
 import com.agentclientprotocol.model.SessionUpdate
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
+import com.hayden.acp_cdc_ai.acp.config.AcpProviderDefinition
 import com.hayden.acp_cdc_ai.acp.config.McpProperties
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.EventBus
@@ -54,7 +57,7 @@ class AcpChatModelIntegrationTest {
 
     @BeforeAll
     fun checkExecutables() {
-        claudeCodeAcpAvailable = isExecutableAvailable("which","claude-agent-acp")
+        claudeCodeAcpAvailable = isExecutableAvailable("which", "claude-agent-acp")
         codexAcpAvailable = isExecutableAvailable("which", "codex-acp")
 
         println("ACP Provider Availability:")
@@ -120,11 +123,23 @@ class AcpChatModelIntegrationTest {
      */
     private fun createAcpChatModel(command: String, sessionId: String): AcpChatModel {
 
-        val properties = AcpModelProperties().apply {
-            transport = "stdio"
-            this.command = command
-            workingDirectory = mainWorktree.toString()
-        }
+        val properties = AcpModelProperties(
+            "integration",
+            mapOf(
+                "integration" to AcpProviderDefinition(
+                    "integration",
+                    "stdio",
+                    command,
+                    null,
+                    mainWorktree.toString(),
+                    null,
+                    null,
+                    null,
+                    emptyMap(),
+                    null
+                )
+            )
+        )
 
         val registry = SandboxTranslationRegistry(
             listOf(
@@ -147,6 +162,7 @@ class AcpChatModelIntegrationTest {
             override fun save(ctx: RequestContext): RequestContext = ctx
             override fun findBySessionId(sid: String): Optional<RequestContext> =
                 if (sessionId == sid) Optional.of(context) else Optional.empty()
+
             override fun deleteBySessionId(sid: String) {}
             override fun clear() {}
         }
@@ -177,6 +193,93 @@ class AcpChatModelIntegrationTest {
             contextRepository,
             registry
         )
+    }
+
+    @Test
+    @DisplayName("should isolate ACP session routing keys by provider and model")
+    fun shouldIsolateAcpSessionRoutingKeys() {
+        val properties = AcpModelProperties(
+            "codex",
+            mapOf(
+                "codex" to AcpProviderDefinition(
+                    "codex",
+                    "stdio",
+                    "codex-acp",
+                    null,
+                    mainWorktree.toString(),
+                    null,
+                    null,
+                    null,
+                    emptyMap(),
+                    null
+                ),
+                "claude" to AcpProviderDefinition(
+                    "claude",
+                    "stdio",
+                    "claude-agent-acp",
+                    null,
+                    mainWorktree.toString(),
+                    null,
+                    null,
+                    null,
+                    emptyMap(),
+                    "openrouter/free"
+                )
+            )
+        )
+        val chatModel = AcpChatModel(
+            properties,
+            null,
+            AcpSessionManager(),
+            McpProperties(),
+            AutoAcceptPermissionGate(),
+            object : RequestContextRepository {
+                override fun save(ctx: RequestContext): RequestContext = ctx
+                override fun findBySessionId(sid: String): Optional<RequestContext> = Optional.empty()
+                override fun deleteBySessionId(sid: String) {}
+                override fun clear() {}
+            },
+            SandboxTranslationRegistry(emptyList()),
+            ObjectMapper()
+        )
+
+        val encode = { provider: String, model: String ->
+            AcpChatOptionsString.create("ak:test-session", model, provider, emptyMap()).encodeModel(ObjectMapper())
+        }
+
+        val promptA = Prompt(listOf(UserMessage("a")))
+            .also { }
+        val promptB = Prompt(listOf(UserMessage("b")))
+
+        val promptWithOptionsA = Prompt.builder()
+            .messages(promptA.instructions)
+            .chatOptions(
+                org.springframework.ai.model.tool.ToolCallingChatOptions.builder().model(encode("codex", "model-a"))
+                    .build()
+            )
+            .build()
+        val promptWithOptionsB = Prompt.builder()
+            .messages(promptB.instructions)
+            .chatOptions(
+                org.springframework.ai.model.tool.ToolCallingChatOptions.builder().model(encode("claude", "model-b"))
+                    .build()
+            )
+            .build()
+
+        val resolvedA = chatModel.javaClass.getDeclaredMethod("resolveRuntimeCall", Prompt::class.java)
+            .apply { isAccessible = true }
+            .invoke(chatModel, promptWithOptionsA)
+        val resolvedB = chatModel.javaClass.getDeclaredMethod("resolveRuntimeCall", Prompt::class.java)
+            .apply { isAccessible = true }
+            .invoke(chatModel, promptWithOptionsB)
+        val routingMethod = chatModel.javaClass.getDeclaredMethod(
+            "resolveSessionRoutingKey",
+            Class.forName("com.hayden.acp_cdc_ai.acp.config.AcpResolvedCall")
+        ).apply { isAccessible = true }
+        val keyA = routingMethod.invoke(chatModel, resolvedA)
+        val keyB = routingMethod.invoke(chatModel, resolvedB)
+
+        assertThat(keyA).isNotEqualTo(keyB)
     }
 
     private fun setMemoryId(sessionId: String) {
@@ -231,7 +334,8 @@ class AcpChatModelIntegrationTest {
             try {
                 val chatModel = createAcpChatModel("claude-agent-acp", sessionId)
 
-                val prompt = Prompt(listOf(UserMessage("What files are in the current directory? Just list the filenames.")))
+                val prompt =
+                    Prompt(listOf(UserMessage("What files are in the current directory? Just list the filenames.")))
 
                 val response = chatModel.call(prompt)
 
@@ -319,7 +423,8 @@ class AcpChatModelIntegrationTest {
             try {
                 val chatModel = createAcpChatModel("codex-acp", sessionId)
 
-                val prompt = Prompt(listOf(UserMessage("What files are in the current directory? Just list the filenames.")))
+                val prompt =
+                    Prompt(listOf(UserMessage("What files are in the current directory? Just list the filenames.")))
 
                 val response = chatModel.call(prompt)
 
@@ -359,7 +464,8 @@ class AcpChatModelIntegrationTest {
                 try {
                     val chatModel = createAcpChatModel(provider, sessionId)
 
-                    val prompt = Prompt(listOf(UserMessage("What is the capital of France? Reply with just the city name.")))
+                    val prompt =
+                        Prompt(listOf(UserMessage("What is the capital of France? Reply with just the city name.")))
 
                     val response = chatModel.call(prompt)
 

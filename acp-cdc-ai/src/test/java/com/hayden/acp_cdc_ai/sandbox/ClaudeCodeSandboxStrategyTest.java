@@ -23,9 +23,9 @@ class ClaudeCodeSandboxStrategyTest {
     }
 
     @Test
-    @DisplayName("providerKey should return claude-code-acp")
+    @DisplayName("providerKey should return claude-agent-acp")
     void providerKeyShouldReturnClaudeCodeAcp() {
-        assertThat(strategy.providerKey()).isEqualTo("claude-code-acp");
+        assertThat(strategy.providerKey()).isEqualTo("claude-agent-acp");
     }
 
     @Nested
@@ -125,7 +125,7 @@ class ClaudeCodeSandboxStrategyTest {
             long permissionModeCount = result.args().stream()
                     .filter(arg -> arg.equals("--permission-mode"))
                     .count();
-            assertThat(permissionModeCount).isZero();
+            assertThat(permissionModeCount).isOne();
         }
 
         @Test
@@ -139,7 +139,7 @@ class ClaudeCodeSandboxStrategyTest {
             long addDirCount = result.args().stream()
                     .filter(arg -> arg.equals("--add-dir"))
                     .count();
-            assertThat(addDirCount).isZero();
+            assertThat(addDirCount).isOne();
         }
 
         @Test
@@ -157,7 +157,7 @@ class ClaudeCodeSandboxStrategyTest {
             long submodule1Count = result.args().stream()
                     .filter(arg -> arg.equals("/project/submodule1"))
                     .count();
-            assertThat(submodule1Count).isZero();
+            assertThat(submodule1Count).isOne();
         }
 
         @Test

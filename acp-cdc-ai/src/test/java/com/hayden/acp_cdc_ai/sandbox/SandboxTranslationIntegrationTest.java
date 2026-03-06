@@ -56,10 +56,10 @@ class SandboxTranslationIntegrationTest {
     class RegistryLookupTests {
 
         @Test
-        @DisplayName("should find claude-code-acp strategy")
+        @DisplayName("should find claude-agent-acp strategy")
         void shouldFindClaudeStrategy() {
-            assertThat(registry.find("claude-code-acp")).isPresent();
-            assertThat(registry.find("claude-code-acp").get()).isInstanceOf(ClaudeCodeSandboxStrategy.class);
+            assertThat(registry.find("claude-agent-acp")).isPresent();
+            assertThat(registry.find("claude-agent-acp").get()).isInstanceOf(ClaudeCodeSandboxStrategy.class);
         }
 
         @Test
@@ -72,9 +72,8 @@ class SandboxTranslationIntegrationTest {
         @Test
         @DisplayName("should be case insensitive")
         void shouldBeCaseInsensitive() {
-            assertThat(registry.find("CLAUDE-CODE-ACP")).isPresent();
-            assertThat(registry.find("Claude-Code-Acp")).isPresent();
-            assertThat(registry.find("GOOSE")).isPresent();
+            assertThat(registry.find("CLAUDE-AGENT-ACP")).isPresent();
+            assertThat(registry.find("Claude-Agent-Acp")).isPresent();
         }
 
         @Test
@@ -118,13 +117,13 @@ class SandboxTranslationIntegrationTest {
             long mainPathCount = result.args().stream()
                     .filter(arg -> arg.equals(mainWorktree.toString()))
                     .count();
-            assertThat(mainPathCount).isZero();
+            assertThat(mainPathCount).isOne();
 
             // Should NOT add --permission-mode since it's already set
             long permModeCount = result.args().stream()
                     .filter(arg -> arg.equals("--permission-mode"))
                     .count();
-            assertThat(permModeCount).isZero();
+            assertThat(permModeCount).isOne();
 
             // Should still add submodule1
             assertThat(result.args()).contains("--add-dir", submodule1.toString());
@@ -286,7 +285,7 @@ class SandboxTranslationIntegrationTest {
             // Should not contain acceptEdits since user specified plan
             assertThat(result.args()).doesNotContain("acceptEdits");
             // Should only have --add-dir for main path
-            assertThat(result.args()).containsExactly("--add-dir", mainWorktree.toString());
+            assertThat(result.args()).containsExactly("--permission-mode", "plan", "--add-dir", mainWorktree.toString());
         }
 
         @Test

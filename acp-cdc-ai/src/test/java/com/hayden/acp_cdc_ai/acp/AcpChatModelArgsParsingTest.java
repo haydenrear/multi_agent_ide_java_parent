@@ -1,12 +1,17 @@
 package com.hayden.acp_cdc_ai.acp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties;
+import com.hayden.acp_cdc_ai.acp.config.AcpProviderDefinition;
 import com.hayden.acp_cdc_ai.acp.config.McpProperties;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository;
-import com.hayden.acp_cdc_ai.sandbox.*;
+import com.hayden.acp_cdc_ai.sandbox.SandboxContext;
+import com.hayden.acp_cdc_ai.sandbox.SandboxTranslation;
+import com.hayden.acp_cdc_ai.sandbox.SandboxTranslationRegistry;
+import com.hayden.acp_cdc_ai.sandbox.SandboxTranslationStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -15,25 +20,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Method;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-/**
- * Tests for AcpChatModel args parsing and sandbox translation resolution.
- */
 @ExtendWith(MockitoExtension.class)
 class AcpChatModelArgsParsingTest {
-
-    @Mock
-    private AcpModelProperties properties;
 
     @Mock
     private ChatMemoryContext chatMemoryContext;
@@ -54,9 +53,39 @@ class AcpChatModelArgsParsingTest {
     private SandboxTranslationRegistry sandboxTranslationRegistry;
 
     private AcpChatModel acpChatModel;
+    private AcpModelProperties properties;
 
     @BeforeEach
     void setUp() {
+        properties = new AcpModelProperties(
+                "codex",
+                Map.of(
+                        "codex", new AcpProviderDefinition(
+                                "codex",
+                                "stdio",
+                                "codex-acp",
+                                "--sandbox workspace-write",
+                                "/tmp/worktree",
+                                null,
+                                null,
+                                "chatgpt",
+                                Map.of("CODEX_HOME", "/tmp/codex"),
+                                null
+                        ),
+                        "claude-openrouter", new AcpProviderDefinition(
+                                "claude-openrouter",
+                                "stdio",
+                                "claude-agent-acp",
+                                "--model openrouter/free",
+                                "/tmp/claude",
+                                null,
+                                null,
+                                null,
+                                Map.of(),
+                                "openrouter/free"
+                        )
+                )
+        );
         acpChatModel = new AcpChatModel(
                 properties,
                 chatMemoryContext,
@@ -70,68 +99,82 @@ class AcpChatModelArgsParsingTest {
     }
 
     @Nested
+    @DisplayName("AcpChatOptionsString")
+    class AcpChatOptionsStringTests {
+
+        @Test
+        @DisplayName("encodes and decodes session, model, provider, and options")
+        void encodesAndDecodesPayload() {
+            ObjectMapper mapper = new ObjectMapper();
+            AcpChatOptionsString payload = AcpChatOptionsString.create(
+                    "ak:test-session",
+                    "gpt-oss:120b-cloud",
+                    "claude-openrouter",
+                    Map.of("mode", "strict")
+            );
+
+            String encoded = payload.encodeModel(mapper);
+            AcpChatOptionsString decoded = AcpChatOptionsString.fromEncodedModel(encoded, mapper);
+
+            assertThat(decoded.sessionArtifactKey()).isEqualTo("ak:test-session");
+            assertThat(decoded.requestedModel()).isEqualTo("gpt-oss:120b-cloud");
+            assertThat(decoded.requestedProvider()).isEqualTo("claude-openrouter");
+            assertThat(decoded.options()).containsEntry("mode", "strict");
+        }
+
+        @Test
+        @DisplayName("treats a raw legacy model string as a session-only payload")
+        void decodesLegacyPayload() {
+            AcpChatOptionsString decoded = AcpChatOptionsString.fromEncodedModel("ak:legacy-session", new ObjectMapper());
+
+            assertThat(decoded.sessionArtifactKey()).isEqualTo("ak:legacy-session");
+            assertThat(decoded.requestedModel()).isNull();
+            assertThat(decoded.requestedProvider()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("AcpModelProperties")
+    class ProviderCatalogTests {
+
+        @Test
+        @DisplayName("resolves explicit provider by name")
+        void resolvesExplicitProvider() {
+            assertThat(properties.resolveProviderName("claude-openrouter")).isEqualTo("claude-openrouter");
+            assertThat(properties.resolveProvider("claude-openrouter").command()).isEqualTo("claude-agent-acp");
+        }
+
+        @Test
+        @DisplayName("uses configured default provider when provider is omitted")
+        void usesConfiguredDefaultProvider() {
+            assertThat(properties.resolveProviderName(null)).isEqualTo("codex");
+            assertThat(properties.resolveProvider(null).authMethod()).isEqualTo("chatgpt");
+        }
+
+        @Test
+        @DisplayName("fails for unknown provider names")
+        void failsForUnknownProvider() {
+            assertThatThrownBy(() -> properties.resolveProviderName("missing-provider"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Unknown ACP provider");
+        }
+    }
+
+    @Nested
     @DisplayName("parseArgs")
     class ParseArgsTests {
 
         @Test
-        @DisplayName("should parse simple space-separated args")
-        void shouldParseSimpleArgs() throws Exception {
-            List<String> result = invokeParseArgs("--add-dir /path/a --sandbox workspace-write");
-
-            assertThat(result).containsExactly("--add-dir", "/path/a", "--sandbox", "workspace-write");
+        @DisplayName("parses simple space-separated args")
+        void parsesSimpleArgs() {
+            assertThat(acpChatModel.parseArgs("--add-dir /path/a --sandbox workspace-write"))
+                    .containsExactly("--add-dir", "/path/a", "--sandbox", "workspace-write");
         }
 
         @Test
-        @DisplayName("should parse args with multiple spaces")
-        void shouldParseArgsWithMultipleSpaces() throws Exception {
-            List<String> result = invokeParseArgs("--flag1   value1    --flag2   value2");
-
-            assertThat(result).containsExactly("--flag1", "value1", "--flag2", "value2");
-        }
-
-        @Test
-        @DisplayName("should return empty list for null args")
-        void shouldReturnEmptyForNullArgs() throws Exception {
-            List<String> result = invokeParseArgs(null);
-
-            assertThat(result).isEmpty();
-        }
-
-        @Test
-        @DisplayName("should return empty list for blank args")
-        void shouldReturnEmptyForBlankArgs() throws Exception {
-            List<String> result = invokeParseArgs("   ");
-
-            assertThat(result).isEmpty();
-        }
-
-        @Test
-        @DisplayName("should return empty list for empty string")
-        void shouldReturnEmptyForEmptyString() throws Exception {
-            List<String> result = invokeParseArgs("");
-
-            assertThat(result).isEmpty();
-        }
-
-        @Test
-        @DisplayName("should parse single arg")
-        void shouldParseSingleArg() throws Exception {
-            List<String> result = invokeParseArgs("--verbose");
-
-            assertThat(result).containsExactly("--verbose");
-        }
-
-        @Test
-        @DisplayName("should handle tabs as separators")
-        void shouldHandleTabsAsSeparators() throws Exception {
-            List<String> result = invokeParseArgs("--flag1\tvalue1\t--flag2\tvalue2");
-
-            assertThat(result).containsExactly("--flag1", "value1", "--flag2", "value2");
-        }
-
-        @SuppressWarnings("unchecked")
-        private List<String> invokeParseArgs(String args) throws Exception {
-            return acpChatModel.parseArgs(args);
+        @DisplayName("returns empty list for blank args")
+        void returnsEmptyForBlankArgs() {
+            assertThat(acpChatModel.parseArgs("   ")).isEmpty();
         }
     }
 
@@ -140,57 +183,15 @@ class AcpChatModelArgsParsingTest {
     class ResolveProviderKeyTests {
 
         @Test
-        @DisplayName("should extract provider key from simple command")
-        void shouldExtractProviderKeyFromSimpleCommand() throws Exception {
-            when(properties.getCommand()).thenReturn("claude-acp");
-
-            String result = invokeResolveProviderKey();
-
-            assertThat(result).isEqualTo("claude-acp");
+        @DisplayName("returns requested provider name directly")
+        void returnsRequestedProviderName() {
+            assertThat(acpChatModel.resolveProviderKey("claude-openrouter")).isEqualTo("claude-openrouter");
         }
 
         @Test
-        @DisplayName("should extract provider key from command with args")
-        void shouldExtractProviderKeyFromCommandWithArgs() throws Exception {
-            when(properties.getCommand()).thenReturn("codex-acp --some-flag value");
-
-            String result = invokeResolveProviderKey();
-
-            assertThat(result).isEqualTo("codex-acp");
-        }
-
-        @Test
-        @DisplayName("should return empty string for null command")
-        void shouldReturnEmptyForNullCommand() throws Exception {
-            when(properties.getCommand()).thenReturn(null);
-
-            String result = invokeResolveProviderKey();
-
-            assertThat(result).isEmpty();
-        }
-
-        @Test
-        @DisplayName("should return empty string for blank command")
-        void shouldReturnEmptyForBlankCommand() throws Exception {
-            when(properties.getCommand()).thenReturn("   ");
-
-            String result = invokeResolveProviderKey();
-
-            assertThat(result).isEmpty();
-        }
-
-        @Test
-        @DisplayName("should lowercase the provider key")
-        void shouldLowercaseProviderKey() throws Exception {
-            when(properties.getCommand()).thenReturn("Claude-ACP");
-
-            String result = invokeResolveProviderKey();
-
-            assertThat(result).isEqualTo("claude-acp");
-        }
-
-        private String invokeResolveProviderKey() throws Exception {
-            return acpChatModel.resolveProviderKey();
+        @DisplayName("returns empty string for blank provider")
+        void returnsEmptyForBlankProvider() {
+            assertThat(acpChatModel.resolveProviderKey("   ")).isEmpty();
         }
     }
 
@@ -199,104 +200,54 @@ class AcpChatModelArgsParsingTest {
     class ResolveSandboxTranslationTests {
 
         @Test
-        @DisplayName("should return empty translation when memoryId is null")
-        void shouldReturnEmptyWhenMemoryIdIsNull() throws Exception {
-            SandboxTranslation result = invokeResolveSandboxTranslation(null, "--some-args");
-
-            assertThat(result.env()).isEmpty();
-            assertThat(result.args()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("should return empty translation when context not found")
-        void shouldReturnEmptyWhenContextNotFound() throws Exception {
+        @DisplayName("returns empty translation when session is unknown")
+        void returnsEmptyTranslationWhenSessionUnknown() {
             when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.empty());
 
-            SandboxTranslation result = invokeResolveSandboxTranslation("session-123", "--some-args");
+            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", "codex", "--existing-arg value");
 
             assertThat(result.env()).isEmpty();
             assertThat(result.args()).isEmpty();
         }
 
         @Test
-        @DisplayName("should use direct strategy when found")
-        void shouldUseDirectStrategyWhenFound() throws Exception {
+        @DisplayName("uses direct strategy when provider strategy exists")
+        void usesDirectStrategyWhenFound() {
             RequestContext context = RequestContext.builder()
                     .sessionId("session-123")
-                    .sandboxContext(SandboxContext.builder()
-                            .mainWorktreePath(Path.of("/project"))
-                            .build())
+                    .sandboxContext(SandboxContext.builder().mainWorktreePath(Path.of("/project")).build())
                     .build();
-            
-            SandboxTranslationStrategy mockStrategy = mock(SandboxTranslationStrategy.class);
-            SandboxTranslation expectedTranslation = new SandboxTranslation(
-                    java.util.Map.of("ENV_VAR", "value"),
-                    List.of("--arg", "value"),
-                    "/project"
-            );
-            
+            SandboxTranslationStrategy directStrategy = mock(SandboxTranslationStrategy.class);
+            SandboxTranslation expected = new SandboxTranslation(Map.of("ENV_VAR", "value"), List.of("--translated"), "/project");
+
             when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.of(context));
-            when(properties.getCommand()).thenReturn("claude-acp");
-            when(sandboxTranslationRegistry.find("claude-acp")).thenReturn(Optional.of(mockStrategy));
-            when(mockStrategy.translate(eq(context), any())).thenReturn(expectedTranslation);
+            when(sandboxTranslationRegistry.find("claude-openrouter")).thenReturn(Optional.of(directStrategy));
+            when(directStrategy.translate(eq(context), any())).thenReturn(expected);
 
-            SandboxTranslation result = invokeResolveSandboxTranslation("session-123", "--existing-arg value");
+            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", "claude-openrouter", "--model openrouter/free");
 
-            assertThat(result).isEqualTo(expectedTranslation);
-            verify(mockStrategy).translate(eq(context), eq(List.of("--existing-arg", "value")));
+            assertThat(result).isEqualTo(expected);
+            verify(directStrategy).translate(eq(context), eq(List.of("--model", "openrouter/free")));
         }
 
         @Test
-        @DisplayName("should use fallback strategy when direct not found")
-        void shouldUseFallbackStrategyWhenDirectNotFound() throws Exception {
+        @DisplayName("falls back to provider prefix when direct strategy is missing")
+        void fallsBackToProviderPrefix() {
             RequestContext context = RequestContext.builder()
                     .sessionId("session-123")
-                    .sandboxContext(SandboxContext.builder()
-                            .mainWorktreePath(Path.of("/project"))
-                            .build())
+                    .sandboxContext(SandboxContext.builder().mainWorktreePath(Path.of("/project")).build())
                     .build();
-            
             SandboxTranslationStrategy fallbackStrategy = mock(SandboxTranslationStrategy.class);
-            SandboxTranslation expectedTranslation = new SandboxTranslation(
-                    java.util.Map.of(),
-                    List.of("--fallback-arg"),
-                    "/project"
-            );
-            
+            SandboxTranslation expected = new SandboxTranslation(Map.of(), List.of("--fallback"), "/project");
+
             when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.of(context));
-            when(properties.getCommand()).thenReturn("claude-acp-custom");
-            when(sandboxTranslationRegistry.find("claude-acp-custom")).thenReturn(Optional.empty());
+            when(sandboxTranslationRegistry.find("claude-openrouter")).thenReturn(Optional.empty());
             when(sandboxTranslationRegistry.find("claude")).thenReturn(Optional.of(fallbackStrategy));
-            when(fallbackStrategy.translate(eq(context), any())).thenReturn(expectedTranslation);
+            when(fallbackStrategy.translate(eq(context), any())).thenReturn(expected);
 
-            SandboxTranslation result = invokeResolveSandboxTranslation("session-123", null);
+            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", "claude-openrouter", null);
 
-            assertThat(result).isEqualTo(expectedTranslation);
-        }
-
-        @Test
-        @DisplayName("should return empty translation when no strategy found")
-        void shouldReturnEmptyWhenNoStrategyFound() throws Exception {
-            RequestContext context = RequestContext.builder()
-                    .sessionId("session-123")
-                    .sandboxContext(SandboxContext.builder()
-                            .mainWorktreePath(Path.of("/project"))
-                            .build())
-                    .build();
-            
-            when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.of(context));
-            when(properties.getCommand()).thenReturn("unknown-provider");
-            when(sandboxTranslationRegistry.find("unknown-provider")).thenReturn(Optional.empty());
-            when(sandboxTranslationRegistry.find("unknown")).thenReturn(Optional.empty());
-
-            SandboxTranslation result = invokeResolveSandboxTranslation("session-123", null);
-
-            assertThat(result.env()).isEmpty();
-            assertThat(result.args()).isEmpty();
-        }
-
-        private SandboxTranslation invokeResolveSandboxTranslation(Object memoryId, String args) throws Exception {
-            return acpChatModel.resolveSandboxTranslation(memoryId, args);
+            assertThat(result).isEqualTo(expected);
         }
     }
 }

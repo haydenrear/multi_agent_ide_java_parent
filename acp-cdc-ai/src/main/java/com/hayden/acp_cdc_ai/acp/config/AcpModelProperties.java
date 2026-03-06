@@ -1,92 +1,82 @@
 package com.hayden.acp_cdc_ai.acp.config;
 
-import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
-/**
- * Configuration properties for ACP model provider.
- */
 @ConfigurationProperties(prefix = "multi-agent-embabel.acp")
-@Data
-public class AcpModelProperties {
+public record AcpModelProperties(
+        String defaultProvider,
+        Map<String, AcpProviderDefinition> providers
+) {
 
-    private String transport = "stdio";
-    private String command;
-    private String args;
-    private String workingDirectory;
-    private String endpoint;
-    private String apiKey;
-    private String authMethod;
-    private Map<String, String> env = new HashMap<>();
-
-    public void setTransport(String transport) {
-        this.transport = transport;
+    public AcpModelProperties {
+        defaultProvider = blankToNull(defaultProvider);
+        providers = providers == null ? Map.of() : copyProviders(providers);
     }
 
-    public void setCommand(String command) {
-        this.command = command;
+    public Optional<AcpProviderDefinition> findProvider(String providerName) {
+        if (providerName == null || providerName.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(providers.get(providerName));
     }
 
-    public void setArgs(String args) {
-        this.args = args;
+    public String resolveProviderName(String requestedProvider) {
+        String providerName = blankToNull(requestedProvider);
+        if (providerName != null) {
+            if (!providers.containsKey(providerName)) {
+                throw new IllegalStateException("Unknown ACP provider: " + providerName);
+            }
+            return providerName;
+        }
+        if (defaultProvider == null) {
+            throw new IllegalStateException("No ACP provider requested and no default ACP provider configured");
+        }
+        if (!providers.containsKey(defaultProvider)) {
+            throw new IllegalStateException("Configured default ACP provider does not exist: " + defaultProvider);
+        }
+        return defaultProvider;
     }
 
-    public void setWorkingDirectory(String workingDirectory) {
-        this.workingDirectory = workingDirectory;
+    public AcpProviderDefinition resolveProvider(String requestedProvider) {
+        return providers.get(resolveProviderName(requestedProvider));
     }
 
-    public void setEndpoint(String endpoint) {
-        this.endpoint = endpoint;
+    public String getDefaultProvider() {
+        return defaultProvider;
     }
 
-    public void setApiKey(String apiKey) {
-        this.apiKey = apiKey;
+    public Map<String, AcpProviderDefinition> getProviders() {
+        return providers;
     }
 
-    public void setAuthMethod(String authMethod) {
-        this.authMethod = authMethod;
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
-    public void setEnv(Map<String, String> env) {
-        this.env = env;
-    }
-
-    public Map<String, String> envCopy() {
-        return new HashMap<>(env);
-    }
-
-    public String getTransport() {
-        return transport;
-    }
-
-    public String getCommand() {
-        return command;
-    }
-
-    public String getArgs() {
-        return args;
-    }
-
-    public String getWorkingDirectory() {
-        return workingDirectory;
-    }
-
-    public String getEndpoint() {
-        return endpoint;
-    }
-
-    public String getApiKey() {
-        return apiKey;
-    }
-
-    public String getAuthMethod() {
-        return authMethod;
-    }
-
-    public Map<String, String> getEnv() {
-        return env;
+    private static Map<String, AcpProviderDefinition> copyProviders(Map<String, AcpProviderDefinition> providers) {
+        Map<String, AcpProviderDefinition> copied = new LinkedHashMap<>();
+        providers.forEach((name, provider) -> {
+            if (provider != null) {
+                copied.put(name, provider.name() == null || provider.name().isBlank()
+                        ? new AcpProviderDefinition(
+                        name,
+                        provider.transport(),
+                        provider.command(),
+                        provider.args(),
+                        provider.workingDirectory(),
+                        provider.endpoint(),
+                        provider.apiKey(),
+                        provider.authMethod(),
+                        provider.env(),
+                        provider.defaultModel()
+                )
+                        : provider);
+            }
+        });
+        return Map.copyOf(copied);
     }
 }

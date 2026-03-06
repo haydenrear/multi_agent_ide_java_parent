@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.embabel.agent.api.annotation.support.AgentMetadataReader;
 import com.embabel.agent.api.channel.*;
 import com.embabel.agent.core.AgentPlatform;
@@ -11,6 +12,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService;
 import com.embabel.common.ai.model.*;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.AgentQuestionAnswerFunction;
 import com.hayden.multiagentide.agent.AskUserQuestionTool;
@@ -132,36 +134,18 @@ public class MultiAgentEmbabelConfig {
         return chatModel;
     }
 
-    public record EmbabelAcpChatOptions(@Delegate ChatOptions chatOptions, String sessionId)
+    public record EmbabelAcpChatOptions(@Delegate ChatOptions chatOptions, String sessionId, String encodedModel)
             implements ChatOptions {}
 
     @Bean
-    public LlmService<SpringAiLlmService> llm(org.springframework.ai.chat.model.ChatModel chatModel) {
+    public LlmService<SpringAiLlmService> llm(org.springframework.ai.chat.model.ChatModel chatModel, ObjectMapper objectMapper) {
         OptionsConverter<ChatOptions> optionsConverter = new OptionsConverter<>() {
             @Override
             public @NonNull ChatOptions convertOptions(@NonNull LlmOptions options) {
-                String key;
-                if (options.getModelSelectionCriteria() == null){
-                    key = options.getModel();
-                } else {
-                    key = switch (options.getModelSelectionCriteria()) {
-                        case FallbackByNameModelSelectionCriteria f ->
-                                f.getNames().getLast();
-                        default -> options.getModel();
-                    };
-                }
-                String acpModel;
-                if (options.getModelSelectionCriteria() == null){
-                    acpModel = key;
-                } else {
-                    acpModel = switch (options.getModelSelectionCriteria()) {
-                        case FallbackByNameModelSelectionCriteria f ->
-                                f.getNames().get(1);
-                        default -> options.getModel();
-                    };
-                }
+                String encodedModel = resolveEncodedAcpModel(options, objectMapper);
+                String sessionId = AcpChatOptionsString.fromEncodedModel(encodedModel, objectMapper).sessionArtifactKey();
                 var tc = ToolCallingChatOptions.builder()
-                        .model("%s___%s".formatted(key, acpModel))
+                        .model(encodedModel)
                         .temperature(options.getTemperature())
                         .topP(options.getTopP())
                         .maxTokens(options.getMaxTokens())
@@ -170,12 +154,49 @@ public class MultiAgentEmbabelConfig {
                         .topP(options.getTopP())
                         .build();
 
-                return new EmbabelAcpChatOptions(tc, tc.getModel());
+                return new EmbabelAcpChatOptions(tc, sessionId, encodedModel);
             }
         };
 
         return new SpringAiLlmService("acp-chat-model", modelProvider, chatModel)
                 .withOptionsConverter(optionsConverter);
+    }
+
+    private static String resolveEncodedAcpModel(LlmOptions options, ObjectMapper objectMapper) {
+        String directModel = options.getModel();
+        if (AcpChatOptionsString.looksLikeEncodedModel(directModel)) {
+            return directModel;
+        }
+
+        String sessionIdentity = null;
+        String requestedModel = normalize(options.getModel());
+
+        if (options.getModelSelectionCriteria() instanceof FallbackByNameModelSelectionCriteria fallback) {
+            List<String> names = fallback.getNames();
+            if (!names.isEmpty()) {
+                sessionIdentity = normalize(names.getLast());
+            }
+            if (names.size() > 1) {
+                requestedModel = normalize(names.get(1));
+            }
+        }
+
+        if (sessionIdentity == null) {
+            sessionIdentity = normalize(options.getModel());
+        }
+        if (sessionIdentity == null) {
+            sessionIdentity = ArtifactKey.createRoot().value();
+        }
+
+        return AcpChatOptionsString.create(sessionIdentity, requestedModel, null, java.util.Map.of())
+                .encodeModel(objectMapper);
+    }
+
+    private static String normalize(String value) {
+        if (value == null || value.isBlank() || "DEFAULT".equalsIgnoreCase(value)) {
+            return null;
+        }
+        return value;
     }
 
     @Bean

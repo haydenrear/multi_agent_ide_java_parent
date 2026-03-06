@@ -9,7 +9,11 @@ import com.agentclientprotocol.model.*
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.Transport
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
+import com.hayden.acp_cdc_ai.acp.config.AcpProviderDefinition
+import com.hayden.acp_cdc_ai.acp.config.AcpResolvedCall
+import com.hayden.acp_cdc_ai.acp.config.AcpSessionRoutingKey
 import com.hayden.acp_cdc_ai.acp.config.McpProperties
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.EventBus
@@ -51,6 +55,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import java.io.File
+import java.security.MessageDigest
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.*
@@ -115,11 +120,16 @@ class AcpChatModel(
 
     fun doChat(chatRequest: Prompt?): ChatResponse {
         val request = requireNotNull(chatRequest) { "chatRequest must not be null" }
+        val resolvedCall = resolveRuntimeCall(request)
         val memoryId = resolveMemoryId(chatRequest)
-        val hasSession = sessionExists(memoryId)
-        val sessionContext = getOrCreateSession(memoryId, chatRequest)
+        val hasSession = sessionExists(resolvedCall)
+        val sessionContext = getOrCreateSession(resolvedCall, chatRequest)
         val messages = resolveToSendMessages(chatRequest, hasSession)
-        return invokeChat(Prompt.builder().messages(messages).chatOptions(chatRequest.options).build(), sessionContext, memoryId)
+        return invokeChat(
+            Prompt.builder().messages(messages).chatOptions(chatRequest.options).build(),
+            sessionContext,
+            memoryId
+        )
     }
 
     fun resolveToSendMessages(messages: Prompt, hasSession: Boolean): List<Message> {
@@ -127,17 +137,24 @@ class AcpChatModel(
 //        return if (hasSession) {
 //            messages.instructions
 //        } else {
-            return resolveMessages(messages, memoryId)
+        return resolveMessages(messages, memoryId)
 //        }
     }
 
-    suspend fun streamChat(prompt: Prompt, memoryId: Any?): Flow<Generation>  {
-        val hasSession = sessionExists(memoryId)
-        val session = getOrCreateSession(memoryId, prompt)
+    suspend fun streamChat(prompt: Prompt, memoryId: Any?): Flow<Generation> {
+        val resolvedCall = resolveRuntimeCall(prompt)
+        val hasSession = sessionExists(resolvedCall)
+        val session = getOrCreateSession(resolvedCall, prompt)
 
         val messages = resolveToSendMessages(prompt, hasSession)
 
-        val content = listOf(ContentBlock.Text(formatPromptMessages(Prompt.builder().messages(messages).chatOptions(prompt.options).build())))
+        val content = listOf(
+            ContentBlock.Text(
+                formatPromptMessages(
+                    Prompt.builder().messages(messages).chatOptions(prompt.options).build()
+                )
+            )
+        )
 
         return session.prompt(content)
             .transform { event ->
@@ -148,8 +165,12 @@ class AcpChatModel(
             }
     }
 
-    fun invokeChat(messages: Prompt, sessionContext: AcpSessionManager.AcpSessionContext, memoryId: Any?): ChatResponse = runBlocking {
-        val session = getOrCreateSession(memoryId, messages)
+    fun invokeChat(
+        messages: Prompt,
+        sessionContext: AcpSessionManager.AcpSessionContext,
+        memoryId: Any?
+    ): ChatResponse = runBlocking {
+        val session = sessionContext
         val generations = mutableListOf<Generation>()
         val content = listOf(ContentBlock.Text(formatPromptMessages(messages)))
 
@@ -207,9 +228,6 @@ class AcpChatModel(
 
         pb.environment()["CLAUDECODE"] = "0"
 
-       this.properties.envCopy()
-           ?.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
-
         extraEnv.forEach { (envKey, envValue) -> pb.environment()[envKey] = envValue }
 
         val process = pb
@@ -225,10 +243,6 @@ class AcpChatModel(
         )
     }
 
-    private fun sessionExists(memoryId: Any?): Boolean {
-        return memoryId != null && sessionManager.sessionContexts.containsKey(memoryId)
-    }
-
     private fun resolveMessages(chatRequest: Prompt, memoryId: Any?): List<Message> {
         if (memoryId == null) {
             return chatRequest.instructions
@@ -238,50 +252,50 @@ class AcpChatModel(
     }
 
     private fun resolveMemoryId(chatRequest: Prompt): Any? {
-        val chatModel = chatRequest.options?.model ?: return ArtifactKey.createRoot()
-
-        if (chatModel.contains("___")) {
-            val splitted = chatModel.split("___")
-            return splitted[0]
-        }
-
-       try {
-           return chatModel
-       } catch (e: IllegalArgumentException) {
-            log.error("Error attempting to cast artifact key to root: {}", e.message, e)
-           return ArtifactKey.createRoot()
-       }
+        return resolveChatOptions(chatRequest).sessionArtifactKey()
     }
 
-    private fun getOrCreateSession(memoryId: Any?, chatRequest: Prompt?): AcpSessionManager.AcpSessionContext {
-        val m = memoryId ?: ArtifactKey.createRoot().value
-        return sessionManager.sessionContexts.computeIfAbsent(m) {
-            runBlocking { createSessionContext(it, chatRequest) }
+    private fun getOrCreateSession(
+        resolvedCall: AcpResolvedCall,
+        chatRequest: Prompt?
+    ): AcpSessionManager.AcpSessionContext {
+        val routingKey = resolveSessionRoutingKey(resolvedCall)
+        return sessionManager.sessionContexts.computeIfAbsent(routingKey) {
+            runBlocking { createSessionContext(resolvedCall, chatRequest) }
         }
     }
 
     @OptIn(UnstableApi::class)
-    private suspend fun createSessionContext(memoryId: Any?, chatRequest: Prompt?): AcpSessionManager.AcpSessionContext {
-        log.info("Creating session context for $memoryId")
+    private suspend fun createSessionContext(
+        resolvedCall: AcpResolvedCall,
+        chatRequest: Prompt?
+    ): AcpSessionManager.AcpSessionContext {
+        log.info(
+            "Creating ACP session context for session={}, provider={}, model={}",
+            resolvedCall.sessionArtifactKey(),
+            resolvedCall.providerName(),
+            resolvedCall.effectiveModel()
+        )
 
-        if (!properties.transport.equals("stdio", ignoreCase = true)) {
+        val provider = resolvedCall.providerDefinition()
+
+        if (!provider.transport.isNullOrBlank() && !provider.transport.equals("stdio", ignoreCase = true)) {
             throw IllegalStateException("Only stdio transport is supported for ACP integration")
         }
 
-        val command = properties.command?.trim()?.split(Regex("\\s+"))?.toTypedArray()
+        val command = provider.command?.trim()?.split(Regex("\\s+"))?.toTypedArray()
 
         if (command == null || command.size == 0) {
             throw IllegalStateException("ACP command is not configured")
         }
 
-        val sandboxTranslation = resolveSandboxTranslation(memoryId, properties.args)
+        val sandboxTranslation =
+            resolveSandboxTranslation(resolvedCall.sessionArtifactKey(), resolvedCall.providerName(), provider.args)
         val process = command + sandboxTranslation.args.toTypedArray()
-        val workingDirectory = properties.workingDirectory
+        val workingDirectory = provider.workingDirectory
 
         val joinedEnv = sandboxTranslation.env.toMutableMap()
-//        joinedEnv["user.dir"] = sandboxTranslation.workingDirectory
-//        joinedEnv["PATH"] = "" TODO: the path should probably include all docker env, java home, etc...
-        joinedEnv.putAll(properties.envCopy())
+        joinedEnv.putAll(provider.envCopy())
 
         // Use sandbox translation working directory if available, otherwise fall back to properties or system default
         var cwd = workingDirectoryOrNull(sandboxTranslation)
@@ -291,12 +305,12 @@ class AcpChatModel(
                 else
                     workingDirectory
             }
-            .or {  System.getProperty("user.dir") }!!
+            .or { System.getProperty("user.dir") }!!
 
         if (cwd.isBlank())
             cwd = System.getProperty("user.dir")
 
-        val chatKey = memoryId
+        val chatKey = resolvedCall.sessionArtifactKey()
             .mapNullable { ArtifactKey(it.toString()) }
             .or { ArtifactKey.createRoot() }
             ?: ArtifactKey.createRoot()
@@ -309,7 +323,7 @@ class AcpChatModel(
 
             val agentInfo = protocol.start()
 
-            properties.authMethod?.let {
+            provider.authMethod?.let {
                 val authenticationResult = client.authenticate(AuthMethodId(it))
                 log.info("Authenticated with ACP {}", authenticationResult)
             }
@@ -372,8 +386,8 @@ class AcpChatModel(
             val toolHeaders = mutableListOf(
                 HttpHeader(TOOL_ALLOWLIST_HEADER, toolAllowlist.joinToString(","))
             )
-            if (memoryId != null) {
-                toolHeaders.add(HttpHeader(MCP_SESSION_HEADER, memoryId.toString()))
+            if (resolvedCall.sessionArtifactKey().isNotBlank()) {
+                toolHeaders.add(HttpHeader(MCP_SESSION_HEADER, resolvedCall.sessionArtifactKey()))
             }
 
             // Only add the local MCP server if it's available
@@ -387,19 +401,29 @@ class AcpChatModel(
 
             val messageParent = chatKey.createChild()
 
-            val session=  client.newSession(sessionParams)
-             { _, _ -> AcpSessionOperations(permissionGate, chatKey.value) }
+            val session = client.newSession(sessionParams)
+            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value) }
 
-            sandboxTranslation.model?.let {
-                log.info("Setting model to {}", it)
+            val modelToSet = sandboxTranslation.model ?: resolvedCall.effectiveModel()
+            modelToSet?.takeIf { it.isNotBlank() }?.let {
+                log.info("Setting ACP session model to {}", it)
                 session.setModel(ModelId(it))
             }
 
-            sessionManager.AcpSessionContext(scope, transport, protocol, client, session,
-                messageParent= messageParent, chatModelKey = chatKey)
+            sessionManager.AcpSessionContext(
+                scope, transport, protocol, client, session,
+                messageParent = messageParent, chatModelKey = chatKey
+            )
 
         } catch (ex: Exception) {
-            eventBus.publish(Events.NodeErrorEvent.err("Error when attempting to establish ACP connection for %s: %s".format(chatKey.value, ex.message), chatKey))
+            eventBus.publish(
+                Events.NodeErrorEvent.err(
+                    "Error when attempting to establish ACP connection for %s: %s".format(
+                        chatKey.value,
+                        ex.message
+                    ), chatKey
+                )
+            )
             throw IllegalStateException("Failed to initialize ACP session", ex)
         }
     }
@@ -425,10 +449,11 @@ class AcpChatModel(
         return tokens.filter { it.isNotEmpty() }
     }
 
-    fun resolveSandboxTranslation(memoryId: Any?, args: String?): SandboxTranslation {
-        val sessionId = memoryId?.toString() ?: return SandboxTranslation.empty()
-        val context = requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
-        val providerKey = resolveProviderKey()
+    fun resolveSandboxTranslation(sessionId: String?, providerName: String?, args: String?): SandboxTranslation {
+        sessionId ?: return SandboxTranslation.empty()
+        val context =
+            requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
+        val providerKey = resolveProviderKey(providerName)
         val direct = sandboxTranslationRegistry.find(providerKey).orElse(null)
         if (direct != null) {
             return direct.translate(context, parseArgs(args))
@@ -438,20 +463,52 @@ class AcpChatModel(
         return fallback?.translate(context, parseArgs(args)) ?: SandboxTranslation.empty()
     }
 
-    fun resolveProviderKey(): String {
-        val commandValue = properties.command?.trim().orEmpty()
-        if (commandValue.isBlank()) {
+    fun resolveProviderKey(providerName: String?): String {
+        return providerName?.trim().orEmpty()
+    }
+
+    private fun resolveChatOptions(chatRequest: Prompt): AcpChatOptionsString {
+        val chatModel = chatRequest.options?.model
+        return try {
+            AcpChatOptionsString.fromEncodedModel(chatModel, objectMapper)
+        } catch (ex: IllegalArgumentException) {
+            log.warn("Falling back to legacy ACP chat model parsing for '{}': {}", chatModel, ex.message)
+            AcpChatOptionsString.create(chatModel ?: ArtifactKey.createRoot().value, null, null, emptyMap())
+        }
+    }
+
+    private fun resolveRuntimeCall(chatRequest: Prompt): AcpResolvedCall {
+        val chatOptions = resolveChatOptions(chatRequest)
+        val providerName = properties.resolveProviderName(chatOptions.requestedProvider())
+        val providerDefinition = properties.resolveProvider(chatOptions.requestedProvider())
+        val effectiveModel = chatOptions.requestedModel()
+            ?.takeIf { it.isNotBlank() }
+            ?: providerDefinition.defaultModel()
+            ?: ""
+        return AcpResolvedCall(
+            chatOptions.sessionArtifactKey(),
+            providerName,
+            effectiveModel,
+            providerDefinition,
+            chatOptions.options()
+        )
+    }
+
+    private fun resolveSessionRoutingKey(resolvedCall: AcpResolvedCall): AcpSessionRoutingKey {
+        return AcpSessionRoutingKey.from(resolvedCall, fingerprintRoutingOptions(resolvedCall.options()))
+    }
+
+    private fun fingerprintRoutingOptions(options: Map<String, Any?>?): String {
+        if (options.isNullOrEmpty()) {
             return ""
         }
-        val executableAcp = commandValue
-            .split(Regex("\\s+"))
-            .firstOrNull()
-            ?.lowercase() ?: ""
+        val json = objectMapper.writeValueAsString(TreeMap(options))
+        val digest = MessageDigest.getInstance("SHA-256").digest(json.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
 
-        return if (executableAcp.isEmpty())
-            executableAcp
-        else
-            Path.of(executableAcp).fileName.toString()
+    private fun sessionExists(resolvedCall: AcpResolvedCall): Boolean {
+        return sessionManager.sessionContexts.containsKey(resolveSessionRoutingKey(resolvedCall))
     }
 
     private fun detectUnparsedToolCallInLastMessage(generations: List<Generation>): String? {
@@ -543,7 +600,7 @@ class AcpChatModel(
             if (builder.isNotEmpty()) {
                 builder.append('\n')
             }
-            when(message) {
+            when (message) {
                 is UserMessage -> builder.append(formatMessageRole(role, message))
                 is AssistantMessage -> builder.append(formatMessageRole(role, message))
                 is SystemMessage -> builder.append(formatMessageRole(role, message))
