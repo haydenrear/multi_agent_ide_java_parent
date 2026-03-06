@@ -113,6 +113,8 @@ public class PolicyRegistrationService {
                     .activatedAt(request.activate() ? now : null)
                     .build();
 
+//            should emit a graph event here - policy registration event - so that it gets saved as an artifact.
+
             policyRegistrationRepository.save(entity);
 
             return PolicyRegistrationResponse.builder()

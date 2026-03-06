@@ -2,7 +2,6 @@ package com.hayden.multiagentide.filter.service;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentPlatform;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.*;
@@ -387,7 +386,7 @@ public class FilterExecutionService {
 
     private @Nullable ResolvedAgentContext resolveAgentContext(ArtifactKey key) {
         ArtifactKey searchThrough = key;
-        while (searchThrough != null && !searchThrough.isRoot()) {
+        while (searchThrough != null) {
             var proc = agentPlatform.getAgentProcess(searchThrough.value());
             if (proc != null) {
                 OperationContext opCtx = AgentInterfaces.buildOpContext(proc, AI_FILTER_AGENT_NAME);
@@ -429,44 +428,47 @@ public class FilterExecutionService {
     }
 
     private @Nullable OperationContext getOpContext(FilterContext filterContext, PromptContext pc) {
-        OperationContext operationContext = null;
-
         if (pc.operationContext() != null)
             return pc.operationContext();
 
-        return buildOpContext(filterContext, operationContext);
+        return buildOpContext(filterContext);
     }
 
-    private OperationContext buildOpContext(FilterContext filterContext, OperationContext operationContext) {
-        if (filterContext instanceof PromptContributorContext promptContributorContext) {
-            operationContext = getOpContext(operationContext, promptContributorContext.getKey());
-        } else if (filterContext instanceof FilterContext.PathFilterContext pathCtx
-                && pathCtx.filterContext() instanceof PromptContributorContext promptContributorContext) {
-            operationContext = getOpContext(operationContext, promptContributorContext.getKey());
-        } else if (filterContext instanceof GraphEventObjectContext graphEventObjectContext) {
-            operationContext = getOpContext(operationContext, graphEventObjectContext.getKey());
-        } else if (filterContext instanceof FilterContext.PathFilterContext pathCtx
-                && pathCtx.filterContext() instanceof GraphEventObjectContext graphEventObjectContext) {
-            operationContext = getOpContext(operationContext, graphEventObjectContext.getKey());
-        }
-        return operationContext;
+    private OperationContext buildOpContext(FilterContext filterContext) {
+        return switch (filterContext) {
+            case PromptContributorContext promptContributorContext ->
+                    getOpContext(promptContributorContext.getKey());
+            case FilterContext.PathFilterContext pathCtx when pathCtx.filterContext() instanceof PromptContributorContext promptContributorContext ->
+                    getOpContext(promptContributorContext.getKey());
+            case GraphEventObjectContext graphEventObjectContext ->
+                    getOpContext(graphEventObjectContext.getKey());
+            case FilterContext.PathFilterContext pathCtx when pathCtx.filterContext() instanceof GraphEventObjectContext graphEventObjectContext ->
+                    getOpContext(graphEventObjectContext.getKey());
+            default ->
+                    getOpContext(filterContext.key());
+        };
     }
 
-    private OperationContext getOpContext(OperationContext operationContext, ArtifactKey key) {
-        var k = key;
+    private OperationContext getOpContext(ArtifactKey key) {
 
-        ArtifactKey searchThrough = k;
+        ArtifactKey searchThrough = key;
 
-        while (searchThrough != null && !searchThrough.isRoot()) {
-            var proc = agentPlatform.getAgentProcess(searchThrough.value());
-            if (proc != null) {
-                operationContext = AgentInterfaces.buildOpContext(proc, "ai-filter");
-                break;
-            } else {
-                searchThrough = searchThrough.parent().orElse(null);
-            }
+        while (searchThrough != null) {
+            var p = tryGetOpContext(searchThrough);
+            if (p.isPresent())
+                return p.get();
+
+            searchThrough = searchThrough.parent().orElse(null);
         }
-        return operationContext;
+
+        log.warn("Could not resolve agent process for artifact key {}; emitting NodeError.", key);
+        publishAgentProcessNotFoundError(key);
+        return null;
+    }
+
+    public Optional<OperationContext> tryGetOpContext(ArtifactKey key) {
+        return Optional.ofNullable(agentPlatform.getAgentProcess(key.value()))
+                .map(ap -> AgentInterfaces.buildOpContext(ap, "ai-filter"));
     }
 
     private Map<String, Object> buildAiModel(AiFilterTool<?, ?> aiExecutor,
@@ -705,6 +707,23 @@ public class FilterExecutionService {
             ));
         } catch (Exception publishError) {
             log.error("Failed to publish filter error event for policy {}", policyId, publishError);
+        }
+    }
+
+    private void publishAgentProcessNotFoundError(ArtifactKey key) {
+        try {
+            String nodeId = key != null ? key.value() : ArtifactKey.createRoot().value();
+            eventBus.publish(new Events.NodeErrorEvent(
+                    UUID.randomUUID().toString(),
+                    Instant.now(),
+                    nodeId,
+                    "AI Filter: Agent Process Not Found",
+                    Events.NodeType.WORK,
+                    "Could not resolve agent process for artifact key " + nodeId
+                            + ". AI filter execution will be skipped for this context."
+            ));
+        } catch (Exception e) {
+            log.error("Failed to publish agent-process-not-found error for key {}", key, e);
         }
     }
 
