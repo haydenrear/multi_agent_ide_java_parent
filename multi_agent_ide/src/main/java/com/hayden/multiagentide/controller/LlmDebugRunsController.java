@@ -38,41 +38,41 @@ public class LlmDebugRunsController {
         return responseMapper.mapRunPage(queryService.listRuns(limit, cursor));
     }
 
-    @GetMapping("/{runId}")
-    public DebugRun get(@PathVariable String runId) {
-        return queryService.findRun(runId)
+    @PostMapping("/get")
+    public DebugRun get(@RequestBody RunIdRequest request) {
+        return queryService.findRun(request.runId())
                 .map(responseMapper::mapRun)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Run not found: " + runId));
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Run not found: " + request.runId()));
     }
 
-    @GetMapping("/{runId}/timeline")
+    @PostMapping("/timeline")
     public DebugRunQueryService.RunTimelinePage timeline(
-            @PathVariable String runId,
-            @RequestParam(defaultValue = "200") int limit,
-            @RequestParam(required = false) String cursor
+            @RequestBody RunTimelineRequest request
     ) {
-        return responseMapper.mapTimelinePage(queryService.timeline(runId, limit, cursor));
+        int limit = request.limit() <= 0 ? 200 : request.limit();
+        return responseMapper.mapTimelinePage(queryService.timeline(request.runId(), limit, request.cursor()));
     }
 
-    @PostMapping("/{runId}/actions")
+    @PostMapping("/actions")
     public DebugRunQueryService.ActionResponse action(
-            @PathVariable String runId,
-            @RequestBody RunActionRequest request
+            @RequestBody RunActionRequestWrapper request
     ) {
         return responseMapper.mapAction(queryService.applyAction(
-                runId,
+                request.runId(),
                 new DebugRunQueryService.RunActionRequest(request.actionType(), request.nodeId(), request.message())
         ));
     }
 
-    @PostMapping("/{runId}/persistence-validation")
-    public DebugRunPersistenceValidationService.PersistenceValidationSummary validatePersistence(@PathVariable String runId) {
-        return responseMapper.mapValidation(persistenceValidationService.validate(runId));
+    @PostMapping("/persistence-validation")
+    public DebugRunPersistenceValidationService.PersistenceValidationSummary validatePersistence(
+            @RequestBody RunIdRequest request) {
+        return responseMapper.mapValidation(persistenceValidationService.validate(request.runId()));
     }
 
-    @GetMapping("/{runId}/persistence-validation")
-    public DebugRunPersistenceValidationService.PersistenceValidationSummary getPersistenceValidation(@PathVariable String runId) {
-        return responseMapper.mapValidation(persistenceValidationService.getLatest(runId));
+    @PostMapping("/persistence-validation/get")
+    public DebugRunPersistenceValidationService.PersistenceValidationSummary getPersistenceValidation(
+            @RequestBody RunIdRequest request) {
+        return responseMapper.mapValidation(persistenceValidationService.getLatest(request.runId()));
     }
 
     public record StartRunRequest(String goal, String repositoryUrl, String baseBranch, String title) {
@@ -81,6 +81,12 @@ public class LlmDebugRunsController {
     public record StartRunResponse(String runId, String nodeId, String status) {
     }
 
-    public record RunActionRequest(String actionType, String nodeId, String message) {
+    public record RunIdRequest(String runId) {
+    }
+
+    public record RunTimelineRequest(String runId, int limit, String cursor) {
+    }
+
+    public record RunActionRequestWrapper(String runId, String actionType, String nodeId, String message) {
     }
 }

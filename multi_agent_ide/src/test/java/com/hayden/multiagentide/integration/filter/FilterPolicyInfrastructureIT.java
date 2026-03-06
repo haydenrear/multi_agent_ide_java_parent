@@ -51,7 +51,6 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -131,9 +130,13 @@ class FilterPolicyInfrastructureIT {
         );
         eventStreamRepository.save(event);
 
-        mockMvc.perform(get("/api/llm-debug/ui/nodes/{nodeId}/events/{eventId}", nodeId, event.eventId())
-                        .param("pretty", "false")
-                        .param("maxFieldLength", "500"))
+        mockMvc.perform(post("/api/llm-debug/ui/nodes/events/detail")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "nodeId", nodeId,
+                                "eventId", event.eventId(),
+                                "pretty", false,
+                                "maxFieldLength", 500))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventId").value(event.eventId()))
                 .andExpect(jsonPath("$.formatted").isNotEmpty());
@@ -143,8 +146,11 @@ class FilterPolicyInfrastructureIT {
         assertThat(filterDecisionRecordRepository.findByPolicyIdAndLayerIdOrderByCreatedAtDesc(
                 eventPathPolicyId, controllerLayerId, PageRequest.of(0, 20))).isNotEmpty();
 
-        mockMvc.perform(get("/api/filters/policies/{policyId}/layers/{layerId}/records/recent",
-                        eventPathPolicyIdA, controllerLayerId))
+        mockMvc.perform(post("/api/filters/policies/records/recent")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "policyId", eventPathPolicyIdA,
+                                "layerId", controllerLayerId))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalCount", greaterThanOrEqualTo(1)));
     }
@@ -318,8 +324,11 @@ class FilterPolicyInfrastructureIT {
         assertThat(filterJson).contains("\"registrarPrompt\":\"integration-registrar-prompt\"");
 
         // 3. Verify policy can be discovered via the shared endpoint
-        mockMvc.perform(get("/api/filters/layers/{layerId}/policies", actionLayerId)
-                        .param("status", "ACTIVE"))
+        mockMvc.perform(post("/api/filters/layers/policies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "layerId", actionLayerId,
+                                "status", "ACTIVE"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.policies").isArray())
                 .andExpect(jsonPath("$.policies[0].policyId").value(aiPolicyId))
@@ -417,8 +426,11 @@ class FilterPolicyInfrastructureIT {
         ));
 
         // 10. Verify filtered records can be retrieved via the inspection endpoint
-        mockMvc.perform(get("/api/filters/policies/{policyId}/layers/{layerId}/records/recent",
-                        aiPolicyId, actionLayerId))
+        mockMvc.perform(post("/api/filters/policies/records/recent")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "policyId", aiPolicyId,
+                                "layerId", actionLayerId))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalCount", greaterThanOrEqualTo(1)));
     }
@@ -482,20 +494,29 @@ class FilterPolicyInfrastructureIT {
         );
 
         // Verify active
-        mockMvc.perform(get("/api/filters/layers/{layerId}/policies", actionLayerId)
-                        .param("status", "ACTIVE"))
+        mockMvc.perform(post("/api/filters/layers/policies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "layerId", actionLayerId,
+                                "status", "ACTIVE"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.policies[0].policyId").value(aiPolicyId));
 
         // Deactivate
-        mockMvc.perform(post("/api/filters/policies/{policyId}/deactivate", aiPolicyId))
+        mockMvc.perform(post("/api/filters/policies/deactivate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "policyId", aiPolicyId))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.status").value("INACTIVE"));
 
         // Verify no longer in active list
-        mockMvc.perform(get("/api/filters/layers/{layerId}/policies", actionLayerId)
-                        .param("status", "ACTIVE"))
+        mockMvc.perform(post("/api/filters/layers/policies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "layerId", actionLayerId,
+                                "status", "ACTIVE"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.policies").isEmpty());
     }

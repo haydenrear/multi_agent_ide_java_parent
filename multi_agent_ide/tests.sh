@@ -1,3 +1,5 @@
+echo "Cleaning first ..."
+./gradlew clean
 echo "Starting unit tests."
 ./gradlew test
 #echo "Starting unit tests."

@@ -19,14 +19,11 @@ import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/interrupts")
@@ -108,9 +105,9 @@ public class InterruptController {
         return new InterruptStatusResponse(resolvedInterruptId, "RESOLVED", originNodeId, originNodeId);
     }
 
-    @GetMapping("/{interruptId}")
-    public InterruptStatusResponse getStatus(@PathVariable String interruptId) {
-        return new InterruptStatusResponse(interruptId, "UNKNOWN", null, null);
+    @PostMapping("/status")
+    public InterruptStatusResponse getStatus(@RequestBody InterruptStatusRequest request) {
+        return new InterruptStatusResponse(request.interruptId(), "UNKNOWN", null, null);
     }
 
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -132,6 +129,9 @@ public class InterruptController {
             String resolutionNotes,
             IPermissionGate.InterruptResult reviewResult
     ) {
+    }
+
+    public record InterruptStatusRequest(String interruptId) {
     }
 
     public record InterruptStatusResponse(
@@ -171,8 +171,12 @@ public class InterruptController {
     ) {
     }
 
-    @GetMapping("/detail")
-    public InterruptDetailResponse detail(@RequestParam("id") String id) {
+    public record InterruptDetailRequest(String id) {
+    }
+
+    @PostMapping("/detail")
+    public InterruptDetailResponse detail(@RequestBody InterruptDetailRequest request) {
+        String id = request.id();
         Events.InterruptRequestEvent interruptEvent = findInterruptRequestEvent(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Interrupt request not found"));
 

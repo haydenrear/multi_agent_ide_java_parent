@@ -47,9 +47,9 @@ public class LlmDebugUiController {
     private final LayerIdResolver layerIdResolver;
     private final OrchestrationController orchestrationController;
 
-    @GetMapping("/nodes/{nodeId}/state")
-    public UiStateSnapshot state(@PathVariable String nodeId) {
-        return uiStateStore.snapshot(nodeId);
+    @PostMapping("/nodes/state")
+    public UiStateSnapshot state(@RequestBody NodeIdRequest request) {
+        return uiStateStore.snapshot(request.nodeId());
     }
 
     @PostMapping("/goals/start")
@@ -65,9 +65,10 @@ public class LlmDebugUiController {
         return new StartGoalResponse(started.nodeId(), started.nodeId(), "started");
     }
 
-    @PostMapping("/nodes/{nodeId}/actions")
-    public ActionResponse action(@PathVariable String nodeId, @RequestBody UiActionRequest request) {
-        if (request == null || request.actionType() == null || request.actionType().isBlank()) {
+    @PostMapping("/nodes/actions")
+    public ActionResponse action(@RequestBody UiActionRequest request) {
+        String nodeId = request.nodeId();
+        if (request.actionType() == null || request.actionType().isBlank()) {
             return new ActionResponse(null, "rejected");
         }
         UiActionCommand.ActionType actionType;
@@ -132,19 +133,18 @@ public class LlmDebugUiController {
                 ));
                 yield new QuickActionResponse(actionId, "queued", request.nodeId(), null);
             }
-            // TODO: Add more quick actions as agent debugging workflow is expanded.
             default -> new QuickActionResponse(null, "rejected", null, "Unsupported actionType");
         };
     }
 
-    @GetMapping("/nodes/{nodeId}/events")
-    public UiEventPage events(
-            @PathVariable String nodeId,
-            @RequestParam(defaultValue = "50") int limit,
-            @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "180") int truncate,
-            @RequestParam(defaultValue = "asc") String sort
-    ) {
+    @PostMapping("/nodes/events")
+    public UiEventPage events(@RequestBody NodeEventsRequest request) {
+        String nodeId = request.nodeId();
+        int limit = request.limit() <= 0 ? 50 : request.limit();
+        int truncate = request.truncate() <= 0 ? 180 : request.truncate();
+        String sort = request.sort() == null || request.sort().isBlank() ? "asc" : request.sort();
+        String cursor = request.cursor();
+
         int safeLimit = Math.max(1, Math.min(500, limit));
         int safeTruncate = Math.max(80, Math.min(10_000, truncate));
         String controllerLayerId = controllerLayerId();
@@ -183,13 +183,13 @@ public class LlmDebugUiController {
         );
     }
 
-    @GetMapping("/nodes/{nodeId}/events/{eventId}")
-    public UiEventDetail eventDetail(
-            @PathVariable String nodeId,
-            @PathVariable String eventId,
-            @RequestParam(defaultValue = "true") boolean pretty,
-            @RequestParam(defaultValue = "20000") int maxFieldLength
-    ) {
+    @PostMapping("/nodes/events/detail")
+    public UiEventDetail eventDetail(@RequestBody EventDetailRequest request) {
+        String nodeId = request.nodeId();
+        String eventId = request.eventId();
+        boolean pretty = request.pretty();
+        int maxFieldLength = request.maxFieldLength() <= 0 ? 20000 : request.maxFieldLength();
+
         Events.GraphEvent event = eventStreamRepository.findById(eventId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found: " + eventId));
         if (!matchesNodeScope(nodeId, event.nodeId())) {
@@ -214,38 +214,35 @@ public class LlmDebugUiController {
         );
     }
 
-    @GetMapping(value = "/nodes/{nodeId}/events/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(@PathVariable String nodeId) {
+    @PostMapping(value = "/nodes/events/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream(@RequestBody NodeIdRequest request) {
+        String nodeId = request.nodeId();
         return sseEventAdapter.registerEmitter(
                 event -> matchesNodeScope(nodeId, event.nodeId()),
                 CONTROLLER_ID
         );
     }
 
-    @GetMapping("/workflow-graph")
-    public WorkflowGraphResponse workflowGraph(
-            @RequestParam String nodeId,
-            @RequestParam(defaultValue = "180") int errorWindowSeconds
-    ) {
+    @PostMapping("/workflow-graph")
+    public WorkflowGraphResponse workflowGraph(@RequestBody WorkflowGraphRequest request) {
+        String nodeId = request.nodeId();
+        int errorWindowSeconds = request.errorWindowSeconds() <= 0 ? 180 : request.errorWindowSeconds();
+
         int safeErrorWindowSeconds = Math.max(30, Math.min(3600, errorWindowSeconds));
         String rootNodeId = toRootNodeId(nodeId);
         Instant now = Instant.now();
         Instant errorWindowStart = now.minusSeconds(safeErrorWindowSeconds);
 
-        // Tree structure from GraphRepository
         Map<String, GraphNode> allNodes = graphRepository.findSubtree(rootNodeId);
 
-        // Global event stats
         EventStreamRepository.ScopedEventStats globalStats =
                 eventStreamRepository.computeScopedStats(rootNodeId, errorWindowStart);
 
-        // Per-node event metrics (keyed by graph node ID)
         Map<String, EventStreamRepository.NodeEventMetrics> metricsMap = new LinkedHashMap<>();
         for (String nid : allNodes.keySet()) {
             eventStreamRepository.computeMetrics(nid).ifPresent(m -> metricsMap.put(nid, m));
         }
 
-        // Compute per-action error counts
         Map<String, Integer> errorsByAction = new LinkedHashMap<>();
         for (GraphNode gn : allNodes.values()) {
             String action = actionName(gn);
@@ -255,7 +252,6 @@ public class LlmDebugUiController {
             }
         }
 
-        // Build tree recursively from root
         WorkflowNode root = buildWorkflowNode(rootNodeId, allNodes, metricsMap);
 
         WorkflowGraphStats stats = new WorkflowGraphStats(
@@ -286,7 +282,6 @@ public class LlmDebugUiController {
         EventStreamRepository.NodeEventMetrics m = metricsMap.getOrDefault(nid,
                 new EventStreamRepository.NodeEventMetrics(0, 0, 0, 0, 0, 0L, 0, 0L, 0, 0));
 
-        // Collect pending items and filter children
         List<PendingItem> pendingItems = new ArrayList<>();
         List<WorkflowNode> children = new ArrayList<>();
 
@@ -295,7 +290,7 @@ public class LlmDebugUiController {
             if (child == null) continue;
 
             if (child instanceof AskPermissionNode perm) {
-                if (perm.status() == Events.NodeStatus.COMPLETED) continue; // exclude resolved
+                if (perm.status() == Events.NodeStatus.COMPLETED) continue;
                 pendingItems.add(new PendingItem(
                         perm.toolCallId(), perm.nodeId(), "PERMISSION",
                         "Permission requested for tool call " + perm.toolCallId()
@@ -305,7 +300,7 @@ public class LlmDebugUiController {
             } else if (child instanceof InterruptNode interrupt) {
                 InterruptContext ctx = interrupt.interruptContext();
                 if (ctx.status() == InterruptContext.InterruptStatus.RESOLVED
-                        || interrupt.status() == Events.NodeStatus.COMPLETED) continue; // exclude resolved
+                        || interrupt.status() == Events.NodeStatus.COMPLETED) continue;
                 pendingItems.add(new PendingItem(
                         ctx.interruptNodeId() != null ? ctx.interruptNodeId() : interrupt.nodeId(),
                         interrupt.nodeId(), "INTERRUPT",
@@ -315,7 +310,6 @@ public class LlmDebugUiController {
                 ));
                 children.add(buildWorkflowNode(childId, allNodes, metricsMap));
             } else if (child instanceof ReviewNode review) {
-                // Reviews always included in children
                 InterruptContext ctx = review.interruptContext();
                 if (ctx != null && ctx.status() != InterruptContext.InterruptStatus.RESOLVED
                         && review.status() != Events.NodeStatus.COMPLETED) {
@@ -327,17 +321,14 @@ public class LlmDebugUiController {
                 }
                 children.add(buildWorkflowNode(childId, allNodes, metricsMap));
             } else {
-                // Structural nodes (orchestrators, dispatchers, collectors, agents, merge, summary) — always included
                 children.add(buildWorkflowNode(childId, allNodes, metricsMap));
             }
         }
 
-        // Sort children by createdAt
         children.sort(Comparator.comparing(
                 (WorkflowNode wn) -> wn != null && wn.lastEventAt() != null ? wn.lastEventAt() : Instant.MAX
         ).thenComparing(wn -> wn != null ? wn.nodeId() : ""));
 
-        // Route-back count from WorkflowContext
         int routeBackCount = (gn instanceof HasWorkflowContext<?> hwc && hwc.workflowContext() != null)
                 ? hwc.workflowContext().runCount()
                 : 0;
@@ -446,7 +437,12 @@ public class LlmDebugUiController {
         }
     }
 
-    public record UiActionRequest(String actionType, java.util.Map<String, Object> payload) {
+    // ── Request/Response Records ─────────────────────────────────────
+
+    public record NodeIdRequest(String nodeId) {
+    }
+
+    public record UiActionRequest(String nodeId, String actionType, java.util.Map<String, Object> payload) {
     }
 
     public record ActionResponse(String actionId, String status) {
@@ -470,6 +466,29 @@ public class LlmDebugUiController {
     }
 
     public record QuickActionResponse(String actionId, String status, String nodeId, String error) {
+    }
+
+    public record NodeEventsRequest(
+            String nodeId,
+            int limit,
+            String cursor,
+            int truncate,
+            String sort
+    ) {
+    }
+
+    public record EventDetailRequest(
+            String nodeId,
+            String eventId,
+            boolean pretty,
+            int maxFieldLength
+    ) {
+    }
+
+    public record WorkflowGraphRequest(
+            String nodeId,
+            int errorWindowSeconds
+    ) {
     }
 
     public record UiEventSummary(String eventId, String nodeId, String eventType, Instant timestamp, String summary) {

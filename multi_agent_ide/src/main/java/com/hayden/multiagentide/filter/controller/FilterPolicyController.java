@@ -16,6 +16,8 @@ import java.util.List;
 
 /**
  * REST controller for the layered data policy filtering subsystem.
+ * All endpoints accept JSON request bodies to avoid path-encoding issues
+ * with hierarchical layer IDs (e.g. "workflow-agent/coordinateWorkflow").
  */
 @RestController
 @RequestMapping("/api/filters")
@@ -29,10 +31,12 @@ public class FilterPolicyController {
 
     // ── US1: Discovery ───────────────────────────────────────────────
 
-    @GetMapping("/layers/{layerId}/policies")
+    @PostMapping("/layers/policies")
     public ResponseEntity<ReadPoliciesByLayerResponse> getPoliciesByLayer(
-            @PathVariable String layerId,
-            @RequestParam(defaultValue = "ACTIVE") String status) {
+            @RequestBody ReadPoliciesByLayerRequest request) {
+
+        String layerId = request.layerId();
+        String status = request.statusOrDefault();
 
         List<PolicyRegistrationEntity> policies;
         if ("ACTIVE".equalsIgnoreCase(status)) {
@@ -60,12 +64,12 @@ public class FilterPolicyController {
                 .build());
     }
 
-    @GetMapping("/layers/{layerId}/children")
+    @PostMapping("/layers/children")
     public ResponseEntity<ReadLayerChildrenResponse> getLayerChildren(
-            @PathVariable String layerId,
-            @RequestParam(defaultValue = "false") boolean recursive) {
+            @RequestBody ReadLayerChildrenRequest request) {
 
-        List<LayerEntity> children = layerService.getChildLayers(layerId, recursive);
+        String layerId = request.layerId();
+        List<LayerEntity> children = layerService.getChildLayers(layerId, request.recursive());
 
         List<ReadLayerChildrenResponse.LayerSummary> summaries = children.stream()
                 .map(l -> ReadLayerChildrenResponse.LayerSummary.builder()
@@ -114,49 +118,40 @@ public class FilterPolicyController {
 
     // ── US2: Deactivation & Layer Toggle ─────────────────────────────
 
-    @PostMapping("/policies/{policyId}/deactivate")
+    @PostMapping("/policies/deactivate")
     public ResponseEntity<DeactivatePolicyResponse> deactivatePolicy(
-            @PathVariable String policyId) {
-        return ResponseEntity.ok(policyRegistrationService.deactivatePolicy(policyId));
+            @RequestBody DeactivatePolicyRequest request) {
+        return ResponseEntity.ok(policyRegistrationService.deactivatePolicy(request.policyId()));
     }
 
-    @PostMapping("/policies/{policyId}/layers/{layerId}/disable")
+    @PostMapping("/policies/layers/disable")
     public ResponseEntity<TogglePolicyLayerResponse> disablePolicyAtLayer(
-            @PathVariable String policyId,
-            @PathVariable String layerId,
-            @RequestBody(required = false) TogglePolicyLayerRequest request) {
-        boolean includeDescendants = request != null && request.includeDescendants();
+            @RequestBody TogglePolicyLayerRequest request) {
         return ResponseEntity.ok(policyRegistrationService.togglePolicyAtLayer(
-                policyId, layerId, false, includeDescendants));
+                request.policyId(), request.layerId(), false, request.includeDescendants()));
     }
 
-    @PostMapping("/policies/{policyId}/layers/{layerId}/enable")
+    @PostMapping("/policies/layers/enable")
     public ResponseEntity<TogglePolicyLayerResponse> enablePolicyAtLayer(
-            @PathVariable String policyId,
-            @PathVariable String layerId,
-            @RequestBody(required = false) TogglePolicyLayerRequest request) {
-        boolean includeDescendants = request != null && request.includeDescendants();
+            @RequestBody TogglePolicyLayerRequest request) {
         return ResponseEntity.ok(policyRegistrationService.togglePolicyAtLayer(
-                policyId, layerId, true, includeDescendants));
+                request.policyId(), request.layerId(), true, request.includeDescendants()));
     }
 
-    @PutMapping("/policies/{policyId}/layers")
+    @PostMapping("/policies/layers/update")
     public ResponseEntity<PutPolicyLayerResponse> updatePolicyLayerBinding(
-            @PathVariable String policyId,
             @RequestBody PutPolicyLayerRequest request) {
-        return ResponseEntity.ok(policyRegistrationService.updatePolicyLayerBinding(policyId, request));
+        return ResponseEntity.ok(policyRegistrationService.updatePolicyLayerBinding(
+                request.policyId(), request));
     }
 
     // ── US3: Inspection ──────────────────────────────────────────────
 
-    @GetMapping("/policies/{policyId}/layers/{layerId}/records/recent")
+    @PostMapping("/policies/records/recent")
     public ResponseEntity<ReadRecentFilteredRecordsResponse> getRecentFilteredRecords(
-            @PathVariable String policyId,
-            @PathVariable String layerId,
-            @RequestParam(defaultValue = "50") int limit,
-            @RequestParam(required = false) String cursor) {
+            @RequestBody ReadRecentFilteredRecordsRequest request) {
         return ResponseEntity.ok(filterDecisionQueryService.getRecentRecordsByPolicyAndLayer(
-                policyId, layerId, limit, cursor));
+                request.policyId(), request.layerId(), request.limitOrDefault(), request.cursor()));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────

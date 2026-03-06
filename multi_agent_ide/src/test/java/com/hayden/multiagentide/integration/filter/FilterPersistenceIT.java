@@ -29,7 +29,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -724,7 +723,10 @@ class FilterPersistenceIT {
         assertThat(active.getDeactivatedAt()).isNull();
 
         // Deactivate
-        mockMvc.perform(post("/api/filters/policies/{policyId}/deactivate", policyId))
+        mockMvc.perform(post("/api/filters/policies/deactivate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "policyId", policyId))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.status").value("INACTIVE"));
@@ -734,8 +736,11 @@ class FilterPersistenceIT {
         assertThat(deactivated.getDeactivatedAt()).isNotNull();
 
         // Toggle: disable on layer
-        mockMvc.perform(post("/api/filters/policies/{policyId}/layers/{layerId}/disable",
-                        policyId, "lifecycle-layer"))
+        mockMvc.perform(post("/api/filters/policies/layers/disable")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "policyId", policyId,
+                                "layerId", "lifecycle-layer"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true));
 
@@ -749,8 +754,11 @@ class FilterPersistenceIT {
         assertThat(layerBinding.enabled()).isFalse();
 
         // Toggle: re-enable on layer
-        mockMvc.perform(post("/api/filters/policies/{policyId}/layers/{layerId}/enable",
-                        policyId, "lifecycle-layer"))
+        mockMvc.perform(post("/api/filters/policies/layers/enable")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "policyId", policyId,
+                                "layerId", "lifecycle-layer"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true));
 

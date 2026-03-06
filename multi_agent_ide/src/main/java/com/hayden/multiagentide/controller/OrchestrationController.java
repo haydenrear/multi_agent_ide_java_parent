@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,10 +25,6 @@ public class OrchestrationController {
 
     private final GoalExecutor goalExecutor;
     private final ObjectProvider<OnboardingOrchestrationService> onboardingOrchestrationServiceProvider;
-
-
-
-//    private static final ExecutorService exec =
 
     @PostMapping("/start")
     public StartGoalResponse startGoal(@RequestBody StartGoalRequest request) {
@@ -54,10 +49,10 @@ public class OrchestrationController {
         return onboardingService().findRuns();
     }
 
-    @GetMapping("/onboarding/runs/{runId}")
-    public OnboardingRunMetadata onboardingRun(@PathVariable String runId) {
-        return onboardingService().findRun(runId)
-                .orElseThrow(() -> new IllegalArgumentException("Onboarding run not found: " + runId));
+    @PostMapping("/onboarding/runs/get")
+    public OnboardingRunMetadata onboardingRun(@RequestBody OnboardingRunRequest request) {
+        return onboardingService().findRun(request.runId())
+                .orElseThrow(() -> new IllegalArgumentException("Onboarding run not found: " + request.runId()));
     }
 
     private OnboardingOrchestrationService onboardingService() {
@@ -76,4 +71,6 @@ public class OrchestrationController {
     ) {}
 
     public record StartGoalResponse(String nodeId) {}
+
+    public record OnboardingRunRequest(String runId) {}
 }

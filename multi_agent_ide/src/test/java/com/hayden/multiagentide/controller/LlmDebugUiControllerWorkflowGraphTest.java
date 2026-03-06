@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.file.Path;
@@ -22,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -104,9 +105,9 @@ class LlmDebugUiControllerWorkflowGraphTest {
         eventStreamRepository.save(new Events.ActionStartedEvent(
                 uid(), NOW.minusSeconds(100), childId, "WorkflowDiscoveryAgent", "discovery"));
 
-        mockMvc.perform(get("/api/llm-debug/ui/workflow-graph")
-                        .param("nodeId", childId)
-                        .param("errorWindowSeconds", "180"))
+        mockMvc.perform(post("/api/llm-debug/ui/workflow-graph")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nodeId\":\"" + childId + "\",\"errorWindowSeconds\":180}"))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.requestedNodeId").value(childId))
@@ -419,9 +420,9 @@ class LlmDebugUiControllerWorkflowGraphTest {
         //  ASSERTIONS
         // ============================================
 
-        mockMvc.perform(get("/api/llm-debug/ui/workflow-graph")
-                        .param("nodeId", rootId)
-                        .param("errorWindowSeconds", "180"))
+        mockMvc.perform(post("/api/llm-debug/ui/workflow-graph")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nodeId\":\"" + rootId + "\",\"errorWindowSeconds\":180}"))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rootNodeId").value(rootId))
@@ -574,9 +575,9 @@ class LlmDebugUiControllerWorkflowGraphTest {
                 .build();
         graphRepository.save(resolvedInterrupt);
 
-        mockMvc.perform(get("/api/llm-debug/ui/workflow-graph")
-                        .param("nodeId", rootId)
-                        .param("errorWindowSeconds", "180"))
+        mockMvc.perform(post("/api/llm-debug/ui/workflow-graph")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nodeId\":\"" + rootId + "\",\"errorWindowSeconds\":180}"))
                 .andDo(print())
                 .andExpect(status().isOk())
                 // Agent should have NO children (both permission and interrupt are resolved)
