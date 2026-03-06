@@ -1,31 +1,37 @@
 a=$1
 echo "Committing with $a"
-branch=$2
 
+if [[ $a=="" ]]; then
+  a="Committing to a commit."
+fi
 
-git a
-git commit -m "$a" || true
-git push origin $2
+function run_cmt {
+  echo "Updating branch"
+  branch=$(git branch --show-current)
+  echo "Checking status of $(pwd)"
+  git status
+  git add .
+  echo "Committing $(pwd)"
+  git commit -m "$a" || true
+  echo "Pushing $(pwd) to "
+  git push origin $branch
+}
+
 
 cd acp-cdc-ai
-git a
-git commit -m "$a" || true
-git push origin $2
+run_cmt
 
 cd ../multi_agent_ide
-git a
-git commit -m "$a" || true
-git push origin $2
+run_cmt
 
 cd ../multi_agent_ide_lib
-git a
-git commit -m "$a" || true
-git push origin $2
+run_cmt
 
 cd ../utilitymodule
-git a
-git commit -m "$a" || true
-git push origin $2
+run_cmt
+
+cd ..
+run_cmt
 
 echo "Done committing $a"
 
