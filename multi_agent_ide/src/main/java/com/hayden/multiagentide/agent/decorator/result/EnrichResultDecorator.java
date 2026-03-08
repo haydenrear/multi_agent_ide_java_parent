@@ -18,7 +18,7 @@ public class EnrichResultDecorator implements ResultDecorator {
 
     @Override
     public int order() {
-        return -10_000;
+        return -11_000;
     }
 
     @Override

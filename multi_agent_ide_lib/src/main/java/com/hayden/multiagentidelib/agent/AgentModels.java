@@ -3043,6 +3043,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest,
             @JsonPropertyDescription("Route to review agent to review the merged changes (if there are any).")
+            @SkipPropertyFilter
             ReviewRequest reviewRequest,
             @JsonPropertyDescription("Route to merger agent (to deal with merge conflicts for the merged code - if there are any).")
             MergerRequest mergerRequest
@@ -3450,6 +3451,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             PlanningOrchestratorRequest planningRequest,
             @JsonPropertyDescription("Route to review agent for quality/correctness validation when needed.")
+            @SkipPropertyFilter
             ReviewRequest reviewRequest,
             @JsonPropertyDescription("Route to merger agent for merge/conflict handling when needed.")
             MergerRequest mergerRequest,
@@ -3869,6 +3871,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Route to orchestrator for non-standard workflow coordination.")
             OrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route to review agent for quality/correctness validation when needed.")
+            @SkipPropertyFilter
             ReviewRequest reviewRequest,
             @JsonPropertyDescription("Route to merger agent for merge/conflict handling when needed.")
             MergerRequest mergerRequest,
@@ -4487,6 +4490,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Route to orchestrator for non-standard workflow coordination.")
             OrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route to review agent for quality/correctness validation when needed.")
+            @SkipPropertyFilter
             ReviewRequest reviewRequest,
             @JsonPropertyDescription("Route to merger agent for merge/conflict handling when needed.")
             MergerRequest mergerRequest,

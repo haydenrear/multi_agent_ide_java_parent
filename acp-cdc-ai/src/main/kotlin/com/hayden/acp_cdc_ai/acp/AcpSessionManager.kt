@@ -1,14 +1,20 @@
 package com.hayden.acp_cdc_ai.acp
 
 import com.agentclientprotocol.client.Client
+import com.agentclientprotocol.client.ClientInfo
 import com.agentclientprotocol.client.ClientSession
 import com.agentclientprotocol.common.Event
+import com.agentclientprotocol.common.SessionCreationParameters
+import com.agentclientprotocol.model.ClientCapabilities
 import com.agentclientprotocol.model.ContentBlock
+import com.agentclientprotocol.model.FileSystemCapability
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.Transport
+import com.hayden.acp_cdc_ai.acp.AcpChatModel.AcpSessionOperations
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.EventBus
 import com.hayden.acp_cdc_ai.acp.events.Events
+import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.JsonElement
@@ -33,11 +39,19 @@ class AcpSessionManager {
         val transport: Transport,
         val protocol: Protocol,
         val client: Client,
-        val session: ClientSession,
+        var session: ClientSession,
         val streamWindows: AcpStreamWindowBuffer = AcpStreamWindowBuffer(eventBus),
         val messageParent: ArtifactKey,
         val chatModelKey: ArtifactKey,
+        val sessionCreationParameters: SessionCreationParameters,
+        val permissionGate: IPermissionGate,
+        val chatKey: ArtifactKey
     ) {
+
+        suspend fun resetSession() {
+            session = client.newSession(sessionCreationParameters)
+            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value) }
+        }
 
         init {
             eventBus.publish(Events.ChatSessionCreatedEvent(UUID.randomUUID().toString(), Instant.now(), messageParent.value, chatModelKey))

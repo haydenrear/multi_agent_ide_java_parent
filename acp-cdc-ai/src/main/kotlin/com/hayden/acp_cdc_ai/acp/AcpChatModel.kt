@@ -6,6 +6,7 @@ import com.agentclientprotocol.client.ClientInfo
 import com.agentclientprotocol.common.ClientSessionOperations
 import com.agentclientprotocol.common.SessionCreationParameters
 import com.agentclientprotocol.model.*
+import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.Transport
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -174,11 +175,15 @@ class AcpChatModel(
         val generations = mutableListOf<Generation>()
         val content = listOf(ContentBlock.Text(formatPromptMessages(messages)))
 
-        session.prompt(content)
-            .transform { event ->
-                parseGenerationsFromAcpEvent(event, sessionContext, memoryId).forEach { emit(it) }
+        try {
+            doPerformPrompt(session, content, sessionContext, memoryId, generations)
+        } catch(e: JsonRpcException) {
+            if (e.message.contains("Prompt is too long")) {
+                session.resetSession()
+                doPerformPrompt(session, content, sessionContext, memoryId, generations)
             }
-            .collect { generations.add(it) }
+        }
+
 
         generations.addAll(session.flushWindows(memoryId))
 
@@ -208,6 +213,21 @@ class AcpChatModel(
         }
 
         toChatResponse(generations)
+    }
+
+    private suspend fun doPerformPrompt(
+        session: AcpSessionManager.AcpSessionContext,
+        content: List<ContentBlock.Text>,
+        sessionContext: AcpSessionManager.AcpSessionContext,
+        memoryId: Any?,
+        generations: MutableList<Generation>
+    ) {
+        val prompted = session.prompt(content)
+        prompted
+            .transform { event ->
+                parseGenerationsFromAcpEvent(event, sessionContext, memoryId).forEach { emit(it) }
+            }
+            .collect { generations.add(it) }
     }
 
     private fun toChatResponse(generations: List<Generation>): ChatResponse = ChatResponse.builder()
@@ -412,7 +432,11 @@ class AcpChatModel(
 
             sessionManager.AcpSessionContext(
                 scope, transport, protocol, client, session,
-                messageParent = messageParent, chatModelKey = chatKey
+                messageParent = messageParent,
+                chatModelKey = chatKey,
+                sessionCreationParameters = sessionParams,
+                permissionGate = permissionGate,
+                chatKey = chatKey
             )
 
         } catch (ex: Exception) {
@@ -619,7 +643,7 @@ class AcpChatModel(
         else -> "user"
     }
 
-    private class AcpSessionOperations(
+    class AcpSessionOperations(
         private val permissionGate: IPermissionGate,
         private val originNodeId: String
     ) : ClientSessionOperations {

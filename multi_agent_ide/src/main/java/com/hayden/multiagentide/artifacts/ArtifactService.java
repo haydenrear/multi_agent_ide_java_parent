@@ -124,29 +124,11 @@ public class ArtifactService {
         }
 
         // Save all refs
-        var savedRefs = artifactRepository.saveAll(
-                refsToSave.stream()
-                        .map(a -> toEntity(executionKey, a))
-                        .toList());
+        List<ArtifactEntity> toSave = refsToSave.stream()
+                .map(a -> toEntity(executionKey, a))
+                .toList();
 
-        // Update the original artifacts with their ref keys
-        for (var refEntity : savedRefs) {
-            if (refEntity.getReferencedArtifactKey() != null) {
-                try {
-                    artifactRepository.findByArtifactKey(refEntity.getReferencedArtifactKey())
-                            .ifPresentOrElse(ae -> {
-                                ae.addRef(refEntity.getArtifactKey());
-                                artifactRepository.save(ae);
-                            }, () -> {
-                                log.error("Could not find referenced artifact key {}.", refEntity.getReferencedArtifactKey());
-                            });
-                } catch (
-                        PersistenceException |
-                        DataIntegrityViolationException p) {
-                    log.error("Error adding referenced artifact key {}.", refEntity.getReferencedArtifactKey(), p);
-                }
-            }
-        }
+        var savedRefs = artifactRepository.saveAllAndFlush(toSave);
     }
 
 

@@ -107,7 +107,7 @@ class ArtifactSerializationTest {
 
             var read = objectMapper.readValue(written, C.class);
 
-            assertThat(read.key()).isNull();
+            assertThat(read.key().value()).isNull();
 
             var f = """
                     { "contextId": {} }

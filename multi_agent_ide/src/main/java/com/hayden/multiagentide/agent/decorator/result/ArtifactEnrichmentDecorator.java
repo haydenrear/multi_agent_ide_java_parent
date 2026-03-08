@@ -24,6 +24,7 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
         if (t == null) {
             return null;
         }
+
         OperationContext operationContext = context.operationContext();
 
         return switch (t) {

@@ -3,6 +3,7 @@ package com.hayden.multiagentide.artifacts.repository;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.querydsl.QuerydslPredicateExecutor;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -16,7 +17,7 @@ import java.util.Optional;
  * Repository for artifact persistence operations.
  */
 @Repository
-public interface ArtifactRepository extends JpaRepository<ArtifactEntity, Long> {
+public interface ArtifactRepository extends JpaRepository<ArtifactEntity, Long>, QuerydslPredicateExecutor<ArtifactEntity> {
     
     /**
      * Finds an artifact by its unique key.

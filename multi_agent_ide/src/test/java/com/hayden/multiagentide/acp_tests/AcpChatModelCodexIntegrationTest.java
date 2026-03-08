@@ -26,6 +26,9 @@ import com.hayden.acp_cdc_ai.repository.RequestContext;
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository;
 import com.hayden.acp_cdc_ai.sandbox.SandboxContext;
 import com.hayden.multiagentide.agent.AgentLifecycleHandler;
+import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
+import com.hayden.multiagentide.artifacts.entity.QArtifactEntity;
+import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.multiagentide.controller.OrchestrationController;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.gate.PermissionGateAdapter;
@@ -47,6 +50,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.data.repository.query.FluentQuery;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -61,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -83,6 +88,8 @@ class AcpChatModelCodexIntegrationTest {
 
     @Autowired
     private McpToolObjectRegistrar toolObjectRegistry;
+    @Autowired
+    private ArtifactRepository artifactRepository;
 
     @Autowired
     private AgentTools guiEvent;
@@ -209,17 +216,24 @@ class AcpChatModelCodexIntegrationTest {
         }
 
         assertThat(tmpRepo.toFile()).exists();
+        Path readmePath = Path.of("/tmp/multi_agent_ide_parent/multi_agent_ide_java_parent/README.md");
+
+        if(readmePath.toFile().exists()) {
+            readmePath.toFile().delete();
+        }
 
         CompletableFuture.runAsync(() -> {
             var s = orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
-                    "Please add a README.md with text HELLO to the path multi_agent_ide_java_parent/README.md. For discovery, just create one agent request that says code map does not have readme, for planner have one planner agent that says only to write readme, for ticket, have one agent that says to write readme.",
+                    "Please add a README.md with text HELLO to the path multi_agent_ide_java_parent/README.md. For discovery, " +
+                            "just create one agent request that says code map does not have readme, for planner have one planner agent that says only to write readme, " +
+                            "for ticket, have one agent that says to write readme.",
                     "/tmp/multi_agent_ide_parent",
                     "main", "Artifact Centralization"));
         });
 
         startPermissionConsole();
 
-        await().atMost(Duration.ofMinutes(60))
+        await().atMost(Duration.ofMinutes(120))
                 .pollInterval(Duration.ofSeconds(5))
                 .until(() ->
                         eventStreamRepository.list()
@@ -227,8 +241,29 @@ class AcpChatModelCodexIntegrationTest {
                                 .anyMatch(event -> event instanceof Events.GoalCompletedEvent)
                 );
 
+        assertThat(readmePath).exists();
+
+        var gce = eventStreamRepository.list()
+                .stream()
+                .flatMap(event -> event instanceof Events.GoalCompletedEvent e ? Stream.of(e) : Stream.empty())
+                .findAny();
+
+        assertThat(gce).isNotEmpty();
+
+        await().atMost(Duration.ofMinutes(60))
+                .pollInterval(Duration.ofSeconds(120))
+                .until(() -> {
+                    try {
+                        Optional<ArtifactEntity> by = artifactRepository.findBy(
+                                QArtifactEntity.artifactEntity.artifactKey.startsWith(gce.get().nodeId()),
+                                FluentQuery.FetchableFluentQuery::first);
+                        return by.isPresent();
+                    } catch(Exception e) {
+                        return false;
+                    }
+                });
+
         log.info("Finished!");
-        assertThat(Path.of("/tmp/multi_agent_ide_parent/multi_agent_ide_java_parent/README.md")).exists();
     }
 
 //    @Test

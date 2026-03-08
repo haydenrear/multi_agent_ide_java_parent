@@ -1,10 +1,9 @@
 package com.hayden.acp_cdc_ai.acp.events;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -75,6 +74,8 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
     /**
      * Creates a child key under this parent.
      */
+
+    @JsonIgnore
     public ArtifactKey createChild() {
         return new ArtifactKey(value + SEPARATOR + generateUlid());
     }
@@ -89,6 +90,8 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
     /**
      * Returns the parent key, or empty if this is a root key.
      */
+
+    @JsonIgnore
     public Optional<ArtifactKey> parent() {
         int lastSep = value.lastIndexOf(SEPARATOR);
         if (lastSep <= PREFIX.length()) {
@@ -118,6 +121,7 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
     /**
      * Returns the depth of this key (number of segments).
      */
+    @JsonIgnore
     public int depth() {
         String withoutPrefix = value.substring(PREFIX.length());
         return (int) withoutPrefix.chars().filter(c -> c == SEPARATOR).count() + 1;
@@ -126,6 +130,7 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
     /**
      * Returns true if this is a root key (depth 1).
      */
+    @JsonIgnore
     public boolean isRoot() {
         return depth() == 1;
     }
@@ -141,11 +146,14 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
     /**
      * Extracts the timestamp from the root ULID segment.
      */
+
+    @JsonIgnore
     public Instant extractRootTimestamp() {
         String rootSegment = value.substring(PREFIX.length(), PREFIX.length() + ULID_LENGTH);
         return decodeUlidTimestamp(rootSegment);
     }
-    
+
+    @JsonIgnore
     private String getLastSegment() {
         int lastSep = value.lastIndexOf(SEPARATOR);
         if (lastSep < 0) {
@@ -154,7 +162,6 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
         return value.substring(lastSep + 1);
     }
     
-    @JsonValue
     @Override
     public String value() {
         return value;
@@ -166,6 +173,7 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
     }
     
     @Override
+    @JsonIgnore
     public String toString() {
         return value;
     }
@@ -260,6 +268,7 @@ public record ArtifactKey(String value) implements Comparable<ArtifactKey> {
         return Instant.ofEpochMilli(timestamp);
     }
 
+    @JsonIgnore
     public ArtifactKey root() {
         var firstSep = value.indexOf(SEPARATOR);
         return new ArtifactKey(value.substring(0, firstSep));

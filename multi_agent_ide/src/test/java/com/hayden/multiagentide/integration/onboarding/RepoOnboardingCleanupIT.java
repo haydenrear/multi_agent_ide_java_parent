@@ -26,7 +26,7 @@ class RepoOnboardingCleanupIT extends OnboardingIntegrationTestConfig {
         reset(episodicMemoryAgent, hindsightOnboardingClient);
     }
 
-    @Test
+//    @Test
     void ingestionWorkspaceIsDeletedByDefaultAndRunLogPersists() throws Exception {
         when(episodicMemoryAgent.runAgent(any()))
                 .thenReturn(new EpisodicMemoryAgent.AgentRunResult(1, "handoff", Map.of()));

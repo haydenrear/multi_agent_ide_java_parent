@@ -67,7 +67,6 @@ public class WeAreHerePromptContributor implements PromptContributor {
             │     ├─▶ ROUTE_BACK → request interrupt clarification first, then Discovery Orchestrator if confirmed
             │     └─▶ ADVANCE_PHASE → Planning Orchestrator
             ├─▶ If orchestratorRequest → Orchestrator
-            ├─▶ If reviewRequest → Review Agent
             ├─▶ If mergerRequest → Merger Agent
             └─▶ If contextManagerRequest → Context Manager
             ▼
@@ -97,7 +96,6 @@ public class WeAreHerePromptContributor implements PromptContributor {
             │     ├─▶ ROUTE_BACK → request interrupt clarification first, then Planning Orchestrator if confirmed
             │     └─▶ ADVANCE_PHASE → Ticket Orchestrator
             ├─▶ If orchestratorRequest → Orchestrator
-            ├─▶ If reviewRequest → Review Agent
             ├─▶ If mergerRequest → Merger Agent
             └─▶ If contextManagerRequest → Context Manager
             ▼
@@ -127,7 +125,6 @@ public class WeAreHerePromptContributor implements PromptContributor {
             │     ├─▶ ROUTE_BACK → request interrupt clarification first, then Ticket Orchestrator if confirmed
             │     └─▶ ADVANCE_PHASE → Orchestrator Collector (final)
             ├─▶ If orchestratorRequest → Orchestrator
-            ├─▶ If reviewRequest → Review Agent
             ├─▶ If mergerRequest → Merger Agent
             └─▶ If contextManagerRequest → Context Manager
             ▼
@@ -137,7 +134,6 @@ public class WeAreHerePromptContributor implements PromptContributor {
             ├─▶ If collectorResult → apply final collector decision
             │     ├─▶ ROUTE_BACK → request interrupt clarification first, then Orchestrator if confirmed
             │     └─▶ COMPLETE goal and COMPLETE process (ADVANCE_PHASE)
-            ├─▶ If reviewRequest → Review Agent
             ├─▶ If mergerRequest → Merger Agent
             └─▶ If contextManagerRequest → Context Manager
             ▼

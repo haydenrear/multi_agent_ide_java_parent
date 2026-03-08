@@ -108,7 +108,7 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
             ));
 
 //          make sure this happens last
-            exec.completeExecution(context.operationContext().getAgentProcess().getId(), Artifact.ExecutionStatus.COMPLETED);
+            exec.completeExecution(EmbabelUtil.extractWorkflowRunId(context.operationContext()), Artifact.ExecutionStatus.COMPLETED);
         }
 
         return t;

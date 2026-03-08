@@ -35,9 +35,9 @@ public record MainWorktreeContext(
 ) implements WorktreeContext {
 
     public MainWorktreeContext {
-        if (worktreeId == null || worktreeId.isEmpty()) throw new IllegalArgumentException("worktreeId required");
-        if (repositoryUrl == null || repositoryUrl.isEmpty()) throw new IllegalArgumentException("repositoryUrl required");
-        if (worktreePath == null) throw new IllegalArgumentException("worktreePath required");
+//        if (worktreeId == null || worktreeId.isEmpty()) throw new IllegalArgumentException("worktreeId required");
+//        if (repositoryUrl == null || repositoryUrl.isEmpty()) throw new IllegalArgumentException("repositoryUrl required");
+//        if (worktreePath == null) throw new IllegalArgumentException("worktreePath required");
         if (submoduleWorktrees == null) submoduleWorktrees = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
     }

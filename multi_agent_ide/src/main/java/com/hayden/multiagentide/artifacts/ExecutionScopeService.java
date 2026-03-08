@@ -74,7 +74,7 @@ public class ExecutionScopeService {
         
         // Register with listener
         artifactListener.registerExecution(executionKey.value(), workflowRunId);
-        
+        artifactListener.registerExecutionArtifact(executionKey.value(), rootArtifact);
         activeScopes.put(workflowRunId, scope);
         log.info("Started execution scope: {} -> {}", workflowRunId, executionKey);
         

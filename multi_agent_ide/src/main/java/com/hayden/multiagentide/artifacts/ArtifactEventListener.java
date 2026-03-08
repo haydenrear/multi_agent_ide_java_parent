@@ -83,7 +83,12 @@ public class ArtifactEventListener implements EventListener {
         activeExecutions.put(workflowRunId, executionKey);
         log.debug("Registered execution: {} -> {}", workflowRunId, executionKey);
     }
-    
+
+    public void registerExecutionArtifact(String executionKey, Artifact workflowRunId) {
+        this.treeBuilder.addArtifact(executionKey, workflowRunId);
+        log.debug("Registered execution: {} -> {}", workflowRunId, executionKey);
+    }
+
     /**
      * Finishes an execution and returns the built artifact tree.
      * This persists all artifacts and returns the root with children populated.

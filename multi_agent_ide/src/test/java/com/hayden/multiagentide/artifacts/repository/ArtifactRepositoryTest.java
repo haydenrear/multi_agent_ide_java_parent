@@ -161,7 +161,6 @@ class ArtifactRepositoryTest {
                     .shared(true)
                     .schemaVersion("1.0.0")
                     .childIds(List.of("child1", "child2"))
-                    .artifactKeyRefs(List.of("ref1", "ref2"))
                     .build();
             
             ArtifactEntity saved = artifactRepository.save(entity);
@@ -182,7 +181,6 @@ class ArtifactRepositoryTest {
             assertThat(retrieved.getShared()).isTrue();
             assertThat(retrieved.getSchemaVersion()).isEqualTo("1.0.0");
             assertThat(retrieved.getChildIds()).containsExactly("child1", "child2");
-            assertThat(retrieved.getArtifactKeyRefs()).containsExactly("ref1", "ref2");
         }
         
         @Test
@@ -200,7 +198,6 @@ class ArtifactRepositoryTest {
                     .shared(false)
                     .schemaVersion("1.0.0")
                     .childIds(new ArrayList<>())
-                    .artifactKeyRefs(new ArrayList<>())
                     .build();
             
             ArtifactEntity saved = artifactRepository.save(entity);
@@ -245,19 +242,11 @@ class ArtifactRepositoryTest {
             artifactRepository.saveAll(List.of(ref1, ref2));
             artifactRepository.flush();
 
-            entity.setArtifactKeyRefs(new ArrayList<>());
-            
-            // Add refs using the addRef method
-            entity.addRef(key1);
-            entity.addRef(key2);
-            
             ArtifactEntity saved = artifactRepository.save(entity);
             artifactRepository.flush();
             
             Optional<ArtifactEntity> found = artifactRepository.findById(saved.getUuid());
             assertThat(found).isPresent();
-            assertThat(found.get().getArtifactKeyRefs()).hasSize(2);
-            assertThat(found.get().getArtifactKeyRefs()).contains(key1.value(), key2.value());
         }
         
         @Test
@@ -265,15 +254,13 @@ class ArtifactRepositoryTest {
         void emptyCollectionsPersist() {
             ArtifactEntity entity = createTestEntity("ak:01HX5ZRXQM", null, "exec-123", "Type");
             entity.setChildIds(new ArrayList<>());
-            entity.setArtifactKeyRefs(new ArrayList<>());
-            
+
             ArtifactEntity saved = artifactRepository.save(entity);
             artifactRepository.flush();
             
             Optional<ArtifactEntity> found = artifactRepository.findById(saved.getUuid());
             assertThat(found).isPresent();
             assertThat(found.get().getChildIds()).isEmpty();
-            assertThat(found.get().getArtifactKeyRefs()).isEmpty();
         }
         
         @Test
@@ -607,7 +594,6 @@ class ArtifactRepositoryTest {
                 .shared(false)
                 .schemaVersion("1.0.0")
                 .childIds(new ArrayList<>())
-                .artifactKeyRefs(new ArrayList<>())
                 .build();
     }
     
@@ -622,7 +608,6 @@ class ArtifactRepositoryTest {
                 .shared(false)
                 .schemaVersion("1.0.0")
                 .childIds(new ArrayList<>())
-                .artifactKeyRefs(new ArrayList<>())
                 .build();
     }
     

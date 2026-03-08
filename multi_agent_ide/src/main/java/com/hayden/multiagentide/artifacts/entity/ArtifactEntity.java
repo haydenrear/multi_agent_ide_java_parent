@@ -105,26 +105,4 @@ public class ArtifactEntity extends JpaHibernateAuditedIded {
     @Builder.Default
     private List<String> childIds = new ArrayList<>();
 
-    @ElementCollection
-    @CollectionTable(
-            name = "artifact_refs",
-            joinColumns = @JoinColumn(name = "artifact_id", nullable = false)
-    )
-    @Column(name = "ref", nullable = false, length = 512)
-    @OrderColumn(name = "ref_order") // optional
-    @Builder.Default
-    private List<String> artifactKeyRefs = new ArrayList<>();
-
-
-    public void addRef(String ref) {
-        if (artifactKeyRefs == null)
-            artifactKeyRefs = new ArrayList<>();
-
-        artifactKeyRefs.add(ref);
-    }
-
-    public void addRef(ArtifactKey ref) {
-        addRef(ref.value());
-    }
-
 }

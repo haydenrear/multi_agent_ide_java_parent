@@ -3,6 +3,7 @@ package com.hayden.multiagentide.model.acp
 import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.client.ClientSession
 import com.agentclientprotocol.common.Event
+import com.agentclientprotocol.common.SessionCreationParameters
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.PlanEntryPriority
@@ -22,6 +23,7 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.EventListener
 import com.hayden.acp_cdc_ai.acp.events.Events
+import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -293,8 +295,17 @@ class AcpStreamWindowBufferTest {
         val protocol = mock(Protocol::class.java)
         val client = mock(Client::class.java)
         val session = mock(ClientSession::class.java)
+        val sessionCreationParameters = mock(SessionCreationParameters::class.java)
+        val permissionGate = mock(IPermissionGate::class.java)
         val messageParent = ArtifactKey.createRoot()
-        return manager.AcpSessionContext(scope, transport, protocol, client, session, messageParent = messageParent, chatModelKey = messageParent)
+        return manager.AcpSessionContext(
+            scope, transport, protocol, client, session,
+            messageParent = messageParent,
+            chatModelKey = messageParent,
+            sessionCreationParameters = sessionCreationParameters,
+            permissionGate = permissionGate,
+            chatKey = messageParent
+        )
     }
 
     private class RecordingEventBus : EventBus {

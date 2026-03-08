@@ -8,7 +8,7 @@ gradle_clean_test() {
   (
     cd "$SCRIPT_DIR/$module_dir"
     ./gradlew clean
-    ./gradlew test --info
+    ./gradlew test
   )
 }
 

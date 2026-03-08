@@ -58,11 +58,11 @@ public class RequestEnrichment {
         if (input instanceof AgentModels.AgentResult r) {
             return (T) enrichAgentResult(r, context, parent);
         }
-        if (input instanceof Artifact.AgentModel model) {
-            return (T) enrichAgentModel(model, context, parent);
-        }
         if (input instanceof AgentModels.Routing model) {
             return (T) enrichRouting(model, context, parent);
+        }
+        if (input instanceof Artifact.AgentModel model) {
+            return (T) enrichAgentModel(model, context, parent);
         }
 
         return input;
@@ -474,7 +474,7 @@ public class RequestEnrichment {
         }
 
         T enriched = input;
-        if (enriched.key() == null) {
+        if (enriched.key() == null || enriched.key().value() == null) {
             ArtifactKey generatedKey = contextIdService.generate(resolveWorkflowRunId(context), null, parent);
             if (generatedKey != null) {
                 enriched = (T) enriched.withContextId(generatedKey);
@@ -787,6 +787,7 @@ public class RequestEnrichment {
         if (children == null || children.isEmpty()) {
             return model;
         }
+
         return model.withChildren(enrichChildren(children, context, model));
     }
 
