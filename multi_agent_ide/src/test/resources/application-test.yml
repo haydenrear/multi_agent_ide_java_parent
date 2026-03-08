@@ -11,6 +11,15 @@ artifacts:
     load-on-startup: true
     source-paths:
       - classpath:prompts/workflow/
+llm:
+  model-selection:
+    default-model: sonnet
+    by-agent-type:
+      commit-agent: haiku
+      merge-conflict-agent: haiku
+      ai-filter: haiku
+    by-template: {}
+
 acp.mcp:
   http:
     enabled: false

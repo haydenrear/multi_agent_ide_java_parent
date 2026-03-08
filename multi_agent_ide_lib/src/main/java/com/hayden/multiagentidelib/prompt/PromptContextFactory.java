@@ -1,6 +1,7 @@
 package com.hayden.multiagentidelib.prompt;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
@@ -56,7 +57,7 @@ public class PromptContextFactory {
             Map<String, Object> model,
             OperationContext operationContext
     ) {
-        return build(agentType, input, null, input, blackboardHistory, templateName, model, "DEFAULT",
+        return build(agentType, input, null, input, blackboardHistory, templateName, model, AcpChatOptionsString.DEFAULT_MODEL_NAME,
                 operationContext);
     }
 
@@ -70,7 +71,7 @@ public class PromptContextFactory {
             Map<String, Object> model,
             OperationContext operationContext
     ) {
-        return build(agentType, contextRequest, previousRequest, currentRequest, blackboardHistory, templateName, model, "DEFAULT",
+        return build(agentType, contextRequest, previousRequest, currentRequest, blackboardHistory, templateName, model, AcpChatOptionsString.DEFAULT_MODEL_NAME,
                 operationContext) ;
     }
 
@@ -247,7 +248,7 @@ public class PromptContextFactory {
             Map<String, Object> model,
             OperationContext operationContext
     ) {
-        return build(agentType, contextId, upstreamContexts, previousContext, blackboardHistory, templateName, model, "DEFAULT", operationContext);
+        return build(agentType, contextId, upstreamContexts, previousContext, blackboardHistory, templateName, model, AcpChatOptionsString.DEFAULT_MODEL_NAME, operationContext);
     }
 
     /**
@@ -300,7 +301,7 @@ public class PromptContextFactory {
                 blackboardHistory,
                 templateName,
                 model,
-                "DEFAULT",
+                AcpChatOptionsString.DEFAULT_MODEL_NAME,
                 operationContext
         );
     }

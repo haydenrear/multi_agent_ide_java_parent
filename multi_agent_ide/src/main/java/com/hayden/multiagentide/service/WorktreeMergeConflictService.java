@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.service;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
@@ -162,7 +163,7 @@ public class WorktreeMergeConflictService {
                 Map.of(),
                 TEMPLATE,
                 model,
-                "DEFAULT",
+                AcpChatOptionsString.DEFAULT_MODEL_NAME,
                 operationContext
         );
 

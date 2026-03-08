@@ -20,6 +20,15 @@ multi-agent-embabel:
           OPENROUTER_API_KEY: ${X_OPENROUTER_API_KEY}
           ANTHROPIC_MODEL: openai/gpt-oss-120b
           CLAUDE_CODE_EXECUTABLE: /Users/hayde/.local/bin/claude
+llm:
+  model-selection:
+    default-model: openai/gpt-oss-120b
+    by-agent-type:
+      commit-agent: google/gemini-3.1-flash-lite
+      merge-conflict-agent: google/gemini-3.1-flash-lite
+      ai-filter: google/gemini-3.1-flash-lite
+    by-template: {}
+
 acp.mcp:
   http:
     #    - name: deepwiki

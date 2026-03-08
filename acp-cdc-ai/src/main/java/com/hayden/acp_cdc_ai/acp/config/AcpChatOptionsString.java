@@ -17,6 +17,7 @@ public record AcpChatOptionsString(
 
     public static final String CURRENT_VERSION = "1";
     public static final String MODEL_DELIMITER = "___";
+    public static final String DEFAULT_MODEL_NAME = "DEFAULT";
 
     public AcpChatOptionsString {
         version = isBlank(version) ? CURRENT_VERSION : version;

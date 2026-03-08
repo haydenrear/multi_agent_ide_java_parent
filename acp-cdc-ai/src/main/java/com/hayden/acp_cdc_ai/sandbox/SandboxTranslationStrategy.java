@@ -1,6 +1,7 @@
 package com.hayden.acp_cdc_ai.sandbox;
 
 
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import jakarta.annotation.Nullable;
 import org.slf4j.Logger;
@@ -70,7 +71,7 @@ public interface SandboxTranslationStrategy {
                 sawModel = true;
                 model = value; // capture original
 
-                String effective = Objects.equals(modelOverride, "DEFAULT")
+                String effective = Objects.equals(modelOverride, AcpChatOptionsString.DEFAULT_MODEL_NAME)
                         ? value
                         : modelOverride;
 
@@ -82,7 +83,7 @@ public interface SandboxTranslationStrategy {
         }
 
         // If no --model was provided, but an override was supplied, inject it once.
-        if (!sawModel && !Objects.equals(modelOverride, "DEFAULT")) {
+        if (!sawModel && !Objects.equals(modelOverride, AcpChatOptionsString.DEFAULT_MODEL_NAME)) {
             args.addAll(argParser.apply("model", modelOverride));
         }
 
@@ -94,6 +95,6 @@ public interface SandboxTranslationStrategy {
     SandboxTranslation translate(RequestContext context, List<String> args, String modelName);
 
     default SandboxTranslation translate(RequestContext context, List<String> args) {
-        return translate(context, args, "DEFAULT");
+        return translate(context, args, AcpChatOptionsString.DEFAULT_MODEL_NAME);
     }
 }

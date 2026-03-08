@@ -11,6 +11,15 @@ multi-agent-embabel:
         command: ${ACP_COMMAND:claude-agent-acp}
         args: ${ACP_ARGS:}
         working-directory: ${ACP_WORKING_DIR:}
+llm:
+  model-selection:
+    default-model: sonnet
+    by-agent-type:
+      commit-agent: haiku
+      merge-conflict-agent: haiku
+      ai-filter: haiku
+    by-template: {}
+
 acp.mcp:
   http:
     #    - name: deepwiki

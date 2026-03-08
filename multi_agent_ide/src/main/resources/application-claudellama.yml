@@ -16,6 +16,15 @@ multi-agent-embabel:
           ANTHROPIC_AUTH_TOKEN: ollama
           ANTHROPIC_BASE_URL: http://localhost:11434
           ANTHROPIC_API_KEY: ""
+llm:
+  model-selection:
+    default-model: gpt-oss:120b-cloud
+    by-agent-type:
+      commit-agent: qwen2.5-coder:7b
+      merge-conflict-agent: qwen2.5-coder:7b
+      ai-filter: qwen2.5-coder:7b
+    by-template: {}
+
 acp.mcp:
   http:
     #    - name: deepwiki

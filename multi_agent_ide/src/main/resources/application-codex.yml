@@ -15,6 +15,15 @@ multi-agent-embabel:
 #        env:
 #          PATH:
 
+llm:
+  model-selection:
+    default-model: gpt-5.2-codex
+    by-agent-type:
+      commit-agent: gpt-5.1-codex-mini
+      merge-conflict-agent: gpt-5.1-codex-mini
+      ai-filter: gpt-5.1-codex-mini
+    by-template: {}
+
 acp.mcp:
   http:
     #    - name: deepwiki

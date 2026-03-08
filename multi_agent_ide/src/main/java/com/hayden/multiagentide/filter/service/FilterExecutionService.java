@@ -2,6 +2,7 @@ package com.hayden.multiagentide.filter.service;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentPlatform;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.*;
@@ -295,7 +296,7 @@ public class FilterExecutionService {
         );
 
         String resolvedModelName = aiExecutor.modelRef() == null || aiExecutor.modelRef().isBlank()
-                ? "DEFAULT" : aiExecutor.modelRef();
+                ? AcpChatOptionsString.DEFAULT_MODEL_NAME : aiExecutor.modelRef();
 
         PromptContext aiPromptContext = promptContext
                 .toBuilder()

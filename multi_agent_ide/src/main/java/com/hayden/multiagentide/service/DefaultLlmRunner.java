@@ -8,6 +8,7 @@ import com.embabel.agent.api.common.ToolObject;
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.multiagentide.agent.AskUserQuestionToolAdapter;
 import com.hayden.multiagentide.agent.decorator.prompt.LlmCallDecorator;
+import com.hayden.multiagentide.config.LlmModelSelectionProperties;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.tool.ToolAbstraction;
@@ -40,6 +41,7 @@ public class DefaultLlmRunner implements LlmRunner {
     
     private final AskUserQuestionToolAdapter askUserQuestionToolAdapter;
     private final ObjectMapper objectMapper;
+    private final LlmModelSelectionProperties modelSelectionProperties;
 
     @Autowired(required = false)
     private List<LlmCallDecorator> llmCallDecorators = new ArrayList<>();
@@ -79,18 +81,26 @@ public class DefaultLlmRunner implements LlmRunner {
         return result;
     }
 
-    private String resolveEncodedAcpOptions(PromptContext promptContext) {
+    String resolveEncodedAcpOptions(PromptContext promptContext) {
         if (AcpChatOptionsString.looksLikeEncodedModel(promptContext.modelName())) {
             return promptContext.modelName();
         }
 
         String requestedModel = normalize(promptContext.modelName());
+
+        if (requestedModel == null) {
+            requestedModel = normalize(modelSelectionProperties.resolve(
+                    promptContext.agentType(), promptContext.templateName()));
+        }
+
         String requestedProvider = promptContext.metadata() == null
                 ? null
                 : normalize(Optional.ofNullable(promptContext.metadata().get("acpProvider"))
                 .map(Object::toString)
                 .orElse(null));
+
         Map<String, Object> runtimeOptions = Map.of();
+
         if (promptContext.metadata() != null && promptContext.metadata().get("acpOptions") instanceof Map<?, ?> rawOptions) {
             runtimeOptions = rawOptions.entrySet().stream()
                     .filter(entry -> entry.getKey() != null)
@@ -109,7 +119,7 @@ public class DefaultLlmRunner implements LlmRunner {
     }
 
     private String normalize(String value) {
-        if (value == null || value.isBlank() || "DEFAULT".equalsIgnoreCase(value)) {
+        if (value == null || value.isBlank() || AcpChatOptionsString.DEFAULT_MODEL_NAME.equalsIgnoreCase(value)) {
             return null;
         }
         return value;

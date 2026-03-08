@@ -53,7 +53,7 @@ import java.util.stream.Stream;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties({AcpModelProperties.class, McpProperties.class})
+@EnableConfigurationProperties({AcpModelProperties.class, McpProperties.class, LlmModelSelectionProperties.class})
 @ComponentScan(basePackages = {"com.hayden.acp_cdc_ai"})
 public class MultiAgentEmbabelConfig {
 
@@ -193,7 +193,7 @@ public class MultiAgentEmbabelConfig {
     }
 
     private static String normalize(String value) {
-        if (value == null || value.isBlank() || "DEFAULT".equalsIgnoreCase(value)) {
+        if (value == null || value.isBlank() || AcpChatOptionsString.DEFAULT_MODEL_NAME.equalsIgnoreCase(value)) {
             return null;
         }
         return value;
