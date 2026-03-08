@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public sealed interface Artifact
-        permits Artifact.AgentModelArtifact, Artifact.ArtifactDbRef, Artifact.EventArtifact, Artifact.ExecutionArtifact, Artifact.ExecutionConfigArtifact, Artifact.FilterDecisionRecordArtifact, Artifact.FilterDescriptorArtifact, Artifact.OutcomeEvidenceArtifact, Artifact.PromptArgsArtifact, Artifact.RenderedPromptArtifact, Artifact.ToolCallArtifact, MessageStreamArtifact, Templated {
+        permits Artifact.AgentModelArtifact, Artifact.ArtifactDbRef, Artifact.EventArtifact, Artifact.ExecutionArtifact, Artifact.ExecutionConfigArtifact, Artifact.FilterDecisionRecordArtifact, Artifact.FilterDescriptorArtifact, Artifact.OutcomeEvidenceArtifact, Artifact.PolicyDeactivationArtifact, Artifact.PolicyLayerBindingToggleArtifact, Artifact.PolicyLayerBindingUpdateArtifact, Artifact.PolicyRegistrationArtifact, Artifact.PromptArgsArtifact, Artifact.RenderedPromptArtifact, Artifact.ToolCallArtifact, MessageStreamArtifact, Templated {
 
     String SCHEMA = "schema";
 
@@ -392,6 +392,103 @@ public sealed interface Artifact
             ) {
             }
         }
+
+        @Override
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
+        }
+    }
+
+    // ========== Policy Lifecycle ==========
+
+    /**
+     * Captures the persisted state of a newly registered policy.
+     */
+    @Builder(toBuilder = true)
+    @With
+    record PolicyRegistrationArtifact(
+            ArtifactKey artifactKey,
+            String policyId,
+            String filterKind,
+            String status,
+            Instant registeredAt,
+            String registeredBy,
+            String filterJson,
+            String layerBindingsJson,
+            boolean activateOnCreate,
+            String hash,
+            Map<String, String> metadata,
+            List<Artifact> children
+    ) implements Artifact {
+
+        @Override
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
+        }
+    }
+
+    /**
+     * Captures a policy deactivation event and resulting persisted status.
+     */
+    @Builder(toBuilder = true)
+    @With
+    record PolicyDeactivationArtifact(
+            ArtifactKey artifactKey,
+            String policyId,
+            String status,
+            Instant deactivatedAt,
+            String hash,
+            Map<String, String> metadata,
+            List<Artifact> children
+    ) implements Artifact {
+
+        @Override
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
+        }
+    }
+
+    /**
+     * Captures enable/disable operations for policy layer bindings.
+     */
+    @Builder(toBuilder = true)
+    @With
+    record PolicyLayerBindingToggleArtifact(
+            ArtifactKey artifactKey,
+            String policyId,
+            String layerId,
+            boolean enabled,
+            boolean includeDescendants,
+            List<String> affectedDescendantLayers,
+            String layerBindingsJson,
+            Instant updatedAt,
+            String hash,
+            Map<String, String> metadata,
+            List<Artifact> children
+    ) implements Artifact {
+
+        @Override
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
+        }
+    }
+
+    /**
+     * Captures a full layer binding upsert for a policy.
+     */
+    @Builder(toBuilder = true)
+    @With
+    record PolicyLayerBindingUpdateArtifact(
+            ArtifactKey artifactKey,
+            String policyId,
+            String layerId,
+            String layerBindingJson,
+            String layerBindingsJson,
+            Instant updatedAt,
+            String hash,
+            Map<String, String> metadata,
+            List<Artifact> children
+    ) implements Artifact {
 
         @Override
         public Optional<String> contentHash() {

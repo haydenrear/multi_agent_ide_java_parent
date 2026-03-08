@@ -3,6 +3,7 @@ package com.hayden.multiagentide.filter.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.filter.controller.dto.*;
+import com.hayden.multiagentide.artifacts.PolicyLifecycleArtifactService;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
 import com.hayden.multiagentide.filter.validation.PolicyExecutorValidator;
@@ -31,6 +32,7 @@ public class PolicyRegistrationService {
     private final PolicySemanticValidator semanticValidator;
     private final LayerService layerService;
     private final ObjectMapper objectMapper;
+    private final PolicyLifecycleArtifactService policyLifecycleArtifactService;
 
     @Transactional
     public PolicyRegistrationResponse registerPolicy(FilterEnums.FilterKind filterKind,
@@ -112,10 +114,8 @@ public class PolicyRegistrationService {
                     .layerBindingsJson(objectMapper.writeValueAsString(bindings))
                     .activatedAt(request.activate() ? now : null)
                     .build();
-
-//            should emit a graph event here - policy registration event - so that it gets saved as an artifact.
-
             policyRegistrationRepository.save(entity);
+            policyLifecycleArtifactService.recordRegistration(filterKind, request, entity, now);
 
             return PolicyRegistrationResponse.builder()
                     .ok(true)
@@ -149,6 +149,7 @@ public class PolicyRegistrationService {
         entity.setStatus(FilterEnums.PolicyStatus.INACTIVE.name());
         entity.setDeactivatedAt(now);
         policyRegistrationRepository.save(entity);
+        policyLifecycleArtifactService.recordDeactivation(entity, now);
 
         return DeactivatePolicyResponse.builder()
                 .ok(true)
@@ -174,6 +175,7 @@ public class PolicyRegistrationService {
 
         PolicyRegistrationEntity entity = opt.get();
         try {
+            Instant now = Instant.now();
             List<PolicyLayerBinding> bindings = objectMapper.readValue(
                     entity.getLayerBindingsJson(),
                     objectMapper.getTypeFactory().constructCollectionType(List.class, PolicyLayerBinding.class));
@@ -193,12 +195,14 @@ public class PolicyRegistrationService {
                             ? new PolicyLayerBinding(b.layerId(), enabled, b.includeDescendants(),
                                     b.isInheritable(), b.isPropagatedToParent(),
                                     b.matcherKey(), b.matcherType(), b.matcherText(), b.matchOn(),
-                                    "system", Instant.now())
+                                    "system", now)
                             : b)
                     .collect(Collectors.toList());
 
             entity.setLayerBindingsJson(objectMapper.writeValueAsString(updated));
             policyRegistrationRepository.save(entity);
+            policyLifecycleArtifactService.recordLayerToggle(
+                    entity, layerId, enabled, includeDescendants, affectedDescendants, now);
 
             return TogglePolicyLayerResponse.builder()
                     .ok(true)
@@ -232,6 +236,7 @@ public class PolicyRegistrationService {
 
         PolicyRegistrationEntity entity = opt.get();
         try {
+            Instant now = Instant.now();
             List<PolicyLayerBinding> bindings = objectMapper.readValue(
                     entity.getLayerBindingsJson(),
                     objectMapper.getTypeFactory().constructCollectionType(List.class, PolicyLayerBinding.class));
@@ -248,7 +253,7 @@ public class PolicyRegistrationService {
                     .matcherText(lb.matcherText())
                     .matchOn(FilterEnums.MatchOn.valueOf(lb.matchOn()))
                     .updatedBy("system")
-                    .updatedAt(Instant.now())
+                    .updatedAt(now)
                     .build();
 
             // Upsert: replace existing binding for layerId or add new
@@ -270,6 +275,7 @@ public class PolicyRegistrationService {
 
             entity.setLayerBindingsJson(objectMapper.writeValueAsString(bindings));
             policyRegistrationRepository.save(entity);
+            policyLifecycleArtifactService.recordLayerBindingUpdate(entity, lb, now);
 
             return PutPolicyLayerResponse.builder()
                     .ok(true)

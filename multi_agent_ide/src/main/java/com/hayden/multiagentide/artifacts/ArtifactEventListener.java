@@ -135,7 +135,7 @@ public class ArtifactEventListener implements EventListener {
             // 2. Check siblings for matching content hash
             // 3. Add only if no duplicate key or hash exists
             // 4. Add the child to the parent artifact's children list
-            boolean added = treeBuilder.addArtifact(artifact);
+            boolean added = treeBuilder.addArtifact(executionKey, artifact);
             if (added) {
                 log.debug("Added artifact: {}:\n{}", artifactKey.value(), event.artifact());
             }

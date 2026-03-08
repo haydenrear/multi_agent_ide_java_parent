@@ -9,6 +9,8 @@ import com.hayden.acp_cdc_ai.acp.filter.InstructionMatcher;
 import com.hayden.acp_cdc_ai.acp.filter.path.JsonPath;
 import com.hayden.acp_cdc_ai.acp.filter.path.MarkdownPath;
 import com.hayden.acp_cdc_ai.acp.filter.path.Path;
+import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
+import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.multiagentide.filter.repository.*;
 import com.hayden.multiagentide.filter.service.LayerHierarchyBootstrap;
 import com.hayden.multiagentide.filter.service.LayerService;
@@ -61,6 +63,8 @@ class FilterPersistenceIT {
     @Autowired
     private PolicyRegistrationRepository policyRegistrationRepository;
     @Autowired
+    private ArtifactRepository artifactRepository;
+    @Autowired
     private FilterDecisionRecordRepository filterDecisionRecordRepository;
     @Autowired
     private LayerHierarchyBootstrap layerHierarchyBootstrap;
@@ -71,6 +75,7 @@ class FilterPersistenceIT {
 
     @BeforeEach
     void setUp() {
+        artifactRepository.deleteAll();
         filterDecisionRecordRepository.deleteAll();
         policyRegistrationRepository.deleteAll();
         layerRepository.deleteAll();
@@ -770,6 +775,17 @@ class FilterPersistenceIT {
                 .filter(b -> "lifecycle-layer".equals(b.layerId()))
                 .findFirst().orElseThrow();
         assertThat(reLayerBinding.enabled()).isTrue();
+
+        List<ArtifactEntity> lifecycleArtifacts = artifactRepository.findAll().stream()
+                .filter(a -> a.getContentJson() != null && a.getContentJson().contains(policyId))
+                .toList();
+        assertThat(lifecycleArtifacts)
+                .extracting(ArtifactEntity::getArtifactType)
+                .contains(
+                        "PolicyRegistrationArtifact",
+                        "PolicyDeactivationArtifact",
+                        "PolicyLayerBindingToggleArtifact");
+        assertThat(lifecycleArtifacts).hasSize(4);
     }
 
     @Test
