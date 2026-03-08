@@ -8,7 +8,7 @@ gradle_clean_test() {
   (
     cd "$SCRIPT_DIR/$module_dir"
     ./gradlew clean
-    ./gradlew test
+    ./gradlew test --info
   )
 }
 
@@ -21,6 +21,6 @@ run_module_script() {
 }
 
 gradle_clean_test "multi_agent_ide_lib"
-gradle_clean_test "utilitymodule"
 run_module_script "acp-cdc-ai"
 run_module_script "multi_agent_ide"
+gradle_clean_test "utilitymodule"

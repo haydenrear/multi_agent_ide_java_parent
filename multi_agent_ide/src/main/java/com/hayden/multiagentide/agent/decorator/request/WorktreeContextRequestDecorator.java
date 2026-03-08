@@ -226,6 +226,9 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
     }
 
     private WorktreeSandboxContext resolveFromOrchestratorNode(OperationContext operationContext) {
+        if (operationContext == null) {
+            return null;
+        }
         String nodeId = resolveOrchestratorNode(operationContext);
 
         if (StringUtils.isBlank(nodeId)) {

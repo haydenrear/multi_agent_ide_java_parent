@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.agent.decorator;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.request.WorktreeContextRequestDecorator;
 import com.hayden.multiagentide.repository.GraphRepository;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -50,11 +52,15 @@ class WorktreeContextRequestDecoratorTest {
     @Mock
     private WorktreeService worktreeService;
 
+    @Mock
+    private EventBus eventBus;
+
+    @InjectMocks
     private WorktreeContextRequestDecorator decorator;
 
     @BeforeEach
-    void setUp() {
-        decorator = new WorktreeContextRequestDecorator(graphRepository, worktreeRepository, worktreeService);
+    public void setup() {
+        decorator.setEventBus(eventBus);
     }
 
     @TestFactory
