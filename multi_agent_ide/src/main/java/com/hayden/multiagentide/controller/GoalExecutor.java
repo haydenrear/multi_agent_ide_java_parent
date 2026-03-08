@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 
 @Component
@@ -37,6 +38,11 @@ public class GoalExecutor {
                 : request.baseBranch();
 
         try {
+
+            if (!Path.of(request.repositoryUrl()).toFile().exists()) {
+                throw new IllegalArgumentException("Repository did not exist!") ;
+            }
+
             agentLifecycleHandler.initializeOrchestrator(
                     request.repositoryUrl(),
                     baseBranch,

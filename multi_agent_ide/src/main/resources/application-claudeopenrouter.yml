@@ -9,16 +9,16 @@ multi-agent-embabel:
       claudeopenrouter:
         transport: stdio
         command: ${ACP_COMMAND:claude-agent-acp}
-        args: ${ACP_ARGS:--model openrouter/free}
+        args: ${ACP_ARGS:--model openai/gpt-oss-120b}
         working-directory: ${ACP_WORKING_DIR:}
-        default-model: openrouter/free
+        default-model: openai/gpt-oss-120b
         env:
           #     ANTHROPIC_BASE_URL=https://openrouter.ai/api  ANTHROPIC_AUTH_TOKEN=${X_OPENROUTER_API_KEY} ANTHROPIC_API_KEY="" OPENROUTER_API_KEY=${X_OPENROUTER_API_KEY} ANTHROPIC_MODEL=openrouter/free claude --model openrouter/free
           ANTHROPIC_BASE_URL: https://openrouter.ai/api
           ANTHROPIC_AUTH_TOKEN: ${X_OPENROUTER_API_KEY}
           ANTHROPIC_API_KEY: ""
           OPENROUTER_API_KEY: ${X_OPENROUTER_API_KEY}
-          ANTHROPIC_MODEL: openrouter/free
+          ANTHROPIC_MODEL: openai/gpt-oss-120b
           CLAUDE_CODE_EXECUTABLE: /Users/hayde/.local/bin/claude
 acp.mcp:
   http:

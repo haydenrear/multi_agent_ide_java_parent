@@ -52,6 +52,7 @@ public class BlackboardRoutingPlanner extends AbstractConditionPlanner {
 
         var lastResult = bws.getBlackboard().lastResult();
         if (lastResult == null) {
+//
             log.debug("No last result on blackboard, no action can be selected");
             return null;
         }

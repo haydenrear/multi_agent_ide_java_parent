@@ -63,6 +63,12 @@ public interface AgentModels {
         }
     }
 
+    sealed interface DispatchedRequest
+    permits TicketAgentRequest, PlanningAgentRequest, DiscoveryAgentRequest{
+
+    }
+
+
     sealed interface AgentRequest extends AgentContext
             permits
 //          Here for demonstration purposes - do not delete this comment or reformat this permits clause
@@ -3144,7 +3150,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Previous discovery agent context for reruns.")
             @SkipPropertyFilter
             PreviousContext.DiscoveryAgentPreviousContext previousContext
-    ) implements AgentRequest {
+    ) implements AgentRequest, DispatchedRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3561,7 +3567,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Previous planning agent context for reruns.")
             @SkipPropertyFilter
             PreviousContext.PlanningAgentPreviousContext previousContext
-    ) implements AgentRequest {
+    ) implements AgentRequest, DispatchedRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -4004,7 +4010,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Previous ticket agent context for reruns.")
             @SkipPropertyFilter
             PreviousContext.TicketAgentPreviousContext previousContext
-    ) implements AgentRequest {
+    ) implements AgentRequest, DispatchedRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();

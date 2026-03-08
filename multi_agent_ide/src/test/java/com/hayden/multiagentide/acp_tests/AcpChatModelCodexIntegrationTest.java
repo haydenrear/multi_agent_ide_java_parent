@@ -30,14 +30,17 @@ import com.hayden.multiagentide.controller.OrchestrationController;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.gate.PermissionGateAdapter;
 import com.hayden.multiagentide.agent.AcpTooling;
+import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.multiagentidelib.agent.AgentTools;
 import com.hayden.acp_cdc_ai.acp.AcpChatModel;
 import com.hayden.utilitymodule.config.EnvConfigProps;
+import com.hayden.utilitymodule.git.RepoUtil;
 import com.hayden.utilitymodule.io.FileUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -94,6 +97,8 @@ class AcpChatModelCodexIntegrationTest {
     private PermissionGateAdapter permissionGateAdapter;
     @Autowired
     private EventStreamRepository eventStreamRepository;
+    @Autowired
+    private GitWorktreeService gitWorktreeService;
 
     public record ResultValue(String result) {}
 
@@ -190,12 +195,25 @@ class AcpChatModelCodexIntegrationTest {
     }
 
     @Test
-    void testCreateGoal() {
+    void testCreateGoal() throws GitAPIException, IOException {
+
+        Path tmpRepo = Path.of("/tmp/multi_agent_ide_parent");
+        if (!tmpRepo.toFile().exists()) {
+            String projectRepo = envConfigProps.getProjectDir().getParent().getParent().toString();
+            GitWorktreeService.performSubmoduleClone(
+                    projectRepo,
+                    "main",
+                    "main",
+                    tmpRepo
+            );
+        }
+
+        assertThat(tmpRepo.toFile()).exists();
 
         CompletableFuture.runAsync(() -> {
             var s = orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
                     "Please add a README.md with text HELLO to the path multi_agent_ide_java_parent/README.md. For discovery, just create one agent request that says code map does not have readme, for planner have one planner agent that says only to write readme, for ticket, have one agent that says to write readme.",
-                    "/Users/hayde/IdeaProjects/multi_agent_ide_parent",
+                    "/tmp/multi_agent_ide_parent",
                     "main", "Artifact Centralization"));
         });
 
@@ -210,6 +228,7 @@ class AcpChatModelCodexIntegrationTest {
                 );
 
         log.info("Finished!");
+        assertThat(Path.of("/tmp/multi_agent_ide_parent/multi_agent_ide_java_parent/README.md")).exists();
     }
 
 //    @Test

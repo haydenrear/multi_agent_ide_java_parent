@@ -3,7 +3,7 @@ logging.config: classpath:logback-multi-agent-console.xml
 spring:
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create
   datasource:
     driver-class-name: org.postgresql.Driver
     username: postgres

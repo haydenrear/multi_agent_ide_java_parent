@@ -1,16 +1,26 @@
-function gradle_clean_test {
-  ./gradlew clean
-  ./gradlew test
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+gradle_clean_test() {
+  local module_dir="$1"
+  (
+    cd "$SCRIPT_DIR/$module_dir"
+    ./gradlew clean
+    ./gradlew test
+  )
 }
 
-cd multi_agent_ide_lib
-gradle_clean_test
+run_module_script() {
+  local module_dir="$1"
+  (
+    cd "$SCRIPT_DIR/$module_dir"
+    ./tests.sh
+  )
+}
 
-cd ../utilitymodule
-gradle_clean_test
-
-cd ../acp-cdc-ai
-source tests.sh
-
-cd ../multi_agent_ide
-source tests.sh
+gradle_clean_test "multi_agent_ide_lib"
+gradle_clean_test "utilitymodule"
+run_module_script "acp-cdc-ai"
+run_module_script "multi_agent_ide"

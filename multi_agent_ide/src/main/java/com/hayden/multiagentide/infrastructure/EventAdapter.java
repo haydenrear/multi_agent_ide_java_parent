@@ -3,11 +3,13 @@ package com.hayden.multiagentide.infrastructure;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Abstract base class for event adapters that transform events for specific targets
  * (e.g., WebSocket, logging, external systems).
  */
+@Slf4j
 public abstract class EventAdapter implements EventListener {
 
     private final String adapterId;
@@ -34,6 +36,7 @@ public abstract class EventAdapter implements EventListener {
         try {
             adaptEvent(event);
         } catch (Exception e) {
+            log.error("Error found when attempting to adapt executing {}.", this.getClass().getName(), e);
             handleAdapterError(event, e);
         }
     }

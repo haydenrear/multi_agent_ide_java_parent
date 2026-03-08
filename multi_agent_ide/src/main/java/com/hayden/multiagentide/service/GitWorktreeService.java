@@ -84,8 +84,7 @@ public class GitWorktreeService implements WorktreeService {
         try {
             validateCloneSource(repositoryUrl, baseBranch, nodeId);
             Files.createDirectories(worktreePath);
-            cloneRepository(repositoryUrl, worktreePath, baseBranch);
-            checkoutNewBranch(worktreePath, derivedBranch, null);
+            performSubmoduleClone(repositoryUrl, baseBranch, derivedBranch, worktreePath);
             List<String> submodulePaths = initializeSubmodule(worktreePath, derivedBranch);
 
 //            we pass in the baseBranch of the parent here because when we clone the
@@ -126,6 +125,12 @@ public class GitWorktreeService implements WorktreeService {
         } catch (IOException | GitAPIException e) {
             throw new RuntimeException("Failed to create main worktree: " + e.getMessage(), e);
         }
+    }
+
+    public static void performSubmoduleClone(String repositoryUrl, String baseBranch,
+                                             String derivedBranch, Path worktreePath) throws GitAPIException, IOException {
+        cloneRepository(repositoryUrl, worktreePath, baseBranch);
+        checkoutNewBranch(worktreePath, derivedBranch, null);
     }
 
     private SubmoduleWorktreeContext createSubmoduleWorktree(String submoduleName, String submodulePath,
@@ -246,6 +251,119 @@ public class GitWorktreeService implements WorktreeService {
             return repositoryPath.resolve(pathValue.trim());
         } catch (Exception e) {
             throw new RuntimeException("Failed to get submodule path: " + e.getMessage(), e);
+        }
+    }
+
+    // ======== SUBMODULE PUSH HELPERS ========
+
+    /**
+     * Read the URL for a submodule from .gitmodules.
+     */
+    private String getSubmoduleUrl(Path repositoryPath, String submoduleName) {
+        Path gitmodulesPath = repositoryPath.resolve(".gitmodules");
+        if (!Files.exists(gitmodulesPath)) {
+            return null;
+        }
+        try {
+            FileBasedConfig config = new FileBasedConfig(gitmodulesPath.toFile(), FS.DETECTED);
+            config.load();
+            String url = config.getString("submodule", submoduleName, "url");
+            return url != null && !url.isBlank() ? url.trim() : null;
+        } catch (Exception e) {
+            log.warn("Could not read submodule URL for '{}': {}", submoduleName, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Returns true if the URL is a real remote (http, https, git@, ssh://, git://)
+     * rather than a local filesystem path.
+     */
+    private static boolean isRemoteUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
+        }
+        return url.startsWith("http://") || url.startsWith("https://")
+                || url.startsWith("git@") || url.startsWith("ssh://")
+                || url.startsWith("git://");
+    }
+
+    /**
+     * Push submodule commits to their remotes so that the commit SHAs referenced by
+     * the parent's submodule pointers actually exist on the remote when a downstream
+     * clone fetches from .gitmodules URLs.
+     *
+     * This method never throws — all errors are logged and emitted on the event bus.
+     * A failed push for one submodule does not prevent pushing the others.
+     *
+     * @param repoPath   the parent repo whose submodules should be pushed
+     * @param branchHint the branch name to attempt pushing as (e.g. the derived branch)
+     * @param nodeId     optional node ID for event bus error reporting (may be null)
+     */
+    void pushSubmoduleCommitsToRemote(Path repoPath, String branchHint, String nodeId) {
+        List<String> submoduleNames;
+        try {
+            submoduleNames = getSubmoduleNames(repoPath);
+        } catch (Exception e) {
+            log.warn("Could not enumerate submodules for push at {}: {}", repoPath, e.getMessage());
+            return;
+        }
+
+        for (String submoduleName : submoduleNames) {
+            try {
+                String url = getSubmoduleUrl(repoPath, submoduleName);
+                if (!isRemoteUrl(url)) {
+                    log.debug("Skipping push for submodule '{}': URL '{}' is not a remote.", submoduleName, url);
+                    continue;
+                }
+
+                Path submodulePath;
+                try {
+                    submodulePath = getSubmodulePath(repoPath, submoduleName);
+                } catch (Exception e) {
+                    log.warn("Could not resolve path for submodule '{}', skipping push: {}", submoduleName, e.getMessage());
+                    continue;
+                }
+
+                if (!Files.isDirectory(submodulePath)) {
+                    continue;
+                }
+
+                // First attempt: push HEAD to the hinted branch name on the remote URL.
+                var result = RepoUtil.runGitCommand(submodulePath,
+                        List.of("push", url, "HEAD:refs/heads/" + branchHint));
+
+                if (result.isOk()) {
+                    log.debug("Pushed submodule '{}' to remote branch '{}'", submoduleName, branchHint);
+                    continue;
+                }
+
+                // Fallback: push to a unique branch name (commit SHA is all that matters).
+                String fallbackBranch = "push-" + UUID.randomUUID().toString().substring(0, 8);
+                log.info("Push to '{}' failed for submodule '{}', retrying with fallback branch '{}': {}",
+                        branchHint, submoduleName, fallbackBranch, result.errorMessage());
+
+                var fallbackResult = RepoUtil.runGitCommand(submodulePath,
+                        List.of("push", url, "HEAD:refs/heads/" + fallbackBranch));
+
+                if (fallbackResult.isOk()) {
+                    log.info("Pushed submodule '{}' to fallback branch '{}'", submoduleName, fallbackBranch);
+                } else {
+                    String errMsg = "Failed to push submodule '%s' to remote even with fallback branch '%s': %s"
+                            .formatted(submoduleName, fallbackBranch, fallbackResult.errorMessage());
+                    log.error(errMsg);
+                    if (eventBus != null && nodeId != null && !nodeId.isBlank()) {
+                        eventBus.publish(Events.NodeErrorEvent.err(errMsg, getKey(nodeId)));
+                    }
+                }
+            } catch (Exception e) {
+                String errMsg = "Unexpected error pushing submodule '%s' at %s: %s"
+                        .formatted(submoduleName, repoPath, e.getMessage());
+                log.error(errMsg, e);
+                if (eventBus != null && nodeId != null && !nodeId.isBlank()) {
+                    eventBus.publish(Events.NodeErrorEvent.err(errMsg, getKey(nodeId)));
+                }
+            }
         }
     }
 
@@ -438,6 +556,11 @@ public class GitWorktreeService implements WorktreeService {
 
             verifyStepResult(step, parentBefore, parentAfter);
             emitMergeStepSuccess(step, rootChildContext, rootParentContext);
+
+            // Push submodule commits to their remotes so downstream clones can find them.
+            String branchHint = step.childBranch() != null ? step.childBranch() : step.parentBranch();
+            String nodeId = rootParentContext != null ? rootParentContext.associatedNodeId() : null;
+            pushSubmoduleCommitsToRemote(step.parentPath(), branchHint, nodeId);
         } catch (Exception e) {
             String label = step.submodulePath() != null ? step.submodulePath() : "root";
             List<MergeResult.MergeConflict> conflicts = List.of(new MergeResult.MergeConflict(
@@ -840,6 +963,11 @@ public class GitWorktreeService implements WorktreeService {
         if (parentContext == null || parentContext.mainWorktree() == null) {
             return input;
         }
+        // Ensure submodule commits exist on remotes before cloning new worktrees.
+        pushSubmoduleCommitsToRemote(
+                parentContext.mainWorktree().worktreePath(),
+                parentContext.mainWorktree().derivedBranch(),
+                nodeId);
         List<AgentModels.DiscoveryAgentRequest> updated = new ArrayList<>();
         int index = 0;
         for (AgentModels.DiscoveryAgentRequest request : input.requests()) {
@@ -865,6 +993,11 @@ public class GitWorktreeService implements WorktreeService {
         if (parentContext == null || parentContext.mainWorktree() == null) {
             return input;
         }
+        // Ensure submodule commits exist on remotes before cloning new worktrees.
+        pushSubmoduleCommitsToRemote(
+                parentContext.mainWorktree().worktreePath(),
+                parentContext.mainWorktree().derivedBranch(),
+                nodeId);
         List<AgentModels.PlanningAgentRequest> updated = new ArrayList<>();
         int index = 0;
         for (AgentModels.PlanningAgentRequest request : input.requests()) {
@@ -890,6 +1023,11 @@ public class GitWorktreeService implements WorktreeService {
         if (parentContext == null || parentContext.mainWorktree() == null) {
             return input;
         }
+        // Ensure submodule commits exist on remotes before cloning new worktrees.
+        pushSubmoduleCommitsToRemote(
+                parentContext.mainWorktree().worktreePath(),
+                parentContext.mainWorktree().derivedBranch(),
+                nodeId);
         List<AgentModels.TicketAgentRequest> updated = new ArrayList<>();
         int index = 0;
         for (AgentModels.TicketAgentRequest request : input.requests()) {
@@ -899,7 +1037,7 @@ public class GitWorktreeService implements WorktreeService {
             index++;
             String branchName = "ticket-" + index + "-" + shortId(nodeId);
             WorktreeSandboxContext child = branchSandboxContext(parentContext, branchName, nodeId);
-            updated.add(child != null ? request.toBuilder().worktreeContext(child).build() : request);
+            updated.add(request.toBuilder().worktreeContext(child).build());
         }
         return input.toBuilder().requests(updated).build();
     }
@@ -1615,10 +1753,18 @@ public class GitWorktreeService implements WorktreeService {
 
 
         var updating = RepoUtil.updateSubmodulesRecursively(worktreePath);
-        log.debug("Updated submodules {}", updating);
+
+        updating.doOnError(e -> {
+            e.errors().forEach(re -> {
+                log.error("Error updating submodule {}.", re);
+            });
+        });
+        updating.doOnEach(e -> {
+            log.debug("Updated submodules {}", e);
+        });
     }
 
-    private void checkoutNewBranch(Path repoPath, String newBranchName, String startPoint) throws IOException, GitAPIException {
+    private static void checkoutNewBranch(Path repoPath, String newBranchName, String startPoint) throws IOException, GitAPIException {
         try (var git = openGit(repoPath)) {
             if (newBranchName == null || newBranchName.isBlank()) {
                 throw new IllegalArgumentException("newBranchName is required");
@@ -1642,6 +1788,9 @@ public class GitWorktreeService implements WorktreeService {
             }
             checkout.call();
         }
+
+        RepoUtil.runGitCommand(repoPath, List.of("submodule", "foreach", "--recursive", "git checkout -b %s || true".formatted(newBranchName)));
+        RepoUtil.runGitCommand(repoPath, List.of("submodule", "foreach", "--recursive", "git checkout %s || true".formatted(newBranchName)));
     }
 
     private String resolveBranchForBranching(MainWorktreeContext sourceContext) {
@@ -2592,7 +2741,7 @@ public class GitWorktreeService implements WorktreeService {
         return new ArrayList<>(files);
     }
 
-    private Git openGit(Path repoPath) throws IOException {
+    private static Git openGit(Path repoPath) throws IOException {
         return RepoUtil.initGitOrThrow(repoPath);
     }
 

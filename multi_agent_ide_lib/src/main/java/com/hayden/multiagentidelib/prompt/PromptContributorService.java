@@ -1,9 +1,14 @@
 package com.hayden.multiagentidelib.prompt;
 
 import com.embabel.agent.api.common.ContextualPromptElement;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.AgentType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -26,6 +31,7 @@ import java.util.stream.Collectors;
  *     .createObject(MyClass.class, model);
  * </pre>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PromptContributorService {
@@ -35,6 +41,10 @@ public class PromptContributorService {
     private final List<PromptContributorFactory> factories;
 
     private final PromptContributorAdapterFactory filteredPromptContributorAdapterFactory;
+
+    @Autowired
+    @Lazy
+    private EventBus eventBus;
     
     /**
      * Get contributors for the given prompt context.
@@ -58,9 +68,15 @@ public class PromptContributorService {
                 if (factory == null) {
                     continue;
                 }
-                List<PromptContributor> created = factory.create(promptContext);
-                if (created != null && !created.isEmpty()) {
-                    contributors.addAll(created);
+                try {
+                    List<PromptContributor> created = factory.create(promptContext);
+                    if (created != null && !created.isEmpty()) {
+                        contributors.addAll(created);
+                    }
+                } catch (Exception e) {
+                    log.error("Error {}.", e.getMessage(), e);
+                    eventBus.publish(Events.NodeErrorEvent.err("Error with prompt contributor factory %s: %s.".formatted(factory.getClass().getName(), e.getMessage()),
+                            promptContext.currentContextId()));
                 }
             }
         }

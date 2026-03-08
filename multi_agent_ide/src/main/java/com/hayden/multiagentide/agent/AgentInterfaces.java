@@ -1385,8 +1385,8 @@ public interface AgentInterfaces {
                         AgentModels.DiscoveryAgentResult.class
                 );
 
-                AgentModels.DiscoveryAgentResult agentResult = response;
-                discoveryResults.add(agentResult);
+                if (response != null)
+                    discoveryResults.add(response);
             }
 
             var d = AgentModels.DiscoveryAgentResults.builder()
@@ -1574,7 +1574,8 @@ public interface AgentInterfaces {
                         AgentModels.PlanningAgentResult.class
                 );
 
-                planningResults.add(response);
+                if (response != null)
+                    planningResults.add(response);
             }
 
             AgentModels.PlanningAgentResults planningAgentResults = AgentModels.PlanningAgentResults.builder()
@@ -1791,7 +1792,8 @@ public interface AgentInterfaces {
                         AgentModels.TicketAgentResult.class
                 );
 
-                ticketResults.add(agentResult);
+                if (agentResult != null)
+                    ticketResults.add(agentResult);
             }
 
             var ticketAgentResults = AgentModels.TicketAgentResults.builder()
@@ -2288,10 +2290,16 @@ public interface AgentInterfaces {
             if (request == null) {
                 return null;
             }
-            context.addObject(request);
-            T result = context.asSubProcess(outputClass, agent);
-            context.hide(result);
-            return result;
+            try {
+                context.addObject(request);
+                T result = context.asSubProcess(outputClass, agent);
+                context.hide(result);
+                return result;
+            } catch (Exception e) {
+                eventBus.publish(Events.NodeErrorEvent.err("Error when running %s: %s"
+                        .formatted(outputClass, request), new ArtifactKey(context.getAgentProcess().getId())));
+                return null;
+            }
         }
 
         private static String resolveDiscoveryGoal(

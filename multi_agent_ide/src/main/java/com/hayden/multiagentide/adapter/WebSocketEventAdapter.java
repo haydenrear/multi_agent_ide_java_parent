@@ -9,6 +9,7 @@ import com.hayden.multiagentide.filter.service.LayerIdResolver;
 import com.hayden.multiagentidelib.filter.model.FilterSource;
 import com.hayden.multiagentidelib.filter.model.layer.GraphEventObjectContext;
 import com.hayden.multiagentidelib.filter.model.layer.DefaultPathFilterContext;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
@@ -20,6 +21,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * WebSocket event adapter that streams events to connected clients in real-time.
  */
+@Slf4j
 @Component
 public class WebSocketEventAdapter extends EventAdapter {
 
@@ -46,6 +48,7 @@ public class WebSocketEventAdapter extends EventAdapter {
      * Register a connected WebSocket client.
      */
     public void registerClient(WebSocketSession session) {
+        log.info("Registering websocket client {}.", session.getRemoteAddress());
         connectedClients.add(session);
     }
 
@@ -53,6 +56,7 @@ public class WebSocketEventAdapter extends EventAdapter {
      * Unregister a disconnected WebSocket client.
      */
     public void unregisterClient(WebSocketSession session) {
+        log.info("Deregistering websocket client {}.", session.getRemoteAddress());
         connectedClients.remove(session);
     }
 
