@@ -17,6 +17,7 @@ import com.hayden.multiagentidelib.tool.ToolContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -43,7 +44,7 @@ public class DefaultLlmRunner implements LlmRunner {
     private final AskUserQuestionToolAdapter askUserQuestionToolAdapter;
     private final ObjectMapper objectMapper;
     private final LlmModelSelectionProperties modelSelectionProperties;
-    private final PromptContributorService promptContributorService;
+    private final ObjectProvider<PromptContributorService> promptContributorServiceProvider;
 
     @Autowired(required = false)
     private List<LlmCallDecorator> llmCallDecorators = new ArrayList<>();
@@ -58,7 +59,10 @@ public class DefaultLlmRunner implements LlmRunner {
             OperationContext context
     ) {
         String encodedAcpOptions = resolveEncodedAcpOptions(promptContext);
-        List<ContextualPromptElement> promptElements = promptContributorService.getContributors(promptContext);
+        PromptContributorService promptContributorService = promptContributorServiceProvider.getIfAvailable();
+        List<ContextualPromptElement> promptElements = promptContributorService == null
+                ? promptContext.promptContributors()
+                : promptContributorService.getContributors(promptContext);
         // Get applicable prompt contributors using the full PromptContext
         var aiQuery = context
                 .ai()
