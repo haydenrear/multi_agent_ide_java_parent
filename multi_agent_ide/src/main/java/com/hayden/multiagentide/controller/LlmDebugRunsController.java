@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @RestController
@@ -25,7 +27,8 @@ public class LlmDebugRunsController {
                 request.goal(),
                 request.repositoryUrl(),
                 request.baseBranch(),
-                request.title()
+                request.title(),
+                request.tags()
         ));
         return new StartRunResponse(run.runId(), run.runId(), run.status().name());
     }
@@ -75,7 +78,14 @@ public class LlmDebugRunsController {
         return responseMapper.mapValidation(persistenceValidationService.getLatest(request.runId()));
     }
 
-    public record StartRunRequest(String goal, String repositoryUrl, String baseBranch, String title) {
+    public record StartRunRequest(String goal, String repositoryUrl, String baseBranch, String title, List<String> tags) {
+        public StartRunRequest(String goal, String repositoryUrl, String baseBranch, String title) {
+            this(goal, repositoryUrl, baseBranch, title, List.of());
+        }
+
+        public StartRunRequest {
+            tags = tags == null ? List.of() : List.copyOf(tags);
+        }
     }
 
     public record StartRunResponse(String runId, String nodeId, String status) {

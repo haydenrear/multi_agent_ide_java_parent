@@ -64,6 +64,9 @@ public class AgentEventListener implements EventListener {
             case Events.NodeStatusChangedEvent statusChangedEvent -> {
                 handleNodeStatusChanged(statusChangedEvent);
             }
+            case Events.GoalStartedEvent goalStartedEvent -> {
+                log.info("Workflow goal started: {}", goalStartedEvent.eventId());
+            }
             case Events.GoalCompletedEvent goalCompletedEvent -> {
                 log.info("Workflow goal completed: {}", goalCompletedEvent.eventId());
             }

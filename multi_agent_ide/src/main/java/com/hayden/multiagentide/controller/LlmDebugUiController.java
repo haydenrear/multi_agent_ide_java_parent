@@ -59,7 +59,8 @@ public class LlmDebugUiController {
                         request.goal(),
                         request.repositoryUrl(),
                         request.baseBranch(),
-                        request.title()
+                        request.title(),
+                        request.tags()
                 )
         );
         return new StartGoalResponse(started.nodeId(), started.nodeId(), "started");
@@ -115,7 +116,8 @@ public class LlmDebugUiController {
                                 request.goal(),
                                 request.repositoryUrl(),
                                 request.baseBranch(),
-                                request.title()
+                                request.title(),
+                                request.tags()
                         )
                 );
                 yield new QuickActionResponse(started.nodeId(), "started", started.nodeId(), null);
@@ -448,7 +450,14 @@ public class LlmDebugUiController {
     public record ActionResponse(String actionId, String status) {
     }
 
-    public record StartGoalRequest(String goal, String repositoryUrl, String baseBranch, String title) {
+    public record StartGoalRequest(String goal, String repositoryUrl, String baseBranch, String title, List<String> tags) {
+        public StartGoalRequest(String goal, String repositoryUrl, String baseBranch, String title) {
+            this(goal, repositoryUrl, baseBranch, title, List.of());
+        }
+
+        public StartGoalRequest {
+            tags = tags == null ? List.of() : List.copyOf(tags);
+        }
     }
 
     public record StartGoalResponse(String nodeId, String runId, String status) {
@@ -461,8 +470,24 @@ public class LlmDebugUiController {
             String goal,
             String repositoryUrl,
             String baseBranch,
-            String title
+            String title,
+            List<String> tags
     ) {
+        public QuickActionRequest(
+                String actionType,
+                String nodeId,
+                String message,
+                String goal,
+                String repositoryUrl,
+                String baseBranch,
+                String title
+        ) {
+            this(actionType, nodeId, message, goal, repositoryUrl, baseBranch, title, List.of());
+        }
+
+        public QuickActionRequest {
+            tags = tags == null ? List.of() : List.copyOf(tags);
+        }
     }
 
     public record QuickActionResponse(String actionId, String status, String nodeId, String error) {

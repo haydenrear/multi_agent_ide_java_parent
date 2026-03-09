@@ -119,6 +119,7 @@ public interface Events {
             @JsonSubTypes.Type(value = NodePrunedEvent.class, name = "NODE_PRUNED"),
             @JsonSubTypes.Type(value = NodeReviewRequestedEvent.class, name = "NODE_REVIEW_REQUESTED"),
             @JsonSubTypes.Type(value = InterruptStatusEvent.class, name = "INTERRUPT_STATUS"),
+            @JsonSubTypes.Type(value = GoalStartedEvent.class, name = "GOAL_STARTED"),
             @JsonSubTypes.Type(value = GoalCompletedEvent.class, name = "GOAL_COMPLETED"),
             @JsonSubTypes.Type(value = WorktreeCreatedEvent.class, name = "WORKTREE_CREATED"),
             @JsonSubTypes.Type(value = WorktreeBranchedEvent.class, name = "WORKTREE_BRANCHED"),
@@ -293,6 +294,15 @@ public interface Events {
                         line("interruptStatus", e.interruptStatus()),
                         line("originNodeId", e.originNodeId()),
                         line("resumeNodeId", e.resumeNodeId()));
+                case GoalStartedEvent e -> formatEvent("Goal Started Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("goal", e.goal()),
+                        line("repositoryUrl", e.repositoryUrl()),
+                        line("baseBranch", e.baseBranch()),
+                        line("title", e.title()),
+                        list("tags", e.tags()));
                 case GoalCompletedEvent e -> formatEvent("Goal Completed Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
@@ -904,6 +914,29 @@ public interface Events {
         @Override
         public String eventType() {
             return "INTERRUPT_STATUS";
+        }
+    }
+
+    /**
+     * Emitted when a goal submission is accepted for orchestration.
+     */
+    record GoalStartedEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String goal,
+            String repositoryUrl,
+            String baseBranch,
+            String title,
+            List<String> tags
+    ) implements Events.GraphEvent {
+        public GoalStartedEvent {
+            tags = tags == null ? List.of() : List.copyOf(tags);
+        }
+
+        @Override
+        public String eventType() {
+            return "GOAL_STARTED";
         }
     }
 

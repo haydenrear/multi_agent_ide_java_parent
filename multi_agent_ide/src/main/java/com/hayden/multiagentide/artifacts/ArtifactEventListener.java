@@ -5,37 +5,39 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.acp.events.MessageStreamArtifact;
-import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Listens for ArtifactEvent emissions and builds/persists the artifact tree.
- * 
+ *
  * Event-driven artifact persistence:
  * - Subscribes to ARTIFACT_EMITTED events on the EventBus
- * - Delegates to ArtifactTreeBuilder for trie-based storage with hash deduplication
+ * - Captures semantic graph events as EventArtifact nodes when they can be tied to an ArtifactKey
  * - Persists on execution completion via finished()
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class ArtifactEventListener implements EventListener {
-    
+
     private final ArtifactTreeBuilder treeBuilder;
     private final EventArtifactMapper eventArtifactMapper;
 
     @Value("${artifacts.persistence.enabled:true}")
     private boolean persistenceEnabled;
-    
+
     // Track active executions
     private final Map<String, String> activeExecutions = new ConcurrentHashMap<>();
+    private final Map<String, List<Artifact>> pendingArtifactsByExecution = new ConcurrentHashMap<>();
 
     @Override
     public String listenerId() {
@@ -48,34 +50,118 @@ public class ArtifactEventListener implements EventListener {
             return;
         }
 
-        switch(event) {
+        switch (event) {
             case Events.ArtifactEvent artifactEvent -> handleArtifactEvent(artifactEvent);
-            case Events.NodeStreamDeltaEvent delta -> handleStreamEvent(delta);
-            case Events.NodeThoughtDeltaEvent delta -> handleStreamEvent(delta);
-            case Events.UserMessageChunkEvent delta -> handleStreamEvent(delta);
-            case Events.PlanUpdateEvent delta -> handlePlanUpdateEvent(delta);
-            case Events.ChatSessionCreatedEvent delta -> handleChatSessionCreatedEvent(delta);
-            default -> log.warn("Found event not subscribed to: {}", event);
-        }
-    }
+            case Events.NodeStreamDeltaEvent streamDeltaEvent -> handleStreamEvent(streamDeltaEvent);
+            case Events.NodeThoughtDeltaEvent thoughtDeltaEvent -> handleStreamEvent(thoughtDeltaEvent);
+            case Events.UserMessageChunkEvent userMessageChunkEvent -> handleStreamEvent(userMessageChunkEvent);
+            case Events.AddMessageEvent addMessageEvent -> handleStreamEvent(addMessageEvent);
 
-    private void handleChatSessionCreatedEvent(Events.ChatSessionCreatedEvent delta) {
-        var m = eventArtifactMapper.mapToEventArtifact(delta);
-        treeBuilder.addArtifact(m);
+            case Events.NodeAddedEvent nodeAddedEvent -> handleEventArtifact(nodeAddedEvent);
+            case Events.ActionStartedEvent actionStartedEvent -> handleEventArtifact(actionStartedEvent);
+            case Events.ActionCompletedEvent actionCompletedEvent -> handleEventArtifact(actionCompletedEvent);
+            case Events.StopAgentEvent stopAgentEvent -> handleEventArtifact(stopAgentEvent);
+            case Events.PauseEvent pauseEvent -> handleEventArtifact(pauseEvent);
+            case Events.ResumeEvent resumeEvent -> handleEventArtifact(resumeEvent);
+            case Events.ResolveInterruptEvent resolveInterruptEvent -> handleEventArtifact(resolveInterruptEvent);
+            case Events.InterruptRequestEvent interruptRequestEvent -> handleEventArtifact(interruptRequestEvent);
+            case Events.NodeErrorEvent nodeErrorEvent -> handleEventArtifact(nodeErrorEvent);
+            case Events.NodeBranchedEvent nodeBranchedEvent -> handleEventArtifact(nodeBranchedEvent);
+            case Events.NodePrunedEvent nodePrunedEvent -> handleEventArtifact(nodePrunedEvent);
+            case Events.NodeReviewRequestedEvent nodeReviewRequestedEvent -> handleEventArtifact(nodeReviewRequestedEvent);
+            case Events.InterruptStatusEvent interruptStatusEvent -> handleEventArtifact(interruptStatusEvent);
+            case Events.GoalStartedEvent goalStartedEvent -> handleEventArtifact(goalStartedEvent);
+            case Events.GoalCompletedEvent goalCompletedEvent -> handleEventArtifact(goalCompletedEvent);
+            case Events.WorktreeCreatedEvent worktreeCreatedEvent -> handleEventArtifact(worktreeCreatedEvent);
+            case Events.WorktreeBranchedEvent worktreeBranchedEvent -> handleEventArtifact(worktreeBranchedEvent);
+            case Events.WorktreeMergedEvent worktreeMergedEvent -> handleEventArtifact(worktreeMergedEvent);
+            case Events.WorktreeDiscardedEvent worktreeDiscardedEvent -> handleEventArtifact(worktreeDiscardedEvent);
+            case Events.NodeUpdatedEvent nodeUpdatedEvent -> handleEventArtifact(nodeUpdatedEvent);
+            case Events.NodeDeletedEvent nodeDeletedEvent -> handleEventArtifact(nodeDeletedEvent);
+            case Events.ChatSessionCreatedEvent chatSessionCreatedEvent -> handleEventArtifact(chatSessionCreatedEvent);
+            case Events.ChatSessionClosedEvent chatSessionClosedEvent -> handleEventArtifact(chatSessionClosedEvent);
+            case Events.AiFilterSessionEvent aiFilterSessionEvent -> handleEventArtifact(aiFilterSessionEvent);
+            case Events.ToolCallEvent toolCallEvent -> handleEventArtifact(toolCallEvent);
+            case Events.GuiRenderEvent guiRenderEvent -> handleEventArtifact(guiRenderEvent);
+            case Events.UiDiffAppliedEvent uiDiffAppliedEvent -> handleEventArtifact(uiDiffAppliedEvent);
+            case Events.UiDiffRejectedEvent uiDiffRejectedEvent -> handleEventArtifact(uiDiffRejectedEvent);
+            case Events.UiDiffRevertedEvent uiDiffRevertedEvent -> handleEventArtifact(uiDiffRevertedEvent);
+            case Events.UiFeedbackEvent uiFeedbackEvent -> handleEventArtifact(uiFeedbackEvent);
+            case Events.NodeBranchRequestedEvent nodeBranchRequestedEvent -> handleEventArtifact(nodeBranchRequestedEvent);
+            case Events.PlanUpdateEvent planUpdateEvent -> handleEventArtifact(planUpdateEvent);
+            case Events.PermissionRequestedEvent permissionRequestedEvent -> handleEventArtifact(permissionRequestedEvent);
+            case Events.PermissionResolvedEvent permissionResolvedEvent -> handleEventArtifact(permissionResolvedEvent);
+            case Events.MergePhaseStartedEvent mergePhaseStartedEvent -> handleEventArtifact(mergePhaseStartedEvent);
+            case Events.MergePhaseCompletedEvent mergePhaseCompletedEvent -> handleEventArtifact(mergePhaseCompletedEvent);
+
+            case Events.AddChildNodeEvent ignored -> {
+            }
+            case Events.NodeStatusChangedEvent ignored -> {
+            }
+            case Events.CurrentModeUpdateEvent ignored -> {
+            }
+            case Events.AvailableCommandsUpdateEvent ignored -> {
+            }
+            case Events.TuiInteractionGraphEvent ignored -> {
+            }
+            case Events.TuiSystemGraphEvent ignored -> {
+            }
+        }
     }
 
     @Override
     public boolean isInterestedIn(Events.GraphEvent event) {
-        log.info("Found event {}.", event.getClass().getSimpleName());
-        return event instanceof Events.ArtifactEvent 
-                || event instanceof Events.GoalCompletedEvent
-                || event instanceof Events.NodeStreamDeltaEvent
-                || event instanceof Events.NodeThoughtDeltaEvent
-                || event instanceof Events.UserMessageChunkEvent
-                || event instanceof Events.PlanUpdateEvent
-                || event instanceof Events.ChatSessionCreatedEvent;
+        return switch (event) {
+            case Events.ArtifactEvent ignored -> true;
+            case Events.NodeStreamDeltaEvent ignored -> true;
+            case Events.NodeThoughtDeltaEvent ignored -> true;
+            case Events.UserMessageChunkEvent ignored -> true;
+            case Events.AddMessageEvent ignored -> true;
+            case Events.NodeAddedEvent ignored -> true;
+            case Events.ActionStartedEvent ignored -> true;
+            case Events.ActionCompletedEvent ignored -> true;
+            case Events.StopAgentEvent ignored -> true;
+            case Events.PauseEvent ignored -> true;
+            case Events.ResumeEvent ignored -> true;
+            case Events.ResolveInterruptEvent ignored -> true;
+            case Events.InterruptRequestEvent ignored -> true;
+            case Events.NodeErrorEvent ignored -> true;
+            case Events.NodeBranchedEvent ignored -> true;
+            case Events.NodePrunedEvent ignored -> true;
+            case Events.NodeReviewRequestedEvent ignored -> true;
+            case Events.InterruptStatusEvent ignored -> true;
+            case Events.GoalStartedEvent ignored -> true;
+            case Events.GoalCompletedEvent ignored -> true;
+            case Events.WorktreeCreatedEvent ignored -> true;
+            case Events.WorktreeBranchedEvent ignored -> true;
+            case Events.WorktreeMergedEvent ignored -> true;
+            case Events.WorktreeDiscardedEvent ignored -> true;
+            case Events.NodeUpdatedEvent ignored -> true;
+            case Events.NodeDeletedEvent ignored -> true;
+            case Events.ChatSessionCreatedEvent ignored -> true;
+            case Events.ChatSessionClosedEvent ignored -> true;
+            case Events.AiFilterSessionEvent ignored -> true;
+            case Events.ToolCallEvent ignored -> true;
+            case Events.GuiRenderEvent ignored -> true;
+            case Events.UiDiffAppliedEvent ignored -> true;
+            case Events.UiDiffRejectedEvent ignored -> true;
+            case Events.UiDiffRevertedEvent ignored -> true;
+            case Events.UiFeedbackEvent ignored -> true;
+            case Events.NodeBranchRequestedEvent ignored -> true;
+            case Events.PlanUpdateEvent ignored -> true;
+            case Events.PermissionRequestedEvent ignored -> true;
+            case Events.PermissionResolvedEvent ignored -> true;
+            case Events.MergePhaseStartedEvent ignored -> true;
+            case Events.MergePhaseCompletedEvent ignored -> true;
+            case Events.AddChildNodeEvent ignored -> false;
+            case Events.NodeStatusChangedEvent ignored -> false;
+            case Events.CurrentModeUpdateEvent ignored -> false;
+            case Events.AvailableCommandsUpdateEvent ignored -> false;
+            case Events.TuiInteractionGraphEvent ignored -> false;
+            case Events.TuiSystemGraphEvent ignored -> false;
+        };
     }
-    
+
     /**
      * Registers an active execution for artifact tracking.
      */
@@ -84,9 +170,10 @@ public class ArtifactEventListener implements EventListener {
         log.debug("Registered execution: {} -> {}", workflowRunId, executionKey);
     }
 
-    public void registerExecutionArtifact(String executionKey, Artifact workflowRunId) {
-        this.treeBuilder.addArtifact(executionKey, workflowRunId);
-        log.debug("Registered execution: {} -> {}", workflowRunId, executionKey);
+    public void registerExecutionArtifact(String executionKey, Artifact workflowArtifact) {
+        treeBuilder.addArtifact(executionKey, workflowArtifact);
+        flushPendingArtifacts(executionKey);
+        log.debug("Registered execution artifact for {}", executionKey);
     }
 
     /**
@@ -101,10 +188,11 @@ public class ArtifactEventListener implements EventListener {
             finished = treeBuilder.buildRemoveArtifactTree(executionKey);
         }
 
-        this.activeExecutions.remove(executionKey);
+        pendingArtifactsByExecution.remove(executionKey);
+        activeExecutions.entrySet().removeIf(entry -> executionKey.equals(entry.getKey()) || executionKey.equals(entry.getValue()));
         return finished;
     }
-    
+
     /**
      * Manually triggers persistence for an execution without finishing it.
      */
@@ -113,99 +201,93 @@ public class ArtifactEventListener implements EventListener {
             treeBuilder.persistExecutionTree(executionKey);
         }
     }
-    
-    // ========== Private Handlers ==========
-    
+
     private void handleArtifactEvent(Events.ArtifactEvent event) {
         try {
-            // Determine execution key from artifact key (root segment)
-            ArtifactKey artifactKey = event.artifactKey();
-            String executionKey = extractExecutionKey(artifactKey);
-
-            // Get the artifact from the event
             Artifact artifact = event.artifact();
             if (artifact == null) {
                 log.warn("Could not convert artifact event to Artifact: {}", event);
                 return;
             }
-            
-            // Add to tree builder - deduplication is handled internally via trie structure
-            // The tree builder will:
-            // 1. Navigate to the correct position using hierarchical key
-            // 2. Check siblings for matching content hash
-            // 3. Add only if no duplicate key or hash exists
-            // 4. Add the child to the parent artifact's children list
+
+            ArtifactKey artifactKey = event.artifactKey();
+            String executionKey = extractExecutionKey(artifactKey);
             boolean added = treeBuilder.addArtifact(executionKey, artifact);
             if (added) {
-                log.debug("Added artifact: {}:\n{}", artifactKey.value(), event.artifact());
+                flushPendingArtifacts(executionKey);
+                log.debug("Added artifact: {}", artifactKey.value());
             }
-            
         } catch (Exception e) {
             log.error("Failed to handle artifact event: {}", event, e);
         }
     }
-    
+
     /**
-     * Handles stream delta events (NodeStreamDelta, NodeThoughtDelta, UserMessageChunk).
-     * Converts them to MessageStreamArtifact and adds to the tree.
+     * Handles stream-related events by converting them to MessageStreamArtifact nodes.
      */
     private void handleStreamEvent(Events.GraphEvent event) {
         try {
-            String nodeId = event.nodeId();
-
-            // Map to MessageStreamArtifact
             MessageStreamArtifact streamArtifact = eventArtifactMapper.mapToStreamArtifact(event);
-            
-            boolean added = treeBuilder.addArtifact(streamArtifact);
-            if (added) {
-                log.debug("Added stream artifact: {}:\n{}",
-                        streamArtifact.artifactKey().value(), streamArtifact);
-            }
-            
+            String executionKey = extractExecutionKey(streamArtifact.artifactKey());
+            addOrQueueArtifact(executionKey, streamArtifact);
         } catch (Exception e) {
             log.error("Failed to handle stream event: {}", event, e);
         }
     }
-    
+
     /**
-     * Handles plan update events.
-     * Converts them to EventArtifact and adds to the tree.
+     * Handles semantic graph events by capturing them as EventArtifact nodes.
      */
-    private void handlePlanUpdateEvent(Events.PlanUpdateEvent event) {
+    private void handleEventArtifact(Events.GraphEvent event) {
         try {
-            // Map to EventArtifact (generic event capture)
-            Artifact.EventArtifact eventArtifact = eventArtifactMapper.mapToEventArtifact(event);
-            
-            boolean added = treeBuilder.addArtifact(eventArtifact);
-            if (added) {
-                log.debug("Added plan update artifact: {} (type: {})", 
-                        eventArtifact.artifactKey().value(), eventArtifact.eventType());
+            Optional<Artifact.EventArtifact> maybeArtifact = eventArtifactMapper.mapToEventArtifactIfPossible(event);
+            if (maybeArtifact.isEmpty()) {
+                return;
             }
-            
+
+            Artifact.EventArtifact eventArtifact = maybeArtifact.get();
+            String executionKey = extractExecutionKey(eventArtifact.artifactKey());
+            addOrQueueArtifact(executionKey, eventArtifact);
         } catch (Exception e) {
-            log.error("Failed to handle plan update event: {}", event, e);
+            log.error("Failed to handle event artifact for {}", event, e);
         }
     }
-    
-    private String findExecutionKey(String workflowRunIdOrExecutionKey) {
-        if (workflowRunIdOrExecutionKey == null || workflowRunIdOrExecutionKey.isBlank()) {
-            return null;
+
+    private void addOrQueueArtifact(String executionKey, Artifact artifact) {
+        if (executionKey == null || executionKey.isBlank()) {
+            log.debug("Skipping artifact with no execution key: {}", artifact.artifactKey());
+            return;
         }
-        String executionKey = activeExecutions.get(workflowRunIdOrExecutionKey);
-        if (executionKey != null) {
-            return executionKey;
+
+        if (treeBuilder.getExecutionTree(executionKey).isPresent()) {
+            boolean added = treeBuilder.addArtifact(executionKey, artifact);
+            if (added) {
+                log.debug("Added derived artifact: {} ({})", artifact.artifactKey().value(), artifact.artifactType());
+            }
+            return;
         }
-        // Check if it's the execution key itself
-        for (Map.Entry<String, String> entry : activeExecutions.entrySet()) {
-            if (workflowRunIdOrExecutionKey.equals(entry.getValue())) {
-                return entry.getValue();
+
+        pendingArtifactsByExecution
+                .computeIfAbsent(executionKey, ignored -> java.util.Collections.synchronizedList(new ArrayList<>()))
+                .add(artifact);
+        log.debug("Queued artifact {} until execution root {} is available", artifact.artifactKey().value(), executionKey);
+    }
+
+    private void flushPendingArtifacts(String executionKey) {
+        List<Artifact> pending = pendingArtifactsByExecution.remove(executionKey);
+        if (pending == null || pending.isEmpty()) {
+            return;
+        }
+
+        for (Artifact artifact : pending) {
+            boolean added = treeBuilder.addArtifact(executionKey, artifact);
+            if (!added) {
+                log.debug("Skipped queued artifact {} for execution {}", artifact.artifactKey().value(), executionKey);
             }
         }
-        return null;
     }
-    
+
     private String extractExecutionKey(ArtifactKey artifactKey) {
-        // The execution key is the root segment
         return artifactKey.isRoot() ? artifactKey.value() : artifactKey.root().value();
     }
 }

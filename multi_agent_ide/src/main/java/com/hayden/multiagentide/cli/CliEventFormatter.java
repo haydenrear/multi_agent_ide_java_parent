@@ -106,6 +106,9 @@ public class CliEventFormatter {
                 case Events.AvailableCommandsUpdateEvent e -> format(normalizedArgs, "MODE", e, "commands=" + countOf(e.commands()));
                 case Events.PermissionRequestedEvent e -> format(normalizedArgs, "PERMISSION", e, "requestId=" + e.requestId() + " toolCallId=" + e.toolCallId());
                 case Events.PermissionResolvedEvent e -> format(normalizedArgs, "PERMISSION", e, "requestId=" + e.requestId() + " outcome=" + summarize(normalizedArgs, e.outcome()));
+                case Events.GoalStartedEvent e -> format(normalizedArgs, "GOAL", e,
+                        "title=" + summarize(normalizedArgs, e.title())
+                                + " tags=" + countOf(e.tags()));
                 case Events.GoalCompletedEvent e -> format(normalizedArgs, "GOAL", e, "workflowId=" + summarize(normalizedArgs, e.workflowId()));
                 case Events.ArtifactEvent e -> formatArtifactEvent(normalizedArgs, e);
                 case Events.TuiInteractionGraphEvent e -> format(normalizedArgs, "TUI", e, "sessionId=" + summarize(normalizedArgs, e.sessionId())

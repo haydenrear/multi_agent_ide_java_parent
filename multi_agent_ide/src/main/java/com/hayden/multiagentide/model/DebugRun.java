@@ -3,6 +3,7 @@ package com.hayden.multiagentide.model;
 import lombok.Builder;
 
 import java.time.Instant;
+import java.util.List;
 
 @Builder(toBuilder = true)
 public record DebugRun(
@@ -11,6 +12,7 @@ public record DebugRun(
         String repositoryUrl,
         String baseBranch,
         String title,
+        List<String> tags,
         RunStatus status,
         OutcomeClass outcomeClass,
         boolean loopRisk,
@@ -27,6 +29,11 @@ public record DebugRun(
         }
         if (repositoryUrl == null || repositoryUrl.isBlank()) {
             throw new IllegalArgumentException("repositoryUrl is required");
+        }
+        if (tags == null) {
+            tags = List.of();
+        } else {
+            tags = List.copyOf(tags);
         }
         if (status == null) {
             status = RunStatus.QUEUED;

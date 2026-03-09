@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * REST controller for orchestration operations.
  * Provides endpoints for initializing goals, executing nodes, and checking status.
@@ -67,8 +69,17 @@ public class OrchestrationController {
             String goal,
             String repositoryUrl,
             String baseBranch,
-            String title
-    ) {}
+            String title,
+            List<String> tags
+    ) {
+        public StartGoalRequest(String goal, String repositoryUrl, String baseBranch, String title) {
+            this(goal, repositoryUrl, baseBranch, title, List.of());
+        }
+
+        public StartGoalRequest {
+            tags = tags == null ? List.of() : List.copyOf(tags);
+        }
+    }
 
     public record StartGoalResponse(String nodeId) {}
 

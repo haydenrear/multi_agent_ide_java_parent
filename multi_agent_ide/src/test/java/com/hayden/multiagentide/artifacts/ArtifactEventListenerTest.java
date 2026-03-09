@@ -111,17 +111,32 @@ class ArtifactEventListenerTest {
         }
         
         @Test
-        @DisplayName("isInterestedIn returns false for other events")
-        void isInterestedInReturnsFalseForOtherEvents() {
+        @DisplayName("isInterestedIn returns true for captured semantic events")
+        void isInterestedInReturnsTrueForCapturedSemanticEvents() {
             Events.NodeAddedEvent event = new Events.NodeAddedEvent(
                     UUID.randomUUID().toString(),
                     Instant.now(),
-                    "node-1",
-                    null,
+                    rootKey.value(),
+                    "Test Node",
                     Events.NodeType.WORK,
-                    "TestAgent"
+                    null
             );
             
+            assertThat(listener.isInterestedIn(event)).isTrue();
+        }
+
+        @Test
+        @DisplayName("isInterestedIn returns false for infrastructural events")
+        void isInterestedInReturnsFalseForInfrastructuralEvents() {
+            Events.AddChildNodeEvent event = new Events.AddChildNodeEvent(
+                    UUID.randomUUID().toString(),
+                    Instant.now(),
+                    rootKey.value(),
+                    rootKey.value(),
+                    null,
+                    null
+            );
+
             assertThat(listener.isInterestedIn(event)).isFalse();
         }
     }
@@ -198,6 +213,40 @@ class ArtifactEventListenerTest {
             listener.onEvent(event);
             
             verify(treeBuilder, never()).addArtifact(anyString(), any());
+        }
+
+        @Test
+        @DisplayName("onEvent captures semantic events as event artifacts when execution exists")
+        void onEventCapturesSemanticEventsAsEventArtifactsWhenExecutionExists() {
+            Artifact.EventArtifact eventArtifact = Artifact.EventArtifact.builder()
+                    .artifactKey(rootKey.createChild())
+                    .eventId(UUID.randomUUID().toString())
+                    .eventTimestamp(Instant.now())
+                    .eventType("GOAL_STARTED")
+                    .payloadJson(Map.of("tags", List.of("backend")))
+                    .hash("hash")
+                    .metadata(Map.of())
+                    .children(List.of())
+                    .build();
+
+            Events.GoalStartedEvent event = new Events.GoalStartedEvent(
+                    UUID.randomUUID().toString(),
+                    Instant.now(),
+                    rootKey.value(),
+                    "Add tags",
+                    "/tmp/repo",
+                    "main",
+                    "Tag workflow",
+                    List.of("backend")
+            );
+
+            when(eventArtifactMapper.mapToEventArtifactIfPossible(event)).thenReturn(java.util.Optional.of(eventArtifact));
+            when(treeBuilder.getExecutionTree(executionKey)).thenReturn(java.util.Optional.of(mock(ArtifactNode.class)));
+            when(treeBuilder.addArtifact(executionKey, eventArtifact)).thenReturn(true);
+
+            listener.onEvent(event);
+
+            verify(treeBuilder).addArtifact(executionKey, eventArtifact);
         }
     }
     

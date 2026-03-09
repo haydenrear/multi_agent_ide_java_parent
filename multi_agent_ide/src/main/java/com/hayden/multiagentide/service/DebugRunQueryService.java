@@ -38,6 +38,7 @@ public class DebugRunQueryService {
                 .repositoryUrl(request.repositoryUrl())
                 .baseBranch(request.baseBranch())
                 .title(request.title())
+                .tags(request.tags())
                 .status(DebugRun.RunStatus.RUNNING)
                 .loopRisk(false)
                 .degraded(false)

@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.artifacts;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactHashing;
@@ -32,7 +33,12 @@ public class EventArtifactMapper {
      * @return The mapped EventArtifact
      */
     public Artifact.EventArtifact mapToEventArtifact(Events.GraphEvent event) {
-        ArtifactKey artifactKey = new ArtifactKey(event.nodeId());
+        ArtifactKey artifactKey = eventArtifactKey(event)
+                .orElseThrow(() -> new IllegalArgumentException("Event nodeId is not a valid ArtifactKey: " + event.nodeId()));
+        return mapToEventArtifact(event, artifactKey);
+    }
+
+    private Artifact.EventArtifact mapToEventArtifact(Events.GraphEvent event, ArtifactKey artifactKey) {
         
         Map<String, Object> payload = eventToPayload(event);
         String contentHash = ArtifactHashing.hashJson(payload);
@@ -47,6 +53,10 @@ public class EventArtifactMapper {
                 .metadata(Collections.synchronizedMap(new HashMap<>()))
                 .children(Collections.synchronizedList(new ArrayList<>()))
                 .build();
+    }
+
+    public Optional<Artifact.EventArtifact> mapToEventArtifactIfPossible(Events.GraphEvent event) {
+        return eventArtifactKey(event).map(artifactKey -> mapToEventArtifact(event, artifactKey));
     }
     
     /**
@@ -84,22 +94,11 @@ public class EventArtifactMapper {
                 || event instanceof Events.UserMessageChunkEvent
                 || event instanceof Events.AddMessageEvent;
     }
-    
-    /**
-     * Checks if the event should be captured as an artifact.
-     */
-    public boolean shouldCapture(Events.GraphEvent event) {
-        // Capture all non-artifact events (ArtifactEvent is handled separately)
-        return !(event instanceof Events.ArtifactEvent);
-    }
-    
-    // ========== Event Type Mapping ==========
-    
-    @SuppressWarnings("unchecked")
+
     private Map<String, Object> eventToPayload(Events.GraphEvent event) {
         try {
             String json = objectMapper.writeValueAsString(event);
-            return objectMapper.readValue(json, Map.class);
+            return objectMapper.readValue(json, new TypeReference<>() {});
         } catch (Exception e) {
             log.error("Failed to convert event to payload: {}", event, e);
             return Map.of(
@@ -118,6 +117,17 @@ public class EventArtifactMapper {
             case Events.AddMessageEvent ignored -> MessageStreamArtifact.StreamType.ADD_MESSAGE;
             default -> throw new IllegalArgumentException("Unknown stream event type: " + event.getClass());
         };
+    }
+
+    private Optional<ArtifactKey> eventArtifactKey(Events.GraphEvent event) {
+        try {
+            ArtifactKey nodeKey = new ArtifactKey(event.nodeId());
+            ArtifactKey executionKey = nodeKey.isRoot() ? nodeKey : nodeKey.root();
+            return Optional.of(executionKey.createChild(event.timestamp()));
+        } catch (Exception e) {
+            log.debug("Skipping event artifact mapping for invalid nodeId {} ({})", event.nodeId(), event.eventType());
+            return Optional.empty();
+        }
     }
     
     // ========== Specific Event Mappers ==========

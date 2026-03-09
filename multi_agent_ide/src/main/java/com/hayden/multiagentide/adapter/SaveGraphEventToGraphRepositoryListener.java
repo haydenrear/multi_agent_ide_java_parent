@@ -71,6 +71,8 @@ public class SaveGraphEventToGraphRepositoryListener implements EventListener {
             }
             case Events.CurrentModeUpdateEvent currentModeUpdateEvent -> {
             }
+            case Events.GoalStartedEvent goalStartedEvent -> {
+            }
             case Events.GoalCompletedEvent goalCompletedEvent -> {
             }
             case Events.GuiRenderEvent guiRenderEvent -> {

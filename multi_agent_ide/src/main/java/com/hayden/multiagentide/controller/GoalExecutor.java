@@ -43,6 +43,17 @@ public class GoalExecutor {
                 throw new IllegalArgumentException("Repository did not exist!") ;
             }
 
+            eventBus.publish(new Events.GoalStartedEvent(
+                    java.util.UUID.randomUUID().toString(),
+                    java.time.Instant.now(),
+                    nodeId,
+                    request.goal(),
+                    request.repositoryUrl(),
+                    baseBranch,
+                    request.title(),
+                    request.tags()
+            ));
+
             agentLifecycleHandler.initializeOrchestrator(
                     request.repositoryUrl(),
                     baseBranch,
