@@ -4,6 +4,7 @@ import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
 import com.hayden.multiagentide.embabel.EmbabelUtil;
+import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
@@ -49,7 +50,11 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
 
         OperationContext operationContext = context.operationContext();
         String agentName = context.agentName();
-        String actionName = context.actionName();
+        String actionName = FilterLayerCatalog.canonicalActionName(
+                agentName,
+                context.actionName(),
+                context.methodName()
+        );
 
         // Handle unsubscription based on result type
         if (t instanceof AgentModels.OrchestratorCollectorRouting routing
@@ -80,7 +85,11 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
 
         OperationContext operationContext = context.operationContext();
         String agentName = context.agentName();
-        String actionName = context.actionName();
+        String actionName = FilterLayerCatalog.canonicalActionName(
+                agentName,
+                context.actionName(),
+                context.methodName()
+        );
 
         if (t instanceof AgentModels.OrchestratorCollectorResult) {
             BlackboardHistory.unsubscribe(eventBus, operationContext);
@@ -122,7 +131,11 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
 
         OperationContext operationContext = context.operationContext();
         String agentName = context.agentName();
-        String actionName = context.actionName();
+        String actionName = FilterLayerCatalog.canonicalActionName(
+                agentName,
+                context.actionName(),
+                context.methodName()
+        );
 
         String nodeId = resolveNodeId(operationContext);
         String outcomeType = t.getClass().getSimpleName();

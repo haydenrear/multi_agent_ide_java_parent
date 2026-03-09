@@ -414,6 +414,21 @@ public final class FilterLayerCatalog {
         return Optional.empty();
     }
 
+    public static String canonicalActionName(String agentName, String actionName, String methodName) {
+        ActionDefinition byMethod = ACTION_BY_AGENT_AND_METHOD.get(key(agentName, methodName));
+        if (byMethod != null) {
+            return byMethod.methodName();
+        }
+        ActionDefinition byAction = ACTION_BY_AGENT_AND_ACTION.get(key(agentName, actionName));
+        if (byAction != null) {
+            return byAction.methodName();
+        }
+        if (methodName != null && !methodName.isBlank()) {
+            return methodName.trim();
+        }
+        return actionName == null ? "" : actionName.trim();
+    }
+
     public static Optional<String> resolveActionLayer(AgentModels.AgentRequest request, AgentType agentType) {
         if (request != null) {
             ActionDefinition action = ACTION_BY_REQUEST_TYPE.get(request.getClass());
