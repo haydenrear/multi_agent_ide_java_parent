@@ -12,6 +12,7 @@ import com.agentclientprotocol.transport.Transport
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
+import com.hayden.acp_cdc_ai.acp.config.AcpProvider
 import com.hayden.acp_cdc_ai.acp.config.AcpProviderDefinition
 import com.hayden.acp_cdc_ai.acp.config.AcpResolvedCall
 import com.hayden.acp_cdc_ai.acp.config.AcpSessionRoutingKey
@@ -177,7 +178,7 @@ class AcpChatModel(
 
         try {
             doPerformPrompt(session, content, sessionContext, memoryId, generations)
-        } catch(e: JsonRpcException) {
+        } catch (e: JsonRpcException) {
             if (e.message.contains("Prompt is too long")) {
                 session.resetSession()
                 doPerformPrompt(session, content, sessionContext, memoryId, generations)
@@ -310,7 +311,7 @@ class AcpChatModel(
         }
 
         val sandboxTranslation =
-            resolveSandboxTranslation(resolvedCall.sessionArtifactKey(), resolvedCall.providerName(), provider.args)
+            resolveSandboxTranslation(resolvedCall.sessionArtifactKey(), resolvedCall.providerName() ?: AcpProvider.CLAUDE_LLAMA, provider.args)
         val process = command + sandboxTranslation.args.toTypedArray()
         val workingDirectory = provider.workingDirectory
 
@@ -473,22 +474,17 @@ class AcpChatModel(
         return tokens.filter { it.isNotEmpty() }
     }
 
-    fun resolveSandboxTranslation(sessionId: String?, providerName: String?, args: String?): SandboxTranslation {
+    fun resolveSandboxTranslation(sessionId: String?, providerName: AcpProvider, args: String?): SandboxTranslation {
         sessionId ?: return SandboxTranslation.empty()
         val context =
             requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
-        val providerKey = resolveProviderKey(providerName)
-        val direct = sandboxTranslationRegistry.find(providerKey).orElse(null)
+        val direct = sandboxTranslationRegistry.find(providerName.wireValue()).orElse(null)
         if (direct != null) {
             return direct.translate(context, parseArgs(args))
         }
-        val fallbackKey = providerKey.substringBefore("-")
-        val fallback = sandboxTranslationRegistry.find(fallbackKey).orElse(null)
+        val fallback = sandboxTranslationRegistry.find(AcpProvider.CLAUDE_OPENROUTER.wireValue())
+            .orElse(null)
         return fallback?.translate(context, parseArgs(args)) ?: SandboxTranslation.empty()
-    }
-
-    fun resolveProviderKey(providerName: String?): String {
-        return providerName?.trim().orEmpty()
     }
 
     private fun resolveChatOptions(chatRequest: Prompt): AcpChatOptionsString {

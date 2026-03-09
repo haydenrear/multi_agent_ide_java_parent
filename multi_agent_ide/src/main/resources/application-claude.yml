@@ -1,23 +1,24 @@
 logging.config: classpath:logback-multi-agent-ide.xml
 
 multi-agent-embabel:
-  chat-model:
-    provider: acp
   acp:
     default-provider: claude
-    providers:
-      claude:
-        transport: stdio
-        command: ${ACP_COMMAND:claude-agent-acp}
-        args: ${ACP_ARGS:}
-        working-directory: ${ACP_WORKING_DIR:}
+
 llm:
   model-selection:
-    default-model: sonnet
+    default-model:
+      model: sonnet
+      provider: claude
     by-agent-type:
-      commit-agent: haiku
-      merge-conflict-agent: haiku
-      ai-filter: haiku
+      commit-agent:
+        model: haiku
+        provider: claude
+      merge-conflict-agent:
+        model: haiku
+        provider: claude
+      ai-filter:
+        model: haiku
+        provider: claude
     by-template: {}
 
 acp.mcp:

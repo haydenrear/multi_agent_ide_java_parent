@@ -2,7 +2,9 @@ package com.hayden.multiagentide.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
+import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.multiagentide.config.LlmModelSelectionProperties;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.prompt.PromptContext;
@@ -25,6 +27,20 @@ class DefaultLlmRunnerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private LlmModelSelectionProperties modelSelectionProperties;
+
+    @Autowired
+    private AcpModelProperties acpModelProperties;
+
+    @Test
+    public void testPropertyInjection() {
+        assertThat(modelSelectionProperties.getDefaultModel().getProvider())
+                .isNotNull();
+        assertThat(acpModelProperties.providers())
+                .isNotEmpty();
+    }
 
     @Test
     @DisplayName("encodes session and requested model into ACP chat options")

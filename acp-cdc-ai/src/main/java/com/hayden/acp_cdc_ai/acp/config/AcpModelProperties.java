@@ -8,60 +8,67 @@ import java.util.Optional;
 
 @ConfigurationProperties(prefix = "multi-agent-embabel.acp")
 public record AcpModelProperties(
-        String defaultProvider,
-        Map<String, AcpProviderDefinition> providers
+        AcpProvider defaultProvider,
+        Map<AcpProvider, AcpProviderDefinition> providers
 ) {
 
     public AcpModelProperties {
-        defaultProvider = blankToNull(defaultProvider);
         providers = providers == null ? Map.of() : copyProviders(providers);
     }
 
-    public Optional<AcpProviderDefinition> findProvider(String providerName) {
-        if (providerName == null || providerName.isBlank()) {
+    public Optional<AcpProviderDefinition> findProvider(AcpProvider provider) {
+        if (provider == null) {
             return Optional.empty();
         }
-        return Optional.ofNullable(providers.get(providerName));
+        return Optional.ofNullable(providers.get(provider));
     }
 
-    public String resolveProviderName(String requestedProvider) {
-        String providerName = blankToNull(requestedProvider);
-        if (providerName != null) {
-            if (!providers.containsKey(providerName)) {
-                throw new IllegalStateException("Unknown ACP provider: " + providerName);
+    public Optional<AcpProviderDefinition> findProvider(String providerName) {
+        return findProvider(parseProvider(providerName));
+    }
+
+    public AcpProvider resolveProviderEnum(String requestedProvider) {
+        AcpProvider provider = parseProvider(requestedProvider);
+        if (provider != null) {
+            if (!providers.containsKey(provider)) {
+                throw new IllegalStateException("Unknown ACP provider: " + requestedProvider);
             }
-            return providerName;
+            return provider;
         }
         if (defaultProvider == null) {
             throw new IllegalStateException("No ACP provider requested and no default ACP provider configured");
         }
         if (!providers.containsKey(defaultProvider)) {
-            throw new IllegalStateException("Configured default ACP provider does not exist: " + defaultProvider);
+            throw new IllegalStateException("Configured default ACP provider does not exist: " + defaultProvider.wireValue());
         }
         return defaultProvider;
     }
 
+    public AcpProvider resolveProviderName(String requestedProvider) {
+        return resolveProviderEnum(requestedProvider);
+    }
+
     public AcpProviderDefinition resolveProvider(String requestedProvider) {
-        return providers.get(resolveProviderName(requestedProvider));
+        return providers.get(resolveProviderEnum(requestedProvider));
     }
 
-    public String getDefaultProvider() {
-        return defaultProvider;
-    }
-
-    public Map<String, AcpProviderDefinition> getProviders() {
+    public Map<AcpProvider, AcpProviderDefinition> getProviders() {
         return providers;
     }
 
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
+    private static AcpProvider parseProvider(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return AcpProvider.fromWireValue(value);
     }
 
-    private static Map<String, AcpProviderDefinition> copyProviders(Map<String, AcpProviderDefinition> providers) {
-        Map<String, AcpProviderDefinition> copied = new LinkedHashMap<>();
-        providers.forEach((name, provider) -> {
+    private static Map<AcpProvider, AcpProviderDefinition> copyProviders(Map<AcpProvider, AcpProviderDefinition> providers) {
+        Map<AcpProvider, AcpProviderDefinition> copied = new LinkedHashMap<>();
+        providers.forEach((key, provider) -> {
             if (provider != null) {
-                copied.put(name, provider.name() == null || provider.name().isBlank()
+                String name = key.wireValue();
+                copied.put(key, provider.name() == null || provider.name().isBlank()
                         ? new AcpProviderDefinition(
                         name,
                         provider.transport(),

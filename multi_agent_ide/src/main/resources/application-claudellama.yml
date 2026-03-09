@@ -1,28 +1,24 @@
 logging.config: classpath:logback-multi-agent-ide.xml
 
 multi-agent-embabel:
-  chat-model:
-    provider: acp
   acp:
     default-provider: claudellama
-    providers:
-      claudellama:
-        transport: stdio
-        command: ${ACP_COMMAND:claude-agent-acp}
-        args: ${ACP_ARGS:--model gpt-oss:120b-cloud}
-        working-directory: ${ACP_WORKING_DIR:}
-        default-model: gpt-oss:120b-cloud
-        env:
-          ANTHROPIC_AUTH_TOKEN: ollama
-          ANTHROPIC_BASE_URL: http://localhost:11434
-          ANTHROPIC_API_KEY: ""
+
 llm:
   model-selection:
-    default-model: gpt-oss:120b-cloud
+    default-model:
+      model: qwen3.5:9b
+      provider: claude_llama
     by-agent-type:
-      commit-agent: qwen2.5-coder:7b
-      merge-conflict-agent: qwen2.5-coder:7b
-      ai-filter: qwen2.5-coder:7b
+      commit-agent:
+        model: qwen2.5-coder:7b
+        provider: claude_llama
+      merge-conflict-agent:
+        model: qwen2.5-coder:7b
+        provider: claude_llama
+      ai-filter:
+        model: qwen2.5-coder:7b
+        provider: claude_llama
     by-template: {}
 
 acp.mcp:

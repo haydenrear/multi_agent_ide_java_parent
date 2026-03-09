@@ -5,7 +5,7 @@ import java.util.Map;
 
 public record AcpResolvedCall(
         String sessionArtifactKey,
-        String providerName,
+        AcpProvider providerName,
         String effectiveModel,
         AcpProviderDefinition providerDefinition,
         Map<String, Object> options
@@ -17,10 +17,6 @@ public record AcpResolvedCall(
 
     public String getSessionArtifactKey() {
         return sessionArtifactKey;
-    }
-
-    public String getProviderName() {
-        return providerName;
     }
 
     public String getEffectiveModel() {

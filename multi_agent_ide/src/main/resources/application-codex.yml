@@ -1,27 +1,24 @@
 logging.config: classpath:logback-multi-agent-ide.xml
 
 multi-agent-embabel:
-  chat-model:
-    provider: acp
   acp:
     default-provider: codex
-    providers:
-      codex:
-        transport: stdio
-        command: ${ACP_COMMAND:codex-acp}
-        args: ${ACP_ARGS:--sandbox danger-full-access --ask-for-approval never --yolo true}
-        working-directory: ${ACP_WORKING_DIR:}
-        auth-method: chatgpt
-#        env:
-#          PATH:
 
 llm:
   model-selection:
-    default-model: gpt-5.2-codex
+    default-model:
+      model: gpt-5.2-codex
+      provider: codex
     by-agent-type:
-      commit-agent: gpt-5.1-codex-mini
-      merge-conflict-agent: gpt-5.1-codex-mini
-      ai-filter: gpt-5.1-codex-mini
+      commit-agent:
+        model: gpt-5.1-codex-mini
+        provider: codex
+      merge-conflict-agent:
+        model: gpt-5.1-codex-mini
+        provider: codex
+      ai-filter:
+        model: gpt-5.1-codex-mini
+        provider: codex
     by-template: {}
 
 acp.mcp:

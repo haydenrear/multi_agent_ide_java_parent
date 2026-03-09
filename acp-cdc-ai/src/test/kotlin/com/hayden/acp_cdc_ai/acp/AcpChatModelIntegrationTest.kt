@@ -7,6 +7,7 @@ import com.agentclientprotocol.model.SessionUpdate
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
+import com.hayden.acp_cdc_ai.acp.config.AcpProvider
 import com.hayden.acp_cdc_ai.acp.config.AcpProviderDefinition
 import com.hayden.acp_cdc_ai.acp.config.McpProperties
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
@@ -124,10 +125,10 @@ class AcpChatModelIntegrationTest {
     private fun createAcpChatModel(command: String, sessionId: String): AcpChatModel {
 
         val properties = AcpModelProperties(
-            "integration",
+            AcpProvider.CLAUDE,
             mapOf(
-                "integration" to AcpProviderDefinition(
-                    "integration",
+                AcpProvider.CLAUDE to AcpProviderDefinition(
+                    "claude",
                     "stdio",
                     command,
                     null,
@@ -199,9 +200,9 @@ class AcpChatModelIntegrationTest {
     @DisplayName("should isolate ACP session routing keys by provider and model")
     fun shouldIsolateAcpSessionRoutingKeys() {
         val properties = AcpModelProperties(
-            "codex",
+            AcpProvider.CODEX,
             mapOf(
-                "codex" to AcpProviderDefinition(
+                AcpProvider.CODEX to AcpProviderDefinition(
                     "codex",
                     "stdio",
                     "codex-acp",
@@ -213,7 +214,7 @@ class AcpChatModelIntegrationTest {
                     emptyMap(),
                     null
                 ),
-                "claude" to AcpProviderDefinition(
+                AcpProvider.CLAUDE to AcpProviderDefinition(
                     "claude",
                     "stdio",
                     "claude-agent-acp",

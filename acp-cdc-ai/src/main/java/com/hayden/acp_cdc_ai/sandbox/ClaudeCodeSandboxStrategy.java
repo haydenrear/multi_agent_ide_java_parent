@@ -1,5 +1,6 @@
 package com.hayden.acp_cdc_ai.sandbox;
 
+import com.hayden.acp_cdc_ai.acp.config.AcpProvider;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import org.springframework.stereotype.Component;
 
@@ -33,7 +34,7 @@ public class ClaudeCodeSandboxStrategy implements SandboxTranslationStrategy {
 
     @Override
     public String providerKey() {
-        return "claude-agent-acp";
+        return AcpProvider.CLAUDE.providerKey();
     }
 
     @Override

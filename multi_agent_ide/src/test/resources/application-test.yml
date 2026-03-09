@@ -13,11 +13,19 @@ artifacts:
       - classpath:prompts/workflow/
 llm:
   model-selection:
-    default-model: sonnet
+    default-model:
+      model: sonnet
+      provider: claude
     by-agent-type:
-      commit-agent: haiku
-      merge-conflict-agent: haiku
-      ai-filter: haiku
+      commit-agent:
+        model: haiku
+        provider: claude
+      merge-conflict-agent:
+        model: haiku
+        provider: claude
+      ai-filter:
+        model: haiku
+        provider: claude
     by-template: {}
 
 acp.mcp:

@@ -2,7 +2,7 @@ package com.hayden.acp_cdc_ai.acp.config;
 
 public record AcpSessionRoutingKey(
         String sessionArtifactKey,
-        String providerName,
+        AcpProvider providerName,
         String effectiveModel,
         String optionsFingerprint
 ) {
@@ -18,10 +18,6 @@ public record AcpSessionRoutingKey(
 
     public String getSessionArtifactKey() {
         return sessionArtifactKey;
-    }
-
-    public String getProviderName() {
-        return providerName;
     }
 
     public String getEffectiveModel() {

@@ -129,6 +129,64 @@ artifacts:
     load-on-startup: ${ARTIFACTS_TEMPLATES_LOAD:true}
     source-paths:
       - classpath:prompts/workflow/
+multi-agent-embabel:
+  chat-model:
+    provider: acp
+  acp:
+    default-provider: claude
+    providers:
+      claude:
+        transport: stdio
+        command: ${ACP_COMMAND:claude-agent-acp}
+        args: ${ACP_ARGS:}
+        working-directory: ${ACP_WORKING_DIR:}
+      codex:
+        transport: stdio
+        command: ${ACP_COMMAND:codex-acp}
+        args: ${ACP_ARGS:--sandbox danger-full-access --ask-for-approval never --yolo true}
+        working-directory: ${ACP_WORKING_DIR:}
+        auth-method: chatgpt
+      claudeopenrouter:
+        transport: stdio
+        command: ${ACP_COMMAND:claude-agent-acp}
+        args: ${ACP_ARGS:--model openai/gpt-oss-120b}
+        working-directory: ${ACP_WORKING_DIR:}
+        default-model: openai/gpt-oss-120b
+        env:
+          ANTHROPIC_BASE_URL: https://openrouter.ai/api
+          ANTHROPIC_AUTH_TOKEN: ${X_OPENROUTER_API_KEY}
+          ANTHROPIC_API_KEY: ""
+          OPENROUTER_API_KEY: ${X_OPENROUTER_API_KEY}
+          ANTHROPIC_MODEL: openai/gpt-oss-120b
+          CLAUDE_CODE_EXECUTABLE: /Users/hayde/.local/bin/claude
+      claudellama:
+        transport: stdio
+        command: ${ACP_COMMAND:claude-agent-acp}
+        args: ${ACP_ARGS:--model qwen3.5:9b}
+        working-directory: ${ACP_WORKING_DIR:}
+        default-model: qwen3.5:9b
+        env:
+          ANTHROPIC_AUTH_TOKEN: ollama
+          ANTHROPIC_BASE_URL: http://localhost:11434
+          ANTHROPIC_API_KEY: ""
+
+llm:
+  model-selection:
+    default-model:
+      model: sonnet
+      provider: claude
+    by-agent-type:
+      commit-agent:
+        model: qwen3.5:9b
+        provider: claude_llama
+      merge-conflict-agent:
+        model: qwen3.5:9b
+        provider: claude_llama
+      ai-filter:
+        model: qwen3.5:9b
+        provider: claude_llama
+    by-template: {}
+
 acp.mcp:
   http:
   #    - name: deepwiki

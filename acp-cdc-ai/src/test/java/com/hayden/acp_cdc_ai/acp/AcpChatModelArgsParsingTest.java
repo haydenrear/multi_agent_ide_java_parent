@@ -3,6 +3,7 @@ package com.hayden.acp_cdc_ai.acp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties;
+import com.hayden.acp_cdc_ai.acp.config.AcpProvider;
 import com.hayden.acp_cdc_ai.acp.config.AcpProviderDefinition;
 import com.hayden.acp_cdc_ai.acp.config.McpProperties;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
@@ -58,9 +59,9 @@ class AcpChatModelArgsParsingTest {
     @BeforeEach
     void setUp() {
         properties = new AcpModelProperties(
-                "codex",
+                AcpProvider.CODEX,
                 Map.of(
-                        "codex", new AcpProviderDefinition(
+                        AcpProvider.CODEX, new AcpProviderDefinition(
                                 "codex",
                                 "stdio",
                                 "codex-acp",
@@ -72,7 +73,7 @@ class AcpChatModelArgsParsingTest {
                                 Map.of("CODEX_HOME", "/tmp/codex"),
                                 null
                         ),
-                        "claude-openrouter", new AcpProviderDefinition(
+                        AcpProvider.CLAUDE_OPENROUTER, new AcpProviderDefinition(
                                 "claude-openrouter",
                                 "stdio",
                                 "claude-agent-acp",
@@ -140,14 +141,14 @@ class AcpChatModelArgsParsingTest {
         @Test
         @DisplayName("resolves explicit provider by name")
         void resolvesExplicitProvider() {
-            assertThat(properties.resolveProviderName("claude-openrouter")).isEqualTo("claude-openrouter");
+            assertThat(properties.resolveProviderName("claude-openrouter")).isEqualTo(AcpProvider.CLAUDE_OPENROUTER);
             assertThat(properties.resolveProvider("claude-openrouter").command()).isEqualTo("claude-agent-acp");
         }
 
         @Test
         @DisplayName("uses configured default provider when provider is omitted")
         void usesConfiguredDefaultProvider() {
-            assertThat(properties.resolveProviderName(null)).isEqualTo("codex");
+            assertThat(properties.resolveProviderName(null)).isEqualTo(AcpProvider.CODEX);
             assertThat(properties.resolveProvider(null).authMethod()).isEqualTo("chatgpt");
         }
 
@@ -155,7 +156,7 @@ class AcpChatModelArgsParsingTest {
         @DisplayName("fails for unknown provider names")
         void failsForUnknownProvider() {
             assertThatThrownBy(() -> properties.resolveProviderName("missing-provider"))
-                    .isInstanceOf(IllegalStateException.class)
+                    .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Unknown ACP provider");
         }
     }
@@ -179,23 +180,6 @@ class AcpChatModelArgsParsingTest {
     }
 
     @Nested
-    @DisplayName("resolveProviderKey")
-    class ResolveProviderKeyTests {
-
-        @Test
-        @DisplayName("returns requested provider name directly")
-        void returnsRequestedProviderName() {
-            assertThat(acpChatModel.resolveProviderKey("claude-openrouter")).isEqualTo("claude-openrouter");
-        }
-
-        @Test
-        @DisplayName("returns empty string for blank provider")
-        void returnsEmptyForBlankProvider() {
-            assertThat(acpChatModel.resolveProviderKey("   ")).isEmpty();
-        }
-    }
-
-    @Nested
     @DisplayName("resolveSandboxTranslation")
     class ResolveSandboxTranslationTests {
 
@@ -204,7 +188,7 @@ class AcpChatModelArgsParsingTest {
         void returnsEmptyTranslationWhenSessionUnknown() {
             when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.empty());
 
-            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", "codex", "--existing-arg value");
+            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", AcpProvider.CODEX, "--existing-arg value");
 
             assertThat(result.env()).isEmpty();
             assertThat(result.args()).isEmpty();
@@ -221,18 +205,19 @@ class AcpChatModelArgsParsingTest {
             SandboxTranslation expected = new SandboxTranslation(Map.of("ENV_VAR", "value"), List.of("--translated"), "/project");
 
             when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.of(context));
-            when(sandboxTranslationRegistry.find("claude-openrouter")).thenReturn(Optional.of(directStrategy));
+            // AcpProvider.CLAUDE_OPENROUTER.wireValue() -> "claudeopenrouter"
+            when(sandboxTranslationRegistry.find("claudeopenrouter")).thenReturn(Optional.of(directStrategy));
             when(directStrategy.translate(eq(context), any())).thenReturn(expected);
 
-            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", "claude-openrouter", "--model openrouter/free");
+            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", AcpProvider.CLAUDE_OPENROUTER, "--model openrouter/free");
 
             assertThat(result).isEqualTo(expected);
             verify(directStrategy).translate(eq(context), eq(List.of("--model", "openrouter/free")));
         }
 
         @Test
-        @DisplayName("falls back to provider prefix when direct strategy is missing")
-        void fallsBackToProviderPrefix() {
+        @DisplayName("falls back when direct strategy is missing")
+        void fallsBackWhenDirectMissing() {
             RequestContext context = RequestContext.builder()
                     .sessionId("session-123")
                     .sandboxContext(SandboxContext.builder().mainWorktreePath(Path.of("/project")).build())
@@ -241,11 +226,12 @@ class AcpChatModelArgsParsingTest {
             SandboxTranslation expected = new SandboxTranslation(Map.of(), List.of("--fallback"), "/project");
 
             when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.of(context));
-            when(sandboxTranslationRegistry.find("claude-openrouter")).thenReturn(Optional.empty());
-            when(sandboxTranslationRegistry.find("claude")).thenReturn(Optional.of(fallbackStrategy));
+            // CLAUDE_LLAMA.wireValue() -> "claudellama" — not found, falls back to CLAUDE_OPENROUTER.wireValue()
+            when(sandboxTranslationRegistry.find("claudellama")).thenReturn(Optional.empty());
+            when(sandboxTranslationRegistry.find("claudeopenrouter")).thenReturn(Optional.of(fallbackStrategy));
             when(fallbackStrategy.translate(eq(context), any())).thenReturn(expected);
 
-            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", "claude-openrouter", null);
+            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", AcpProvider.CLAUDE_LLAMA, null);
 
             assertThat(result).isEqualTo(expected);
         }

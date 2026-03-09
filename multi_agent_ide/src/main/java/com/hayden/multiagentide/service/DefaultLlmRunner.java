@@ -87,17 +87,20 @@ public class DefaultLlmRunner implements LlmRunner {
         }
 
         String requestedModel = normalize(promptContext.modelName());
-
-        if (requestedModel == null) {
-            requestedModel = normalize(modelSelectionProperties.resolve(
-                    promptContext.agentType(), promptContext.templateName()));
-        }
-
         String requestedProvider = promptContext.metadata() == null
                 ? null
                 : normalize(Optional.ofNullable(promptContext.metadata().get("acpProvider"))
                 .map(Object::toString)
                 .orElse(null));
+
+        if (requestedModel == null) {
+            var resolved = modelSelectionProperties.resolve(
+                    promptContext.agentType(), promptContext.templateName());
+            requestedModel = normalize(resolved.model());
+            if (requestedProvider == null) {
+                requestedProvider = normalize(resolved.providerWireValue());
+            }
+        }
 
         Map<String, Object> runtimeOptions = Map.of();
 

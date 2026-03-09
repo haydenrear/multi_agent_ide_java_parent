@@ -1,32 +1,24 @@
 logging.config: classpath:logback-multi-agent-ide.xml
 
 multi-agent-embabel:
-  chat-model:
-    provider: acp
   acp:
     default-provider: claudeopenrouter
-    providers:
-      claudeopenrouter:
-        transport: stdio
-        command: ${ACP_COMMAND:claude-agent-acp}
-        args: ${ACP_ARGS:--model openai/gpt-oss-120b}
-        working-directory: ${ACP_WORKING_DIR:}
-        default-model: openai/gpt-oss-120b
-        env:
-          #     ANTHROPIC_BASE_URL=https://openrouter.ai/api  ANTHROPIC_AUTH_TOKEN=${X_OPENROUTER_API_KEY} ANTHROPIC_API_KEY="" OPENROUTER_API_KEY=${X_OPENROUTER_API_KEY} ANTHROPIC_MODEL=openrouter/free claude --model openrouter/free
-          ANTHROPIC_BASE_URL: https://openrouter.ai/api
-          ANTHROPIC_AUTH_TOKEN: ${X_OPENROUTER_API_KEY}
-          ANTHROPIC_API_KEY: ""
-          OPENROUTER_API_KEY: ${X_OPENROUTER_API_KEY}
-          ANTHROPIC_MODEL: openai/gpt-oss-120b
-          CLAUDE_CODE_EXECUTABLE: /Users/hayde/.local/bin/claude
+
 llm:
   model-selection:
-    default-model: openai/gpt-oss-120b
+    default-model:
+      model: openai/gpt-oss-120b
+      provider: claude_openrouter
     by-agent-type:
-      commit-agent: google/gemini-3.1-flash-lite
-      merge-conflict-agent: google/gemini-3.1-flash-lite
-      ai-filter: google/gemini-3.1-flash-lite
+      commit-agent:
+        model: google/gemini-3.1-flash-lite
+        provider: claude_openrouter
+      merge-conflict-agent:
+        model: google/gemini-3.1-flash-lite
+        provider: claude_openrouter
+      ai-filter:
+        model: google/gemini-3.1-flash-lite
+        provider: claude_openrouter
     by-template: {}
 
 acp.mcp:
