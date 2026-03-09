@@ -22,7 +22,8 @@ public class HistoryPromptContributorFactory implements PromptContributorFactory
             return List.of();
         }
         if (context.currentRequest() instanceof AgentModels.OrchestratorRequest r
-                && context.blackboardHistory().fromHistory(h -> h.entries().getFirst().input() == r || h.entries().isEmpty())) {
+                && context.blackboardHistory().fromHistory(h -> h.entries().isEmpty()
+                || h.entries().getFirst().input() == r)) {
             return List.of(
 //                  put the prompt contributor for the first orchestrator request
                     new FirstOrchestratorRequestPromptContributor(r)

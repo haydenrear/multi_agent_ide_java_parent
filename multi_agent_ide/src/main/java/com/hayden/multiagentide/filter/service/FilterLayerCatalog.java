@@ -387,7 +387,7 @@ public final class FilterLayerCatalog {
 
     private FilterLayerCatalog() {}
 
-    static List<ActionDefinition> actionDefinitions() {
+    public static List<ActionDefinition> actionDefinitions() {
         return List.copyOf(ACTIONS);
     }
 

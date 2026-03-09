@@ -6,24 +6,31 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.acp_cdc_ai.acp.filter.Instruction;
+import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.filter.integration.PathFilterIntegration;
 import com.hayden.multiagentide.filter.repository.FilterDecisionRecordEntity;
 import com.hayden.multiagentide.filter.repository.FilterDecisionRecordRepository;
 import com.hayden.multiagentide.filter.repository.LayerEntity;
 import com.hayden.multiagentide.filter.repository.LayerRepository;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
+import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.filter.model.FilterSource;
 import com.hayden.multiagentidelib.filter.model.layer.DefaultPathFilterContext;
 import com.hayden.multiagentidelib.filter.model.layer.GraphEventObjectContext;
 import com.hayden.multiagentidelib.filter.model.layer.PromptContributorContext;
+import com.hayden.multiagentidelib.filter.service.FilterResult;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorAdapterFactory;
+import com.hayden.multiagentidelib.prompt.PromptContributorService;
+import com.hayden.multiagentidelib.prompt.contributor.WeAreHerePromptContributor;
 import com.hayden.multiagentidelib.tool.ToolContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,6 +91,9 @@ class FilterPolicyInfrastructureIT {
     private PromptContributorAdapterFactory promptContributorAdapterFactory;
 
     @Autowired
+    private PromptContributorService promptContributorService;
+
+    @Autowired
     private PathFilterIntegration pathFilterIntegration;
 
     @MockitoBean
@@ -94,6 +104,147 @@ class FilterPolicyInfrastructureIT {
         filterDecisionRecordRepository.deleteAll();
         policyRegistrationRepository.deleteAll();
         layerRepository.deleteAll();
+    }
+
+    @Test
+    void coordinateWorkflow_promptContributorService_includesWorkflowPositionContributor() {
+        ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
+        PromptContext promptContext = workflowPromptContext(actionKey, mockOperationContext());
+
+        List<String> contributorRoles = promptContributorService.getContributors(promptContext).stream()
+                .map(ContextualPromptElement::getRole)
+                .toList();
+
+        assertThat(contributorRoles).contains("workflow-position");
+    }
+
+    @Test
+    void workflowPositionPolicy_matchesLiveCoordinateWorkflowContributor() throws Exception {
+        ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
+        OperationContext operationContext = mockOperationContext();
+        saveLayer(
+                FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
+                AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                FilterLayerCatalog.WORKFLOW_AGENT,
+                2
+        );
+
+        String aiPolicyId = registerAiPolicy(
+                "ai-workflow-position-live-match",
+                FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
+                AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                "PROMPT_CONTRIBUTOR",
+                "workflow-position",
+                "PER_INVOCATION",
+                false
+        );
+
+        AgentModels.AiFilterResult mockResult = AgentModels.AiFilterResult.builder()
+                .contextId(actionKey.createChild())
+                .successful(true)
+                .output(List.of())
+                .build();
+        Mockito.when(llmRunner.runWithTemplate(
+                Mockito.anyString(),
+                Mockito.any(PromptContext.class),
+                Mockito.anyMap(),
+                Mockito.any(ToolContext.class),
+                Mockito.eq(AgentModels.AiFilterResult.class),
+                Mockito.any(OperationContext.class)
+        )).thenReturn(mockResult);
+
+        PromptContext promptContext = workflowPromptContext(actionKey, operationContext);
+        PromptContributor workflowPosition = new WeAreHerePromptContributor();
+
+        ContextualPromptElement adapted = promptContributorAdapterFactory.create(workflowPosition, promptContext);
+        String filtered = adapted.contribution(operationContext);
+
+        assertThat(filtered).contains("## Workflow Position");
+        assertRecentDecisionsWithoutError(
+                aiPolicyId,
+                FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                1,
+                Set.of("PASSTHROUGH", "TRANSFORMED", "DROPPED")
+        );
+        Mockito.verify(llmRunner).runWithTemplate(
+                Mockito.eq("filter/ai_filter"),
+                Mockito.any(PromptContext.class),
+                Mockito.anyMap(),
+                Mockito.any(ToolContext.class),
+                Mockito.eq(AgentModels.AiFilterResult.class),
+                Mockito.eq(operationContext)
+        );
+    }
+
+    @Test
+    void promptContributorPolicies_match_everyCatalogActionLayer() throws Exception {
+        String contributorName = "matrix-catalog-contributor";
+        String content = """
+                Matrix contributor payload.
+                This content only needs to prove policy execution.
+                """;
+
+        AgentModels.AiFilterResult passThroughResult = AgentModels.AiFilterResult.builder()
+                .successful(true)
+                .output(List.of())
+                .build();
+        Mockito.when(llmRunner.runWithTemplate(
+                Mockito.anyString(),
+                Mockito.any(PromptContext.class),
+                Mockito.anyMap(),
+                Mockito.any(ToolContext.class),
+                Mockito.eq(AgentModels.AiFilterResult.class),
+                Mockito.any(OperationContext.class)
+        )).thenReturn(passThroughResult);
+
+        List<FilterLayerCatalog.ActionDefinition> actionDefinitions = FilterLayerCatalog.actionDefinitions();
+        OperationContext operationContext = mockOperationContext();
+
+        for (FilterLayerCatalog.ActionDefinition actionDefinition : actionDefinitions) {
+            saveLayer(
+                    actionDefinition.layerId(),
+                    FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
+                    actionDefinition.methodName(),
+                    actionDefinition.parentLayerId(),
+                    depthFor(actionDefinition.parentLayerId())
+            );
+
+            String policyId = registerAiPolicy(
+                    "matrix-" + actionDefinition.methodName(),
+                    actionDefinition.layerId(),
+                    FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
+                    actionDefinition.methodName(),
+                    "PROMPT_CONTRIBUTOR",
+                    contributorName
+            );
+
+            PromptContributor contributor = new StaticPromptContributor(
+                    contributorName,
+                    "matrix-template",
+                    content
+            );
+            PromptContext promptContext = promptContextForAction(actionDefinition, operationContext);
+
+            ContextualPromptElement adapted = promptContributorAdapterFactory.create(contributor, promptContext);
+            String filtered = adapted.contribution(operationContext);
+
+            assertThat(filtered).isEqualTo(content);
+            assertRecentDecisionsWithoutError(
+                    policyId,
+                    actionDefinition.layerId(),
+                    1,
+                    Set.of("PASSTHROUGH", "TRANSFORMED", "DROPPED")
+            );
+        }
+
+        Map<String, Long> decisionsByLayer = filterDecisionRecordRepository.findAll().stream()
+                .collect(Collectors.groupingBy(FilterDecisionRecordEntity::getLayerId, Collectors.counting()));
+
+        assertThat(decisionsByLayer.keySet()).containsAll(
+                actionDefinitions.stream().map(FilterLayerCatalog.ActionDefinition::layerId).toList()
+        );
     }
 
     @Test
@@ -554,7 +705,7 @@ class FilterPolicyInfrastructureIT {
                                     String layerKey,
                                     String matchOn,
                                     String matcherText) throws Exception {
-        return registerAiPolicy(name, layerId, layerType, layerKey, matchOn, matcherText, "PER_INVOCATION");
+        return registerAiPolicy(name, layerId, layerType, layerKey, matchOn, matcherText, "PER_INVOCATION", true);
     }
 
     private String registerAiPolicy(String name,
@@ -564,6 +715,17 @@ class FilterPolicyInfrastructureIT {
                                     String matchOn,
                                     String matcherText,
                                     String sessionMode) throws Exception {
+        return registerAiPolicy(name, layerId, layerType, layerKey, matchOn, matcherText, sessionMode, true);
+    }
+
+    private String registerAiPolicy(String name,
+                                    String layerId,
+                                    String layerType,
+                                    String layerKey,
+                                    String matchOn,
+                                    String matcherText,
+                                    String sessionMode,
+                                    boolean includeAgentDecorators) throws Exception {
         Map<String, Object> executor = new LinkedHashMap<>();
         executor.put("executorType", "AI");
         executor.put("modelRef", "test-model");
@@ -572,7 +734,7 @@ class FilterPolicyInfrastructureIT {
         executor.put("maxTokens", 1024);
         executor.put("registrarPrompt", "integration-registrar-prompt");
         executor.put("sessionMode", sessionMode);
-        executor.put("includeAgentDecorators", true);
+        executor.put("includeAgentDecorators", includeAgentDecorators);
         executor.put("configVersion", "v1-test");
 
         return registerPolicy(
@@ -826,6 +988,73 @@ class FilterPolicyInfrastructureIT {
                 .orElseThrow()
                 .getFilterJson();
         assertThat(filterJson).contains("\"executorType\":\"PYTHON\"");
+    }
+
+    private OperationContext mockOperationContext() {
+        var mockAgentProcess = Mockito.mock(com.embabel.agent.core.AgentProcess.class);
+        var mockProcessContext = Mockito.mock(com.embabel.agent.core.ProcessContext.class);
+        OperationContext mockOperationContext = Mockito.mock(OperationContext.class);
+        Mockito.when(mockOperationContext.getAgentProcess()).thenReturn(mockAgentProcess);
+        Mockito.when(mockOperationContext.getProcessContext()).thenReturn(mockProcessContext);
+        Mockito.when(mockProcessContext.getAgentProcess()).thenReturn(mockAgentProcess);
+        return mockOperationContext;
+    }
+
+    private PromptContext workflowPromptContext(ArtifactKey actionKey, OperationContext operationContext) {
+        AgentModels.OrchestratorRequest request = AgentModels.OrchestratorRequest.builder()
+                .contextId(actionKey)
+                .goal("matrix goal")
+                .build();
+
+        return PromptContext.builder()
+                .agentType(AgentType.ORCHESTRATOR)
+                .currentContextId(actionKey)
+                .blackboardHistory(emptyBlackboardHistory(actionKey))
+                .currentRequest(request)
+                .operationContext(operationContext)
+                .metadata(FilterLayerCatalog.metadataForLlmCall(
+                        Map.of(),
+                        AgentInterfaces.WORKFLOW_AGENT_NAME,
+                        AgentInterfaces.ACTION_ORCHESTRATOR,
+                        AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                        AgentType.ORCHESTRATOR,
+                        request
+                ))
+                .build();
+    }
+
+    private PromptContext promptContextForAction(FilterLayerCatalog.ActionDefinition actionDefinition,
+                                                 OperationContext operationContext) {
+        ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
+        return PromptContext.builder()
+                .agentType(actionDefinition.agentType())
+                .currentContextId(actionKey)
+                .blackboardHistory(emptyBlackboardHistory(actionKey))
+                .operationContext(operationContext)
+                .metadata(FilterLayerCatalog.metadataForLlmCall(
+                        Map.of(),
+                        actionDefinition.agentName(),
+                        actionDefinition.actionName(),
+                        actionDefinition.methodName(),
+                        actionDefinition.agentType(),
+                        null
+                ))
+                .build();
+    }
+
+    private BlackboardHistory emptyBlackboardHistory(ArtifactKey actionKey) {
+        return new BlackboardHistory(
+                new BlackboardHistory.History(),
+                actionKey.value(),
+                null
+        );
+    }
+
+    private int depthFor(String parentLayerId) {
+        return layerRepository.findByLayerId(parentLayerId)
+                .map(LayerEntity::getDepth)
+                .map(depth -> depth + 1)
+                .orElse(1);
     }
 
     private void assertRecentDecisionWithoutError(String policyId, String layerId, String expectedAction) {

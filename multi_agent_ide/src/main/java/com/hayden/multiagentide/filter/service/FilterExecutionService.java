@@ -255,6 +255,7 @@ public class FilterExecutionService {
                                                                   PolicyRegistrationEntity policy) {
         var aiExecutor = p.executor();
         aiFilterToolHydration.hydrate(aiExecutor);
+        boolean includeAgentDecorators = !Boolean.FALSE.equals(aiExecutor.includeAgentDecorators());
 
 
         PromptContext promptContext = getPromptContext(filterContext);
@@ -269,15 +270,17 @@ public class FilterExecutionService {
             return Optional.empty();
         }
 
-        AgentModels.AgentRequest decoratedContextRequest = AgentInterfaces.decorateRequest(
-                promptContext.currentRequest(),
-                operationContext,
-                requestDecorators,
-                AI_FILTER_AGENT_NAME,
-                AI_FILTER_ACTION_NAME,
-                AI_FILTER_METHOD_NAME,
-                promptContext.previousRequest()
-        );
+        AgentModels.AgentRequest decoratedContextRequest = includeAgentDecorators
+                ? AgentInterfaces.decorateRequest(
+                        promptContext.currentRequest(),
+                        operationContext,
+                        requestDecorators,
+                        AI_FILTER_AGENT_NAME,
+                        AI_FILTER_ACTION_NAME,
+                        AI_FILTER_METHOD_NAME,
+                        promptContext.previousRequest()
+                )
+                : promptContext.currentRequest();
 
         AgentModels.AiFilterRequest aiSessionRequest = AgentModels.AiFilterRequest.builder()
                 .contextId(aiFilterSessionResolver.resolveSessionKey(
@@ -307,27 +310,31 @@ public class FilterExecutionService {
                 .model(model)
                 .build();
 
-        PromptContext decoratedPromptContext = AgentInterfaces.decoratePromptContext(
-                aiPromptContext,
-                operationContext,
-                promptContextDecorators,
-                AI_FILTER_AGENT_NAME,
-                AI_FILTER_ACTION_NAME,
-                AI_FILTER_METHOD_NAME,
-                decoratedContextRequest,
-                aiSessionRequest
-        );
+        PromptContext decoratedPromptContext = includeAgentDecorators
+                ? AgentInterfaces.decoratePromptContext(
+                        aiPromptContext,
+                        operationContext,
+                        promptContextDecorators,
+                        AI_FILTER_AGENT_NAME,
+                        AI_FILTER_ACTION_NAME,
+                        AI_FILTER_METHOD_NAME,
+                        decoratedContextRequest,
+                        aiSessionRequest
+                )
+                : aiPromptContext;
 
-        ToolContext decoratedToolContext = AgentInterfaces.decorateToolContext(
-                ToolContext.empty(),
-                aiSessionRequest,
-                decoratedContextRequest,
-                operationContext,
-                toolContextDecorators,
-                AI_FILTER_AGENT_NAME,
-                AI_FILTER_ACTION_NAME,
-                AI_FILTER_METHOD_NAME
-        );
+        ToolContext decoratedToolContext = includeAgentDecorators
+                ? AgentInterfaces.decorateToolContext(
+                        ToolContext.empty(),
+                        aiSessionRequest,
+                        decoratedContextRequest,
+                        operationContext,
+                        toolContextDecorators,
+                        AI_FILTER_AGENT_NAME,
+                        AI_FILTER_ACTION_NAME,
+                        AI_FILTER_METHOD_NAME
+                )
+                : ToolContext.empty();
 
         FilterContext.AiFilterContext aiFilterContext = FilterContext.AiFilterContext.builder()
                 .filterContext(filterContext)
@@ -345,14 +352,16 @@ public class FilterExecutionService {
             return Optional.of(
                     result.toBuilder()
                             .res(
-                                    AgentInterfaces.decorateResult(
-                                            result.res(),
-                                            operationContext,
-                                            resultDecorators,
-                                            AI_FILTER_AGENT_NAME,
-                                            AI_FILTER_ACTION_NAME,
-                                            AI_FILTER_METHOD_NAME,
-                                            aiSessionRequest)
+                                    includeAgentDecorators
+                                            ? AgentInterfaces.decorateResult(
+                                                    result.res(),
+                                                    operationContext,
+                                                    resultDecorators,
+                                                    AI_FILTER_AGENT_NAME,
+                                                    AI_FILTER_ACTION_NAME,
+                                                    AI_FILTER_METHOD_NAME,
+                                                    aiSessionRequest)
+                                            : result.res()
                             ).build());
         }
 
@@ -732,14 +741,14 @@ public class FilterExecutionService {
         if (source instanceof FilterSource.GraphEventSource graphEventSource
                 && graphEventSource.event() != null
                 && graphEventSource.event().nodeId() != null
-                && !graphEventSource.event().nodeId().isBlank()) {
+                && ArtifactKey.isValid(graphEventSource.event().nodeId())) {
             return graphEventSource.event().nodeId();
         }
         EventBus.AgentNodeKey process = EventBus.Process.get();
-        if (process != null && process.id() != null && !process.id().isBlank()) {
+        if (process != null && process.id() != null && ArtifactKey.isValid(process.id())) {
             return process.id();
         }
-        if (layerId != null && !layerId.isBlank()) {
+        if (layerId != null && ArtifactKey.isValid(layerId)) {
             return layerId;
         }
         return ArtifactKey.createRoot().value();

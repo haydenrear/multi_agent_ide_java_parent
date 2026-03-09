@@ -56,11 +56,11 @@ public final class GraphEventObjectContext implements FilterContext {
             Events.GraphEvent key
     ) {
         this.layerId = layerId;
-        try {
-            this.key = new ArtifactKey(key.nodeId()).createChild();
-        } catch (Exception e) {
-            log.error("Error attempting to create artifact key for graph event.", e);
+        if (key == null || key.nodeId() == null || !ArtifactKey.isValid(key.nodeId())) {
+            log.debug("Skipping graph event artifact key creation for non-artifact nodeId {}", key == null ? null : key.nodeId());
+            return;
         }
+        this.key = new ArtifactKey(key.nodeId()).createChild();
     }
 
     @Override
