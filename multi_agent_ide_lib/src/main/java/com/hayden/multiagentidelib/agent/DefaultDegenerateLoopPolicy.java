@@ -35,6 +35,7 @@ public class DefaultDegenerateLoopPolicy implements DegenerateLoopPolicy {
                 .map(BlackboardHistory.Entry::input)
                 .filter(Events.ActionStartedEvent.class::isInstance)
                 .map(Events.ActionStartedEvent.class::cast)
+                .filter(event -> BlackboardHistory.isContextRequestOrInterrupt(history).test(event.actionName()))
                 .map(Events.ActionStartedEvent::nodeId)
                 .filter(Objects::nonNull)
                 .toList();

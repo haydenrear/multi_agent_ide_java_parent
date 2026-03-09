@@ -23,6 +23,20 @@ import java.util.stream.Collectors;
 public class BlackboardHistory implements EventListener, EventSubscriber<Events.GraphEvent> {
 
     private static final int DEFAULT_LOOP_THRESHOLD = 3;
+    private static final Map<String, String> LOOP_ACTION_ALIASES = Map.of(
+            "context-manager-route", "routeToContextManager",
+            "context-manager", "contextManagerRequest",
+            "commit-agent", "runCommitAgent",
+            "merge-conflict-agent", "runMergeConflictAgent",
+            "path-filter", "runAiFilter"
+    );
+    private static final Set<String> LOOP_ACTIONS_TO_IGNORE = Set.of(
+            "routeToContextManager",
+            "contextManagerRequest",
+            "runCommitAgent",
+            "runMergeConflictAgent",
+            "runAiFilter"
+    );
 
     private static volatile int loopThreshold = DEFAULT_LOOP_THRESHOLD;
 
@@ -61,6 +75,16 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         });
     }
 
+    public static Predicate<String> isContextRequestOrInterrupt(BlackboardHistory history) {
+        return actionName -> {
+            String normalized = normalizeLoopActionName(actionName);
+            if (normalized == null || normalized.isBlank()) {
+                return true;
+            }
+            return !LOOP_ACTIONS_TO_IGNORE.contains(normalized);
+        };
+    }
+
     public static AgentModels.@Nullable AgentRequest findLastNonContextRequest(BlackboardHistory history) {
         AgentModels.AgentRequest lastRequest = findLastRequest(
                 history,
@@ -68,6 +92,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                         && !(a instanceof AgentModels.ContextManagerRequest)
                         && !(a instanceof AgentModels.ContextManagerRoutingRequest)
                         && !(a instanceof AgentModels.CommitAgentRequest)
+                        && !(a instanceof AgentModels.MergeConflictRequest)
                         && !(a instanceof AgentModels.AiFilterRequest));
         return lastRequest;
     }
@@ -487,6 +512,17 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
 
     private static <T> boolean isExactlyType(Class<T> type, Entry entry) {
         return entry.inputType() != null && entry.inputType().equals(type);
+    }
+
+    private static String normalizeLoopActionName(String actionName) {
+        if (actionName == null) {
+            return null;
+        }
+        String trimmed = actionName.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return LOOP_ACTION_ALIASES.getOrDefault(trimmed, trimmed);
     }
 
     @Override

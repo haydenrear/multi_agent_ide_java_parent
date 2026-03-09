@@ -387,6 +387,10 @@ public final class FilterLayerCatalog {
 
     private FilterLayerCatalog() {}
 
+    static List<ActionDefinition> actionDefinitions() {
+        return List.copyOf(ACTIONS);
+    }
+
     public static List<LayerDefinition> layerDefinitions() {
         List<LayerDefinition> definitions = new ArrayList<>(ROOT_LAYERS);
         for (ActionDefinition action : ACTIONS) {
