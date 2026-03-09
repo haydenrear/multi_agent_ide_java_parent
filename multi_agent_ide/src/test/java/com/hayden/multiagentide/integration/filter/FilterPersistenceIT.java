@@ -158,6 +158,25 @@ class FilterPersistenceIT {
 
     @Test
     @Order(2)
+    void bootstrap_backfillsAndNormalizesExistingHierarchy() {
+        saveLayer("controller", "CONTROLLER", "controller", null, 0);
+        saveLayer("controller-ui-event-poll", "CONTROLLER_UI_EVENT_POLL", "controller-ui-event-poll", "controller", 1);
+        saveLayer("workflow-agent", "WORKFLOW_AGENT", "ORCHESTRATOR", "controller", 1);
+
+        layerHierarchyBootstrap.seedLayersIfAbsent();
+
+        LayerEntity workflowAgent = layerRepository.findByLayerId("workflow-agent").orElseThrow();
+        assertThat(workflowAgent.getLayerKey()).isEqualTo("workflow-agent");
+
+        LayerEntity interruptService = layerRepository.findByLayerId("interrupt-service").orElseThrow();
+        assertThat(interruptService.getParentLayerId()).isEqualTo("controller");
+
+        LayerEntity mergeConflictAction = layerRepository.findByLayerId("worktree-merge-conflict/runMergeConflictAgent").orElseThrow();
+        assertThat(mergeConflictAction.getParentLayerId()).isEqualTo("worktree-merge-conflict");
+    }
+
+    @Test
+    @Order(3)
     void bootstrap_isIdempotent() {
         layerHierarchyBootstrap.seedLayersIfAbsent();
         long countAfterFirst = layerRepository.count();
@@ -169,7 +188,7 @@ class FilterPersistenceIT {
     }
 
     @Test
-    @Order(3)
+    @Order(4)
     void bootstrap_layerServiceTraversal_worksWithBootstrappedHierarchy() {
         layerHierarchyBootstrap.seedLayersIfAbsent();
 
@@ -194,7 +213,7 @@ class FilterPersistenceIT {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     void bootstrap_repositoryQueries_workCorrectly() {
         layerHierarchyBootstrap.seedLayersIfAbsent();
 

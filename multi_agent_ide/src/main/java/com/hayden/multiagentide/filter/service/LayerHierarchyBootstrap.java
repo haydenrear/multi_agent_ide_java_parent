@@ -44,21 +44,32 @@ public class LayerHierarchyBootstrap {
 
     @Transactional
     public void seedLayersIfAbsent() {
-        if (layerRepository.findByLayerId(FilterLayerCatalog.CONTROLLER).isPresent()) {
-            log.info("Filter layer hierarchy already exists — skipping bootstrap.");
-            return;
+        log.info("Ensuring filter layer hierarchy matches catalog...");
+        Map<String, LayerEntity> existingById = new LinkedHashMap<>();
+        for (LayerEntity existing : layerRepository.findAll()) {
+            existingById.put(existing.getLayerId(), existing);
         }
-
-        log.info("Bootstrapping filter layer hierarchy...");
         Map<String, LayerEntity> layersById = new LinkedHashMap<>();
         for (FilterLayerCatalog.LayerDefinition definition : FilterLayerCatalog.layerDefinitions()) {
-            layersById.put(definition.layerId(), layer(
-                    definition.layerId(),
-                    definition.layerType(),
-                    definition.layerKey(),
-                    definition.parentLayerId(),
-                    definition.depth()
-            ));
+            LayerEntity entity = existingById.get(definition.layerId());
+            if (entity == null) {
+                entity = layer(
+                        definition.layerId(),
+                        definition.layerType(),
+                        definition.layerKey(),
+                        definition.parentLayerId(),
+                        definition.depth()
+                );
+            } else {
+                entity.setLayerType(definition.layerType().name());
+                entity.setLayerKey(definition.layerKey());
+                entity.setParentLayerId(definition.parentLayerId());
+                entity.setDepth(definition.depth());
+                entity.setInheritable(true);
+                entity.setPropagatedToParent(false);
+            }
+            entity.getChildLayerIds().clear();
+            layersById.put(definition.layerId(), entity);
         }
         for (FilterLayerCatalog.LayerDefinition definition : FilterLayerCatalog.layerDefinitions()) {
             if (definition.parentLayerId() == null) {
@@ -71,7 +82,7 @@ public class LayerHierarchyBootstrap {
         }
 
         layerRepository.saveAll(layersById.values());
-        log.info("Bootstrapped {} filter layers.", layersById.size());
+        log.info("Ensured {} filter layers.", layersById.size());
     }
 
     private static LayerEntity layer(String layerId, FilterEnums.LayerType type,
