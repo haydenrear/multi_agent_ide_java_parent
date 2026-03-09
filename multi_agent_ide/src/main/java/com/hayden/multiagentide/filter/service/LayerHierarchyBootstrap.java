@@ -52,24 +52,18 @@ public class LayerHierarchyBootstrap {
         Map<String, LayerEntity> layersById = new LinkedHashMap<>();
         for (FilterLayerCatalog.LayerDefinition definition : FilterLayerCatalog.layerDefinitions()) {
             LayerEntity entity = existingById.get(definition.layerId());
-            if (entity == null) {
-                entity = layer(
-                        definition.layerId(),
-                        definition.layerType(),
-                        definition.layerKey(),
-                        definition.parentLayerId(),
-                        definition.depth()
-                );
-            } else {
-                entity.setLayerType(definition.layerType().name());
-                entity.setLayerKey(definition.layerKey());
-                entity.setParentLayerId(definition.parentLayerId());
-                entity.setDepth(definition.depth());
-                entity.setInheritable(true);
-                entity.setPropagatedToParent(false);
+            LayerEntity normalized = layer(
+                    definition.layerId(),
+                    definition.layerType(),
+                    definition.layerKey(),
+                    definition.parentLayerId(),
+                    definition.depth()
+            );
+            if (entity != null) {
+                normalized.setUuid(entity.getUuid());
+                normalized.setMetadataJson(entity.getMetadataJson());
             }
-            entity.getChildLayerIds().clear();
-            layersById.put(definition.layerId(), entity);
+            layersById.put(definition.layerId(), normalized);
         }
         for (FilterLayerCatalog.LayerDefinition definition : FilterLayerCatalog.layerDefinitions()) {
             if (definition.parentLayerId() == null) {
