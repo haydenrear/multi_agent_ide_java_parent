@@ -90,16 +90,23 @@ class FilterPersistenceIT {
         layerHierarchyBootstrap.seedLayersIfAbsent();
 
         List<LayerEntity> all = layerRepository.findAll();
-        // controller(1) + controller-ui-event-poll(1) + workflow-agent(1) + 22 actions
-        // + 3 sub-agents + 3×3 sub-agent actions = 38
-        assertThat(all).hasSize(37);
+        // controller(1) + controller-ui-event-poll(1) + workflow-agent(1)
+        // + 3 workflow sub-agents + 4 service roots + 35 action layers = 45
+        assertThat(all).hasSize(45);
 
         // Root
         LayerEntity controller = layerRepository.findByLayerId("controller").orElseThrow();
         assertThat(controller.getLayerType()).isEqualTo("CONTROLLER");
         assertThat(controller.getDepth()).isEqualTo(0);
         assertThat(controller.getParentLayerId()).isNull();
-        assertThat(controller.getChildLayerIds()).contains("controller-ui-event-poll", "workflow-agent");
+        assertThat(controller.getChildLayerIds()).contains(
+                "controller-ui-event-poll",
+                "workflow-agent",
+                "interrupt-service",
+                "worktree-auto-commit",
+                "worktree-merge-conflict",
+                "ai-filter"
+        );
 
         // UI event poll
         LayerEntity uiPoll = layerRepository.findByLayerId("controller-ui-event-poll").orElseThrow();
@@ -143,6 +150,10 @@ class FilterPersistenceIT {
         assertThat(discAction.getLayerType()).isEqualTo("WORKFLOW_AGENT_ACTION");
         assertThat(discAction.getDepth()).isEqualTo(3);
         assertThat(discAction.getParentLayerId()).isEqualTo("discovery-dispatch-subagent");
+
+        LayerEntity commitAgent = layerRepository.findByLayerId("worktree-auto-commit/runCommitAgent").orElseThrow();
+        assertThat(commitAgent.getLayerType()).isEqualTo("WORKFLOW_AGENT_ACTION");
+        assertThat(commitAgent.getParentLayerId()).isEqualTo("worktree-auto-commit");
     }
 
     @Test
@@ -168,7 +179,7 @@ class FilterPersistenceIT {
 
         // Descendants of controller should be everything else
         Set<String> descendants = layerService.getDescendantLayerIds("controller");
-        assertThat(descendants).hasSize(36); // all except controller itself
+        assertThat(descendants).hasSize(44); // all except controller itself
 
         // Effective layers for a sub-agent action should include itself + ancestors
         List<LayerEntity> effective = layerService.getEffectiveLayers(
@@ -189,18 +200,18 @@ class FilterPersistenceIT {
 
         // findByLayerType
         List<LayerEntity> agents = layerRepository.findByLayerType("WORKFLOW_AGENT");
-        assertThat(agents).hasSize(4); // workflow-agent + 3 sub-agents
+        assertThat(agents).hasSize(8); // workflow-agent + 3 sub-agents + 4 service roots
 
         List<LayerEntity> actions = layerRepository.findByLayerType("WORKFLOW_AGENT_ACTION");
-        assertThat(actions).hasSize(31); // 22 WA actions + 3×3 sub-agent actions
+        assertThat(actions).hasSize(35); // 31 workflow actions + 4 service actions
 
         // findByParentLayerId
         List<LayerEntity> controllerChildren = layerRepository.findByParentLayerId("controller");
-        assertThat(controllerChildren).hasSize(2); // ui-event-poll + workflow-agent
+        assertThat(controllerChildren).hasSize(6); // ui-event-poll + workflow-agent + service roots
 
         // findByMaxDepth
         List<LayerEntity> shallow = layerRepository.findByMaxDepth(1);
-        assertThat(shallow).hasSize(3); // controller(0) + ui-event-poll(1) + workflow-agent(1)
+        assertThat(shallow).hasSize(7); // controller(0) + 6 depth-1 layers
 
         // findByLayerKeyPrefix
         List<LayerEntity> discoveryLayers = layerRepository.findByLayerKeyPrefix("discovery");

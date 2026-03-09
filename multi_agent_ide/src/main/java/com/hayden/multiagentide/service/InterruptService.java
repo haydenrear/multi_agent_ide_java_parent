@@ -90,6 +90,16 @@ public class InterruptService {
                         modelWithFeedback,
                         context
                 );
+                promptContext = AgentInterfaces.decoratePromptContext(
+                        promptContext,
+                        context,
+                        promptContextDecorators,
+                        AGENT_NAME,
+                        ACTION_AGENT_REVIEW,
+                        METHOD_RUN_INTERRUPT_AGENT_REVIEW,
+                        promptContext.previousRequest(),
+                        promptContext.currentRequest()
+                );
 
                 toolContext = AgentInterfaces.decorateToolContext(
                         toolContext,

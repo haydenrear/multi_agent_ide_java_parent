@@ -12,56 +12,55 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Resolves runtime context (agent type, node ID, controller name) to the
- * appropriate filter layer ID from the filter_layer table.
+ * Resolves runtime context metadata to the appropriate filter layer ID from the
+ * bootstrapped filter layer catalog.
  */
 @Service
 @RequiredArgsConstructor
 public class LayerIdResolver {
 
-    private static final String WORKFLOW_AGENT = "WORKFLOW_AGENT";
-    private static final String WORKFLOW_AGENT_ACTION = "WORKFLOW_AGENT_ACTION";
-    private static final String CONTROLLER = "CONTROLLER";
-    private static final String CONTROLLER_UI_EVENT_POLL = "CONTROLLER_UI_EVENT_POLL";
-
     private final LayerRepository layerRepository;
 
     /**
      * Resolve layerId for a prompt contributor context.
-     * Tries WORKFLOW_AGENT (by agent type name) first, then WORKFLOW_AGENT_ACTION (by node ID).
+     * Prefers explicit/decorated metadata, then request/agent-type mappings.
      */
     public Optional<String> resolveForPromptContributor(PromptContext ctx) {
-        Optional<String> explicitLayerId = resolveFromMetadata(ctx == null ? null : ctx.metadata(), "layerId");
+        Map<String, Object> metadata = ctx == null ? null : ctx.metadata();
+        Optional<String> explicitLayerId = resolveFromMetadata(metadata, FilterLayerCatalog.METADATA_LAYER_ID);
         if (explicitLayerId.isPresent()) {
             return explicitLayerId;
         }
-        Optional<String> sessionLayerId = resolveForSession(resolveRawMetadata(ctx == null ? null : ctx.metadata(), "sessionId"));
+        Optional<String> metadataLayerId = resolveFromRuntimeMetadata(metadata);
+        if (metadataLayerId.isPresent()) {
+            return metadataLayerId;
+        }
+        Optional<String> sessionLayerId = resolveForSession(resolveRawMetadata(metadata, "sessionId"));
         if (sessionLayerId.isPresent()) {
             return sessionLayerId;
         }
         if (ctx == null) {
             return Optional.empty();
         }
-        String agentType = ctx.agentType() != null ? ctx.agentType().name() : null;
-        String nodeId = ctx.currentContextId() != null ? ctx.currentContextId().value() : null;
-        return resolveByTypeAndKey(WORKFLOW_AGENT_ACTION, nodeId)
-                .or(() -> resolveByTypeAndKey(WORKFLOW_AGENT, agentType));
+        return FilterLayerCatalog.resolveActionLayer(ctx.currentRequest(), ctx.agentType())
+                .flatMap(this::resolveExistingLayer)
+                .or(() -> FilterLayerCatalog.resolveRootLayer(ctx.agentType()).flatMap(this::resolveExistingLayer));
     }
 
     /**
      * Resolve layerId for a controller context.
-     * Tries CONTROLLER first, then CONTROLLER_UI_EVENT_POLL.
+     * Any controller that participates in UI event polling maps to the shared controller layer.
      */
     public Optional<String> resolveForController(String controllerId) {
-        return resolveByTypeAndKey(CONTROLLER, controllerId)
-                .or(() -> resolveByTypeAndKey(CONTROLLER_UI_EVENT_POLL, controllerId));
+        return resolveExistingLayer(controllerId)
+                .or(() -> hasText(controllerId) ? resolveExistingLayer(FilterLayerCatalog.CONTROLLER_UI_EVENT_POLL) : Optional.empty());
     }
 
     /**
      * Resolve layerId from a session-scoped context.
      */
     public Optional<String> resolveForSession(String sessionId) {
-        return resolveByTypeAndKey(CONTROLLER_UI_EVENT_POLL, sessionId);
+        return hasText(sessionId) ? resolveExistingLayer(FilterLayerCatalog.CONTROLLER_UI_EVENT_POLL) : Optional.empty();
     }
 
     /**
@@ -81,7 +80,10 @@ public class LayerIdResolver {
         if (event == null) {
             return resolveForController(controllerId);
         }
-        return resolveForGraphEvent(controllerId, extractSessionId(event), event.nodeId());
+        return resolveForController(controllerId)
+                .or(() -> resolveForSession(extractSessionId(event)))
+                .or(() -> resolveForAgentEvent(event))
+                .or(() -> resolveForGraphEvent(controllerId, extractSessionId(event), event.nodeId()));
     }
 
     /**
@@ -90,15 +92,23 @@ public class LayerIdResolver {
     public Optional<String> resolveForGraphEvent(String controllerId, String sessionId, String nodeId) {
         return resolveForController(controllerId)
                 .or(() -> resolveForSession(sessionId))
-                .or(() -> resolveByTypeAndKey(WORKFLOW_AGENT_ACTION, nodeId));
+                .or(() -> resolveExistingLayer(nodeId));
     }
 
-    private Optional<String> resolveByTypeAndKey(String type, String key) {
-        if (key == null || key.isBlank()) {
+    private Optional<String> resolveExistingLayer(String layerId) {
+        if (!hasText(layerId)) {
             return Optional.empty();
         }
-        return layerRepository.findByLayerTypeAndLayerKey(type, key)
+        return layerRepository.findByLayerId(layerId)
                 .map(LayerEntity::getLayerId);
+    }
+
+    private Optional<String> resolveFromRuntimeMetadata(Map<String, Object> metadata) {
+        String agentName = resolveRawMetadata(metadata, FilterLayerCatalog.METADATA_AGENT_NAME);
+        String actionName = resolveRawMetadata(metadata, FilterLayerCatalog.METADATA_ACTION_NAME);
+        String methodName = resolveRawMetadata(metadata, FilterLayerCatalog.METADATA_METHOD_NAME);
+        return FilterLayerCatalog.resolveActionLayer(agentName, actionName, methodName)
+                .flatMap(this::resolveExistingLayer);
     }
 
     private Optional<String> resolveFromMetadata(Map<String, Object> metadata, String key) {
@@ -106,7 +116,7 @@ public class LayerIdResolver {
         if (raw == null || raw.isBlank()) {
             return Optional.empty();
         }
-        return layerRepository.findByLayerId(raw).map(LayerEntity::getLayerId);
+        return resolveExistingLayer(raw);
     }
 
     private String resolveRawMetadata(Map<String, Object> metadata, String key) {
@@ -134,5 +144,27 @@ public class LayerIdResolver {
             }
         }
         return null;
+    }
+
+    private Optional<String> resolveForAgentEvent(Events.GraphEvent event) {
+        return switch (event) {
+            case Events.ActionStartedEvent actionStartedEvent ->
+                    FilterLayerCatalog.resolveActionLayer(
+                            actionStartedEvent.agentName(),
+                            actionStartedEvent.actionName(),
+                            null
+                    ).flatMap(this::resolveExistingLayer);
+            case Events.ActionCompletedEvent actionCompletedEvent ->
+                    FilterLayerCatalog.resolveActionLayer(
+                            actionCompletedEvent.agentName(),
+                            actionCompletedEvent.actionName(),
+                            null
+                    ).flatMap(this::resolveExistingLayer);
+            default -> Optional.empty();
+        };
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

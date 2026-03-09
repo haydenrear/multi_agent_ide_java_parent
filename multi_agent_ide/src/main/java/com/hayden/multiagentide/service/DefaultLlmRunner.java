@@ -10,6 +10,7 @@ import com.hayden.multiagentide.agent.AskUserQuestionToolAdapter;
 import com.hayden.multiagentide.agent.decorator.prompt.LlmCallDecorator;
 import com.hayden.multiagentide.config.LlmModelSelectionProperties;
 import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.prompt.PromptContributorService;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.tool.ToolAbstraction;
 import com.hayden.multiagentidelib.tool.ToolContext;
@@ -42,6 +43,7 @@ public class DefaultLlmRunner implements LlmRunner {
     private final AskUserQuestionToolAdapter askUserQuestionToolAdapter;
     private final ObjectMapper objectMapper;
     private final LlmModelSelectionProperties modelSelectionProperties;
+    private final PromptContributorService promptContributorService;
 
     @Autowired(required = false)
     private List<LlmCallDecorator> llmCallDecorators = new ArrayList<>();
@@ -56,11 +58,12 @@ public class DefaultLlmRunner implements LlmRunner {
             OperationContext context
     ) {
         String encodedAcpOptions = resolveEncodedAcpOptions(promptContext);
+        List<ContextualPromptElement> promptElements = promptContributorService.getContributors(promptContext);
         // Get applicable prompt contributors using the full PromptContext
         var aiQuery = context
                 .ai()
                 .withFirstAvailableLlmOf("acp-chat-model", encodedAcpOptions)
-                .withPromptElements(promptContext.promptContributors().toArray(ContextualPromptElement[]::new));
+                .withPromptElements(promptElements.toArray(ContextualPromptElement[]::new));
 
         aiQuery = applyToolContext(aiQuery, toolContext);
 
