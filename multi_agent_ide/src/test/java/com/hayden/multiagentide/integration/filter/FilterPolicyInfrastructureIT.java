@@ -357,6 +357,55 @@ class FilterPolicyInfrastructureIT {
     }
 
     @Test
+    void controllerAiPolicy_skipsMissingAgentProcessWithoutPublishingNodeError() throws Exception {
+        String nodeId = ArtifactKey.createRoot().value();
+        seedCatalogLayers();
+
+        String aiPolicyId = registerAiPolicy(
+                "controller-ai-no-process",
+                FilterLayerCatalog.CONTROLLER_UI_EVENT_POLL,
+                FilterEnums.LayerType.CONTROLLER_UI_EVENT_POLL.name(),
+                FilterLayerCatalog.CONTROLLER_UI_EVENT_POLL,
+                "GRAPH_EVENT",
+                "AddMessageEvent",
+                "PER_INVOCATION",
+                false
+        );
+
+        Events.AddMessageEvent event = new Events.AddMessageEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                nodeId,
+                "Controller AI filter should skip without a live process"
+        );
+        eventStreamRepository.save(event);
+
+        long nodeErrorCountBefore = eventStreamRepository.list().stream()
+                .filter(Events.NodeErrorEvent.class::isInstance)
+                .count();
+
+        mockMvc.perform(post("/api/llm-debug/ui/nodes/events/detail")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "nodeId", nodeId,
+                                "eventId", event.eventId(),
+                                "pretty", false,
+                                "maxFieldLength", 500))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventId").value(event.eventId()))
+                .andExpect(jsonPath("$.formatted").isNotEmpty());
+
+        assertThat(filterDecisionRecordRepository.findByPolicyIdAndLayerIdOrderByCreatedAtDesc(
+                aiPolicyId, FilterLayerCatalog.CONTROLLER_UI_EVENT_POLL, PageRequest.of(0, 20)))
+                .isNotEmpty();
+        assertThat(eventStreamRepository.list().stream()
+                .filter(Events.NodeErrorEvent.class::isInstance)
+                .count())
+                .isEqualTo(nodeErrorCountBefore);
+        Mockito.verifyNoInteractions(llmRunner);
+    }
+
+    @Test
     void actionLayer_pythonMarkdownPolicy_appliesAllInstructionOps() throws Exception {
         ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
         String actionNodeId = actionKey.value();

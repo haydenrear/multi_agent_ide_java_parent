@@ -447,19 +447,19 @@ public class FilterExecutionService {
     private OperationContext buildOpContext(FilterContext filterContext) {
         return switch (filterContext) {
             case PromptContributorContext promptContributorContext ->
-                    getOpContext(promptContributorContext.getKey());
+                    getOpContext(promptContributorContext.getKey(), true);
             case FilterContext.PathFilterContext pathCtx when pathCtx.filterContext() instanceof PromptContributorContext promptContributorContext ->
-                    getOpContext(promptContributorContext.getKey());
+                    getOpContext(promptContributorContext.getKey(), true);
             case GraphEventObjectContext graphEventObjectContext ->
-                    getOpContext(graphEventObjectContext.getKey());
+                    getOpContext(graphEventObjectContext.getKey(), false);
             case FilterContext.PathFilterContext pathCtx when pathCtx.filterContext() instanceof GraphEventObjectContext graphEventObjectContext ->
-                    getOpContext(graphEventObjectContext.getKey());
+                    getOpContext(graphEventObjectContext.getKey(), false);
             default ->
-                    getOpContext(filterContext.key());
+                    getOpContext(filterContext.key(), true);
         };
     }
 
-    private OperationContext getOpContext(ArtifactKey key) {
+    private OperationContext getOpContext(ArtifactKey key, boolean emitMissingProcessError) {
 
         ArtifactKey searchThrough = key;
 
@@ -471,8 +471,12 @@ public class FilterExecutionService {
             searchThrough = searchThrough.parent().orElse(null);
         }
 
-        log.warn("Could not resolve agent process for artifact key {}; emitting NodeError.", key);
-        publishAgentProcessNotFoundError(key);
+        if (emitMissingProcessError) {
+            log.warn("Could not resolve live agent process for artifact key {}; emitting NodeError.", key);
+            publishAgentProcessNotFoundError(key);
+        } else {
+            log.debug("Skipping OperationContext lookup for graph event key {} because no live agent process exists.", key);
+        }
         return null;
     }
 

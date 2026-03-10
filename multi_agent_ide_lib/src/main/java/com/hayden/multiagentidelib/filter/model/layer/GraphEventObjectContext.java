@@ -60,7 +60,7 @@ public final class GraphEventObjectContext implements FilterContext {
             log.debug("Skipping graph event artifact key creation for non-artifact nodeId {}", key == null ? null : key.nodeId());
             return;
         }
-        this.key = new ArtifactKey(key.nodeId()).createChild();
+        this.key = new ArtifactKey(key.nodeId());
     }
 
     @Override
