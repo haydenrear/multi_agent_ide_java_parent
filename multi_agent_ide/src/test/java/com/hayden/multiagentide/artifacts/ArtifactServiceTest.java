@@ -83,7 +83,7 @@ class ArtifactServiceTest {
                 .build();
 
         // When
-        ArtifactEntity entity = artifactService.toEntity(executionKey, artifact);
+        ArtifactEntity entity = artifactService.toEntity(executionKey, artifact).orElseThrow();
 
         // Then
         assertThat(entity.getArtifactKey()).isEqualTo(artifactKey.value());
@@ -116,7 +116,7 @@ class ArtifactServiceTest {
                 .build();
 
         // When
-        ArtifactEntity entity = artifactService.toEntity(executionKey, artifact);
+        ArtifactEntity entity = artifactService.toEntity(executionKey, artifact).orElseThrow();
 
         // Then
         assertThat(entity.getArtifactKey()).isEqualTo(childKey.value());
@@ -144,7 +144,7 @@ class ArtifactServiceTest {
                 .build();
 
         // When
-        ArtifactEntity entity = artifactService.toEntity(executionKey, artifact);
+        ArtifactEntity entity = artifactService.toEntity(executionKey, artifact).orElseThrow();
 
         // Then
         assertThat(entity.getTemplateStaticId()).isEqualTo("test-contributor");
@@ -185,7 +185,7 @@ class ArtifactServiceTest {
                 .build();
 
         // When
-        ArtifactEntity entity = artifactService.toEntity(executionKey, parent);
+        ArtifactEntity entity = artifactService.toEntity(executionKey, parent).orElseThrow();
 
         // Then
         assertThat(entity.getChildIds()).hasSize(2);
@@ -209,7 +209,7 @@ class ArtifactServiceTest {
                 .build();
 
         // When
-        ArtifactEntity entity = artifactService.toEntity(executionKey, artifact);
+        ArtifactEntity entity = artifactService.toEntity(executionKey, artifact).orElseThrow();
 
         // Then
         assertThat(entity.getContentHash()).isNull();
@@ -397,7 +397,7 @@ class ArtifactServiceTest {
                 .build();
         
         // Save the original to repository
-        ArtifactEntity originalEntity = artifactService.toEntity("exec-original", original);
+        ArtifactEntity originalEntity = artifactService.toEntity("exec-original", original).orElseThrow();
         artifactRepository.save(originalEntity);
         
         ArtifactKey duplicateKey = ArtifactKey.createRoot();
@@ -411,6 +411,37 @@ class ArtifactServiceTest {
         Artifact.ArtifactDbRef dbRef = (Artifact.ArtifactDbRef) result.get();
         assertThat(dbRef.artifactKey()).isEqualTo(duplicateKey);
         assertThat(dbRef.ref()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("decorateDuplicate tolerates null metadata on persisted artifact")
+    void decorateDuplicate_existingArtifactWithNullMetadata_returnsDbRef() {
+        ArtifactKey originalKey = ArtifactKey.createRoot();
+        String contentHash = "null-metadata-hash";
+
+        Artifact.ExecutionArtifact original = Artifact.ExecutionArtifact.builder()
+                .artifactKey(originalKey)
+                .workflowRunId("workflow-null-metadata")
+                .status(Artifact.ExecutionStatus.RUNNING)
+                .startedAt(Instant.parse("2026-03-10T14:39:00Z"))
+                .metadata(new HashMap<>())
+                .children(new ArrayList<>())
+                .hash(contentHash)
+                .build();
+
+        ArtifactEntity originalEntity = artifactService.toEntity("exec-null-metadata", original).orElseThrow();
+        originalEntity.setContentJson(originalEntity.getContentJson().replace("\"metadata\":{}", "\"metadata\":null"));
+        artifactRepository.saveAndFlush(originalEntity);
+
+        ArtifactKey duplicateKey = ArtifactKey.createRoot().createChild();
+
+        Optional<Artifact> result = artifactService.decorateDuplicate(contentHash, duplicateKey);
+
+        assertThat(result).isPresent();
+        assertThat(result.get()).isInstanceOf(Artifact.ArtifactDbRef.class);
+        Artifact.ArtifactDbRef dbRef = (Artifact.ArtifactDbRef) result.get();
+        assertThat(dbRef.artifactKey()).isEqualTo(duplicateKey);
+        assertThat(dbRef.metadata()).isEmpty();
     }
 
     @Test
@@ -433,7 +464,7 @@ class ArtifactServiceTest {
                 .build();
         
         // Save the original to repository
-        ArtifactEntity originalEntity = artifactService.toEntity("exec-template", original);
+        ArtifactEntity originalEntity = artifactService.toEntity("exec-template", original).orElseThrow();
         artifactRepository.save(originalEntity);
         
         ArtifactKey duplicateKey = ArtifactKey.createRoot();
@@ -465,7 +496,7 @@ class ArtifactServiceTest {
                 .build();
 
         // When
-        ArtifactEntity saved = artifactService.save(entity);
+        ArtifactEntity saved = artifactService.save(entity).orElseThrow();
 
         // Then
         assertThat(saved.getUuid()).isNotNull();
@@ -583,7 +614,7 @@ class ArtifactServiceTest {
                 .hash(contentHash)
                 .build();
         
-        ArtifactEntity existingEntity = artifactService.toEntity("exec-existing", existingArtifact);
+        ArtifactEntity existingEntity = artifactService.toEntity("exec-existing", existingArtifact).orElseThrow();
         artifactRepository.save(existingEntity);
         
         // Now create a new artifact with the same hash
@@ -631,7 +662,7 @@ class ArtifactServiceTest {
                 .build();
 
         // When
-        ArtifactEntity entity = artifactService.toEntity(executionKey, original);
+        ArtifactEntity entity = artifactService.toEntity(executionKey, original).orElseThrow();
         Optional<Artifact> deserialized = artifactService.deserializeArtifact(entity);
 
         // Then
@@ -664,7 +695,7 @@ class ArtifactServiceTest {
                 .build();
 
         // When
-        ArtifactEntity entity = artifactService.toEntity(executionKey, original);
+        ArtifactEntity entity = artifactService.toEntity(executionKey, original).orElseThrow();
         Optional<Artifact> deserialized = artifactService.deserializeArtifact(entity);
 
         // Then

@@ -7,17 +7,17 @@ multi-agent-embabel:
 llm:
   model-selection:
     default-model:
-      model: qwen3.5:9b
+      model: gpt-oss:120b-cloud
       provider: claude_llama
     by-agent-type:
       commit-agent:
-        model: qwen3.5:9b
+        model: gpt-oss:120b-cloud
         provider: claude_llama
       merge-conflict-agent:
-        model: qwen3.5:9b
+        model: gpt-oss:120b-cloud
         provider: claude_llama
       ai-filter:
-        model: qwen3.5:9b
+        model: gpt-oss:120b-cloud
         provider: claude_llama
     by-template: {}
 

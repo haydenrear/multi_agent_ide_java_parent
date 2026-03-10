@@ -86,7 +86,7 @@ public class ExecutionScopeService {
      * Completes an execution scope with the given status.
      */
     public void completeExecution(String workflowRunId, Artifact.ExecutionStatus status) {
-        ExecutionScope scope = activeScopes.remove(workflowRunId);
+        ExecutionScope scope = activeScopes.get(workflowRunId);
         if (scope == null) {
             log.warn("No active scope found for completion: {}", workflowRunId);
             return;
@@ -97,6 +97,7 @@ public class ExecutionScopeService {
         if (persisted.isEmpty()) {
             log.error("Execution completed but artifact listener did not have an execution for {}.", workflowRunId);
         } else {
+            activeScopes.remove(workflowRunId);
             log.info("Completed execution scope: {} with status {} - {} entities persisted.", workflowRunId, status, persisted.get().collectRecursiveChildren().size() + 1);
         }
     }

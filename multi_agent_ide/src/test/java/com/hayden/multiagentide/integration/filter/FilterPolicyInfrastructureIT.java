@@ -591,7 +591,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 "CONTROLLER",
                 CONTROLLER_ID,
                 "GRAPH_EVENT",
-                "AddMessageEvent",
+                "ADD_MESSAGE_EVENT",
                 pythonExecutor(pythonScript, "json_instructions")
         );
 

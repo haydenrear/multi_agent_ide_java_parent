@@ -2,6 +2,8 @@ package com.hayden.multiagentide.artifacts;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
@@ -15,11 +17,14 @@ import jakarta.persistence.PersistenceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -41,6 +46,14 @@ public class ArtifactService {
     private final ArtifactRepository artifactRepository;
 
     private ObjectMapper objectMapper;
+
+    private EventBus eventBus;
+
+    @Autowired
+    @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     @PostConstruct
     public void configure() {
@@ -111,8 +124,8 @@ public class ArtifactService {
             } else {
                 // Save the first as the original (no refs yet)
                 var original = artifacts.getFirst();
-                ArtifactEntity entity = toEntity(executionKey, original);
-                artifactRepository.save(entity);
+                toEntity(executionKey, original)
+                        .ifPresent(this::save);
 
                 // decorateDuplicate the rest
                 for (int i = 1; i < artifacts.size(); i++) {
@@ -123,12 +136,10 @@ public class ArtifactService {
             }
         }
 
-        // Save all refs
-        List<ArtifactEntity> toSave = refsToSave.stream()
-                .map(a -> toEntity(executionKey, a))
-                .toList();
-
-        var savedRefs = artifactRepository.saveAllAndFlush(toSave);
+        artifactRepository.saveAllAndFlush(
+                refsToSave.stream()
+                        .flatMap(a -> toEntity(executionKey, a).stream())
+                        .toList());
     }
 
 
@@ -138,26 +149,59 @@ public class ArtifactService {
             return Optional.empty();
         }
 
-        return artifactRepository.findByContentHash(contentHash)
-                .flatMap(this::deserializeArtifact)
-                .flatMap(a -> switch (a) {
-                    case Templated t -> {
-//                      use a random hash for this one as it's a ref
-                        if (!a.artifactKey().equals(artifact)) {
-                            yield Optional.of(new Artifact.TemplateDbRef(artifact, t.templateStaticId(), UUID.randomUUID().toString(), t, new ArrayList<>(StreamUtil.toStream(t.children()).toList()), new HashMap<>(t.metadata()), t.artifactType()));
-                        }
+        try {
+            return artifactRepository.findByContentHash(contentHash)
+                    .flatMap(this::deserializeArtifact)
+                    .flatMap(a -> switch (a) {
+                        case Templated t -> {
+                            if (!a.artifactKey().equals(artifact)) {
+                                yield Optional.of(new Artifact.TemplateDbRef(
+                                        artifact,
+                                        t.templateStaticId(),
+                                        UUID.randomUUID().toString(),
+                                        t,
+                                        new ArrayList<>(StreamUtil.toStream(t.children()).toList()),
+                                        safeMetadata(t.metadata()),
+                                        t.artifactType()));
+                            }
 
-                        yield Optional.of(new Artifact.TemplateDbRef(artifact.createChild(), t.templateStaticId(), UUID.randomUUID().toString(), t, new ArrayList<>(StreamUtil.toStream(t.children()).toList()), new HashMap<>(t.metadata()), t.artifactType()));
-                    }
-                    case Artifact t ->{
-//                      use a random hash for this one as it's a ref
-                        if (!t.artifactKey().equals(artifact)) {
-                            yield Optional.of(new Artifact.ArtifactDbRef(artifact, UUID.randomUUID().toString(), t, new ArrayList<>(StreamUtil.toStream(t.children()).toList()), new HashMap<>(t.metadata()), t.artifactType()));
+                            yield Optional.of(new Artifact.TemplateDbRef(
+                                    artifact.createChild(),
+                                    t.templateStaticId(),
+                                    UUID.randomUUID().toString(),
+                                    t,
+                                    new ArrayList<>(StreamUtil.toStream(t.children()).toList()),
+                                    safeMetadata(t.metadata()),
+                                    t.artifactType()));
                         }
+                        case Artifact t -> {
+                            if (!t.artifactKey().equals(artifact)) {
+                                yield Optional.of(new Artifact.ArtifactDbRef(
+                                        artifact,
+                                        UUID.randomUUID().toString(),
+                                        t,
+                                        new ArrayList<>(StreamUtil.toStream(t.children()).toList()),
+                                        safeMetadata(t.metadata()),
+                                        t.artifactType()));
+                            }
 
-                        yield Optional.of(new Artifact.ArtifactDbRef(artifact.createChild(), UUID.randomUUID().toString(), t, new ArrayList<>(StreamUtil.toStream(t.children()).toList()), new HashMap<>(t.metadata()), t.artifactType()));
-                    }
-                });
+                            yield Optional.of(new Artifact.ArtifactDbRef(
+                                    artifact.createChild(),
+                                    UUID.randomUUID().toString(),
+                                    t,
+                                    new ArrayList<>(StreamUtil.toStream(t.children()).toList()),
+                                    safeMetadata(t.metadata()),
+                                    t.artifactType()));
+                        }
+                    });
+        } catch (Exception e) {
+            publishPersistenceError("Failed to decorate duplicate artifact for key " + artifact.value(), artifact, e);
+            return Optional.empty();
+        }
+    }
+
+    private Map<String, String> safeMetadata(Map<String, String> metadata) {
+        return metadata == null ? new HashMap<>() : new HashMap<>(metadata);
     }
 
     /**
@@ -210,9 +254,16 @@ public class ArtifactService {
             log.debug("Successfully deserialized artifact: {} of type: {}",
                     entity.getArtifactKey(), entity.getArtifactType());
             return Optional.of(artifact);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to deserialize artifact: {} of type: {}",
-                    entity.getArtifactKey(), entity.getArtifactType(), e);
+        } catch (Exception e) {
+            var err = "Failed to deserialize artifact: %s of type: %s"
+                    .formatted(entity.getArtifactKey(), entity.getArtifactType());
+            log.error(err, e);
+            ArtifactKey artifactKey = null;
+            try {
+                artifactKey = new ArtifactKey(entity.getArtifactKey());
+            } catch (IllegalArgumentException i) {
+            }
+            publishPersistenceError(e.getMessage(), artifactKey, e);
             return Optional.empty();
         }
     }
@@ -226,55 +277,89 @@ public class ArtifactService {
      * @return The saved entity
      */
     @Transactional
-    public ArtifactEntity save(ArtifactEntity entity) {
-        return artifactRepository.save(entity);
+    public Optional<ArtifactEntity> save(ArtifactEntity entity) {
+        if (entity == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(artifactRepository.save(entity));
+        } catch (Exception e) {
+            publishPersistenceError(
+                    "Failed to save artifact entity " + entity.getArtifactKey(),
+                    safeArtifactKey(entity.getArtifactKey()),
+                    e
+            );
+            return Optional.empty();
+        }
     }
 
-    ArtifactEntity toEntity(String executionKey, Artifact artifact) {
+    Optional<ArtifactEntity> toEntity(String executionKey, Artifact artifact) {
+        if (artifact == null || artifact.artifactKey() == null) {
+            publishPersistenceError("Cannot convert null artifact or artifact key to entity", null, null);
+            return Optional.empty();
+        }
+
         ArtifactKey key = artifact.artifactKey();
-
-        String contentJson;
         try {
-            contentJson = objectMapper.writeValueAsString(artifact);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize artifact: {}", key, e);
-            contentJson = "{}";
+            String contentJson = objectMapper.writeValueAsString(artifact);
+            String parentKey = key.parent().map(ArtifactKey::value).orElse(null);
+
+            var templated = artifact instanceof Templated temp ? temp : null;
+            var templateDbRef = artifact instanceof Artifact.TemplateDbRef temp ? temp : null;
+            var artifactDbRef = artifact instanceof Artifact.ArtifactDbRef temp ? temp : null;
+
+            if (templateDbRef != null && templateDbRef.ref() == null) {
+                throw new IllegalArgumentException("Ref was null for TemplateDbRef provided.");
+            }
+            if (artifactDbRef != null && artifactDbRef.ref() == null) {
+                throw new IllegalArgumentException("Ref was null for ArtifactDbRef provided.");
+            }
+
+            return Optional.of(ArtifactEntity.builder()
+                    .artifactKey(key.value())
+                    .referencedArtifactKey(
+                            Optional.ofNullable(templateDbRef)
+                                    .map(td -> td.ref().templateArtifactKey().value())
+                                    .or(() -> Optional.ofNullable(artifactDbRef).map(td -> td.ref().artifactKey().value()))
+                                    .orElse(null))
+                    .templateStaticId(Optional.ofNullable(templated).map(Templated::templateStaticId).orElse(null))
+                    .parentKey(parentKey)
+                    .executionKey(executionKey)
+                    .artifactType(artifact.artifactType())
+                    .contentHash(artifact.contentHash().orElse(null))
+                    .contentJson(contentJson)
+                    .depth(key.depth())
+                    .shared(false)
+                    .childIds(
+                            StreamUtil.toStream(artifact.children()).flatMap(a -> Stream.ofNullable(a.artifactKey()))
+                                    .flatMap(ak -> StreamUtil.toStream(ak.value()))
+                                    .collect(Collectors.toCollection(ArrayList::new)))
+                    .build());
+        } catch (Exception e) {
+            publishPersistenceError("Failed to convert artifact to entity " + key.value(), key, e);
+            return Optional.empty();
         }
+    }
 
-        String parentKey = key.parent().map(ArtifactKey::value).orElse(null);
-
-        var t = artifact instanceof Templated temp ? temp : null;
-
-        var tDb = artifact instanceof Artifact.TemplateDbRef temp ? temp : null;
-        var aDb = artifact instanceof Artifact.ArtifactDbRef temp ? temp : null;
-
-        if (tDb != null && tDb.ref() == null) {
-            throw new IllegalArgumentException("Ref was null for TemplateDbRef provided.");
+    private void publishPersistenceError(String message, ArtifactKey artifactKey, Exception exception) {
+        if (exception == null) {
+            log.error(message);
+        } else {
+            log.error(message, exception);
         }
-        if (aDb != null && aDb.ref() == null) {
-            throw new IllegalArgumentException("Ref was null for ArtifactDbRef provided.");
+        if (eventBus == null || artifactKey == null) {
+            return;
         }
+        eventBus.publish(Events.NodeErrorEvent.err(message, artifactKey));
+    }
 
-        return ArtifactEntity.builder()
-                .artifactKey(key.value())
-                .referencedArtifactKey(
-                        Optional.ofNullable(tDb)
-                                .map(td -> td.ref().templateArtifactKey().value())
-                                .or(() -> Optional.ofNullable(aDb).map(td -> td.ref().artifactKey().value()))
-                                .orElse(null))
-                .templateStaticId(Optional.ofNullable(t).map(Templated::templateStaticId).orElse(null))
-                .parentKey(parentKey)
-                .executionKey(executionKey)
-                .artifactType(artifact.artifactType())
-                .contentHash(artifact.contentHash().orElse(null))
-                .contentJson(contentJson)
-                .depth(key.depth())
-                .shared(false)
-                .childIds(
-                        StreamUtil.toStream(artifact.children()).flatMap(a -> Stream.ofNullable(a.artifactKey()))
-                                .flatMap(ak -> StreamUtil.toStream(ak.value()))
-                                .collect(Collectors.toCollection(ArrayList::new)))
-                .build();
+    private ArtifactKey safeArtifactKey(String artifactKeyValue) {
+        try {
+            return artifactKeyValue == null || artifactKeyValue.isBlank() ? null : new ArtifactKey(artifactKeyValue);
+        } catch (Exception e) {
+            log.warn("Failed to parse artifact key for persistence error: {}", artifactKeyValue, e);
+            return null;
+        }
     }
 
 }

@@ -90,6 +90,7 @@ public class DefaultLlmRunner implements LlmRunner {
 
     String resolveEncodedAcpOptions(PromptContext promptContext) {
         if (AcpChatOptionsString.looksLikeEncodedModel(promptContext.modelName())) {
+            log.info("Using pre-encoded ACP model for chatId={}", promptContext.chatId().value());
             return promptContext.modelName();
         }
 
@@ -107,6 +108,23 @@ public class DefaultLlmRunner implements LlmRunner {
             if (requestedProvider == null) {
                 requestedProvider = normalize(resolved.providerWireValue());
             }
+            log.info(
+                    "Resolved default LLM selection for chatId={} agentType={} template={} model={} provider={}",
+                    promptContext.chatId().value(),
+                    promptContext.agentType(),
+                    promptContext.templateName(),
+                    requestedModel,
+                    requestedProvider
+            );
+        } else {
+            log.info(
+                    "Using explicit LLM selection for chatId={} agentType={} template={} model={} provider={}",
+                    promptContext.chatId().value(),
+                    promptContext.agentType(),
+                    promptContext.templateName(),
+                    requestedModel,
+                    requestedProvider
+            );
         }
 
         Map<String, Object> runtimeOptions = Map.of();
@@ -120,12 +138,8 @@ public class DefaultLlmRunner implements LlmRunner {
                     ));
         }
 
-        return AcpChatOptionsString.create(
-                promptContext.chatId().value(),
-                requestedModel,
-                requestedProvider,
-                runtimeOptions
-        ).encodeModel(objectMapper);
+        return AcpChatOptionsString.create(promptContext.chatId().value(), requestedModel, requestedProvider, runtimeOptions)
+                .encodeModel(objectMapper);
     }
 
     private String normalize(String value) {

@@ -38,6 +38,8 @@ import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
@@ -47,6 +49,8 @@ import java.util.*;
  * Single agent with all workflow actions.
  */
 public interface AgentInterfaces {
+
+    Logger log = LoggerFactory.getLogger(AgentInterfaces.class);
 
     String WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT = "WorkflowDiscoveryDispatchSubagent";
     String WORKFLOW_PLANNING_DISPATCH_SUBAGENT = "WorkflowPlanningDispatchSubagent";
@@ -3271,7 +3275,18 @@ public interface AgentInterfaces {
                 .toList();
         T decorated = finalResult;
         for (FinalResultDecorator decorator : sortedDecorators) {
-            decorated = decorator.decorateFinalResult(decorated, finalResultDecoratorContext);
+            try {
+                decorated = decorator.decorateFinalResult(decorated, finalResultDecoratorContext);
+            } catch (Exception e) {
+                log.error(
+                        "FinalResultDecorator {} failed for agent={} action={} method={}",
+                        decorator.getClass().getName(),
+                        agentName,
+                        actionName,
+                        methodName,
+                        e
+                );
+            }
         }
         return decorated;
     }

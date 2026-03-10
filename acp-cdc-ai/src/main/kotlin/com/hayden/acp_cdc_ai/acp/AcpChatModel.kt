@@ -332,7 +332,7 @@ class AcpChatModel(
             cwd = System.getProperty("user.dir")
 
         val chatKey = resolvedCall.sessionArtifactKey()
-            .mapNullable { ArtifactKey(it.toString()) }
+            .mapNullable { ArtifactKey(it) }
             .or { ArtifactKey.createRoot() }
             ?: ArtifactKey.createRoot()
 
@@ -437,7 +437,8 @@ class AcpChatModel(
                 chatModelKey = chatKey,
                 sessionCreationParameters = sessionParams,
                 permissionGate = permissionGate,
-                chatKey = chatKey
+                chatKey = chatKey,
+                chatOptions = objectMapper.writeValueAsString(resolvedCall)
             )
 
         } catch (ex: Exception) {

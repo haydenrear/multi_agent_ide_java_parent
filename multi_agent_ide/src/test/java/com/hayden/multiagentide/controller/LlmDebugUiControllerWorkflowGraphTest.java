@@ -86,7 +86,7 @@ class LlmDebugUiControllerWorkflowGraphTest {
         // --- Events for metrics ---
         // Chat session + message under child
         eventStreamRepository.save(new Events.ChatSessionCreatedEvent(
-                uid(), NOW.minusSeconds(95), childId, chatKey));
+                uid(), NOW.minusSeconds(95), childId, chatKey, ""));
         eventStreamRepository.save(new Events.AddMessageEvent(
                 uid(), NOW.minusSeconds(90), childId, "Working on it."));
         // Thought + stream deltas under child

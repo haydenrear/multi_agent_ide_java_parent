@@ -1091,8 +1091,14 @@ public interface Events {
             String eventId,
             Instant timestamp,
             String nodeId,
-            ArtifactKey chatModelId
+            ArtifactKey chatModelId,
+            String encodedChatOptions
     ) implements Events.GraphEvent {
+
+        public ChatSessionCreatedEvent(String eventId, Instant timestamp, String nodeId, ArtifactKey chatModelId) {
+            this(eventId, timestamp, nodeId, chatModelId, "");
+        }
+
         @Override
         public String eventType() {
             return "CHAT_SESSION_CREATED";

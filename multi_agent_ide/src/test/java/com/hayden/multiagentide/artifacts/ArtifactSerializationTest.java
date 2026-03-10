@@ -457,7 +457,7 @@ class ArtifactSerializationTest {
                     .artifactType("ArtifactDbRef")
                     .build();
             
-            ArtifactEntity refEntity = artifactService.toEntity(executionKey, dbRef);
+            ArtifactEntity refEntity = artifactService.toEntity(executionKey, dbRef).orElseThrow();
             artifactRepository.save(refEntity);
             
             Optional<Artifact> deserialized = artifactService.deserializeArtifact(refEntity);
@@ -622,7 +622,7 @@ class ArtifactSerializationTest {
                     .artifactType("TemplateDbRef")
                     .build();
             
-            ArtifactEntity refEntity = artifactService.toEntity(executionKey, templateDbRef);
+            ArtifactEntity refEntity = artifactService.toEntity(executionKey, templateDbRef).orElseThrow();
             artifactRepository.save(refEntity);
             
             Optional<Artifact> deserialized = artifactService.deserializeArtifact(refEntity);
@@ -1322,7 +1322,7 @@ class ArtifactSerializationTest {
             artifactTreeBuilder.addArtifact(newExecutionKey, createExecutionArtifact(newRootKey));
             artifactTreeBuilder.persistExecution(newExecutionKey);
             
-            ArtifactEntity refEntity = artifactService.toEntity(newExecutionKey, templateRef);
+            ArtifactEntity refEntity = artifactService.toEntity(newExecutionKey, templateRef).orElseThrow();
             artifactRepository.save(refEntity);
             
             // Deserialize the ref - it should resolve to the original template
@@ -1379,7 +1379,7 @@ class ArtifactSerializationTest {
             artifactTreeBuilder.addArtifact(newExecutionKey, createExecutionArtifact(newRootKey));
             artifactTreeBuilder.persistExecution(newExecutionKey);
             
-            ArtifactEntity refEntity = artifactService.toEntity(newExecutionKey, artifactRef);
+            ArtifactEntity refEntity = artifactService.toEntity(newExecutionKey, artifactRef).orElseThrow();
             artifactRepository.save(refEntity);
             
             // Deserialize the ref - it should resolve to the original artifact

@@ -201,8 +201,10 @@ public class ArtifactTreeBuilder {
     }
 
     public Optional<com.hayden.acp_cdc_ai.acp.events.Artifact> persistRemoveExecution(String executionKey) {
-        var toRemove = persistExecutionTree(executionKey) ;
-        this.executionTrees.remove(executionKey);
+        var toRemove = persistExecutionTree(executionKey);
+        if (toRemove.isPresent()) {
+            this.executionTrees.remove(executionKey);
+        }
         return toRemove;
     }
 

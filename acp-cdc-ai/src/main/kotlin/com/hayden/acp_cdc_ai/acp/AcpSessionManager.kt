@@ -45,7 +45,8 @@ class AcpSessionManager {
         val chatModelKey: ArtifactKey,
         val sessionCreationParameters: SessionCreationParameters,
         val permissionGate: IPermissionGate,
-        val chatKey: ArtifactKey
+        val chatKey: ArtifactKey,
+        val chatOptions: String
     ) {
 
         suspend fun resetSession() {
@@ -54,7 +55,7 @@ class AcpSessionManager {
         }
 
         init {
-            eventBus.publish(Events.ChatSessionCreatedEvent(UUID.randomUUID().toString(), Instant.now(), messageParent.value, chatModelKey))
+            eventBus.publish(Events.ChatSessionCreatedEvent(UUID.randomUUID().toString(), Instant.now(), messageParent.value, chatModelKey, chatOptions))
         }
 
         suspend fun prompt(content: List<ContentBlock>, _meta: JsonElement? = null): Flow<Event> = session.prompt(content, _meta)
