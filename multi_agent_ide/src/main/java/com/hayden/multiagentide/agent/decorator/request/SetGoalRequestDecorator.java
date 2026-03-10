@@ -34,17 +34,20 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
         if (request instanceof AgentModels.MergeConflictRequest mcr)
             return request;
 
+        BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context.operationContext());
+        if (history == null) {
+            return request;
+        }
+
         var firstGoal
-                = BlackboardHistory.getEntireBlackboardHistory(context.operationContext())
-                .fromHistory(h -> h.getEntriesOfTypeOrSuper(AgentModels.OrchestratorRequest.class))
+                = history.fromHistory(h -> h.getEntriesOfTypeOrSuper(AgentModels.OrchestratorRequest.class))
                 .stream()
                 .findFirst()
                 .map(AgentModels.OrchestratorRequest::goal)
                 .orElse("Could not find original goal.");
 
         var goal
-                = BlackboardHistory.getEntireBlackboardHistory(context.operationContext())
-                        .fromHistory(h -> h.getEntriesOfTypeOrSuper(AgentModels.AgentRequest.class)
+                = history.fromHistory(h -> h.getEntriesOfTypeOrSuper(AgentModels.AgentRequest.class)
                                 .stream()
                                 .map(ar -> {
                                     switch(ar) {
@@ -173,8 +176,12 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
         }
 
         // Infer phase from the most recent request types in blackboard history
-        return BlackboardHistory.getEntireBlackboardHistory(context.operationContext())
-                .fromHistory(hist -> {
+        BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context.operationContext());
+        if (history == null) {
+            return "ORCHESTRATOR_ONBOARDING";
+        }
+
+        return history.fromHistory(hist -> {
 
                     for (var r : hist.entries().reversed()) {
                         if (r.input() instanceof AgentModels.AgentRequest agentRequest) {

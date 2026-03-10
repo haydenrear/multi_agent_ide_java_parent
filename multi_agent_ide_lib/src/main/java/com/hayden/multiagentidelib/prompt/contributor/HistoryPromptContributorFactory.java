@@ -135,7 +135,7 @@ public class HistoryPromptContributorFactory implements PromptContributorFactory
 
         var e = history.copyOfEntries();
 
-        if (!CollectionUtils.isEmpty(e)) {
+        if (CollectionUtils.isEmpty(e)) {
             return null;
         }
 

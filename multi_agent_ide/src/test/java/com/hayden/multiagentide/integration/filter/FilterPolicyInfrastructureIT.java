@@ -122,13 +122,7 @@ class FilterPolicyInfrastructureIT {
     void workflowPositionPolicy_matchesLiveCoordinateWorkflowContributor() throws Exception {
         ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
         OperationContext operationContext = mockOperationContext();
-        saveLayer(
-                FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
-                FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
-                AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
-                FilterLayerCatalog.WORKFLOW_AGENT,
-                2
-        );
+        seedCatalogLayers();
 
         String aiPolicyId = registerAiPolicy(
                 "ai-workflow-position-live-match",
@@ -179,6 +173,60 @@ class FilterPolicyInfrastructureIT {
     }
 
     @Test
+    void livePromptContributorExactMatchPolicies_coverEveryCatalogActionLayer() throws Exception {
+        seedCatalogLayers();
+
+        AgentModels.AiFilterResult passThroughResult = AgentModels.AiFilterResult.builder()
+                .successful(true)
+                .output(List.of())
+                .build();
+        Mockito.when(llmRunner.runWithTemplate(
+                Mockito.anyString(),
+                Mockito.any(PromptContext.class),
+                Mockito.anyMap(),
+                Mockito.any(ToolContext.class),
+                Mockito.eq(AgentModels.AiFilterResult.class),
+                Mockito.any(OperationContext.class)
+        )).thenReturn(passThroughResult);
+
+        OperationContext operationContext = mockOperationContext();
+
+        for (FilterLayerCatalog.ActionDefinition actionDefinition : FilterLayerCatalog.actionDefinitions()) {
+            PromptContext promptContext = promptContextForAction(actionDefinition, operationContext);
+            List<String> contributorRoles = promptContributorService.getContributors(promptContext).stream()
+                    .map(ContextualPromptElement::getRole)
+                    .toList();
+
+            assertThat(contributorRoles)
+                    .as("live contributor roles for %s", actionDefinition.layerId())
+                    .isNotEmpty();
+
+            String contributorRole = selectExactMatchRole(contributorRoles);
+
+            String policyId = registerAiPolicy(
+                    "live-exact-" + actionDefinition.methodName(),
+                    actionDefinition.layerId(),
+                    FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
+                    actionDefinition.methodName(),
+                    "PROMPT_CONTRIBUTOR",
+                    contributorRole,
+                    "PER_INVOCATION",
+                    false
+            );
+
+            List<ContextualPromptElement> filteredContributors = promptContributorService.getContributors(promptContext);
+            ContextualPromptElement matchedContributor = selectContributorByRole(filteredContributors, contributorRole);
+            assertThat(matchedContributor.contribution(operationContext)).isNotBlank();
+            assertRecentDecisionsWithoutError(
+                    policyId,
+                    actionDefinition.layerId(),
+                    1,
+                    Set.of("PASSTHROUGH", "TRANSFORMED", "DROPPED")
+            );
+        }
+    }
+
+    @Test
     void promptContributorPolicies_match_everyCatalogActionLayer() throws Exception {
         String contributorName = "matrix-catalog-contributor";
         String content = """
@@ -217,7 +265,9 @@ class FilterPolicyInfrastructureIT {
                     FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
                     actionDefinition.methodName(),
                     "PROMPT_CONTRIBUTOR",
-                    contributorName
+                    contributorName,
+                    "PER_INVOCATION",
+                    false
             );
 
             PromptContributor contributor = new StaticPromptContributor(
@@ -749,6 +799,18 @@ class FilterPolicyInfrastructureIT {
         );
     }
 
+    private void seedCatalogLayers() {
+        for (FilterLayerCatalog.LayerDefinition layerDefinition : FilterLayerCatalog.layerDefinitions()) {
+            saveLayer(
+                    layerDefinition.layerId(),
+                    layerDefinition.layerType().name(),
+                    layerDefinition.layerKey(),
+                    layerDefinition.parentLayerId(),
+                    layerDefinition.depth()
+            );
+        }
+    }
+
     private void saveLayer(String layerId, String layerType, String layerKey, String parentLayerId, int depth) {
         layerRepository.save(LayerEntity.builder()
                 .layerId(layerId)
@@ -1026,10 +1088,13 @@ class FilterPolicyInfrastructureIT {
     private PromptContext promptContextForAction(FilterLayerCatalog.ActionDefinition actionDefinition,
                                                  OperationContext operationContext) {
         ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
+        AgentModels.AgentRequest currentRequest = minimalRequestFor(actionDefinition, actionKey);
         return PromptContext.builder()
                 .agentType(actionDefinition.agentType())
                 .currentContextId(actionKey)
                 .blackboardHistory(emptyBlackboardHistory(actionKey))
+                .currentRequest(currentRequest)
+                .model(Map.of())
                 .operationContext(operationContext)
                 .metadata(FilterLayerCatalog.metadataForLlmCall(
                         Map.of(),
@@ -1037,9 +1102,62 @@ class FilterPolicyInfrastructureIT {
                         actionDefinition.actionName(),
                         actionDefinition.methodName(),
                         actionDefinition.agentType(),
-                        null
+                        currentRequest
                 ))
                 .build();
+    }
+
+    private AgentModels.AgentRequest minimalRequestFor(FilterLayerCatalog.ActionDefinition actionDefinition,
+                                                       ArtifactKey actionKey) {
+        return actionDefinition.requestTypes().stream()
+                .filter(AgentModels.AgentRequest.class::isAssignableFrom)
+                .map(type -> instantiateRequest(type, actionKey))
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private AgentModels.AgentRequest instantiateRequest(Class<?> requestType, ArtifactKey actionKey) {
+        try {
+            Object builder = requestType.getMethod("builder").invoke(null);
+            invokeBuilderSetter(builder, "contextId", ArtifactKey.class, actionKey);
+            invokeBuilderSetter(builder, "goal", String.class, "matrix goal");
+            Object built = builder.getClass().getMethod("build").invoke(builder);
+            return built instanceof AgentModels.AgentRequest agentRequest ? agentRequest : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void invokeBuilderSetter(Object builder, String methodName, Class<?> parameterType, Object value) {
+        try {
+            builder.getClass().getMethod(methodName, parameterType).invoke(builder, value);
+        } catch (Exception ignored) {
+            // best-effort builder hydration for heterogeneous request types
+        }
+    }
+
+    private String selectExactMatchRole(List<String> contributorRoles) {
+        List<String> preferredRoles = List.of(
+                "workflow-position",
+                "request-context",
+                "active-data-filters"
+        );
+        for (String preferredRole : preferredRoles) {
+            for (String contributorRole : contributorRoles) {
+                if (preferredRole.equals(contributorRole)) {
+                    return contributorRole;
+                }
+            }
+        }
+        return contributorRoles.getFirst();
+    }
+
+    private ContextualPromptElement selectContributorByRole(List<ContextualPromptElement> contributors, String role) {
+        return contributors.stream()
+                .filter(contributor -> role.equals(contributor.getRole()))
+                .findFirst()
+                .orElseGet(contributors::getFirst);
     }
 
     private BlackboardHistory emptyBlackboardHistory(ArtifactKey actionKey) {

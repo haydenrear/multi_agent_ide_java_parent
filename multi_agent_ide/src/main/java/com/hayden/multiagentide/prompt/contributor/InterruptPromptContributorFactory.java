@@ -37,9 +37,11 @@ public class InterruptPromptContributorFactory implements PromptContributorFacto
             return List.of();
         }
 
-        if (!context.model().containsKey("interruptFeedback")
-                || StringUtils.isBlank(String.valueOf(context.model().get("interruptFeedback")))) {
-            return Lists.newArrayList(new InterruptResolutionContributor(interruptRequest, context.model()));
+        Map<String, Object> model = context.model() == null ? Map.of() : context.model();
+
+        if (!model.containsKey("interruptFeedback")
+                || StringUtils.isBlank(String.valueOf(model.get("interruptFeedback")))) {
+            return Lists.newArrayList(new InterruptResolutionContributor(interruptRequest, model));
         }
 
         List<PromptContributor> contributors = new ArrayList<>();
