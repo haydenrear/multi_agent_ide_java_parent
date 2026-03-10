@@ -51,18 +51,40 @@ public sealed interface FilterSource
             return com.hayden.acp_cdc_ai.acp.filter.FilterEnums.MatchOn.GRAPH_EVENT;
         }
 
+        public java.util.List<String> nameCandidates() {
+            if (event == null) {
+                return java.util.List.of();
+            }
+            java.util.LinkedHashSet<String> values = new java.util.LinkedHashSet<>();
+            addIfPresent(values, event.eventType());
+            Class<?> eventClass = event.getClass();
+            addIfPresent(values, eventClass.getSimpleName());
+            String binaryName = eventClass.getName();
+            if (binaryName != null) {
+                int lastDollar = binaryName.lastIndexOf('$');
+                addIfPresent(values, lastDollar >= 0 ? binaryName.substring(lastDollar + 1) : binaryName);
+            }
+            return java.util.List.copyOf(values);
+        }
+
         @Override
         public String matcherValue(com.hayden.acp_cdc_ai.acp.filter.FilterEnums.MatcherKey key) {
             if (event == null) {
                 return null;
             }
             return switch (key) {
-                case NAME -> event.getClass().getSimpleName();
+                case NAME -> nameCandidates().stream().findFirst().orElse(null);
                 case TEXT -> {
                     String pretty = event.prettyPrint();
                     yield (pretty == null || pretty.isBlank()) ? event.eventType() : pretty;
                 }
             };
+        }
+
+        private void addIfPresent(java.util.Set<String> values, String value) {
+            if (value != null && !value.isBlank()) {
+                values.add(value);
+            }
         }
     }
 }

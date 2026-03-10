@@ -837,23 +837,40 @@ public class FilterExecutionService {
     }
 
     private boolean matchesSource(PolicyLayerBinding binding, FilterSource source) {
+        if (source instanceof FilterSource.GraphEventSource graphEventSource
+                && binding.matcherKey() == FilterEnums.MatcherKey.NAME) {
+            return matchesGraphEventName(binding, graphEventSource);
+        }
+
         String valueToMatch = source.matcherValue(binding.matcherKey());
         if (valueToMatch == null) {
             return true;
         }
 
         return switch (binding.matcherType()) {
-            case EQUALS ->
-                    binding.matcherText().equals(valueToMatch);
-            case REGEX -> {
-                try {
-                    yield Pattern.compile(binding.matcherText()).matcher(valueToMatch).matches();
-                } catch (Exception e) {
-                    log.warn("Invalid regex in matcher: {}", binding.matcherText());
-                    yield false;
-                }
-            }
+            case EQUALS -> binding.matcherText().equals(valueToMatch);
+            case REGEX -> matchesRegex(binding.matcherText(), valueToMatch);
         };
+    }
+
+    public static boolean matchesGraphEventName(PolicyLayerBinding binding, FilterSource.GraphEventSource source) {
+        List<String> candidates = source.nameCandidates();
+        if (candidates.isEmpty()) {
+            return true;
+        }
+        return switch (binding.matcherType()) {
+            case EQUALS -> candidates.stream().anyMatch(binding.matcherText()::equals);
+            case REGEX -> candidates.stream().anyMatch(candidate -> matchesRegex(binding.matcherText(), candidate));
+        };
+    }
+
+    private static boolean matchesRegex(String pattern, String valueToMatch) {
+        try {
+            return Pattern.compile(pattern).matcher(valueToMatch).matches();
+        } catch (Exception e) {
+            log.warn("Invalid regex in matcher: {}", pattern);
+            return false;
+        }
     }
 
     private void logPromptBindingEvaluation(PolicyRegistrationEntity policy,
