@@ -7,17 +7,17 @@ multi-agent-embabel:
 llm:
   model-selection:
     default-model:
-      model: sonnet
+      model: claude-sonnet-4-6
       provider: claude
     by-agent-type:
       commit-agent:
-        model: haiku
+        model: claude-haiku-4-5
         provider: claude
       merge-conflict-agent:
-        model: haiku
+        model: claude-haiku-4-5
         provider: claude
       ai-filter:
-        model: haiku
+        model: claude-haiku-4-5
         provider: claude
     by-template: {}
 

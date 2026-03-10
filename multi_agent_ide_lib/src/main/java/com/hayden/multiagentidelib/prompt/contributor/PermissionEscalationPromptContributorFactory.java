@@ -3,16 +3,28 @@ package com.hayden.multiagentidelib.prompt.contributor;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Adds guardrails for permission escalation when required work is blocked by sandbox/tool denial.
  */
 @Component
 public class PermissionEscalationPromptContributorFactory implements PromptContributorFactory {
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.of(
+                "permission-escalation-guardrail-v1",
+                PermissionEscalationPromptContributor.class,
+                "FACTORY",
+                48,
+                "permission-escalation-guardrail-v1"));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {

@@ -3,10 +3,12 @@ package com.hayden.multiagentidelib.prompt.contributor;
 import com.google.common.collect.Lists;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class JsonOutputFormatPromptContributorFactory implements PromptContributorFactory {
@@ -18,6 +20,16 @@ public class JsonOutputFormatPromptContributorFactory implements PromptContribut
         }
 
         return Lists.newArrayList(JsonOutputFormatPromptContributor.INSTANCE);
+    }
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.of(
+                JsonOutputFormatPromptContributor.INSTANCE.name(),
+                JsonOutputFormatPromptContributor.class,
+                "FACTORY",
+                JsonOutputFormatPromptContributor.INSTANCE.priority(),
+                JsonOutputFormatPromptContributor.INSTANCE.templateStaticId()));
     }
 
     public record JsonOutputFormatPromptContributor() implements PromptContributor {

@@ -47,6 +47,10 @@ public interface PromptContributor extends FilteredObject {
         return List.of();
     }
 
+    default PromptContributorDescriptor descriptor() {
+        return PromptContributorDescriptor.fromContributor(this, "REGISTRY");
+    }
+
     default boolean isApplicable(PromptContext agentType) {
         if (agentType == null) {
             return false;

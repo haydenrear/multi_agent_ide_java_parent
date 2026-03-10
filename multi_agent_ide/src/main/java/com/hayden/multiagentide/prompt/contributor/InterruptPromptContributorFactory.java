@@ -5,6 +5,7 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Merged factory that produces interrupt-related prompt contributors:
@@ -26,6 +28,23 @@ import java.util.Optional;
  */
 @Component
 public class InterruptPromptContributorFactory implements PromptContributorFactory {
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(
+                PromptContributorDescriptor.of(
+                        "interrupt-review-guidance",
+                        InterruptAgentReviewContributor.class,
+                        "FACTORY",
+                        50,
+                        "interrupt-review-guidance"),
+                PromptContributorDescriptor.of(
+                        "interrupt-review-resolution",
+                        InterruptResolutionContributor.class,
+                        "FACTORY",
+                        50,
+                        "interrupt-review-resolution"));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {

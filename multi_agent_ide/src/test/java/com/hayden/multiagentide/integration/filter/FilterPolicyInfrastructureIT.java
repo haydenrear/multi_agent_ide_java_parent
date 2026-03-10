@@ -17,6 +17,7 @@ import com.hayden.multiagentide.filter.repository.LayerRepository;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.repository.EventStreamRepository;
+import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
@@ -59,13 +60,14 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "testdocker"})
-class FilterPolicyInfrastructureIT {
+class FilterPolicyInfrastructureIT extends AgentTestBase {
 
     private static final String CONTROLLER_ID = "LlmDebugUiController";
 
@@ -119,6 +121,16 @@ class FilterPolicyInfrastructureIT {
     }
 
     @Test
+    void attachablesEndpoint_listsGraphEventsAndPromptContributors() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/filters/attachables"))
+                .andExpect(status().isOk())
+                .andDo(print())
+                .andExpect(jsonPath("$.graphEvents[?(@.eventType == 'GOAL_STARTED')]").exists())
+                .andExpect(jsonPath("$.promptContributorNames[?(@ == 'active-data-filters')]").exists())
+                .andExpect(jsonPath("$.promptContributors[?(@.layerId == 'workflow-agent/coordinateWorkflow' && @.contributorName == 'workflow-position')]").exists());
+    }
+
+    @Test
     void workflowPositionPolicy_matchesLiveCoordinateWorkflowContributor() throws Exception {
         ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
         OperationContext operationContext = mockOperationContext();
@@ -156,6 +168,100 @@ class FilterPolicyInfrastructureIT {
         String filtered = adapted.contribution(operationContext);
 
         assertThat(filtered).contains("## Workflow Position");
+        assertRecentDecisionsWithoutError(
+                aiPolicyId,
+                FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                1,
+                Set.of("PASSTHROUGH", "TRANSFORMED", "DROPPED")
+        );
+        Mockito.verify(llmRunner).runWithTemplate(
+                Mockito.eq("filter/ai_filter"),
+                Mockito.any(PromptContext.class),
+                Mockito.anyMap(),
+                Mockito.any(ToolContext.class),
+                Mockito.eq(AgentModels.AiFilterResult.class),
+                Mockito.eq(operationContext)
+        );
+    }
+
+    @Test
+    void activeFiltersPromptPolicy_matchesLiveCoordinateWorkflowContributor_byExactName() throws Exception {
+        ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
+        OperationContext operationContext = mockOperationContext();
+        seedCatalogLayers();
+
+        String policyId = registerPolicy(
+                "/api/filters/markdown-path-filters/policies",
+                "active-filters-exact-name-live-match",
+                FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
+                AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                "PROMPT_CONTRIBUTOR",
+                "active-data-filters"
+                ,
+                "EQUALS",
+                pythonExecutor(createNoOpPythonExecutorScript(), "no_op")
+        );
+
+        PromptContext promptContext = workflowPromptContext(actionKey, operationContext);
+        List<ContextualPromptElement> contributors = promptContributorService.getContributors(promptContext);
+        List<String> contributorRoles = contributors.stream()
+                .map(ContextualPromptElement::getRole)
+                .toList();
+
+        assertThat(contributorRoles).contains("active-data-filters");
+
+        ContextualPromptElement activeFilters = selectContributorByRole(contributors, "active-data-filters");
+        assertThat(activeFilters.contribution(operationContext)).contains("## Active Data Filters");
+        assertRecentDecisionsWithoutError(
+                policyId,
+                FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                1,
+                Set.of("PASSTHROUGH", "TRANSFORMED", "DROPPED")
+        );
+    }
+
+    @Test
+    void activeFiltersAiPolicy_matchesLiveCoordinateWorkflowContributor_byExactName() throws Exception {
+        ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
+        OperationContext operationContext = mockOperationContext();
+        seedCatalogLayers();
+
+        String aiPolicyId = registerAiPolicy(
+                "ai-active-filters-exact-name-live-match",
+                FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
+                AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
+                "PROMPT_CONTRIBUTOR",
+                "active-data-filters",
+                "PER_INVOCATION",
+                false
+        );
+
+        AgentModels.AiFilterResult mockResult = AgentModels.AiFilterResult.builder()
+                .contextId(actionKey.createChild())
+                .successful(true)
+                .output(List.of())
+                .build();
+        Mockito.when(llmRunner.runWithTemplate(
+                Mockito.anyString(),
+                Mockito.any(PromptContext.class),
+                Mockito.anyMap(),
+                Mockito.any(ToolContext.class),
+                Mockito.eq(AgentModels.AiFilterResult.class),
+                Mockito.any(OperationContext.class)
+        )).thenReturn(mockResult);
+
+        PromptContext promptContext = workflowPromptContext(actionKey, operationContext);
+        List<ContextualPromptElement> contributors = promptContributorService.getContributors(promptContext);
+        List<String> contributorRoles = contributors.stream()
+                .map(ContextualPromptElement::getRole)
+                .toList();
+
+        assertThat(contributorRoles).contains("active-data-filters");
+
+        ContextualPromptElement activeFilters = selectContributorByRole(contributors, "active-data-filters");
+        assertThat(activeFilters.contribution(operationContext)).contains("## Active Data Filters");
         assertRecentDecisionsWithoutError(
                 aiPolicyId,
                 FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
@@ -300,16 +406,15 @@ class FilterPolicyInfrastructureIT {
     @Test
     void controllerLayer_registeredPolicies_areAppliedWhenViewingEvents() throws Exception {
         String nodeId = ArtifactKey.createRoot().value();
-        String controllerLayerId = "layer-controller-" + UUID.randomUUID();
-
-        saveLayer(controllerLayerId, "CONTROLLER", CONTROLLER_ID, null, 0);
+        seedCatalogLayers();
+        String controllerLayerId = FilterLayerCatalog.CONTROLLER_UI_EVENT_POLL;
 
         String eventPathPolicyIdA = registerPolicy(
                 "/api/filters/json-path-filters/policies",
                 "controller-event-json-path",
                 controllerLayerId,
-                "CONTROLLER",
-                CONTROLLER_ID,
+                FilterEnums.LayerType.CONTROLLER_UI_EVENT_POLL.name(),
+                FilterLayerCatalog.CONTROLLER_UI_EVENT_POLL,
                 "GRAPH_EVENT",
                 "AddMessageEvent"
         );
@@ -317,8 +422,8 @@ class FilterPolicyInfrastructureIT {
                 "/api/filters/regex-path-filters/policies",
                 "controller-event-path",
                 controllerLayerId,
-                "CONTROLLER",
-                CONTROLLER_ID,
+                FilterEnums.LayerType.CONTROLLER_UI_EVENT_POLL.name(),
+                FilterLayerCatalog.CONTROLLER_UI_EVENT_POLL,
                 "GRAPH_EVENT",
                 "AddMessageEvent"
         );
@@ -408,28 +513,23 @@ class FilterPolicyInfrastructureIT {
     @Test
     void actionLayer_pythonMarkdownPolicy_appliesAllInstructionOps() throws Exception {
         ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
-        String actionNodeId = actionKey.value();
-        String actionLayerId = "layer-action-python-" + UUID.randomUUID();
+        seedCatalogLayers();
+        String actionLayerId = FilterLayerCatalog.WORKFLOW_AGENT + "/" + AgentInterfaces.METHOD_COORDINATE_WORKFLOW;
         String contributorName = "it-test-contributor-python";
         Path pythonScript = createPythonExecutorScript();
-
-        saveLayer(actionLayerId, "WORKFLOW_AGENT_ACTION", actionNodeId, null, 1);
 
         String markdownPolicyId = registerPolicy(
                 "/api/filters/markdown-path-filters/policies",
                 "action-prompt-markdown-python",
                 actionLayerId,
-                "WORKFLOW_AGENT_ACTION",
-                actionNodeId,
+                FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
+                AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
                 "PROMPT_CONTRIBUTOR",
                 contributorName,
                 pythonExecutor(pythonScript, "markdown_instructions")
         );
 
-        PromptContext promptContext = PromptContext.builder()
-                .agentType(AgentType.ORCHESTRATOR)
-                .currentContextId(actionKey)
-                .build();
+        PromptContext promptContext = workflowPromptContext(actionKey, mockOperationContext());
 
         PromptContributor contributor = new StaticPromptContributor(
                 contributorName,
@@ -1084,6 +1184,33 @@ class FilterPolicyInfrastructureIT {
                         output = json_instructions(request)
                     else:
                         output = request.get("input")
+                    sys.stdout.write(json.dumps(output))
+                    return 0
+
+                if __name__ == "__main__":
+                    raise SystemExit(main())
+                """;
+        Files.writeString(scriptPath, script, StandardCharsets.UTF_8);
+        return scriptPath;
+    }
+
+    private Path createNoOpPythonExecutorScript() throws Exception {
+        Path scriptPath = Files.createTempFile("filter-policy-noop-it-", ".py");
+        String script = """
+                import json
+                import sys
+
+                def no_op(_payload):
+                    return []
+
+                def main() -> int:
+                    payload = sys.stdin.read()
+                    request = json.loads(payload) if payload else {}
+                    entry = sys.argv[1] if len(sys.argv) > 1 else "no_op"
+                    if entry == "no_op":
+                        output = no_op(request)
+                    else:
+                        output = []
                     sys.stdout.write(json.dumps(output))
                     return 0
 

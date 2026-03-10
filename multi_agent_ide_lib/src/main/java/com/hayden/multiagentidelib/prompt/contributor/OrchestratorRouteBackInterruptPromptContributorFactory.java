@@ -3,13 +3,25 @@ package com.hayden.multiagentidelib.prompt.contributor;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class OrchestratorRouteBackInterruptPromptContributorFactory implements PromptContributorFactory {
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.of(
+                "orchestrator-route-back-interrupt-guardrail",
+                OrchestratorRouteBackInterruptPromptContributor.class,
+                "FACTORY",
+                46,
+                "orchestrator-route-back-interrupt-guardrail"));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {
@@ -70,4 +82,3 @@ public class OrchestratorRouteBackInterruptPromptContributorFactory implements P
         }
     }
 }
-

@@ -2,7 +2,7 @@ logging.config: classpath:logback-multi-agent-ide.xml
 
 multi-agent-embabel:
   acp:
-    default-provider: claudeopenrouter
+    default-provider: claude_openrouter
 
 llm:
   model-selection:
@@ -10,14 +10,15 @@ llm:
       model: openai/gpt-oss-120b
       provider: claude_openrouter
     by-agent-type:
+      # consider changing these to low parameter
       commit-agent:
-        model: google/gemini-3.1-flash-lite
+        model: openai/gpt-oss-120b
         provider: claude_openrouter
       merge-conflict-agent:
-        model: google/gemini-3.1-flash-lite
+        model: openai/gpt-oss-120b
         provider: claude_openrouter
       ai-filter:
-        model: google/gemini-3.1-flash-lite
+        model: openai/gpt-oss-120b
         provider: claude_openrouter
     by-template: {}
 

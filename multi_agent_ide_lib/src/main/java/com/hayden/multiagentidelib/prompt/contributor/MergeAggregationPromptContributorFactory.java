@@ -9,12 +9,14 @@ import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Emits merge context by walking marker interfaces instead of request-specific deconstruction.
@@ -24,6 +26,23 @@ public class MergeAggregationPromptContributorFactory implements PromptContribut
 
     private static final String DISPATCH_NAME = "dispatch-merge-validation-v2";
     private static final String COLLECTOR_NAME = "collector-merge-validation-v2";
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(
+                PromptContributorDescriptor.of(
+                        DISPATCH_NAME,
+                        DispatchMergeValidationPromptContributor.class,
+                        "FACTORY",
+                        190,
+                        DISPATCH_NAME),
+                PromptContributorDescriptor.of(
+                        COLLECTOR_NAME,
+                        CollectorMergeValidationPromptContributor.class,
+                        "FACTORY",
+                        190,
+                        COLLECTOR_NAME));
+    }
 
     private static final String DISPATCH_TEMPLATE = """
             ## Dispatch Merge Context (Simplified)

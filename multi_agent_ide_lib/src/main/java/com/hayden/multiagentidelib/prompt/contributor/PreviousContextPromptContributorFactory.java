@@ -3,16 +3,28 @@ package com.hayden.multiagentidelib.prompt.contributor;
 import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.hayden.multiagentidelib.prompt.contributor.NodeMappings.DISPLAY_NAMES;
 
 @Component
 public class PreviousContextPromptContributorFactory implements PromptContributorFactory {
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.of(
+                PreviousContextPromptContributor.class.getSimpleName(),
+                PreviousContextPromptContributor.class,
+                "FACTORY",
+                10_000,
+                PreviousContextPromptContributor.class.getSimpleName()));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {

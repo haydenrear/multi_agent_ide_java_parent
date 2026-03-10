@@ -4,6 +4,7 @@ import com.hayden.multiagentidelib.skills.SkillDecorator;
 import com.hayden.multiagentide.skills.SkillFinder;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -18,6 +20,16 @@ import java.util.stream.Collectors;
 public class SkillPromptContributorFactory implements PromptContributorFactory {
 
     private final SkillFinder skillFinder;
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.of(
+                SkillPromptContributor.class.getSimpleName(),
+                SkillPromptContributor.class,
+                "FACTORY",
+                10_000,
+                SkillPromptContributor.class.getSimpleName()));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {

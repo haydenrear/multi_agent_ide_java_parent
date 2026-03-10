@@ -3,6 +3,7 @@ package com.hayden.multiagentidelib.prompt.contributor;
 import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import org.springframework.stereotype.Component;
@@ -15,6 +16,47 @@ import java.util.*;
 public class CurationHistoryContextContributorFactory implements PromptContributorFactory {
 
     private static final int BASE_PRIORITY = -1100;
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(
+                PromptContributorDescriptor.of(
+                        "curation-binder-<from>-to-<to>",
+                        NarrativeBinderContributor.class,
+                        "FACTORY",
+                        BASE_PRIORITY,
+                        "curation-binder-<from>-to-<to>"),
+                PromptContributorDescriptor.of(
+                        "curation-request-context-<request-type>",
+                        RequestContextContributor.class,
+                        "FACTORY",
+                        BASE_PRIORITY,
+                        "curation-request-context-<request-type>"),
+                PromptContributorDescriptor.of(
+                        "curation-workflow-footer",
+                        CurationWorkflowFooterContributor.class,
+                        "FACTORY",
+                        BASE_PRIORITY,
+                        "curation-workflow-footer"),
+                PromptContributorDescriptor.of(
+                        "curation-workflow-instructions",
+                        CurationWorkflowInstructionsContributor.class,
+                        "FACTORY",
+                        BASE_PRIORITY,
+                        "curation-workflow-instructions"),
+                PromptContributorDescriptor.of(
+                        "curation-data-<phase>",
+                        DataCurationContributor.class,
+                        "FACTORY",
+                        BASE_PRIORITY,
+                        "curation-data-<phase>"),
+                PromptContributorDescriptor.of(
+                        "curation-interrupt-resolution",
+                        InterruptResolutionContributor.class,
+                        "FACTORY",
+                        BASE_PRIORITY,
+                        "curation-interrupt-resolution"));
+    }
 
     static final String DISCOVERY_CURATION_HEADER = """
             ## Discovery Curation

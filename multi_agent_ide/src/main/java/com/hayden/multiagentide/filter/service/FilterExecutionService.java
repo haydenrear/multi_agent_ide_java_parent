@@ -21,6 +21,7 @@ import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.filter.model.*;
 import com.hayden.acp_cdc_ai.acp.filter.Instruction;
+import com.hayden.acp_cdc_ai.acp.filter.InstructionJson;
 import com.hayden.multiagentidelib.filter.model.executor.*;
 import com.hayden.multiagentidelib.filter.model.layer.FilterContext;
 import com.hayden.multiagentidelib.filter.model.layer.GraphEventObjectContext;
@@ -812,10 +813,23 @@ public class FilterExecutionService {
         try {
             List<PolicyLayerBinding> bindings = objectMapper.readValue(policy.getLayerBindingsJson(), new TypeReference<>() {});
 
-            return bindings.stream()
-                    .filter(b -> b.enabled() && b.layerId().equals(layerId))
-                    .filter(b -> b.matchOn() != null && b.matchOn() == source.matchOn())
-                    .anyMatch(b -> matchesSource(b, source));
+            boolean matched = false;
+            for (PolicyLayerBinding binding : bindings) {
+                if (!binding.enabled() || !binding.layerId().equals(layerId)) {
+                    continue;
+                }
+                if (binding.matchOn() == null || binding.matchOn() != source.matchOn()) {
+                    continue;
+                }
+
+                boolean bindingMatched = matchesSource(binding, source);
+                logPromptBindingEvaluation(policy, layerId, source, binding, bindingMatched);
+                if (bindingMatched) {
+                    matched = true;
+                    break;
+                }
+            }
+            return matched;
         } catch (Exception e) {
             log.error("Failed to parse bindings for policy {}", policy.getRegistrationId(), e);
             return false;
@@ -842,6 +856,43 @@ public class FilterExecutionService {
         };
     }
 
+    private void logPromptBindingEvaluation(PolicyRegistrationEntity policy,
+                                            String layerId,
+                                            FilterSource source,
+                                            PolicyLayerBinding binding,
+                                            boolean matched) {
+        if (!log.isDebugEnabled() || source.matchOn() != FilterEnums.MatchOn.PROMPT_CONTRIBUTOR) {
+            return;
+        }
+
+        String sourceName = source.matcherValue(FilterEnums.MatcherKey.NAME);
+        String sourceText = abbreviate(source.matcherValue(FilterEnums.MatcherKey.TEXT), 160);
+        String contributorClass = source instanceof FilterSource.PromptContributorSource promptSource
+                && promptSource.contributor() != null
+                ? promptSource.contributor().getClass().getName()
+                : "unknown";
+
+        log.debug(
+                "Prompt filter binding eval policy={} layer={} contributorClass={} bindingKey={} bindingType={} bindingText='{}' sourceName='{}' sourceText='{}' matched={}",
+                policy.getRegistrationId(),
+                layerId,
+                contributorClass,
+                binding.matcherKey(),
+                binding.matcherType(),
+                binding.matcherText(),
+                sourceName,
+                sourceText,
+                matched
+        );
+    }
+
+    private String abbreviate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength) + "...";
+    }
+
     private void recordDecision(PolicyRegistrationEntity policy,
                                 String layerId,
                                 FilterEnums.FilterAction action,
@@ -853,7 +904,7 @@ public class FilterExecutionService {
         try {
             String inputJson = toJsonSafely(input);
             String outputJson = toJsonSafely(output);
-            String instructionsJson = toJsonSafely(appliedInstructions);
+            String instructionsJson = InstructionJson.toJsonSafely(objectMapper, appliedInstructions);
             FilterDecisionRecordEntity record = FilterDecisionRecordEntity.builder()
                     .decisionId("dec-" + UUID.randomUUID())
                     .policyId(policy.getRegistrationId())

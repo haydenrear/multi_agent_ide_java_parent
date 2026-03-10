@@ -7,10 +7,12 @@ import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -21,6 +23,16 @@ import java.util.stream.Collectors;
  */
 @Component
 public class WorktreeSandboxPromptContributorFactory implements PromptContributorFactory {
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.of(
+                "worktree-sandbox-context",
+                WorktreeSandboxPromptContributor.class,
+                "FACTORY",
+                80,
+                "worktree-sandbox-context"));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {

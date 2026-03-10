@@ -6,6 +6,7 @@ import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
 import com.hayden.multiagentide.filter.service.LayerIdResolver;
 import com.hayden.multiagentide.filter.service.PolicyDiscoveryService;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * PromptContributorFactory that injects a description of all active data-layer
@@ -38,12 +40,24 @@ public class ActiveFiltersPromptContributorFactory implements PromptContributorF
 
         List<PolicyRegistrationEntity> policies =
                 policyDiscoveryService.getActivePoliciesByLayer(layerId.get());
+
         if (policies.isEmpty()) {
             return List.of();
         }
 
         String description = buildFilterDescription(policies);
         return List.of(new ActiveFiltersPromptContributor(description));
+    }
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.builder()
+                .name("active-data-filters")
+                .contributorClass(ActiveFiltersPromptContributor.class.getName())
+                .source("FACTORY")
+                .priority(0)
+                .templateStaticId("active-data-filters")
+                .build());
     }
 
     private String buildFilterDescription(List<PolicyRegistrationEntity> policies) {

@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,16 @@ public class ArtifactKeyPromptContributorFactory implements PromptContributorFac
         }
 
         return Lists.newArrayList(ArtifactKeyPromptContributor.INSTANCE);
+    }
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.of(
+                ArtifactKeyPromptContributor.INSTANCE.name(),
+                ArtifactKeyPromptContributor.class,
+                "FACTORY",
+                ArtifactKeyPromptContributor.INSTANCE.priority(),
+                ArtifactKeyPromptContributor.INSTANCE.templateStaticId()));
     }
 
     public record ArtifactKeyPromptContributor() implements PromptContributor {

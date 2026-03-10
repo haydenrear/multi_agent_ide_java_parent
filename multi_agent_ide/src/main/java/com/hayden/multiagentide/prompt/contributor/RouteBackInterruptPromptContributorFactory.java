@@ -6,6 +6,7 @@ import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -21,6 +23,23 @@ import java.util.Optional;
 public class RouteBackInterruptPromptContributorFactory implements PromptContributorFactory {
 
     private final GraphRepository graphRepository;
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(
+                PromptContributorDescriptor.of(
+                        "route-back-interrupt-guardrail",
+                        RouteBackInterruptPromptContributor.class,
+                        "FACTORY",
+                        45,
+                        "route-back-interrupt-guardrail"),
+                PromptContributorDescriptor.of(
+                        "route-back-review-received",
+                        RouteBackReviewReceivedPromptContributor.class,
+                        "FACTORY",
+                        45,
+                        "route-back-review-received"));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {

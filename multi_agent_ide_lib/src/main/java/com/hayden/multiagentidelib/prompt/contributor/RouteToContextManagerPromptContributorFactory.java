@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import org.springframework.stereotype.Component;
 
@@ -37,6 +38,16 @@ public class RouteToContextManagerPromptContributorFactory implements PromptCont
             AgentModels.TicketCollectorRequest.class,
             AgentModels.OrchestratorCollectorRequest.class
     );
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.of(
+                "context-manager-routing",
+                ContextManagerRoutingPromptContributor.class,
+                "FACTORY",
+                50,
+                "context-manager-routing"));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {

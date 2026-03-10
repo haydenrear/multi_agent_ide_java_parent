@@ -3,11 +3,13 @@ package com.hayden.multiagentidelib.prompt.contributor;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * When the current request is a {@link AgentModels.ContextManagerRequest}, this factory
@@ -21,6 +23,23 @@ import java.util.List;
 @Slf4j
 @Component
 public class ContextManagerPromptContributorFactory implements PromptContributorFactory {
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(
+                PromptContributorDescriptor.of(
+                        "context-manager-return-route",
+                        ContextManagerReturnRoutePromptContributor.class,
+                        "FACTORY",
+                        10,
+                        "context-manager-return-route"),
+                PromptContributorDescriptor.of(
+                        "context-manager-fallback-route",
+                        ContextManagerFallbackRoutePromptContributor.class,
+                        "FACTORY",
+                        10,
+                        "context-manager-fallback-route"));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {

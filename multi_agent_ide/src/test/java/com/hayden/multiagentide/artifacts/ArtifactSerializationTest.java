@@ -1000,7 +1000,7 @@ class ArtifactSerializationTest {
                     .goal("Test goal")
                     .phase("discovery")
                     .build();
-            artifactTreeBuilder.addArtifact(executionKey, (Artifact.AgentModelArtifact) request.toArtifact(Artifact.HashContext.defaultHashContext()));
+            artifactTreeBuilder.addArtifact(executionKey, request.toArtifact(Artifact.HashContext.defaultHashContext()));
             
             ArtifactKey resultKey = requestKey.createChild();
             AgentModels.OrchestratorAgentResult result = AgentModels.OrchestratorAgentResult.builder()

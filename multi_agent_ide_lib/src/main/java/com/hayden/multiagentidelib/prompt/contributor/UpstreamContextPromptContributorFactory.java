@@ -4,6 +4,7 @@ import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.UpstreamContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import com.hayden.multiagentidelib.prompt.SimplePromptContributor;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,35 @@ import java.util.Set;
 
 @Component
 public class UpstreamContextPromptContributorFactory implements PromptContributorFactory {
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(
+                PromptContributorDescriptor.of(
+                        "discovery-curation",
+                        SimplePromptContributor.class,
+                        "FACTORY",
+                        20,
+                        "discovery-curation"),
+                PromptContributorDescriptor.of(
+                        "planning-curation",
+                        SimplePromptContributor.class,
+                        "FACTORY",
+                        20,
+                        "planning-curation"),
+                PromptContributorDescriptor.of(
+                        "tickets",
+                        SimplePromptContributor.class,
+                        "FACTORY",
+                        21,
+                        "tickets"),
+                PromptContributorDescriptor.of(
+                        "ticket-curation",
+                        SimplePromptContributor.class,
+                        "FACTORY",
+                        20,
+                        "ticket-curation"));
+    }
 
     @Override
     public List<PromptContributor> create(PromptContext context) {

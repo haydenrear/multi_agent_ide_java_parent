@@ -198,6 +198,9 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
     }
 
     public static <T> T getLastMatching(Blackboard context, Function<Entry, Optional<T>> inputType) {
+        if (context == null)
+            return null;
+
         var history = getEntireBlackboardHistory(context);
 
         if (history == null) {

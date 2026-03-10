@@ -27,21 +27,28 @@ public class LayerIdResolver {
      */
     public Optional<String> resolveForPromptContributor(PromptContext ctx) {
         Map<String, Object> metadata = ctx == null ? null : ctx.metadata();
+
         Optional<String> explicitLayerId = resolveFromMetadata(metadata, FilterLayerCatalog.METADATA_LAYER_ID);
+
         if (explicitLayerId.isPresent()) {
             return explicitLayerId;
         }
         Optional<String> metadataLayerId = resolveFromRuntimeMetadata(metadata);
+
         if (metadataLayerId.isPresent()) {
             return metadataLayerId;
         }
+
         Optional<String> sessionLayerId = resolveForSession(resolveRawMetadata(metadata, "sessionId"));
+
         if (sessionLayerId.isPresent()) {
             return sessionLayerId;
         }
+
         if (ctx == null) {
             return Optional.empty();
         }
+
         return FilterLayerCatalog.resolveActionLayer(ctx.currentRequest(), ctx.agentType())
                 .flatMap(this::resolveExistingLayer)
                 .or(() -> FilterLayerCatalog.resolveRootLayer(ctx.agentType()).flatMap(this::resolveExistingLayer));

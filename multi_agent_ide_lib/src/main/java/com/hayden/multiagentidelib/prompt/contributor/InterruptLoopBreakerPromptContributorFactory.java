@@ -4,12 +4,14 @@ import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentModels.InterruptRequest;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Detects degenerate loops between orchestrator methods and their interrupt handlers.
@@ -22,6 +24,16 @@ import java.util.List;
 public class InterruptLoopBreakerPromptContributorFactory implements PromptContributorFactory {
 
     private static final int INTERRUPT_LOOP_THRESHOLD = 2;
+
+    @Override
+    public Set<PromptContributorDescriptor> descriptors() {
+        return Set.of(PromptContributorDescriptor.of(
+                "interrupt-loop-breaker",
+                InterruptLoopBreakerPromptContributor.class,
+                "FACTORY",
+                5,
+                "interrupt-loop-breaker"));
+    }
 
     record InterruptLoopMapping(
             Class<? extends InterruptRequest> interruptType,

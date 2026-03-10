@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -45,5 +46,12 @@ public class PromptContributorRegistry {
                 .comparingInt(PromptContributor::priority)
                 .thenComparing(PromptContributor::name, String.CASE_INSENSITIVE_ORDER));
         return List.copyOf(filtered);
+    }
+
+    public Set<PromptContributorDescriptor> getDescriptors() {
+        return contributors.stream()
+                .filter(c -> c != null && c.name() != null)
+                .map(PromptContributor::descriptor)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 }

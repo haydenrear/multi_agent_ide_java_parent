@@ -3,6 +3,7 @@ package com.hayden.multiagentide.filter.controller;
 import com.hayden.multiagentide.filter.controller.dto.*;
 import com.hayden.multiagentide.filter.repository.LayerEntity;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
+import com.hayden.multiagentide.filter.service.FilterAttachableCatalogService;
 import com.hayden.multiagentide.filter.service.LayerService;
 import com.hayden.multiagentide.filter.service.PolicyDiscoveryService;
 import com.hayden.multiagentide.filter.service.PolicyRegistrationService;
@@ -28,6 +29,7 @@ public class FilterPolicyController {
     private final PolicyRegistrationService policyRegistrationService;
     private final FilterDecisionQueryService filterDecisionQueryService;
     private final LayerService layerService;
+    private final FilterAttachableCatalogService filterAttachableCatalogService;
 
     // ── US1: Discovery ───────────────────────────────────────────────
 
@@ -86,6 +88,11 @@ public class FilterPolicyController {
                 .children(summaries)
                 .totalCount(summaries.size())
                 .build());
+    }
+
+    @GetMapping("/attachables")
+    public ResponseEntity<ReadAttachableTargetsResponse> getAttachableTargets() {
+        return ResponseEntity.ok(filterAttachableCatalogService.readAttachableTargets());
     }
 
     @PostMapping("/json-path-filters/policies")

@@ -12,6 +12,7 @@ import com.hayden.multiagentidelib.llm.LlmRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.LinkedHashMap;
@@ -71,26 +72,26 @@ public final class AiFilterTool<I, O>
             String templateName = ctx.templateName() != null ? ctx.templateName()
                     : (promptTemplate != null && !promptTemplate.isBlank() ? promptTemplate : "filter/ai_filter");
 
-            AgentModels.AiFilterResult aiResult = llmRunner.runWithTemplate(
-                    templateName,
-                    ctx.promptContext(),
-                    ctx.model() != null ? ctx.model() : Map.of(),
-                    ctx.toolContext(),
-                    AgentModels.AiFilterResult.class,
-                    ctx.context()
-            );
+            try {
 
-            if (aiResult == null) {
-                return new FilterResult<>(
-                        AgentModels.AiFilterResult.builder()
-                                .successful(false)
-                                .errorMessage("LLM returned null result")
-                                .output(List.of())
-                                .build(),
-                        buildAiFilterDescriptor());
+                AgentModels.AiFilterResult aiResult = llmRunner.runWithTemplate(
+                        templateName,
+                        ctx.promptContext(),
+                        ctx.model() != null ? ctx.model() : Map.of(),
+                        ctx.toolContext(),
+                        AgentModels.AiFilterResult.class,
+                        ctx.context()
+                );
+
+                if (aiResult == null) {
+                    return aiFailResult("LLM returned null result");
+                }
+
+                return new FilterResult<>(aiResult, buildAiFilterDescriptor());
+            } catch (Exception e) {
+                return aiFailResult("LLM call threw error: %s".formatted(e.getMessage()));
             }
 
-            return new FilterResult<>(aiResult, buildAiFilterDescriptor());
         } catch (Exception e) {
             log.error("Error when attempting to filter {}.", i, e);
             return new FilterResult<>(
@@ -101,6 +102,16 @@ public final class AiFilterTool<I, O>
                             .build(),
                     new FilterDescriptor.NoOpFilterDescriptor());
         }
+    }
+
+    private @NonNull FilterResult<AgentModels.AiFilterResult> aiFailResult(String message) {
+        return new FilterResult<>(
+                AgentModels.AiFilterResult.builder()
+                        .successful(false)
+                        .errorMessage(message)
+                        .output(List.of())
+                        .build(),
+                buildAiFilterDescriptor());
     }
 
     private FilterDescriptor buildAiFilterDescriptor() {

@@ -27,7 +27,7 @@ spring:
     name: multi-agent-ide
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create
   datasource:
     driver-class-name: org.postgresql.Driver
     username: postgres
@@ -146,7 +146,7 @@ multi-agent-embabel:
         args: ${ACP_ARGS:--sandbox danger-full-access --ask-for-approval never --yolo true}
         working-directory: ${ACP_WORKING_DIR:}
         auth-method: chatgpt
-      claudeopenrouter:
+      claude_openrouter:
         transport: stdio
         command: ${ACP_COMMAND:claude-agent-acp}
         args: ${ACP_ARGS:--model openai/gpt-oss-120b}
@@ -159,7 +159,7 @@ multi-agent-embabel:
           OPENROUTER_API_KEY: ${X_OPENROUTER_API_KEY}
           ANTHROPIC_MODEL: openai/gpt-oss-120b
           CLAUDE_CODE_EXECUTABLE: /Users/hayde/.local/bin/claude
-      claudellama:
+      claude_llama:
         transport: stdio
         command: ${ACP_COMMAND:claude-agent-acp}
         args: ${ACP_ARGS:--model qwen3.5:9b}
