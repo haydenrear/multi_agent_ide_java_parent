@@ -182,22 +182,22 @@ databaseChangeLog:
             columnNames: artifact_id, child_id
             constraintName: uq_artifact_child_ids_parent_child
 
-#        - addForeignKeyConstraint:
-#            baseTableName: artifact_child_ids
-#            baseColumnNames: artifact_id
-#            referencedTableName: artifact
-#            referencedColumnNames: uuid
-#            constraintName: fk_child_ids_parent_artifact
-#            onDelete: CASCADE
+  #        - addForeignKeyConstraint:
+  #            baseTableName: artifact_child_ids
+  #            baseColumnNames: artifact_id
+  #            referencedTableName: artifact
+  #            referencedColumnNames: uuid
+  #            constraintName: fk_child_ids_parent_artifact
+  #            onDelete: CASCADE
 
-#        - addForeignKeyConstraint:
-#            baseTableName: artifact_child_ids
-#            baseColumnNames: child_id
-#            referencedTableName: artifact
-#            referencedColumnNames: artifact_key
-#            constraintName: fk_child_ids_child_artifact_key
-#            onDelete: RESTRICT
-#            onUpdate: CASCADE
+  #        - addForeignKeyConstraint:
+  #            baseTableName: artifact_child_ids
+  #            baseColumnNames: child_id
+  #            referencedTableName: artifact
+  #            referencedColumnNames: artifact_key
+  #            constraintName: fk_child_ids_child_artifact_key
+  #            onDelete: RESTRICT
+  #            onUpdate: CASCADE
 
   - changeSet:
       id: 003-create-artifact-refs-table
@@ -379,3 +379,394 @@ databaseChangeLog:
             onDelete: RESTRICT
             onUpdate: CASCADE
 
+  - changeSet:
+      id: 005-create-filter-layer-table
+      author: hayden
+      changes:
+        - createTable:
+            tableName: filter_layer
+            columns:
+              - column:
+                  name: uuid
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: layer_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: layer_type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: layer_key
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: parent_layer_id
+                  type: VARCHAR(255)
+
+              - column:
+                  name: is_inheritable
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: is_propagated_to_parent
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: depth
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: metadata_json
+                  type: TEXT
+
+              - column:
+                  name: created_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: updated_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_by
+                  type: VARCHAR(255)
+
+              - column:
+                  name: modified_by
+                  type: VARCHAR(255)
+
+        - createIndex:
+            tableName: filter_layer
+            indexName: idx_layer_id
+            columns:
+              - column:
+                  name: layer_id
+
+        - createIndex:
+            tableName: filter_layer
+            indexName: idx_layer_type
+            columns:
+              - column:
+                  name: layer_type
+
+        - createIndex:
+            tableName: filter_layer
+            indexName: idx_layer_key
+            columns:
+              - column:
+                  name: layer_key
+
+        - createIndex:
+            tableName: filter_layer
+            indexName: idx_layer_parent
+            columns:
+              - column:
+                  name: parent_layer_id
+
+        - createIndex:
+            tableName: filter_layer
+            indexName: idx_layer_depth
+            columns:
+              - column:
+                  name: depth
+
+  - changeSet:
+      id: 006-create-filter-layer-child-ids-table
+      author: hayden
+      changes:
+        - createTable:
+            tableName: filter_layer_child_ids
+            columns:
+              - column:
+                  name: layer_entity_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: child_layer_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: child_order
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+
+        - addPrimaryKey:
+            tableName: filter_layer_child_ids
+            columnNames: layer_entity_id, child_order
+            constraintName: pk_filter_layer_child_ids
+
+        - createIndex:
+            tableName: filter_layer_child_ids
+            indexName: idx_filter_layer_child_ids_entity_id
+            columns:
+              - column:
+                  name: layer_entity_id
+
+        - createIndex:
+            tableName: filter_layer_child_ids
+            indexName: idx_filter_layer_child_ids_child_id
+            columns:
+              - column:
+                  name: child_layer_id
+
+  - changeSet:
+      id: 007-create-policy-registration-table
+      author: hayden
+      changes:
+        - createTable:
+            tableName: policy_registration
+            columns:
+              - column:
+                  name: uuid
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: registration_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: registered_by
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: filter_kind
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: is_inheritable
+                  type: BOOLEAN
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: is_propagated_to_parent
+                  type: BOOLEAN
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: filter_json
+                  type: TEXT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: layer_bindings_json
+                  type: TEXT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: activated_at
+                  type: TIMESTAMP
+
+              - column:
+                  name: deactivated_at
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: updated_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_by
+                  type: VARCHAR(255)
+
+              - column:
+                  name: modified_by
+                  type: VARCHAR(255)
+
+        - createIndex:
+            tableName: policy_registration
+            indexName: idx_policy_reg_id
+            columns:
+              - column:
+                  name: registration_id
+
+        - createIndex:
+            tableName: policy_registration
+            indexName: idx_policy_status
+            columns:
+              - column:
+                  name: status
+
+        - createIndex:
+            tableName: policy_registration
+            indexName: idx_policy_filter_kind
+            columns:
+              - column:
+                  name: filter_kind
+
+        - createIndex:
+            tableName: policy_registration
+            indexName: idx_policy_registered_by
+            columns:
+              - column:
+                  name: registered_by
+
+  - changeSet:
+      id: 008-create-filter-decision-record-table
+      author: hayden
+      changes:
+        - createTable:
+            tableName: filter_decision_record
+            columns:
+              - column:
+                  name: uuid
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: decision_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: policy_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: filter_type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: layer_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: action
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: input_json
+                  type: TEXT
+
+              - column:
+                  name: output_json
+                  type: TEXT
+
+              - column:
+                  name: applied_instructions_json
+                  type: TEXT
+
+              - column:
+                  name: error_message
+                  type: VARCHAR(30000)
+
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: created_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: updated_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_by
+                  type: VARCHAR(255)
+
+              - column:
+                  name: modified_by
+                  type: VARCHAR(255)
+
+        - createIndex:
+            tableName: filter_decision_record
+            indexName: idx_decision_id
+            columns:
+              - column:
+                  name: decision_id
+
+        - createIndex:
+            tableName: filter_decision_record
+            indexName: idx_decision_policy_id
+            columns:
+              - column:
+                  name: policy_id
+
+        - createIndex:
+            tableName: filter_decision_record
+            indexName: idx_decision_layer_id
+            columns:
+              - column:
+                  name: layer_id
+
+        - createIndex:
+            tableName: filter_decision_record
+            indexName: idx_decision_action
+            columns:
+              - column:
+                  name: action
+
+        - createIndex:
+            tableName: filter_decision_record
+            indexName: idx_decision_created_at
+            columns:
+              - column:
+                  name: created_at

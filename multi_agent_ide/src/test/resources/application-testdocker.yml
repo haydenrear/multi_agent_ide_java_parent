@@ -3,7 +3,7 @@ logging.config: classpath:logback-multi-agent-console.xml
 spring:
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: validate
   datasource:
     driver-class-name: org.postgresql.Driver
     username: postgres
@@ -15,7 +15,7 @@ spring:
       #jdbc-url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5105}/${POSTGRES_DATABASE:postgres}
       driver-class-name: org.postgresql.Driver
   liquibase:
-    enabled: false
+    enabled: true
     change-log: classpath:/db/changelog/db.changelog-master.yaml
     user: postgres
     password: postgres
