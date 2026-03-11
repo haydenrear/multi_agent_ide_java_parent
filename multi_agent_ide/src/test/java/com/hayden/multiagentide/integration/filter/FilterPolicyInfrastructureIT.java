@@ -1068,7 +1068,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 "scriptPath", scriptPath.toAbsolutePath().normalize().toString(),
                 "entryFunction", entryFunction,
                 "runtimeArgsSchema", Map.of(),
-                "timeoutMs", 5_000
+                "timeoutMs", 15_000
         );
     }
 

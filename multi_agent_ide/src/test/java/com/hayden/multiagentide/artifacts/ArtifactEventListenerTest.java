@@ -50,6 +50,9 @@ class ArtifactEventListenerTest {
     @Mock
     private EventArtifactMapper eventArtifactMapper;
 
+    @Mock
+    private ArtifactService artifactService;
+
     @Captor
     private ArgumentCaptor<EventListener> listenerCaptor;
     
@@ -63,8 +66,10 @@ class ArtifactEventListenerTest {
     
     @BeforeEach
     void setUp() {
-        listener = new ArtifactEventListener(treeBuilder, eventArtifactMapper);
+        listener = new ArtifactEventListener(treeBuilder, eventArtifactMapper, artifactService);
         eventBus.subscribe(listener);
+
+        lenient().when(treeBuilder.getExecutionTree(anyString())).thenReturn(java.util.Optional.of(mock(ArtifactNode.class)));
 
         // Set properties via reflection since @Value won't work in unit tests
         ReflectionTestUtils.setField(listener, "persistenceEnabled", true);

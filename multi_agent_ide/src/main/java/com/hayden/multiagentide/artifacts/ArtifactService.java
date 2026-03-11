@@ -200,6 +200,13 @@ public class ArtifactService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public boolean existsByArtifactKey(String artifactKey) {
+        return artifactKey != null
+                && !artifactKey.isBlank()
+                && artifactRepository.existsByArtifactKey(artifactKey);
+    }
+
     private Map<String, String> safeMetadata(Map<String, String> metadata) {
         return metadata == null ? new HashMap<>() : new HashMap<>(metadata);
     }
@@ -290,6 +297,29 @@ public class ArtifactService {
                     e
             );
             return Optional.empty();
+        }
+    }
+
+    @Transactional
+    public boolean persistDirectArtifact(String executionKey, Artifact artifact) {
+        if (artifact == null || artifact.artifactKey() == null) {
+            publishPersistenceError("Cannot persist null artifact directly", null, null);
+            return false;
+        }
+
+        String artifactKey = artifact.artifactKey().value();
+        try {
+            if (artifactRepository.existsByArtifactKey(artifactKey)) {
+                log.debug("Skipping direct artifact persist because key already exists: {}", artifactKey);
+                return false;
+            }
+
+            return toEntity(executionKey, artifact)
+                    .flatMap(this::save)
+                    .isPresent();
+        } catch (Exception e) {
+            publishPersistenceError("Failed to persist artifact directly " + artifactKey, artifact.artifactKey(), e);
+            return false;
         }
     }
 

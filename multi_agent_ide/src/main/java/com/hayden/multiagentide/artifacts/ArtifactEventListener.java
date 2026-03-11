@@ -31,6 +31,7 @@ public class ArtifactEventListener implements EventListener {
 
     private final ArtifactTreeBuilder treeBuilder;
     private final EventArtifactMapper eventArtifactMapper;
+    private final ArtifactService artifactService;
 
     @Value("${artifacts.persistence.enabled:true}")
     private boolean persistenceEnabled;
@@ -212,11 +213,7 @@ public class ArtifactEventListener implements EventListener {
 
             ArtifactKey artifactKey = event.artifactKey();
             String executionKey = extractExecutionKey(artifactKey);
-            boolean added = treeBuilder.addArtifact(executionKey, artifact);
-            if (added) {
-                flushPendingArtifacts(executionKey);
-                log.debug("Added artifact: {}", artifactKey.value());
-            }
+            addOrQueueArtifact(executionKey, artifact);
         } catch (Exception e) {
             log.error("Failed to handle artifact event: {}", event, e);
         }
@@ -262,9 +259,19 @@ public class ArtifactEventListener implements EventListener {
         if (treeBuilder.getExecutionTree(executionKey).isPresent()) {
             boolean added = treeBuilder.addArtifact(executionKey, artifact);
             if (added) {
+                flushPendingArtifacts(executionKey);
                 log.debug("Added derived artifact: {} ({})", artifact.artifactKey().value(), artifact.artifactType());
             }
             return;
+        }
+
+        if (shouldPersistDirectly(executionKey, artifact)) {
+            boolean persisted = artifactService.persistDirectArtifact(executionKey, artifact);
+            if (persisted) {
+                log.debug("Persisted artifact directly without in-memory tree: {} ({})",
+                        artifact.artifactKey().value(), artifact.artifactType());
+                return;
+            }
         }
 
         pendingArtifactsByExecution
@@ -289,5 +296,25 @@ public class ArtifactEventListener implements EventListener {
 
     private String extractExecutionKey(ArtifactKey artifactKey) {
         return artifactKey.isRoot() ? artifactKey.value() : artifactKey.root().value();
+    }
+
+    private boolean shouldPersistDirectly(String executionKey, Artifact artifact) {
+        ArtifactKey artifactKey = artifact.artifactKey();
+        if (artifactKey == null) {
+            return false;
+        }
+
+        if (artifact instanceof Artifact.ExecutionArtifact) {
+            return false;
+        }
+
+        if (artifactKey.isRoot()) {
+            return true;
+        }
+
+        return artifactKey.parent()
+                .map(ArtifactKey::value)
+                .map(artifactService::existsByArtifactKey)
+                .orElse(false);
     }
 }

@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -106,6 +107,8 @@ public record PythonExecutor<I, O, CTX extends FilterContext>(
         }
 
         Process process = processBuilder.start();
+        CompletableFuture<String> stdoutFuture = readStreamAsync(process.getInputStream());
+        CompletableFuture<String> stderrFuture = readStreamAsync(process.getErrorStream());
         try (var stdin = process.getOutputStream()) {
             stdin.write(buildRequestPayload(input, filterContext, objectMapper).getBytes(StandardCharsets.UTF_8));
             stdin.flush();
@@ -117,13 +120,25 @@ public record PythonExecutor<I, O, CTX extends FilterContext>(
             throw new IllegalStateException("Executor timed out after " + timeoutMs + "ms");
         }
 
-        String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-        String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        String stdout = stdoutFuture.get(Math.max(1, timeoutMs), TimeUnit.MILLISECONDS).trim();
+        String stderr = stderrFuture.get(Math.max(1, timeoutMs), TimeUnit.MILLISECONDS).trim();
         if (process.exitValue() != 0) {
             throw new IllegalStateException("Executor exited " + process.exitValue() + ": "
                     + (stderr.isBlank() ? stdout : stderr));
         }
         return stdout;
+    }
+
+    private CompletableFuture<String> readStreamAsync(java.io.InputStream stream) {
+        CompletableFuture<String> future = new CompletableFuture<>();
+        Thread.ofVirtual().start(() -> {
+            try (stream) {
+                future.complete(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            }
+        });
+        return future;
     }
 
     private String buildRequestPayload(I input, CTX ctx, ObjectMapper objectMapper) throws Exception {
