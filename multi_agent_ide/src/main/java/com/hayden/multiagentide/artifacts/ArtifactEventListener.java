@@ -107,6 +107,10 @@ public class ArtifactEventListener implements EventListener {
             }
             case Events.TuiSystemGraphEvent ignored -> {
             }
+            case Events.PropagationEvent ignored -> {
+            }
+            case Events.TransformationEvent ignored -> {
+            }
         }
     }
 
@@ -160,6 +164,8 @@ public class ArtifactEventListener implements EventListener {
             case Events.AvailableCommandsUpdateEvent ignored -> false;
             case Events.TuiInteractionGraphEvent ignored -> false;
             case Events.TuiSystemGraphEvent ignored -> false;
+            case Events.PropagationEvent ignored -> false;
+            case Events.TransformationEvent ignored -> false;
         };
     }
 

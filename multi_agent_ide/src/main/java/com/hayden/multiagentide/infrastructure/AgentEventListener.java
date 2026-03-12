@@ -171,6 +171,12 @@ public class AgentEventListener implements EventListener {
             case Events.MergePhaseCompletedEvent mergePhaseCompletedEvent -> {
                 log.debug("Merge phase completed: {} successful={}", mergePhaseCompletedEvent.eventId(), mergePhaseCompletedEvent.successful());
             }
+            case Events.PropagationEvent propagationEvent -> {
+                log.debug("Propagation event: {} action={} stage={}", propagationEvent.eventId(), propagationEvent.action(), propagationEvent.stage());
+            }
+            case Events.TransformationEvent transformationEvent -> {
+                log.debug("Transformation event: {} action={}", transformationEvent.eventId(), transformationEvent.action());
+            }
         }
     }
 

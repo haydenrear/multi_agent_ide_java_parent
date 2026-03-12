@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.filter.validation;
 
 import com.hayden.multiagentide.filter.controller.dto.PolicyRegistrationRequest;
+import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -50,6 +51,8 @@ public class PolicySemanticValidator {
 
         if (binding.layerId() == null || binding.layerId().isBlank()) {
             errors.add(prefix + "layerId is required");
+        } else if (FilterLayerCatalog.isInternalAutomationLayer(binding.layerId())) {
+            errors.add(prefix + "layerId cannot target internal automation layers");
         }
         if (binding.matcherText() == null || binding.matcherText().isBlank()) {
             errors.add(prefix + "matcherText is required");

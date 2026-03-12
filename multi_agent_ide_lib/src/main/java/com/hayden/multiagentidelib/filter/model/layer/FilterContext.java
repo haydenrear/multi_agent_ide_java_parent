@@ -19,10 +19,9 @@ import java.util.Optional;
  * Runtime context supplied to filter execution.
  * Extends LayerCtx so filters have access to the layer context they're executing in.
  */
-public sealed interface FilterContext extends LayerCtx
-        permits PromptContributorContext, GraphEventObjectContext, FilterContext.PathFilterContext {
+public non-sealed interface FilterContext extends LayerCtx {
 
-    sealed interface PathFilterContext extends FilterContext permits DefaultPathFilterContext, AiFilterContext {
+    interface PathFilterContext extends FilterContext {
         FilterContext filterContext();
     }
 

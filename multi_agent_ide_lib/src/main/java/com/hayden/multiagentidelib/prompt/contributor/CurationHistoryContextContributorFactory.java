@@ -434,6 +434,10 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     }
                     case AgentModels.AiFilterResult ignored -> {
                     }
+                    case AgentModels.AiPropagatorResult ignored -> {
+                    }
+                    case AgentModels.AiTransformerResult ignored -> {
+                    }
                 }
             }
 
@@ -454,6 +458,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                         }
                     }
                     case AgentModels.AiFilterRequest aiFilterRequest -> {}
+                    case AgentModels.AiPropagatorRequest aiPropagatorRequest -> {}
+                    case AgentModels.AiTransformerRequest aiTransformerRequest -> {}
                     case AgentModels.CommitAgentRequest commitAgentRequest -> {}
                     case AgentModels.MergeConflictRequest mergeConflictRequest -> {}
                     case AgentModels.ContextManagerRequest contextManagerRequest ->
@@ -584,6 +590,10 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
 //                TODO: validate - this already uses previous session - no reason to rewrite these.
             }
             case AgentModels.AiFilterRequest aiFilterRequest -> {
+            }
+            case AgentModels.AiPropagatorRequest aiPropagatorRequest -> {
+            }
+            case AgentModels.AiTransformerRequest aiTransformerRequest -> {
             }
             case AgentModels.MergeConflictRequest ignored -> {
             }

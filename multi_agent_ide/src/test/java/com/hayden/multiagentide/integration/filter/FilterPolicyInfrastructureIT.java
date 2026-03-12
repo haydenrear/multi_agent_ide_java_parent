@@ -297,7 +297,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
 
         OperationContext operationContext = mockOperationContext();
 
-        for (FilterLayerCatalog.ActionDefinition actionDefinition : FilterLayerCatalog.actionDefinitions()) {
+        for (FilterLayerCatalog.ActionDefinition actionDefinition : FilterLayerCatalog.userAttachableActionDefinitions()) {
             PromptContext promptContext = promptContextForAction(actionDefinition, operationContext);
             List<String> contributorRoles = promptContributorService.getContributors(promptContext).stream()
                     .map(ContextualPromptElement::getRole)
@@ -353,7 +353,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 Mockito.any(OperationContext.class)
         )).thenReturn(passThroughResult);
 
-        List<FilterLayerCatalog.ActionDefinition> actionDefinitions = FilterLayerCatalog.actionDefinitions();
+        List<FilterLayerCatalog.ActionDefinition> actionDefinitions = FilterLayerCatalog.userAttachableActionDefinitions();
         OperationContext operationContext = mockOperationContext();
 
         for (FilterLayerCatalog.ActionDefinition actionDefinition : actionDefinitions) {
@@ -547,9 +547,9 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 ## Remove Within Regex Section
                 keep this but SECRET disappears
                 ## Replace If Match Section
-                contains MATCHME token
+                MATCHME
                 ## Remove If Match Section
-                contains DELETE_ME token
+                DELETE_ME
                 """
         );
         ContextualPromptElement adapted = promptContributorAdapterFactory.create(contributor, promptContext);
@@ -608,8 +608,8 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                   "removeField": "remove me",
                   "replaceWithin": "token-123",
                   "removeWithin": "keep SECRET hidden",
-                  "replaceIf": "contains MATCH_THIS marker",
-                  "removeIf": "contains DELETE_THIS marker"
+                  "replaceIf": "MATCH_THIS",
+                  "removeIf": "DELETE_THIS"
                 }
                 """;
 

@@ -121,6 +121,12 @@ public class CliEventFormatter {
                 case Events.MergePhaseCompletedEvent e -> format(normalizedArgs, "MERGE", e, "direction=" + e.mergeDirection()
                         + " successful=" + e.successful() + " merged=" + e.mergedCount()
                         + " conflicts=" + e.conflictCount());
+                case Events.PropagationEvent e -> format(normalizedArgs, "PROPAGATION", e, "stage=" + e.stage()
+                        + " action=" + e.action() + " mode=" + e.mode()
+                        + " source=" + summarize(normalizedArgs, e.sourceName()));
+                case Events.TransformationEvent e -> format(normalizedArgs, "TRANSFORMATION", e, "action=" + e.action()
+                        + " controller=" + summarize(normalizedArgs, e.controllerId())
+                        + " endpoint=" + summarize(normalizedArgs, e.endpointId()));
             };
     }
 
@@ -366,6 +372,10 @@ public class CliEventFormatter {
             case AgentModels.InterruptRequest r -> "InterruptRequest summary=" + summary;
             case AgentModels.AiFilterRequest aiFilterRequest ->
                     "AiFilterResult";
+            case AgentModels.AiPropagatorRequest aiPropagatorRequest ->
+                    "AiPropagatorRequest";
+            case AgentModels.AiTransformerRequest aiTransformerRequest ->
+                    "AiTransformerRequest";
         };
     }
 
@@ -410,6 +420,10 @@ public class CliEventFormatter {
                     "MergerAgentResult summary=" + summary;
             case AgentModels.AiFilterResult r ->
                     "AiFilterResult " + summary;
+            case AgentModels.AiPropagatorResult r ->
+                    "AiPropagatorResult " + summary;
+            case AgentModels.AiTransformerResult r ->
+                    "AiTransformerResult " + summary;
         };
     }
 

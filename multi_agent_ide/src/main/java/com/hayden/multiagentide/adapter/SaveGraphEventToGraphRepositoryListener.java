@@ -137,6 +137,10 @@ public class SaveGraphEventToGraphRepositoryListener implements EventListener {
             }
             case Events.MergePhaseCompletedEvent mergePhaseCompletedEvent -> {
             }
+            case Events.PropagationEvent ignored -> {
+            }
+            case Events.TransformationEvent ignored -> {
+            }
         }
     }
 

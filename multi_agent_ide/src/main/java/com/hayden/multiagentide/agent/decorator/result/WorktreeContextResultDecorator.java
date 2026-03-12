@@ -82,6 +82,8 @@ public class WorktreeContextResultDecorator implements DispatchedAgentResultDeco
             case AgentModels.OrchestratorCollectorResult r -> (T) r.toBuilder().worktreeContext(resolved).build();
             case AgentModels.TicketCollectorResult r -> (T) r.toBuilder().worktreeContext(resolved).build();
             case AgentModels.AiFilterResult r -> (T) r.toBuilder().worktreeContext(resolved).build();
+            case AgentModels.AiPropagatorResult r -> (T) r.toBuilder().worktreeContext(resolved).build();
+            case AgentModels.AiTransformerResult r -> (T) r.toBuilder().worktreeContext(resolved).build();
         };
     }
 

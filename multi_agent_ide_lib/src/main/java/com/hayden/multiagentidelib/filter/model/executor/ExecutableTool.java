@@ -13,6 +13,8 @@ import com.hayden.multiagentidelib.filter.model.layer.FilterContext;
 import com.hayden.multiagentidelib.filter.model.layer.DefaultPathFilterContext;
 import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
+import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
+import com.hayden.multiagentidelib.transformation.model.executor.AiTransformerTool;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,10 +30,11 @@ import java.util.function.BiFunction;
         @JsonSubTypes.Type(value = BinaryExecutor.class, name = "BINARY"),
         @JsonSubTypes.Type(value = JavaFunctionExecutor.class, name = "JAVA_FUNCTION"),
         @JsonSubTypes.Type(value = PythonExecutor.class, name = "PYTHON"),
-        @JsonSubTypes.Type(value = AiFilterTool.class, name = "AI")
+        @JsonSubTypes.Type(value = AiFilterTool.class, name = "AI"),
+        @JsonSubTypes.Type(value = AiPropagatorTool.class, name = "AI_PROPAGATOR"),
+        @JsonSubTypes.Type(value = AiTransformerTool.class, name = "AI_TRANSFORMER")
 })
-public sealed interface ExecutableTool<I, O, CTX extends FilterContext> extends BiFunction<I, CTX, FilterResult<O>>
-        permits BinaryExecutor, JavaFunctionExecutor, PythonExecutor, AiFilterTool {
+public interface ExecutableTool<I, O, CTX extends FilterContext> extends BiFunction<I, CTX, FilterResult<O>> {
 
     FilterEnums.ExecutorType executorType();
 

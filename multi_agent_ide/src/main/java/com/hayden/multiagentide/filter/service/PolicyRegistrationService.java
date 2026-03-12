@@ -163,6 +163,14 @@ public class PolicyRegistrationService {
     @Transactional
     public TogglePolicyLayerResponse togglePolicyAtLayer(String policyId, String layerId,
                                                          boolean enabled, boolean includeDescendants) {
+        if (FilterLayerCatalog.isInternalAutomationLayer(layerId)) {
+            return TogglePolicyLayerResponse.builder()
+                    .ok(false)
+                    .policyId(policyId)
+                    .layerId(layerId)
+                    .message("layerId cannot target internal automation layers")
+                    .build();
+        }
         Optional<PolicyRegistrationEntity> opt = policyRegistrationRepository.findByRegistrationId(policyId);
         if (opt.isEmpty()) {
             return TogglePolicyLayerResponse.builder()
@@ -225,6 +233,15 @@ public class PolicyRegistrationService {
 
     @Transactional
     public PutPolicyLayerResponse updatePolicyLayerBinding(String policyId, PutPolicyLayerRequest request) {
+        String layerId = request.layerBinding() == null ? null : request.layerBinding().layerId();
+        if (FilterLayerCatalog.isInternalAutomationLayer(layerId)) {
+            return PutPolicyLayerResponse.builder()
+                    .ok(false)
+                    .policyId(policyId)
+                    .layerId(layerId)
+                    .message("Validation failed: layerId cannot target internal automation layers")
+                    .build();
+        }
         Optional<PolicyRegistrationEntity> opt = policyRegistrationRepository.findByRegistrationId(policyId);
         if (opt.isEmpty()) {
             return PutPolicyLayerResponse.builder()

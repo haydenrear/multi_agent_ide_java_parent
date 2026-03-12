@@ -93,7 +93,9 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                         && !(a instanceof AgentModels.ContextManagerRoutingRequest)
                         && !(a instanceof AgentModels.CommitAgentRequest)
                         && !(a instanceof AgentModels.MergeConflictRequest)
-                        && !(a instanceof AgentModels.AiFilterRequest));
+                        && !(a instanceof AgentModels.AiFilterRequest)
+                        && !(a instanceof AgentModels.AiPropagatorRequest)
+                        && !(a instanceof AgentModels.AiTransformerRequest));
         return lastRequest;
     }
 
@@ -105,6 +107,8 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                         && !(a instanceof AgentModels.ContextManagerRoutingRequest)
                         && !(a instanceof AgentModels.CommitAgentRequest)
                         && !(a instanceof AgentModels.AiFilterRequest)
+                        && !(a instanceof AgentModels.AiPropagatorRequest)
+                        && !(a instanceof AgentModels.AiTransformerRequest)
         );
     }
 
@@ -620,6 +624,9 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     new ArrayList<>();
             case Events.MergePhaseStartedEvent ignored -> buildTargets(event.nodeId(), null);
             case Events.MergePhaseCompletedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.PropagationEvent propagationEvent ->
+                    buildTargets(propagationEvent.sourceNodeId(), null);
+            case Events.TransformationEvent ignored -> new ArrayList<>();
         };
     }
 

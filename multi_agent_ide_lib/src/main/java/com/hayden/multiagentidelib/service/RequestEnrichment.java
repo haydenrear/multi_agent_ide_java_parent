@@ -119,6 +119,10 @@ public class RequestEnrichment {
                     findLastFromHistory(history, AgentModels.TicketOrchestratorRequest.class);
             case AgentModels.AiFilterResult ignored ->
                     findLastFromHistory(history, AgentModels.AiFilterRequest.class);
+            case AgentModels.AiPropagatorResult ignored ->
+                    findLastFromHistory(history, AgentModels.AiPropagatorRequest.class);
+            case AgentModels.AiTransformerResult ignored ->
+                    findLastFromHistory(history, AgentModels.AiTransformerRequest.class);
         };
     }
 
@@ -198,6 +202,12 @@ public class RequestEnrichment {
                     findLastFromHistory(history,
                             AgentModels.OrchestratorRequest.class);
             case AgentModels.AiFilterRequest ignored ->
+                    findLastFromHistory(history,
+                            AgentModels.AgentRequest.class);
+            case AgentModels.AiPropagatorRequest ignored ->
+                    findLastFromHistory(history,
+                            AgentModels.AgentRequest.class);
+            case AgentModels.AiTransformerRequest ignored ->
                     findLastFromHistory(history,
                             AgentModels.AgentRequest.class);
         };
@@ -345,6 +355,14 @@ public class RequestEnrichment {
                     (T) req.toBuilder()
                             .contextId(resolveContextId(context, req, parent))
                             .build();
+            case AgentModels.AiPropagatorRequest req ->
+                    (T) req.toBuilder()
+                            .contextId(resolveContextId(context, req, parent))
+                            .build();
+            case AgentModels.AiTransformerRequest req ->
+                    (T) req.toBuilder()
+                            .contextId(resolveContextId(context, req, parent))
+                            .build();
         };
     }
 
@@ -447,6 +465,14 @@ public class RequestEnrichment {
             case AgentModels.AiFilterResult aiFilterResult ->
                     aiFilterResult.toBuilder()
                             .contextId(resolveContextId(context, AgentType.AI_FILTER, parent))
+                            .build();
+            case AgentModels.AiPropagatorResult aiPropagatorResult ->
+                    aiPropagatorResult.toBuilder()
+                            .contextId(resolveContextId(context, AgentType.AI_PROPAGATOR, parent))
+                            .build();
+            case AgentModels.AiTransformerResult aiTransformerResult ->
+                    aiTransformerResult.toBuilder()
+                            .contextId(resolveContextId(context, AgentType.AI_TRANSFORMER, parent))
                             .build();
         };
 

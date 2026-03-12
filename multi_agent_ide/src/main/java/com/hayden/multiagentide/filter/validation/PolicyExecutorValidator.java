@@ -62,7 +62,6 @@ public class PolicyExecutorValidator {
 
     private void validateAiExecutor(JsonNode node, List<String> errors) {
         requireNonBlank(node, "modelRef", "AI", errors);
-        requireNonBlank(node, "promptTemplate", "AI", errors);
         if (node.hasNonNull("sessionMode")) {
             String sessionMode = node.get("sessionMode").asText("");
             boolean valid = "PER_INVOCATION".equals(sessionMode)

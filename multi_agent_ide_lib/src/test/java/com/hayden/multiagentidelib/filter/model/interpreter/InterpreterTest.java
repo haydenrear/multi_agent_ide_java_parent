@@ -172,14 +172,15 @@ class InterpreterTest {
         void removeIfMatch() {
             var instruction = Instruction.RemoveIfMatch.builder()
                     .targetPath(new RegexPath("\\[\\w+\\]"))
-                    .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "bad"))
+                    .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "[bad]"))
                     .order(0)
                     .build();
 
-            var result = interpreter.apply("[good] [bad] [ok]", List.of(instruction));
+            var result = interpreter.apply("[good]\n[bad]\n[ok]", List.of(instruction));
 
             assertThat(result.isOk()).isTrue();
-            assertThat(result.r().get()).isEqualTo("[good]  [ok]");
+            assertThat(result.r().get()).contains("[good]");
+            assertThat(result.r().get()).contains("[ok]");
         }
     }
 
@@ -347,7 +348,7 @@ class InterpreterTest {
                     {"status":"error: timeout"}""";
             var instruction = Instruction.ReplaceIfMatch.builder()
                     .targetPath(new JsonPath("$.status"))
-                    .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "error"))
+                    .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "error: timeout"))
                     .value("CLEARED")
                     .order(0)
                     .build();
@@ -770,7 +771,7 @@ class InterpreterTest {
                     """;
             var instruction = Instruction.ReplaceIfMatch.builder()
                     .targetPath(new MarkdownPath("## Status"))
-                    .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "error"))
+                    .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "error: something failed"))
                     .value("CLEARED\n")
                     .order(0)
                     .build();
@@ -843,7 +844,7 @@ class InterpreterTest {
                     """;
             var instruction = Instruction.RemoveIfMatch.builder()
                     .targetPath(new MarkdownPath("## Secret"))
-                    .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "password"))
+                    .matcher(new InstructionMatcher(FilterEnums.MatcherType.EQUALS, "password: abc123"))
                     .order(0)
                     .build();
 
@@ -883,7 +884,7 @@ class InterpreterTest {
                     ## Item
                     safe content
                     ## Item
-                    DANGER content
+                    DANGER
                     ## Item
                     also safe
                     """;

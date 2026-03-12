@@ -91,8 +91,8 @@ class FilterPersistenceIT {
 
         List<LayerEntity> all = layerRepository.findAll();
         // controller(1) + controller-ui-event-poll(1) + workflow-agent(1)
-        // + 3 workflow sub-agents + 4 service roots + 35 action layers = 45
-        assertThat(all).hasSize(45);
+        // + 3 workflow sub-agents + 6 service roots + 37 action layers = 49
+        assertThat(all).hasSize(49);
 
         // Root
         LayerEntity controller = layerRepository.findByLayerId("controller").orElseThrow();
@@ -105,7 +105,9 @@ class FilterPersistenceIT {
                 "interrupt-service",
                 "worktree-auto-commit",
                 "worktree-merge-conflict",
-                "ai-filter"
+                "ai-filter",
+                "ai-propagator",
+                "ai-transformer"
         );
 
         // UI event poll
@@ -198,7 +200,7 @@ class FilterPersistenceIT {
 
         // Descendants of controller should be everything else
         Set<String> descendants = layerService.getDescendantLayerIds("controller");
-        assertThat(descendants).hasSize(44); // all except controller itself
+        assertThat(descendants).hasSize(48); // all except controller itself
 
         // Effective layers for a sub-agent action should include itself + ancestors
         List<LayerEntity> effective = layerService.getEffectiveLayers(
@@ -219,18 +221,18 @@ class FilterPersistenceIT {
 
         // findByLayerType
         List<LayerEntity> agents = layerRepository.findByLayerType("WORKFLOW_AGENT");
-        assertThat(agents).hasSize(8); // workflow-agent + 3 sub-agents + 4 service roots
+        assertThat(agents).hasSize(10); // workflow-agent + 3 sub-agents + 6 service roots
 
         List<LayerEntity> actions = layerRepository.findByLayerType("WORKFLOW_AGENT_ACTION");
-        assertThat(actions).hasSize(35); // 31 workflow actions + 4 service actions
+        assertThat(actions).hasSize(37); // 31 workflow actions + 6 service actions
 
         // findByParentLayerId
         List<LayerEntity> controllerChildren = layerRepository.findByParentLayerId("controller");
-        assertThat(controllerChildren).hasSize(6); // ui-event-poll + workflow-agent + service roots
+        assertThat(controllerChildren).hasSize(8); // ui-event-poll + workflow-agent + service roots
 
         // findByMaxDepth
         List<LayerEntity> shallow = layerRepository.findByMaxDepth(1);
-        assertThat(shallow).hasSize(7); // controller(0) + 6 depth-1 layers
+        assertThat(shallow).hasSize(9); // controller(0) + 8 depth-1 layers
 
         // findByLayerKeyPrefix
         List<LayerEntity> discoveryLayers = layerRepository.findByLayerKeyPrefix("discovery");

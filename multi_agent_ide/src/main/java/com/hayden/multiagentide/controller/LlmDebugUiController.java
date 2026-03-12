@@ -6,8 +6,10 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.adapter.SseEventAdapter;
 import com.hayden.multiagentide.cli.CliEventFormatter;
 import com.hayden.multiagentide.filter.service.LayerIdResolver;
+import com.hayden.multiagentide.propagation.service.PropagationItemService;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.repository.GraphRepository;
+import com.hayden.multiagentide.transformation.integration.ControllerEndpointTransformationIntegration;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentide.ui.shared.SharedUiInteractionService;
 import com.hayden.multiagentide.ui.shared.UiActionCommand;
@@ -46,6 +48,8 @@ public class LlmDebugUiController {
     private final CliEventFormatter cliEventFormatter;
     private final LayerIdResolver layerIdResolver;
     private final OrchestrationController orchestrationController;
+    private final ControllerEndpointTransformationIntegration controllerEndpointTransformationIntegration;
+    private final PropagationItemService propagationItemService;
 
     @PostMapping("/nodes/state")
     public UiStateSnapshot state(@RequestBody NodeIdRequest request) {
@@ -226,7 +230,7 @@ public class LlmDebugUiController {
     }
 
     @PostMapping("/workflow-graph")
-    public WorkflowGraphResponse workflowGraph(@RequestBody WorkflowGraphRequest request) {
+    public Object workflowGraph(@RequestBody WorkflowGraphRequest request) {
         String nodeId = request.nodeId();
         int errorWindowSeconds = request.errorWindowSeconds() <= 0 ? 180 : request.errorWindowSeconds();
 
@@ -270,7 +274,10 @@ public class LlmDebugUiController {
                 globalStats.totalStreamTokens()
         );
 
-        return new WorkflowGraphResponse(nodeId, rootNodeId, now, stats, root);
+        WorkflowGraphResponse response = new WorkflowGraphResponse(nodeId, rootNodeId, now, stats, root);
+        return controllerEndpointTransformationIntegration
+                .maybeTransform(CONTROLLER_ID, "workflowGraph", response)
+                .body();
     }
 
     private WorkflowNode buildWorkflowNode(
@@ -326,6 +333,16 @@ public class LlmDebugUiController {
                 children.add(buildWorkflowNode(childId, allNodes, metricsMap));
             }
         }
+
+        propagationItemService.findPendingBySourceNodeId(nid).forEach(item ->
+                pendingItems.add(new PendingItem(
+                        item.getItemId(),
+                        item.getSourceNodeId(),
+                        "PROPAGATION",
+                        item.getSummaryText() == null || item.getSummaryText().isBlank()
+                                ? "Propagation item pending acknowledgement or review"
+                                : item.getSummaryText()
+                )));
 
         children.sort(Comparator.comparing(
                 (WorkflowNode wn) -> wn != null && wn.lastEventAt() != null ? wn.lastEventAt() : Instant.MAX

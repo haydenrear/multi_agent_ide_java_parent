@@ -1,5 +1,7 @@
 package com.hayden.multiagentide.filter.config;
 
+import com.hayden.multiagentide.propagation.config.PropagationModelModule;
+import com.hayden.multiagentide.transformation.config.TransformationModelModule;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
@@ -9,6 +11,6 @@ import org.springframework.context.annotation.Import;
  * annotated with @Configuration and returns a @Bean Module.
  */
 @Configuration
-@Import(FilterModelModule.class)
+@Import({FilterModelModule.class, PropagationModelModule.class, TransformationModelModule.class})
 public class FilterConfig {
 }

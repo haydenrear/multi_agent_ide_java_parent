@@ -33,6 +33,8 @@ public final class FilterLayerCatalog {
     public static final String WORKTREE_AUTO_COMMIT = "worktree-auto-commit";
     public static final String WORKTREE_MERGE_CONFLICT = "worktree-merge-conflict";
     public static final String AI_FILTER = "ai-filter";
+    public static final String AI_PROPAGATOR = "ai-propagator";
+    public static final String AI_TRANSFORMER = "ai-transformer";
 
     public record LayerDefinition(
             String layerId,
@@ -62,7 +64,9 @@ public final class FilterLayerCatalog {
             layer(INTERRUPT_SERVICE, FilterEnums.LayerType.WORKFLOW_AGENT, INTERRUPT_SERVICE, CONTROLLER, 1),
             layer(WORKTREE_AUTO_COMMIT, FilterEnums.LayerType.WORKFLOW_AGENT, WORKTREE_AUTO_COMMIT, CONTROLLER, 1),
             layer(WORKTREE_MERGE_CONFLICT, FilterEnums.LayerType.WORKFLOW_AGENT, WORKTREE_MERGE_CONFLICT, CONTROLLER, 1),
-            layer(AI_FILTER, FilterEnums.LayerType.WORKFLOW_AGENT, AI_FILTER, CONTROLLER, 1)
+            layer(AI_FILTER, FilterEnums.LayerType.WORKFLOW_AGENT, AI_FILTER, CONTROLLER, 1),
+            layer(AI_PROPAGATOR, FilterEnums.LayerType.WORKFLOW_AGENT, AI_PROPAGATOR, CONTROLLER, 1),
+            layer(AI_TRANSFORMER, FilterEnums.LayerType.WORKFLOW_AGENT, AI_TRANSFORMER, CONTROLLER, 1)
     );
 
     private static final Map<String, LayerDefinition> ROOT_LAYER_BY_ID = new LinkedHashMap<>();
@@ -71,6 +75,11 @@ public final class FilterLayerCatalog {
     private static final Map<String, ActionDefinition> ACTION_BY_AGENT_AND_ACTION = new LinkedHashMap<>();
     private static final Map<Class<?>, ActionDefinition> ACTION_BY_REQUEST_TYPE = new LinkedHashMap<>();
     private static final Map<AgentType, String> ROOT_LAYER_BY_AGENT_TYPE = new LinkedHashMap<>();
+    private static final Set<String> INTERNAL_AUTOMATION_ROOTS = Set.of(
+            AI_FILTER,
+            AI_PROPAGATOR,
+            AI_TRANSFORMER
+    );
 
     static {
         ROOT_LAYERS.forEach(layer -> ROOT_LAYER_BY_ID.put(layer.layerId(), layer));
@@ -361,6 +370,22 @@ public final class FilterLayerCatalog {
                 AI_FILTER,
                 AgentModels.AiFilterRequest.class
         ));
+        registerAction(action(
+                AI_PROPAGATOR,
+                "propagate-action",
+                "runAiPropagator",
+                AgentType.AI_PROPAGATOR,
+                AI_PROPAGATOR,
+                AgentModels.AiPropagatorRequest.class
+        ));
+        registerAction(action(
+                AI_TRANSFORMER,
+                "transform-controller-response",
+                "runAiTransformer",
+                AgentType.AI_TRANSFORMER,
+                AI_TRANSFORMER,
+                AgentModels.AiTransformerRequest.class
+        ));
 
         mapRoot(AgentType.ORCHESTRATOR, WORKFLOW_AGENT);
         mapRoot(AgentType.ORCHESTRATOR_COLLECTOR, WORKFLOW_AGENT);
@@ -383,12 +408,20 @@ public final class FilterLayerCatalog {
         mapRoot(AgentType.COMMIT_AGENT, WORKTREE_AUTO_COMMIT);
         mapRoot(AgentType.MERGE_CONFLICT_AGENT, WORKTREE_MERGE_CONFLICT);
         mapRoot(AgentType.AI_FILTER, AI_FILTER);
+        mapRoot(AgentType.AI_PROPAGATOR, AI_PROPAGATOR);
+        mapRoot(AgentType.AI_TRANSFORMER, AI_TRANSFORMER);
     }
 
     private FilterLayerCatalog() {}
 
     public static List<ActionDefinition> actionDefinitions() {
         return List.copyOf(ACTIONS);
+    }
+
+    public static List<ActionDefinition> userAttachableActionDefinitions() {
+        return ACTIONS.stream()
+                .filter(action -> !isInternalAutomationAction(action))
+                .toList();
     }
 
     public static List<LayerDefinition> layerDefinitions() {
@@ -448,6 +481,26 @@ public final class FilterLayerCatalog {
             return Optional.empty();
         }
         return Optional.ofNullable(ROOT_LAYER_BY_AGENT_TYPE.get(agentType));
+    }
+
+    public static boolean isInternalAutomationLayer(String layerId) {
+        if (layerId == null || layerId.isBlank()) {
+            return false;
+        }
+        return INTERNAL_AUTOMATION_ROOTS.stream()
+                .anyMatch(root -> layerId.equals(root) || layerId.startsWith(root + "/"));
+    }
+
+    public static boolean isInternalAutomationAction(String agentName, String actionName, String methodName) {
+        return resolveAction(agentName, actionName, methodName)
+                .map(FilterLayerCatalog::isInternalAutomationAction)
+                .orElse(false);
+    }
+
+    public static boolean isInternalAutomationAction(ActionDefinition actionDefinition) {
+        return actionDefinition != null
+                && (isInternalAutomationLayer(actionDefinition.parentLayerId())
+                || isInternalAutomationLayer(actionDefinition.layerId()));
     }
 
     public static Map<String, Object> metadataForLlmCall(
@@ -521,6 +574,14 @@ public final class FilterLayerCatalog {
 
     private static String key(String agentName, String value) {
         return normalize(agentName) + "::" + normalize(value);
+    }
+
+    private static Optional<ActionDefinition> resolveAction(String agentName, String actionName, String methodName) {
+        ActionDefinition byMethod = ACTION_BY_AGENT_AND_METHOD.get(key(agentName, methodName));
+        if (byMethod != null) {
+            return Optional.of(byMethod);
+        }
+        return Optional.ofNullable(ACTION_BY_AGENT_AND_ACTION.get(key(agentName, actionName)));
     }
 
     private static String normalize(String value) {

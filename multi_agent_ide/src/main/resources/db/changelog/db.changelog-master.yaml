@@ -770,3 +770,587 @@ databaseChangeLog:
             columns:
               - column:
                   name: created_at
+
+  - changeSet:
+      id: 009-create-propagator-registration-table
+      author: hayden
+      changes:
+        - createTable:
+            tableName: propagator_registration
+            columns:
+              - column:
+                  name: uuid
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: registration_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: registered_by
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: propagator_kind
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: is_inheritable
+                  type: BOOLEAN
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: is_propagated_to_parent
+                  type: BOOLEAN
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: propagator_json
+                  type: TEXT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: layer_bindings_json
+                  type: TEXT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: activated_at
+                  type: TIMESTAMP
+
+              - column:
+                  name: deactivated_at
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: updated_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_by
+                  type: VARCHAR(255)
+
+              - column:
+                  name: modified_by
+                  type: VARCHAR(255)
+
+        - createIndex:
+            tableName: propagator_registration
+            indexName: idx_prop_reg_id
+            columns:
+              - column:
+                  name: registration_id
+
+        - createIndex:
+            tableName: propagator_registration
+            indexName: idx_prop_reg_status
+            columns:
+              - column:
+                  name: status
+
+        - createIndex:
+            tableName: propagator_registration
+            indexName: idx_prop_reg_kind
+            columns:
+              - column:
+                  name: propagator_kind
+
+  - changeSet:
+      id: 010-create-propagation-item-table
+      author: hayden
+      changes:
+        - createTable:
+            tableName: propagation_item
+            columns:
+              - column:
+                  name: uuid
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: item_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: registration_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: layer_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: source_node_id
+                  type: VARCHAR(255)
+
+              - column:
+                  name: source_name
+                  type: VARCHAR(255)
+
+              - column:
+                  name: summary_text
+                  type: VARCHAR(4000)
+
+              - column:
+                  name: propagated_text
+                  type: TEXT
+
+              - column:
+                  name: mode
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: resolution_type
+                  type: VARCHAR(255)
+
+              - column:
+                  name: resolution_notes
+                  type: VARCHAR(4000)
+
+              - column:
+                  name: correlation_key
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: resolved_at
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: updated_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_by
+                  type: VARCHAR(255)
+
+              - column:
+                  name: modified_by
+                  type: VARCHAR(255)
+
+        - createIndex:
+            tableName: propagation_item
+            indexName: idx_prop_item_id
+            columns:
+              - column:
+                  name: item_id
+
+        - createIndex:
+            tableName: propagation_item
+            indexName: idx_prop_item_status
+            columns:
+              - column:
+                  name: status
+
+        - createIndex:
+            tableName: propagation_item
+            indexName: idx_prop_item_source_node
+            columns:
+              - column:
+                  name: source_node_id
+
+        - createIndex:
+            tableName: propagation_item
+            indexName: idx_prop_item_corr
+            columns:
+              - column:
+                  name: correlation_key
+
+  - changeSet:
+      id: 011-create-propagation-record-table
+      author: hayden
+      changes:
+        - createTable:
+            tableName: propagation_record
+            columns:
+              - column:
+                  name: uuid
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: record_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: registration_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: layer_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: source_node_id
+                  type: VARCHAR(255)
+
+              - column:
+                  name: source_type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: action
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: before_payload
+                  type: TEXT
+
+              - column:
+                  name: after_payload
+                  type: TEXT
+
+              - column:
+                  name: mode
+                  type: VARCHAR(255)
+
+              - column:
+                  name: error_message
+                  type: VARCHAR(8000)
+
+              - column:
+                  name: correlation_key
+                  type: VARCHAR(255)
+
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: created_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: updated_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_by
+                  type: VARCHAR(255)
+
+              - column:
+                  name: modified_by
+                  type: VARCHAR(255)
+
+        - createIndex:
+            tableName: propagation_record
+            indexName: idx_prop_record_id
+            columns:
+              - column:
+                  name: record_id
+
+        - createIndex:
+            tableName: propagation_record
+            indexName: idx_prop_record_reg
+            columns:
+              - column:
+                  name: registration_id
+
+        - createIndex:
+            tableName: propagation_record
+            indexName: idx_prop_record_layer
+            columns:
+              - column:
+                  name: layer_id
+
+        - createIndex:
+            tableName: propagation_record
+            indexName: idx_prop_record_created
+            columns:
+              - column:
+                  name: created_at
+
+  - changeSet:
+      id: 012-create-transformer-registration-table
+      author: hayden
+      changes:
+        - createTable:
+            tableName: transformer_registration
+            columns:
+              - column:
+                  name: uuid
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: registration_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: registered_by
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: transformer_kind
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: is_inheritable
+                  type: BOOLEAN
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: is_propagated_to_parent
+                  type: BOOLEAN
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: transformer_json
+                  type: TEXT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: layer_bindings_json
+                  type: TEXT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: activated_at
+                  type: TIMESTAMP
+
+              - column:
+                  name: deactivated_at
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: updated_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_by
+                  type: VARCHAR(255)
+
+              - column:
+                  name: modified_by
+                  type: VARCHAR(255)
+
+        - createIndex:
+            tableName: transformer_registration
+            indexName: idx_transformer_reg_id
+            columns:
+              - column:
+                  name: registration_id
+
+        - createIndex:
+            tableName: transformer_registration
+            indexName: idx_transformer_reg_status
+            columns:
+              - column:
+                  name: status
+
+        - createIndex:
+            tableName: transformer_registration
+            indexName: idx_transformer_reg_kind
+            columns:
+              - column:
+                  name: transformer_kind
+
+  - changeSet:
+      id: 013-create-transformation-record-table
+      author: hayden
+      changes:
+        - createTable:
+            tableName: transformation_record
+            columns:
+              - column:
+                  name: uuid
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: record_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: registration_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: layer_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: controller_id
+                  type: VARCHAR(255)
+
+              - column:
+                  name: endpoint_id
+                  type: VARCHAR(255)
+
+              - column:
+                  name: action
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: before_payload
+                  type: TEXT
+
+              - column:
+                  name: after_payload
+                  type: TEXT
+
+              - column:
+                  name: error_message
+                  type: VARCHAR(8000)
+
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: created_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: updated_time
+                  type: TIMESTAMP
+
+              - column:
+                  name: created_by
+                  type: VARCHAR(255)
+
+              - column:
+                  name: modified_by
+                  type: VARCHAR(255)
+
+        - createIndex:
+            tableName: transformation_record
+            indexName: idx_transform_record_id
+            columns:
+              - column:
+                  name: record_id
+
+        - createIndex:
+            tableName: transformation_record
+            indexName: idx_transform_record_reg
+            columns:
+              - column:
+                  name: registration_id
+
+        - createIndex:
+            tableName: transformation_record
+            indexName: idx_transform_record_layer
+            columns:
+              - column:
+                  name: layer_id
+
+        - createIndex:
+            tableName: transformation_record
+            indexName: idx_transform_record_created
+            columns:
+              - column:
+                  name: created_at

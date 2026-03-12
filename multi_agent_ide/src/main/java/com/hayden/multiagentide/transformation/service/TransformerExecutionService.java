@@ -1,0 +1,370 @@
+package com.hayden.multiagentide.transformation.service;
+
+import com.embabel.agent.api.common.OperationContext;
+import com.embabel.agent.core.AgentPlatform;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
+import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
+import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
+import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
+import com.hayden.multiagentide.filter.service.AiFilterSessionResolver;
+import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
+import com.hayden.multiagentide.transformation.repository.TransformationRecordEntity;
+import com.hayden.multiagentide.transformation.repository.TransformationRecordRepository;
+import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentidelib.tool.ToolContext;
+import com.hayden.multiagentidelib.transformation.model.AiTextTransformer;
+import com.hayden.multiagentidelib.transformation.model.TextTransformer;
+import com.hayden.multiagentidelib.transformation.model.TransformationAction;
+import com.hayden.multiagentidelib.transformation.model.Transformer;
+import com.hayden.multiagentidelib.transformation.model.TransformerMatchOn;
+import com.hayden.multiagentidelib.transformation.model.executor.AiTransformerTool;
+import com.hayden.multiagentidelib.transformation.model.layer.AiTransformerContext;
+import com.hayden.multiagentidelib.transformation.model.layer.ControllerEndpointTransformationContext;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class TransformerExecutionService {
+
+    private static final String AI_TRANSFORMER_AGENT_NAME = FilterLayerCatalog.AI_TRANSFORMER;
+    private static final String AI_TRANSFORMER_ACTION_NAME = "transform-controller-response";
+    private static final String AI_TRANSFORMER_METHOD_NAME = "runAiTransformer";
+    private static final String AI_TRANSFORMER_TEMPLATE_NAME = AiTransformerTool.TEMPLATE_NAME;
+
+    private final TransformerDiscoveryService discoveryService;
+    private final TransformationRecordRepository recordRepository;
+    private final ObjectMapper objectMapper;
+    private final AgentPlatform agentPlatform;
+    private final AiFilterSessionResolver aiFilterSessionResolver;
+
+    @Autowired
+    @Lazy
+    private EventBus eventBus;
+
+    @Autowired(required = false)
+    @Lazy
+    private List<PromptContextDecorator> promptContextDecorators = new ArrayList<>();
+
+    @Autowired(required = false)
+    @Lazy
+    private List<ToolContextDecorator> toolContextDecorators = new ArrayList<>();
+
+    @Autowired(required = false)
+    @Lazy
+    private List<RequestDecorator> requestDecorators = new ArrayList<>();
+
+    @Autowired(required = false)
+    @Lazy
+    private List<ResultDecorator> resultDecorators = new ArrayList<>();
+
+    @Autowired
+    private AiTransformerToolHydration aiTransformerToolHydration;
+
+    public TransformationExecutionResult transform(String layerId,
+                                                   String controllerId,
+                                                   String endpointId,
+                                                   Object payload) {
+        String currentText = toJson(payload);
+        boolean transformed = false;
+        for (var entity : discoveryService.getActiveTransformersByLayer(layerId)) {
+            boolean endpointMatched = discoveryService.applicableBindings(entity, layerId, TransformerMatchOn.CONTROLLER_ENDPOINT_RESPONSE).stream()
+                    .anyMatch(binding -> binding.matcherText() == null || binding.matcherText().isBlank() || endpointId.equals(binding.matcherText()));
+            if (!endpointMatched) {
+                continue;
+            }
+            try {
+                Optional<Transformer<?, ?, ?>> modelOpt = discoveryService.deserialize(entity);
+                if (modelOpt.isEmpty()) {
+                    continue;
+                }
+                Transformer<?, ?, ?> model = modelOpt.get();
+                String afterText = applyTransformer(model, layerId, controllerId, endpointId, payload, currentText);
+                TransformationAction action = afterText.equals(currentText) ? TransformationAction.PASSTHROUGH : TransformationAction.TRANSFORMED;
+                transformed = transformed || action == TransformationAction.TRANSFORMED;
+                Instant now = Instant.now();
+                recordRepository.save(TransformationRecordEntity.builder()
+                        .recordId("transform-record-" + UUID.randomUUID())
+                        .registrationId(entity.getRegistrationId())
+                        .layerId(layerId)
+                        .controllerId(controllerId)
+                        .endpointId(endpointId)
+                        .action(action.name())
+                        .beforePayload(currentText)
+                        .afterPayload(afterText)
+                        .createdAt(now)
+                        .build());
+                emitTransformationEvent(entity.getRegistrationId(), layerId, controllerId, endpointId, action, null, now);
+                currentText = afterText;
+            } catch (Exception e) {
+                log.error("Transformation execution failed for controller={} endpoint={} registration={}", controllerId, endpointId, entity.getRegistrationId(), e);
+                Instant now = Instant.now();
+                recordRepository.save(TransformationRecordEntity.builder()
+                        .recordId("transform-record-" + UUID.randomUUID())
+                        .registrationId(entity.getRegistrationId())
+                        .layerId(layerId)
+                        .controllerId(controllerId)
+                        .endpointId(endpointId)
+                        .action(TransformationAction.FAILED.name())
+                        .beforePayload(currentText)
+                        .afterPayload(currentText)
+                        .errorMessage(e.getMessage())
+                        .createdAt(now)
+                        .build());
+                emitTransformationEvent(entity.getRegistrationId(), layerId, controllerId, endpointId, TransformationAction.FAILED, e.getMessage(), now);
+            }
+        }
+        return new TransformationExecutionResult(transformed ? currentText : payload, transformed);
+    }
+
+    private String applyTransformer(Transformer<?, ?, ?> model,
+                                    String layerId,
+                                    String controllerId,
+                                    String endpointId,
+                                    Object originalPayload,
+                                    String currentText) {
+        ControllerEndpointTransformationContext context = new ControllerEndpointTransformationContext(
+                layerId,
+                resolveCurrentKey(),
+                controllerId,
+                endpointId,
+                originalPayload,
+                currentText
+        );
+        context.setObjectMapper(objectMapper);
+        if (model instanceof TextTransformer textTransformer) {
+            return textTransformer.apply(currentText, context).transformedText();
+        }
+        if (model instanceof AiTextTransformer aiTextTransformer) {
+            return runAiTransformer(aiTextTransformer, context, currentText);
+        }
+        return currentText;
+    }
+
+    private String runAiTransformer(AiTextTransformer aiTextTransformer,
+                                    ControllerEndpointTransformationContext context,
+                                    String currentText) {
+        if (!(aiTextTransformer.executor() instanceof AiTransformerTool aiExecutor)) {
+            log.warn("AI transformer executor was not an AiTransformerTool for controller={} endpoint={}", context.controllerId(), context.endpointId());
+            return currentText;
+        }
+
+        aiTransformerToolHydration.hydrate(aiExecutor);
+
+        OperationContext operationContext = resolveOperationContext(context.key());
+        if (operationContext == null) {
+            log.warn("Skipping AI transformer for controller={} endpoint={} because no OperationContext was available.",
+                    context.controllerId(), context.endpointId());
+            return currentText;
+        }
+
+        AgentModels.AgentRequest parentRequest = BlackboardHistory.getLastFromHistory(operationContext, AgentModels.AgentRequest.class);
+        PromptContext parentPromptContext = PromptContext.builder()
+                .agentType(AgentType.AI_TRANSFORMER)
+                .currentContextId(resolveContextId(parentRequest, context.key()))
+                .blackboardHistory(BlackboardHistory.getEntireBlackboardHistory(operationContext))
+                .previousRequest(parentRequest)
+                .operationContext(operationContext)
+                .build();
+        AgentModels.AiTransformerRequest request = AgentModels.AiTransformerRequest.builder()
+                .contextId(aiFilterSessionResolver.resolveSessionKey(
+                        aiTextTransformer.id(),
+                        aiExecutor.sessionMode(),
+                        parentPromptContext))
+                .worktreeContext(parentRequest == null ? null : parentRequest.worktreeContext())
+                .goal(buildGoal(context))
+                .input(currentText)
+                .controllerId(context.controllerId())
+                .endpointId(context.endpointId())
+                .metadata(Map.of("layerId", safe(context.layerId())))
+                .build();
+
+        boolean includeAgentDecorators = !Boolean.FALSE.equals(aiExecutor.includeAgentDecorators());
+        AgentModels.AiTransformerRequest decoratedRequest = includeAgentDecorators
+                ? AgentInterfaces.decorateRequest(
+                        request,
+                        operationContext,
+                        requestDecorators,
+                        AI_TRANSFORMER_AGENT_NAME,
+                        AI_TRANSFORMER_ACTION_NAME,
+                        AI_TRANSFORMER_METHOD_NAME,
+                        parentRequest)
+                : request;
+
+        Map<String, Object> model = buildAiModel(aiExecutor, currentText, context, parentRequest);
+        String resolvedModelName = aiExecutor.modelRef() == null || aiExecutor.modelRef().isBlank()
+                ? AcpChatOptionsString.DEFAULT_MODEL_NAME
+                : aiExecutor.modelRef();
+
+        PromptContext promptContext = PromptContext.builder()
+                .agentType(AgentType.AI_TRANSFORMER)
+                .currentContextId(decoratedRequest.contextId())
+                .blackboardHistory(BlackboardHistory.getEntireBlackboardHistory(operationContext))
+                .previousRequest(parentRequest)
+                .currentRequest(decoratedRequest)
+                .model(model)
+                .modelName(resolvedModelName)
+                .templateName(AI_TRANSFORMER_TEMPLATE_NAME)
+                .operationContext(operationContext)
+                .build();
+
+        PromptContext decoratedPromptContext = includeAgentDecorators
+                ? AgentInterfaces.decoratePromptContext(
+                        promptContext,
+                        operationContext,
+                        promptContextDecorators,
+                        AI_TRANSFORMER_AGENT_NAME,
+                        AI_TRANSFORMER_ACTION_NAME,
+                        AI_TRANSFORMER_METHOD_NAME,
+                        parentRequest,
+                        decoratedRequest)
+                : promptContext;
+
+        ToolContext toolContext = includeAgentDecorators
+                ? AgentInterfaces.decorateToolContext(
+                        ToolContext.empty(),
+                        decoratedRequest,
+                        parentRequest,
+                        operationContext,
+                        toolContextDecorators,
+                        AI_TRANSFORMER_AGENT_NAME,
+                        AI_TRANSFORMER_ACTION_NAME,
+                        AI_TRANSFORMER_METHOD_NAME)
+                : ToolContext.empty();
+
+        AiTransformerContext aiContext = AiTransformerContext.builder()
+                .transformationContext(context)
+                .templateName(AI_TRANSFORMER_TEMPLATE_NAME)
+                .promptContext(decoratedPromptContext)
+                .toolContext(toolContext)
+                .model(model)
+                .responseClass(AgentModels.AiTransformerResult.class)
+                .context(operationContext)
+                .build();
+        aiContext.setObjectMapper(objectMapper);
+
+        AgentModels.AiTransformerResult result = aiTextTransformer.apply(decoratedRequest, aiContext);
+        if (includeAgentDecorators) {
+            result = AgentInterfaces.decorateResult(
+                    result,
+                    operationContext,
+                    resultDecorators,
+                    AI_TRANSFORMER_AGENT_NAME,
+                    AI_TRANSFORMER_ACTION_NAME,
+                    AI_TRANSFORMER_METHOD_NAME,
+                    decoratedRequest);
+        }
+        return result.transformedText() == null || result.transformedText().isBlank()
+                ? currentText
+                : result.transformedText();
+    }
+
+    private Map<String, Object> buildAiModel(AiTransformerTool aiExecutor,
+                                             String currentText,
+                                             ControllerEndpointTransformationContext context,
+                                             AgentModels.AgentRequest parentRequest) {
+        Map<String, Object> model = new LinkedHashMap<>();
+        model.put("input", currentText);
+        model.put("controllerId", context.controllerId());
+        model.put("endpointId", context.endpointId());
+        if (aiExecutor.registrarPrompt() != null && !aiExecutor.registrarPrompt().isBlank()) {
+            model.put("registrarPrompt", aiExecutor.registrarPrompt());
+        }
+        if (aiExecutor.maxTokens() > 0) {
+            model.put("maxTokens", aiExecutor.maxTokens());
+        }
+        if (parentRequest != null) {
+            model.put("contextRequest", parentRequest.prettyPrint());
+        }
+        return model;
+    }
+
+    private String buildGoal(ControllerEndpointTransformationContext context) {
+        return "Transform controller output into the most effective format for the controller or human"
+                + " [controller=" + safe(context.controllerId()) + ", endpoint=" + safe(context.endpointId()) + "]";
+    }
+
+    private ArtifactKey resolveCurrentKey() {
+        EventBus.AgentNodeKey currentNode = EventBus.Process.get();
+        if (currentNode != null && currentNode.id() != null && ArtifactKey.isValid(currentNode.id())) {
+            return new ArtifactKey(currentNode.id());
+        }
+        return ArtifactKey.createRoot();
+    }
+
+    private ArtifactKey resolveContextId(AgentModels.AgentRequest parentRequest, ArtifactKey fallbackKey) {
+        if (parentRequest != null && parentRequest.contextId() != null) {
+            return parentRequest.contextId().createChild();
+        }
+        if (fallbackKey != null) {
+            return fallbackKey.createChild();
+        }
+        return ArtifactKey.createRoot().createChild();
+    }
+
+    private OperationContext resolveOperationContext(ArtifactKey key) {
+        if (key == null) {
+            return null;
+        }
+        return Optional.ofNullable(agentPlatform.getAgentProcess(key.value()))
+                .map(process -> AgentInterfaces.buildOpContext(process, AI_TRANSFORMER_AGENT_NAME))
+                .orElse(null);
+    }
+
+    private String toJson(Object value) {
+        try {
+            return value instanceof String s ? s : objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return String.valueOf(value);
+        }
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private void emitTransformationEvent(String registrationId, String layerId,
+                                         String controllerId, String endpointId,
+                                         TransformationAction action, String errorMessage,
+                                         Instant timestamp) {
+        try {
+            eventBus.publish(new Events.TransformationEvent(
+                    "transform-event-" + UUID.randomUUID(),
+                    timestamp,
+                    "",
+                    registrationId,
+                    layerId,
+                    controllerId,
+                    endpointId,
+                    action.name(),
+                    errorMessage
+            ));
+        } catch (Exception e) {
+            log.warn("Failed to emit transformation event for registration={}", registrationId, e);
+        }
+    }
+
+    public record TransformationExecutionResult(Object body, boolean transformed) {
+    }
+}

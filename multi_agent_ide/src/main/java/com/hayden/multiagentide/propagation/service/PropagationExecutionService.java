@@ -1,0 +1,449 @@
+package com.hayden.multiagentide.propagation.service;
+
+import com.embabel.agent.api.common.OperationContext;
+import com.embabel.agent.core.AgentPlatform;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
+import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
+import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
+import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
+import com.hayden.multiagentide.filter.service.AiFilterSessionResolver;
+import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
+import com.hayden.multiagentide.propagation.repository.PropagationRecordEntity;
+import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
+import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.multiagentidelib.propagation.model.AiTextPropagator;
+import com.hayden.multiagentidelib.propagation.model.PropagationAction;
+import com.hayden.multiagentidelib.propagation.model.PropagationMode;
+import com.hayden.multiagentidelib.propagation.model.PropagationOutput;
+import com.hayden.multiagentidelib.propagation.model.Propagator;
+import com.hayden.multiagentidelib.propagation.model.PropagatorMatchOn;
+import com.hayden.multiagentidelib.propagation.model.TextPropagator;
+import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
+import com.hayden.multiagentidelib.propagation.model.layer.AiPropagatorContext;
+import com.hayden.multiagentidelib.propagation.model.layer.DefaultPropagationContext;
+import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentidelib.tool.ToolContext;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class PropagationExecutionService {
+
+    private static final String AI_PROPAGATOR_AGENT_NAME = FilterLayerCatalog.AI_PROPAGATOR;
+    private static final String AI_PROPAGATOR_ACTION_NAME = "propagate-action";
+    private static final String AI_PROPAGATOR_METHOD_NAME = "runAiPropagator";
+    private static final String AI_PROPAGATOR_TEMPLATE_NAME = AiPropagatorTool.TEMPLATE_NAME;
+
+    private final PropagatorDiscoveryService discoveryService;
+    private final PropagationItemService propagationItemService;
+    private final PropagationRecordRepository recordRepository;
+    private final ObjectMapper objectMapper;
+    private final AgentPlatform agentPlatform;
+    private final AiFilterSessionResolver aiFilterSessionResolver;
+
+    @Autowired
+    @Lazy
+    private EventBus eventBus;
+
+    @Autowired(required = false)
+    @Lazy
+    private List<PromptContextDecorator> promptContextDecorators = new ArrayList<>();
+
+    @Autowired(required = false)
+    @Lazy
+    private List<ToolContextDecorator> toolContextDecorators = new ArrayList<>();
+
+    @Autowired(required = false)
+    @Lazy
+    private List<RequestDecorator> requestDecorators = new ArrayList<>();
+
+    @Autowired(required = false)
+    @Lazy
+    private List<ResultDecorator> resultDecorators = new ArrayList<>();
+
+    @Autowired
+    private AiPropagatorToolHydration aiPropagatorToolHydration;
+
+    public void execute(String layerId,
+                        PropagatorMatchOn stage,
+                        Object payload,
+                        String sourceNodeId,
+                        String sourceName,
+                        OperationContext operationContext) {
+        String beforePayload = toJson(payload);
+        ArtifactKey key = resolveKey(sourceNodeId);
+        for (var entity : discoveryService.getActivePropagatorsByLayer(layerId)) {
+            if (discoveryService.applicableBindings(entity, layerId, stage).isEmpty()) {
+                continue;
+            }
+            try {
+                Optional<Propagator<?, ?, ?>> modelOpt = discoveryService.deserialize(entity);
+                if (modelOpt.isEmpty()) {
+                    continue;
+                }
+                Propagator<?, ?, ?> model = modelOpt.get();
+                PropagationOutput output = run(model, beforePayload, layerId, key, stage, sourceName, sourceNodeId, payload, operationContext);
+                PropagationMode mode = output.propagationModeOverride() != null ? output.propagationModeOverride() : model.propagationMode();
+                String correlationKey = correlationKey(entity.getRegistrationId(), layerId, stage, sourceNodeId, beforePayload);
+                var item = propagationItemService.createItemIfNeeded(
+                        entity.getRegistrationId(),
+                        layerId,
+                        sourceNodeId,
+                        sourceName,
+                        output.summaryText(),
+                        output.propagatedText(),
+                        mode,
+                        correlationKey
+                );
+                PropagationAction action = item.isPresent()
+                        ? PropagationAction.ITEM_CREATED
+                        : transformed(beforePayload, output.propagatedText()) ? PropagationAction.TRANSFORMED : PropagationAction.PASSTHROUGH;
+                Instant now = Instant.now();
+                recordRepository.save(PropagationRecordEntity.builder()
+                        .recordId("prop-record-" + UUID.randomUUID())
+                        .registrationId(entity.getRegistrationId())
+                        .layerId(layerId)
+                        .sourceNodeId(sourceNodeId)
+                        .sourceType(stage.name())
+                        .action(action.name())
+                        .beforePayload(beforePayload)
+                        .afterPayload(output.propagatedText())
+                        .mode(mode == null ? null : mode.name())
+                        .correlationKey(correlationKey)
+                        .errorMessage(output.errorMessage())
+                        .createdAt(now)
+                        .build());
+                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, action, mode, sourceNodeId, sourceName, output.summaryText(), correlationKey, now);
+            } catch (Exception e) {
+                log.error("Propagation execution failed for layer={} stage={} registration={}", layerId, stage, entity.getRegistrationId(), e);
+                Instant now = Instant.now();
+                recordRepository.save(PropagationRecordEntity.builder()
+                        .recordId("prop-record-" + UUID.randomUUID())
+                        .registrationId(entity.getRegistrationId())
+                        .layerId(layerId)
+                        .sourceNodeId(sourceNodeId)
+                        .sourceType(stage.name())
+                        .action(PropagationAction.FAILED.name())
+                        .beforePayload(beforePayload)
+                        .afterPayload(beforePayload)
+                        .errorMessage(e.getMessage())
+                        .createdAt(now)
+                        .build());
+                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, PropagationAction.FAILED, null, sourceNodeId, sourceName, null, null, now);
+            }
+        }
+    }
+
+    private PropagationOutput run(Propagator<?, ?, ?> model,
+                                  String beforePayload,
+                                  String layerId,
+                                  ArtifactKey key,
+                                  PropagatorMatchOn stage,
+                                  String sourceName,
+                                  String sourceNodeId,
+                                  Object originalPayload,
+                                  OperationContext operationContext) {
+        DefaultPropagationContext context = new DefaultPropagationContext(layerId, key, stage, sourceName, sourceNodeId, originalPayload, beforePayload);
+        context.setObjectMapper(objectMapper);
+        if (model instanceof TextPropagator textPropagator) {
+            return textPropagator.apply(beforePayload, context);
+        }
+        if (model instanceof AiTextPropagator aiTextPropagator) {
+            return runAiPropagator(aiTextPropagator, context, beforePayload, originalPayload, operationContext);
+        }
+        return PropagationOutput.builder().propagatedText(beforePayload).summaryText(beforePayload).build();
+    }
+
+    private PropagationOutput runAiPropagator(AiTextPropagator aiTextPropagator,
+                                              DefaultPropagationContext context,
+                                              String beforePayload,
+                                              Object originalPayload,
+                                              OperationContext operationContext) {
+        if (!(aiTextPropagator.executor() instanceof AiPropagatorTool aiExecutor)) {
+            return PropagationOutput.builder()
+                    .propagatedText(beforePayload)
+                    .summaryText(beforePayload)
+                    .errorMessage("AI propagator executor is not an AiPropagatorTool")
+                    .build();
+        }
+
+        aiPropagatorToolHydration.hydrate(aiExecutor);
+
+        OperationContext resolvedOperationContext = resolveOperationContext(operationContext, context.key());
+        if (resolvedOperationContext == null) {
+            log.warn("Skipping AI propagator for sourceNodeId={} because no OperationContext was available.", context.sourceNodeId());
+            return failedOutput(beforePayload, "AI propagator requires a live OperationContext");
+        }
+
+        AgentModels.AgentRequest parentRequest = resolveParentRequest(originalPayload, resolvedOperationContext);
+        PromptContext parentPromptContext = PromptContext.builder()
+                .agentType(AgentType.AI_PROPAGATOR)
+                .currentContextId(resolveContextId(parentRequest, context.key()))
+                .blackboardHistory(BlackboardHistory.getEntireBlackboardHistory(resolvedOperationContext))
+                .previousRequest(parentRequest)
+                .operationContext(resolvedOperationContext)
+                .build();
+        AgentModels.AiPropagatorRequest request = AgentModels.AiPropagatorRequest.builder()
+                .contextId(aiFilterSessionResolver.resolveSessionKey(
+                        aiTextPropagator.id(),
+                        aiExecutor.sessionMode(),
+                        parentPromptContext))
+                .worktreeContext(parentRequest == null ? null : parentRequest.worktreeContext())
+                .goal(buildGoal(context))
+                .input(beforePayload)
+                .sourceName(context.sourceName())
+                .sourceNodeId(context.sourceNodeId())
+                .propagationMode(aiTextPropagator.propagationMode())
+                .metadata(Map.of(
+                        "layerId", safe(context.layerId()),
+                        "stage", context.actionStage() == null ? "" : context.actionStage().name()))
+                .build();
+
+        boolean includeAgentDecorators = !Boolean.FALSE.equals(aiExecutor.includeAgentDecorators());
+        AgentModels.AiPropagatorRequest decoratedRequest = includeAgentDecorators
+                ? AgentInterfaces.decorateRequest(
+                        request,
+                        resolvedOperationContext,
+                        requestDecorators,
+                        AI_PROPAGATOR_AGENT_NAME,
+                        AI_PROPAGATOR_ACTION_NAME,
+                        AI_PROPAGATOR_METHOD_NAME,
+                        parentRequest)
+                : request;
+
+        Map<String, Object> model = buildAiModel(aiExecutor, beforePayload, context, parentRequest, aiTextPropagator.propagationMode());
+        String resolvedModelName = aiExecutor.modelRef() == null || aiExecutor.modelRef().isBlank()
+                ? AcpChatOptionsString.DEFAULT_MODEL_NAME
+                : aiExecutor.modelRef();
+
+        PromptContext promptContext = PromptContext.builder()
+                .agentType(AgentType.AI_PROPAGATOR)
+                .currentContextId(decoratedRequest.contextId())
+                .blackboardHistory(BlackboardHistory.getEntireBlackboardHistory(resolvedOperationContext))
+                .previousRequest(parentRequest)
+                .currentRequest(decoratedRequest)
+                .model(model)
+                .modelName(resolvedModelName)
+                .templateName(AI_PROPAGATOR_TEMPLATE_NAME)
+                .operationContext(resolvedOperationContext)
+                .build();
+
+        PromptContext decoratedPromptContext = includeAgentDecorators
+                ? AgentInterfaces.decoratePromptContext(
+                        promptContext,
+                        resolvedOperationContext,
+                        promptContextDecorators,
+                        AI_PROPAGATOR_AGENT_NAME,
+                        AI_PROPAGATOR_ACTION_NAME,
+                        AI_PROPAGATOR_METHOD_NAME,
+                        parentRequest,
+                        decoratedRequest)
+                : promptContext;
+
+        ToolContext toolContext = includeAgentDecorators
+                ? AgentInterfaces.decorateToolContext(
+                        ToolContext.empty(),
+                        decoratedRequest,
+                        parentRequest,
+                        resolvedOperationContext,
+                        toolContextDecorators,
+                        AI_PROPAGATOR_AGENT_NAME,
+                        AI_PROPAGATOR_ACTION_NAME,
+                        AI_PROPAGATOR_METHOD_NAME)
+                : ToolContext.empty();
+
+        AiPropagatorContext aiContext = AiPropagatorContext.builder()
+                .propagationContext(context)
+                .templateName(AI_PROPAGATOR_TEMPLATE_NAME)
+                .promptContext(decoratedPromptContext)
+                .toolContext(toolContext)
+                .model(model)
+                .responseClass(AgentModels.AiPropagatorResult.class)
+                .context(resolvedOperationContext)
+                .build();
+        aiContext.setObjectMapper(objectMapper);
+
+        AgentModels.AiPropagatorResult result = aiTextPropagator.apply(decoratedRequest, aiContext);
+        if (includeAgentDecorators) {
+            result = AgentInterfaces.decorateResult(
+                    result,
+                    resolvedOperationContext,
+                    resultDecorators,
+                    AI_PROPAGATOR_AGENT_NAME,
+                    AI_PROPAGATOR_ACTION_NAME,
+                    AI_PROPAGATOR_METHOD_NAME,
+                    decoratedRequest);
+        }
+        return result.toOutput();
+    }
+
+    private Map<String, Object> buildAiModel(AiPropagatorTool aiExecutor,
+                                             String beforePayload,
+                                             DefaultPropagationContext context,
+                                             AgentModels.AgentRequest parentRequest,
+                                             PropagationMode defaultMode) {
+        Map<String, Object> model = new LinkedHashMap<>();
+        model.put("input", beforePayload);
+        model.put("sourceName", context.sourceName());
+        model.put("sourceNodeId", context.sourceNodeId());
+        model.put("propagationMode", defaultMode == null ? null : defaultMode.name());
+        if (aiExecutor.registrarPrompt() != null && !aiExecutor.registrarPrompt().isBlank()) {
+            model.put("registrarPrompt", aiExecutor.registrarPrompt());
+        }
+        if (aiExecutor.maxTokens() > 0) {
+            model.put("maxTokens", aiExecutor.maxTokens());
+        }
+        if (context.actionStage() != null) {
+            model.put("stage", context.actionStage().name());
+        }
+        if (parentRequest != null) {
+            model.put("contextRequest", parentRequest.prettyPrint());
+        }
+        return model;
+    }
+
+    private String buildGoal(DefaultPropagationContext context) {
+        return "Monitor smaller-model output for out-of-bounds behavior and escalate to the controller or human when needed"
+                + " [layer=" + safe(context.layerId()) + ", stage="
+                + (context.actionStage() == null ? "unknown" : context.actionStage().name()) + "]";
+    }
+
+    private AgentModels.AgentRequest resolveParentRequest(Object originalPayload, OperationContext operationContext) {
+        if (originalPayload instanceof AgentModels.AgentRequest agentRequest) {
+            return agentRequest;
+        }
+        if (operationContext == null) {
+            return null;
+        }
+        return BlackboardHistory.getLastFromHistory(operationContext, AgentModels.AgentRequest.class);
+    }
+
+    private ArtifactKey resolveContextId(AgentModels.AgentRequest parentRequest, ArtifactKey fallbackKey) {
+        if (parentRequest != null && parentRequest.contextId() != null) {
+            return parentRequest.contextId().createChild();
+        }
+        if (fallbackKey != null) {
+            return fallbackKey.createChild();
+        }
+        return ArtifactKey.createRoot().createChild();
+    }
+
+    private OperationContext resolveOperationContext(OperationContext operationContext, ArtifactKey key) {
+        if (operationContext != null) {
+            return operationContext;
+        }
+        if (key != null) {
+            Optional<OperationContext> fromKey = tryGetOpContext(key);
+            if (fromKey.isPresent()) {
+                return fromKey.get();
+            }
+        }
+        EventBus.AgentNodeKey currentNode = EventBus.Process.get();
+        if (currentNode != null && currentNode.id() != null && ArtifactKey.isValid(currentNode.id())) {
+            return tryGetOpContext(new ArtifactKey(currentNode.id())).orElse(null);
+        }
+        return null;
+    }
+
+    private Optional<OperationContext> tryGetOpContext(ArtifactKey key) {
+        if (key == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(agentPlatform.getAgentProcess(key.value()))
+                .map(process -> AgentInterfaces.buildOpContext(process, AI_PROPAGATOR_AGENT_NAME));
+    }
+
+    private PropagationOutput failedOutput(String beforePayload, String message) {
+        return PropagationOutput.builder()
+                .propagatedText(beforePayload)
+                .summaryText(message)
+                .createItem(true)
+                .blockDownstream(true)
+                .errorMessage(message)
+                .build();
+    }
+
+    private boolean transformed(String beforePayload, String afterPayload) {
+        return afterPayload != null && !afterPayload.equals(beforePayload);
+    }
+
+    private String correlationKey(String registrationId, String layerId, PropagatorMatchOn stage, String sourceNodeId, String payload) {
+        String raw = String.join("|",
+                safe(registrationId),
+                safe(layerId),
+                stage == null ? "" : stage.name(),
+                safe(sourceNodeId),
+                safe(payload));
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private ArtifactKey resolveKey(String sourceNodeId) {
+        if (sourceNodeId != null && ArtifactKey.isValid(sourceNodeId)) {
+            return new ArtifactKey(sourceNodeId);
+        }
+        EventBus.AgentNodeKey currentNode = EventBus.Process.get();
+        if (currentNode != null && currentNode.id() != null && ArtifactKey.isValid(currentNode.id())) {
+            return new ArtifactKey(currentNode.id());
+        }
+        return ArtifactKey.createRoot();
+    }
+
+    private String toJson(Object value) {
+        try {
+            return value instanceof String s ? s : objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return String.valueOf(value);
+        }
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private void emitPropagationEvent(String registrationId, String layerId, PropagatorMatchOn stage,
+                                      PropagationAction action, PropagationMode mode,
+                                      String sourceNodeId, String sourceName, String summaryText,
+                                      String correlationKey, Instant timestamp) {
+        try {
+            eventBus.publish(new Events.PropagationEvent(
+                    "prop-event-" + UUID.randomUUID(),
+                    timestamp,
+                    sourceNodeId != null ? sourceNodeId : "",
+                    registrationId,
+                    layerId,
+                    stage != null ? stage.name() : null,
+                    action.name(),
+                    mode != null ? mode.name() : null,
+                    sourceNodeId,
+                    sourceName,
+                    summaryText,
+                    correlationKey
+            ));
+        } catch (Exception e) {
+            log.warn("Failed to emit propagation event for registration={}", registrationId, e);
+        }
+    }
+}

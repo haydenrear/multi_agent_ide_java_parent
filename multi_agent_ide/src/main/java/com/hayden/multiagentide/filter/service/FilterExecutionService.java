@@ -60,7 +60,7 @@ public class FilterExecutionService {
     private static final String AI_FILTER_AGENT_NAME = "ai-filter";
     private static final String AI_FILTER_ACTION_NAME = "path-filter";
     private static final String AI_FILTER_METHOD_NAME = "runAiFilter";
-    private static final String AI_FILTER_TEMPLATE_NAME = "filter/ai_filter";
+    private static final String AI_FILTER_TEMPLATE_NAME = AiFilterTool.TEMPLATE_NAME;
 
     private final PolicyDiscoveryService policyDiscoveryService;
     private final FilterDecisionRecordRepository decisionRecordRepository;
@@ -79,9 +79,11 @@ public class FilterExecutionService {
     private List<ToolContextDecorator> toolContextDecorators = new ArrayList<>();
 
     @Autowired(required = false)
+    @Lazy
     private List<RequestDecorator> requestDecorators = new ArrayList<>();
 
     @Autowired(required = false)
+    @Lazy
     private List<ResultDecorator> resultDecorators = new ArrayList<>();
 
     @Autowired
@@ -495,9 +497,6 @@ public class FilterExecutionService {
         model.put("input", payload);
         model.put("policyId", policy.getRegistrationId());
         model.put("policyName", policy.getRegistrationId());
-        if (aiExecutor.promptTemplate() != null && !aiExecutor.promptTemplate().isBlank()) {
-            model.put("promptTemplate", aiExecutor.promptTemplate());
-        }
         if (aiExecutor.registrarPrompt() != null && !aiExecutor.registrarPrompt().isBlank()) {
             model.put("registrarPrompt", aiExecutor.registrarPrompt());
         }
@@ -573,6 +572,7 @@ public class FilterExecutionService {
             case PythonExecutor<?, ?, ?> python -> addPythonDetails(details, python, filterContext);
             case JavaFunctionExecutor<?, ?, ?> javaFn -> addJavaFunctionDetails(details, javaFn);
             case AiFilterTool ai -> addAiDetails(details, ai);
+            default -> details.put("executorType", executor.getClass().getSimpleName());
         }
         return details;
     }
@@ -663,10 +663,7 @@ public class FilterExecutionService {
         putIfPresent(details, "controllerModelRef", ai.controllerModelRef());
         putIfPresent(details, "controllerPromptTemplate", ai.controllerPromptTemplate());
         putIfPresent(details, "outputSchemaJson", toJsonSafely(ai.outputSchema()));
-        if (ai.promptTemplate() != null) {
-            details.put("promptTemplate", ai.promptTemplate());
-            details.put("promptTemplateHash", ArtifactHashing.hashText(ai.promptTemplate()));
-        }
+        details.put("templateName", ai.templateName());
     }
 
     private String hashFile(Path path) {
@@ -850,6 +847,7 @@ public class FilterExecutionService {
         return switch (binding.matcherType()) {
             case EQUALS -> binding.matcherText().equals(valueToMatch);
             case REGEX -> matchesRegex(binding.matcherText(), valueToMatch);
+            case CONTAINS -> valueToMatch.contains(binding.matcherText());
         };
     }
 
@@ -861,6 +859,7 @@ public class FilterExecutionService {
         return switch (binding.matcherType()) {
             case EQUALS -> candidates.stream().anyMatch(binding.matcherText()::equals);
             case REGEX -> candidates.stream().anyMatch(candidate -> matchesRegex(binding.matcherText(), candidate));
+            case CONTAINS -> candidates.stream().anyMatch(candidate -> candidate.contains(binding.matcherText()));
         };
     }
 

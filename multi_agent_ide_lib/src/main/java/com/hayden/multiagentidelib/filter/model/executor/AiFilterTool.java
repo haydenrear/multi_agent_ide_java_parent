@@ -1,5 +1,6 @@
 package com.hayden.multiagentidelib.filter.model.executor;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -24,11 +25,13 @@ import java.util.Map;
  */
 @Slf4j
 @RequiredArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class AiFilterTool<I, O>
         implements ExecutableTool<AgentModels.AiFilterRequest, AgentModels.AiFilterResult, FilterContext.AiFilterContext> {
 
+    public static final String TEMPLATE_NAME = "filter/ai_filter";
+
     private final String modelRef;
-    private final String promptTemplate;
     private final String registrarPrompt;
     private final int maxTokens;
     private final Object outputSchema;
@@ -69,8 +72,7 @@ public final class AiFilterTool<I, O>
     @Override
     public @NotNull FilterResult<AgentModels.AiFilterResult> apply(AgentModels.AiFilterRequest i, FilterContext.AiFilterContext ctx) {
         try {
-            String templateName = ctx.templateName() != null ? ctx.templateName()
-                    : (promptTemplate != null && !promptTemplate.isBlank() ? promptTemplate : "filter/ai_filter");
+            String templateName = ctx.templateName() != null ? ctx.templateName() : TEMPLATE_NAME;
 
             try {
 
@@ -126,6 +128,7 @@ public final class AiFilterTool<I, O>
         putIfPresent(details, "includeAgentDecorators", includeAgentDecorators == null ? null : includeAgentDecorators.toString());
         putIfPresent(details, "controllerModelRef", controllerModelRef);
         putIfPresent(details, "controllerPromptTemplate", controllerPromptTemplate);
+        putIfPresent(details, "templateName", TEMPLATE_NAME);
         putIfPresent(details, "timeoutMs", String.valueOf(timeoutMs));
         putIfPresent(details, "configVersion", configVersion);
 
@@ -153,10 +156,6 @@ public final class AiFilterTool<I, O>
 
     public String modelRef() {
         return modelRef;
-    }
-
-    public String promptTemplate() {
-        return promptTemplate;
     }
 
     public int maxTokens() {
@@ -201,6 +200,10 @@ public final class AiFilterTool<I, O>
 
     public String responseMode() {
         return responseMode;
+    }
+
+    public String templateName() {
+        return TEMPLATE_NAME;
     }
 
     @Override

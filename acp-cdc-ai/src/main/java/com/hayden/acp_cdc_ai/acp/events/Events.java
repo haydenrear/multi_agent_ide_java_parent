@@ -149,7 +149,9 @@ public interface Events {
             @JsonSubTypes.Type(value = TuiSystemGraphEvent.class, name = "TUI_SYSTEM"),
             @JsonSubTypes.Type(value = MergePhaseStartedEvent.class, name = "MERGE_PHASE_STARTED"),
             @JsonSubTypes.Type(value = MergePhaseCompletedEvent.class, name = "MERGE_PHASE_COMPLETED"),
-            @JsonSubTypes.Type(value = ArtifactEvent.class, name = "ARTIFACT_EMITTED")
+            @JsonSubTypes.Type(value = ArtifactEvent.class, name = "ARTIFACT_EMITTED"),
+            @JsonSubTypes.Type(value = PropagationEvent.class, name = "PROPAGATION"),
+            @JsonSubTypes.Type(value = TransformationEvent.class, name = "TRANSFORMATION")
     })
     sealed interface GraphEvent extends FilteredObject, HasContextId {
 
@@ -515,6 +517,26 @@ public interface Events {
                         line("parentArtifactKey", e.parentArtifactKey()),
                         line("artifactKey", e.artifactKey() == null ? null : e.artifactKey().value()),
                         line("artifact", summarizeObject(e.artifact())));
+                case PropagationEvent e -> formatEvent("Propagation Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("registrationId", e.registrationId()),
+                        line("layerId", e.layerId()),
+                        line("stage", e.stage()),
+                        line("action", e.action()),
+                        line("mode", e.mode()),
+                        line("sourceName", e.sourceName()),
+                        line("summaryText", e.summaryText()));
+                case TransformationEvent e -> formatEvent("Transformation Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("registrationId", e.registrationId()),
+                        line("layerId", e.layerId()),
+                        line("controllerId", e.controllerId()),
+                        line("endpointId", e.endpointId()),
+                        line("action", e.action()));
             };
         }
 
@@ -1591,6 +1613,51 @@ public interface Events {
 
         public ArtifactKey artifactKey() {
             return artifact.artifactKey();
+        }
+    }
+
+    // ============ PROPAGATION & TRANSFORMATION EVENTS ============
+
+    /**
+     * Event emitted when a propagator runs against an action request or response.
+     */
+    record PropagationEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String registrationId,
+            String layerId,
+            String stage,
+            String action,
+            String mode,
+            String sourceNodeId,
+            String sourceName,
+            String summaryText,
+            String correlationKey
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "PROPAGATION";
+        }
+    }
+
+    /**
+     * Event emitted when a transformer runs against a controller endpoint response.
+     */
+    record TransformationEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String registrationId,
+            String layerId,
+            String controllerId,
+            String endpointId,
+            String action,
+            String errorMessage
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "TRANSFORMATION";
         }
     }
 }

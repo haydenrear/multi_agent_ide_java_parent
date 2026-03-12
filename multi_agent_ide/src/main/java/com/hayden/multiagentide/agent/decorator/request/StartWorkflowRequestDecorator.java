@@ -83,6 +83,12 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
             case AgentModels.AiFilterRequest aiFilterRequest -> {
 //                skipping this - no need.
             }
+            case AgentModels.AiPropagatorRequest aiPropagatorRequest -> {
+//                skipping this - no need.
+            }
+            case AgentModels.AiTransformerRequest aiTransformerRequest -> {
+//                skipping this - no need.
+            }
             case AgentModels.ContextManagerRequest req ->
                     storeRequiredNode(operationContext, req,
                             () -> workflowGraphService.requireOrchestrator(operationContext));

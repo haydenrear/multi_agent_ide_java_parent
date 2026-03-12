@@ -126,6 +126,10 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             }
             case AgentModels.AiFilterRequest aiFilterRequest -> {
             }
+            case AgentModels.AiPropagatorRequest aiPropagatorRequest -> {
+            }
+            case AgentModels.AiTransformerRequest aiTransformerRequest -> {
+            }
             case AgentModels.CommitAgentRequest commitAgentRequest -> {
             }
             case AgentModels.ContextManagerRequest contextManagerRequest -> {
@@ -216,6 +220,8 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             case AgentModels.InterruptRequest.ContextManagerInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.AiFilterRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
+            case AgentModels.AiPropagatorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
+            case AgentModels.AiTransformerRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
         };
     }
 

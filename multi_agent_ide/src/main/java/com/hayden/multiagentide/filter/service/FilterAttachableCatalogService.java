@@ -51,11 +51,12 @@ public class FilterAttachableCatalogService {
                 .toList());
         promptContributorNames.addAll(promptContributorFactories.stream()
                 .filter(Objects::nonNull)
-                .flatMap(factory -> factory.descriptors().stream())
+                .map(PromptContributorFactory::descriptors)
+                .filter(Objects::nonNull)
+                .flatMap(Set::stream)
                 .map(PromptContributorDescriptor::name)
                 .filter(Objects::nonNull)
                 .toList());
-
         return ReadAttachableTargetsResponse.builder()
                 .graphEvents(graphEvents)
                 .promptContributors(promptContributors)
@@ -83,7 +84,7 @@ public class FilterAttachableCatalogService {
         List<ReadAttachableTargetsResponse.PromptContributorTarget> results = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
 
-        for (FilterLayerCatalog.ActionDefinition actionDefinition : FilterLayerCatalog.actionDefinitions()) {
+        for (FilterLayerCatalog.ActionDefinition actionDefinition : FilterLayerCatalog.userAttachableActionDefinitions()) {
             PromptContext context = promptContextFor(actionDefinition);
             for (PromptContributor contributor : collectPromptContributors(actionDefinition, context, errors)) {
                 String key = String.join("|",

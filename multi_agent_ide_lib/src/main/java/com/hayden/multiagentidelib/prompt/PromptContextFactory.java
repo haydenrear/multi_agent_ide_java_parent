@@ -150,6 +150,10 @@ public class PromptContextFactory {
             }
             case AgentModels.AiFilterRequest aiFilterRequest -> {
             }
+            case AgentModels.AiPropagatorRequest aiPropagatorRequest -> {
+            }
+            case AgentModels.AiTransformerRequest aiTransformerRequest -> {
+            }
             case AgentModels.TicketCollectorRequest req -> {
                 collectNonNull(upstreamContexts, req.discoveryCuration());
                 collectNonNull(upstreamContexts, req.planningCuration());

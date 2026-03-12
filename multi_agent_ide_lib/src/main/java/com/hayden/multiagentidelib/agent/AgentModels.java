@@ -6,10 +6,11 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import com.hayden.acp_cdc_ai.acp.filter.Instruction;
-import com.hayden.multiagentidelib.filter.model.AiPathFilter;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.AgentMergeStatus;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentidelib.propagation.model.PropagationMode;
+import com.hayden.multiagentidelib.propagation.model.PropagationOutput;
 import com.hayden.multiagentidelib.template.ConsolidationTemplate;
 import com.hayden.multiagentidelib.template.DelegationTemplate;
 import com.hayden.multiagentidelib.template.DiscoveryReport;
@@ -22,6 +23,7 @@ import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentidelib.transformation.model.TransformationOutput;
 import io.micrometer.common.util.StringUtils;
 import lombok.Builder;
 import lombok.With;
@@ -52,7 +54,7 @@ public interface AgentModels {
     }
 
     sealed interface AgentResult extends AgentContext
-            permits AiFilterResult, CommitAgentResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergeConflictResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
+            permits AiFilterResult, AiPropagatorResult, AiTransformerResult, CommitAgentResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergeConflictResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
 
     {
         WorktreeSandboxContext worktreeContext();
@@ -104,6 +106,8 @@ public interface AgentModels {
             MergerRequest,
             ReviewRequest,
             AiFilterRequest,
+            AiPropagatorRequest,
+            AiTransformerRequest,
             ResultsRequest
     {
 
@@ -152,6 +156,8 @@ public interface AgentModels {
                 case PlanningAgentResults ignored -> null;
                 case TicketAgentResults ignored -> null;
                 case AiFilterRequest aiFilterRequest -> aiFilterRequest.goal;
+                case AiPropagatorRequest aiPropagatorRequest -> aiPropagatorRequest.goal();
+                case AiTransformerRequest aiTransformerRequest -> aiTransformerRequest.goal();
             };
         }
 
@@ -200,6 +206,8 @@ public interface AgentModels {
                 case PlanningAgentResults ignored -> "PLANNING_RESULTS";
                 case TicketAgentResults ignored -> "TICKET_RESULTS";
                 case AiFilterRequest ignored -> "AI_FILTER";
+                case AiPropagatorRequest ignored -> "AI_PROPAGATOR";
+                case AiTransformerRequest ignored -> "AI_TRANSFORMER";
             };
         }
 
@@ -239,6 +247,10 @@ public interface AgentModels {
                         r.returnToDiscoveryCollector(),
                         r.returnToOrchestratorCollector());
                 case AiFilterRequest aiFilterRequest ->
+                        CurationPhase.OTHER;
+                case AiPropagatorRequest aiPropagatorRequest ->
+                        CurationPhase.OTHER;
+                case AiTransformerRequest aiTransformerRequest ->
                         CurationPhase.OTHER;
             };
         }
@@ -5173,6 +5185,10 @@ public interface AgentModels {
                 }
                 case AiFilterRequest ignored -> {
                 }
+                case AiPropagatorRequest ignored -> {
+                }
+                case AiTransformerRequest ignored -> {
+                }
             }
 
             return builder.build();
@@ -5490,4 +5506,250 @@ public interface AgentModels {
         }
     }
 
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Request to execute an AI-backed transformer against controller payloads.")
+    record AiTransformerRequest(
+            @JsonPropertyDescription("Unique context id for this request.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Worktree sandbox context for this request.")
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Goal context for AI transformer execution.")
+            String goal,
+            @JsonPropertyDescription("The serialized input content to be transformed.")
+            String input,
+            @JsonPropertyDescription("Controller id associated with the payload.")
+            String controllerId,
+            @JsonPropertyDescription("Endpoint id associated with the payload.")
+            String endpointId,
+            @JsonPropertyDescription("Additional metadata for the transformer.")
+            Map<String, String> metadata
+    ) implements AgentRequest {
+
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this.toBuilder().goal(goal).build();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            StringBuilder builder = new StringBuilder();
+            if (goal != null && !goal.isBlank()) {
+                builder.append("Goal: ").append(goal.trim()).append("\n");
+            }
+            if (controllerId != null && !controllerId.isBlank()) {
+                builder.append("Controller Id: ").append(controllerId.trim()).append("\n");
+            }
+            if (endpointId != null && !endpointId.isBlank()) {
+                builder.append("Endpoint Id: ").append(endpointId.trim()).append("\n");
+            }
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("AI Transformer Request\n");
+            if (contextId != null) {
+                builder.append("Context Id: ").append(contextId).append("\n");
+            }
+            if (worktreeContext != null) {
+                builder.append("Worktree Context: ").append(worktreeContext).append("\n");
+            }
+            if (goal != null && !goal.isBlank()) {
+                builder.append("Goal: ").append(goal.trim()).append("\n");
+            }
+            if (controllerId != null && !controllerId.isBlank()) {
+                builder.append("Controller Id: ").append(controllerId.trim()).append("\n");
+            }
+            if (endpointId != null && !endpointId.isBlank()) {
+                builder.append("Endpoint Id: ").append(endpointId.trim()).append("\n");
+            }
+            if (input != null) {
+                builder.append("Input: ")
+                        .append(input.length() > 200 ? input.substring(0, 200) + "..." : input)
+                        .append("\n");
+            }
+            return builder.toString().trim();
+        }
+    }
+
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Result payload from AI transformer execution for controller responses.")
+    record AiTransformerResult(
+            @JsonPropertyDescription("Unique context id for this result.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Whether the AI transformer executed successfully.")
+            boolean successful,
+            @JsonPropertyDescription("Transformed text for the controller or human.")
+            String transformedText,
+            @JsonPropertyDescription("Additional metadata emitted by the transformer.")
+            Map<String, String> metadata,
+            @JsonPropertyDescription("Error message if the AI transformer execution failed.")
+            String errorMessage,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
+    ) implements AgentResult {
+
+        public TransformationOutput toOutput() {
+            return TransformationOutput.builder()
+                    .transformedText(transformedText)
+                    .metadata(metadata)
+                    .errorMessage(errorMessage)
+                    .build();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("Successful: ").append(successful).append("\n");
+            if (transformedText != null && !transformedText.isBlank()) {
+                builder.append("Transformed Text: ")
+                        .append(transformedText.length() > 200 ? transformedText.substring(0, 200) + "..." : transformedText)
+                        .append("\n");
+            }
+            if (errorMessage != null && !errorMessage.isBlank()) {
+                builder.append("Error: ").append(errorMessage.trim()).append("\n");
+            }
+            return builder.toString().trim();
+        }
+    }
+
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Request to execute an AI-backed propagator against action payloads.")
+    record AiPropagatorRequest(
+            @JsonPropertyDescription("Unique context id for this request.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Worktree sandbox context for this request.")
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Goal context for AI propagator execution.")
+            String goal,
+            @JsonPropertyDescription("The serialized input content to be propagated.")
+            String input,
+            @JsonPropertyDescription("Human-readable action or source name for the payload.")
+            String sourceName,
+            @JsonPropertyDescription("Node id of the source payload.")
+            String sourceNodeId,
+            @JsonPropertyDescription("Default propagation mode requested for this run.")
+            PropagationMode propagationMode,
+            @JsonPropertyDescription("Additional metadata for the propagator.")
+            Map<String, String> metadata
+    ) implements AgentRequest {
+
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this.toBuilder().goal(goal).build();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            StringBuilder builder = new StringBuilder();
+            if (goal != null && !goal.isBlank()) {
+                builder.append("Goal: ").append(goal.trim()).append("\n");
+            }
+            if (sourceName != null && !sourceName.isBlank()) {
+                builder.append("Source Name: ").append(sourceName.trim()).append("\n");
+            }
+            if (sourceNodeId != null && !sourceNodeId.isBlank()) {
+                builder.append("Source Node Id: ").append(sourceNodeId.trim()).append("\n");
+            }
+            if (propagationMode != null) {
+                builder.append("Propagation Mode: ").append(propagationMode.name()).append("\n");
+            }
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("AI Propagator Request\n");
+            if (contextId != null) {
+                builder.append("Context Id: ").append(contextId).append("\n");
+            }
+            if (worktreeContext != null) {
+                builder.append("Worktree Context: ").append(worktreeContext).append("\n");
+            }
+            if (goal != null && !goal.isBlank()) {
+                builder.append("Goal: ").append(goal.trim()).append("\n");
+            }
+            if (sourceName != null && !sourceName.isBlank()) {
+                builder.append("Source Name: ").append(sourceName.trim()).append("\n");
+            }
+            if (sourceNodeId != null && !sourceNodeId.isBlank()) {
+                builder.append("Source Node Id: ").append(sourceNodeId.trim()).append("\n");
+            }
+            if (propagationMode != null) {
+                builder.append("Propagation Mode: ").append(propagationMode.name()).append("\n");
+            }
+            if (input != null) {
+                builder.append("Input: ")
+                        .append(input.length() > 200 ? input.substring(0, 200) + "..." : input)
+                        .append("\n");
+            }
+            return builder.toString().trim();
+        }
+    }
+
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Result payload from AI propagator execution containing escalation guidance.")
+    record AiPropagatorResult(
+            @JsonPropertyDescription("Unique context id for this result.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Whether the AI propagator executed successfully.")
+            boolean successful,
+            @JsonPropertyDescription("Text to propagate to the controller or human.")
+            String propagatedText,
+            @JsonPropertyDescription("Short summary of why propagation is happening.")
+            String summaryText,
+            @JsonPropertyDescription("Propagation mode override returned by the propagator.")
+            PropagationMode propagationMode,
+            @JsonPropertyDescription("Whether a propagation item should be created.")
+            boolean createItem,
+            @JsonPropertyDescription("Whether downstream execution should be blocked pending escalation.")
+            boolean blockDownstream,
+            @JsonPropertyDescription("Additional metadata emitted by the propagator.")
+            Map<String, String> metadata,
+            @JsonPropertyDescription("Error message if the AI propagator execution failed.")
+            String errorMessage,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
+    ) implements AgentResult {
+
+        public PropagationOutput toOutput() {
+            return PropagationOutput.builder()
+                    .propagatedText(propagatedText)
+                    .summaryText(summaryText)
+                    .propagationModeOverride(propagationMode)
+                    .createItem(createItem)
+                    .blockDownstream(blockDownstream)
+                    .metadata(metadata)
+                    .errorMessage(errorMessage)
+                    .build();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("Successful: ").append(successful).append("\n");
+            if (summaryText != null && !summaryText.isBlank()) {
+                builder.append("Summary: ").append(summaryText.trim()).append("\n");
+            }
+            if (propagationMode != null) {
+                builder.append("Propagation Mode: ").append(propagationMode.name()).append("\n");
+            }
+            builder.append("Create Item: ").append(createItem).append("\n");
+            builder.append("Block Downstream: ").append(blockDownstream).append("\n");
+            if (errorMessage != null && !errorMessage.isBlank()) {
+                builder.append("Error: ").append(errorMessage.trim()).append("\n");
+            }
+            return builder.toString().trim();
+        }
+    }
 }

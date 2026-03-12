@@ -13,12 +13,20 @@ import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
+import com.hayden.multiagentide.filter.repository.FilterDecisionRecordRepository;
+import com.hayden.multiagentide.filter.repository.LayerRepository;
+import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
+import com.hayden.multiagentide.propagation.repository.PropagationItemRepository;
+import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
+import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.*;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentide.support.QueuedLlmRunner;
 import com.hayden.multiagentide.support.TestEventListener;
+import com.hayden.multiagentide.transformation.repository.TransformationRecordRepository;
+import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
@@ -109,6 +117,30 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
     private ArtifactRepository artifactRepository;
 
     @Autowired
+    private FilterDecisionRecordRepository filterDecisionRecordRepository;
+
+    @Autowired
+    private PolicyRegistrationRepository policyRegistrationRepository;
+
+    @Autowired
+    private LayerRepository layerRepository;
+
+    @Autowired
+    private PropagationRecordRepository propagationRecordRepository;
+
+    @Autowired
+    private PropagationItemRepository propagationItemRepository;
+
+    @Autowired
+    private PropagatorRegistrationRepository propagatorRegistrationRepository;
+
+    @Autowired
+    private TransformationRecordRepository transformationRecordRepository;
+
+    @Autowired
+    private TransformerRegistrationRepository transformerRegistrationRepository;
+
+    @Autowired
     private ArtifactTreeBuilder artifactTreeBuilder;
 
     @MockitoSpyBean
@@ -173,6 +205,14 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         queuedLlmRunner.clear();
         graphRepository.clear();
         worktreeRepository.clear();
+        filterDecisionRecordRepository.deleteAll();
+        policyRegistrationRepository.deleteAll();
+        layerRepository.deleteAll();
+        propagationRecordRepository.deleteAll();
+        propagationItemRepository.deleteAll();
+        propagatorRegistrationRepository.deleteAll();
+        transformationRecordRepository.deleteAll();
+        transformerRegistrationRepository.deleteAll();
         reset(
                 workflowAgent,
                 discoveryDispatchSubagent,

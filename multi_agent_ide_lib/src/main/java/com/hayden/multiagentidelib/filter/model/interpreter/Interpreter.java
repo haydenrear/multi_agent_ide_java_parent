@@ -33,7 +33,10 @@ public sealed interface Interpreter
 
     private static boolean matcherMatches(InstructionMatcher matcher, String content) {
         return switch (matcher.matcherType()) {
-            case EQUALS -> content.contains(matcher.value());
+            case EQUALS -> Objects.equals(
+                    content != null ? content.strip() : null,
+                    matcher.value() != null ? matcher.value().strip() : null);
+            case CONTAINS -> content != null && matcher.value() != null && content.contains(matcher.value());
             case REGEX -> Pattern.compile(matcher.value()).matcher(content).find();
         };
     }

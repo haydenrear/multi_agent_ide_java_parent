@@ -14,7 +14,9 @@ public interface FilterEnums {
         BINARY,
         JAVA_FUNCTION,
         PYTHON,
-        AI
+        AI,
+        AI_PROPAGATOR,
+        AI_TRANSFORMER
     }
 
     enum FilterKind {
@@ -82,12 +84,16 @@ public interface FilterEnums {
 
     enum MatcherType {
         REGEX,
-        EQUALS
+        EQUALS,
+        CONTAINS
     }
 
     enum MatchOn {
         PROMPT_CONTRIBUTOR,
-        GRAPH_EVENT
+        GRAPH_EVENT,
+        ACTION_REQUEST,
+        ACTION_RESPONSE,
+        CONTROLLER_ENDPOINT_RESPONSE
     }
 
 }
