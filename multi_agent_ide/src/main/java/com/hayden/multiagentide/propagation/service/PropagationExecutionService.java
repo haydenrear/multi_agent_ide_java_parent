@@ -19,6 +19,7 @@ import com.hayden.multiagentide.propagation.repository.PropagationRecordReposito
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.multiagentidelib.filter.config.FilterContextFactory;
 import com.hayden.multiagentidelib.propagation.model.AiTextPropagator;
 import com.hayden.multiagentidelib.propagation.model.PropagationAction;
 import com.hayden.multiagentidelib.propagation.model.PropagationMode;
@@ -63,6 +64,7 @@ public class PropagationExecutionService {
     private final ObjectMapper objectMapper;
     private final AgentPlatform agentPlatform;
     private final AiFilterSessionResolver aiFilterSessionResolver;
+    private final FilterContextFactory filterContextFactory;
 
     @Autowired
     @Lazy
@@ -166,8 +168,9 @@ public class PropagationExecutionService {
                                   String sourceNodeId,
                                   Object originalPayload,
                                   OperationContext operationContext) {
-        DefaultPropagationContext context = new DefaultPropagationContext(layerId, key, stage, sourceName, sourceNodeId, originalPayload, beforePayload);
-        context.setObjectMapper(objectMapper);
+        DefaultPropagationContext context = filterContextFactory.get(
+                () -> new DefaultPropagationContext(layerId, key, stage, sourceName, sourceNodeId, originalPayload, beforePayload)
+        );
         if (model instanceof TextPropagator textPropagator) {
             return textPropagator.apply(beforePayload, context);
         }
@@ -284,7 +287,6 @@ public class PropagationExecutionService {
                 .responseClass(AgentModels.AiPropagatorResult.class)
                 .context(resolvedOperationContext)
                 .build();
-        aiContext.setObjectMapper(objectMapper);
 
         AgentModels.AiPropagatorResult result = aiTextPropagator.apply(decoratedRequest, aiContext);
         if (includeAgentDecorators) {

@@ -19,6 +19,7 @@ import com.hayden.multiagentide.transformation.repository.TransformationRecordRe
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.multiagentidelib.filter.config.FilterContextFactory;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.tool.ToolContext;
 import com.hayden.multiagentidelib.transformation.model.AiTextTransformer;
@@ -58,6 +59,7 @@ public class TransformerExecutionService {
     private final ObjectMapper objectMapper;
     private final AgentPlatform agentPlatform;
     private final AiFilterSessionResolver aiFilterSessionResolver;
+    private final FilterContextFactory filterContextFactory;
 
     @Autowired
     @Lazy
@@ -101,6 +103,9 @@ public class TransformerExecutionService {
                 }
                 Transformer<?, ?, ?> model = modelOpt.get();
                 String afterText = applyTransformer(model, layerId, controllerId, endpointId, payload, currentText);
+                if (afterText == null) {
+                    throw new IllegalStateException("Transformer returned null output");
+                }
                 TransformationAction action = afterText.equals(currentText) ? TransformationAction.PASSTHROUGH : TransformationAction.TRANSFORMED;
                 transformed = transformed || action == TransformationAction.TRANSFORMED;
                 Instant now = Instant.now();
@@ -144,15 +149,16 @@ public class TransformerExecutionService {
                                     String endpointId,
                                     Object originalPayload,
                                     String currentText) {
-        ControllerEndpointTransformationContext context = new ControllerEndpointTransformationContext(
-                layerId,
-                resolveCurrentKey(),
-                controllerId,
-                endpointId,
-                originalPayload,
-                currentText
+        ControllerEndpointTransformationContext context = filterContextFactory.get(
+                () -> new ControllerEndpointTransformationContext(
+                        layerId,
+                        resolveCurrentKey(),
+                        controllerId,
+                        endpointId,
+                        originalPayload,
+                        currentText
+                )
         );
-        context.setObjectMapper(objectMapper);
         if (model instanceof TextTransformer textTransformer) {
             return textTransformer.apply(currentText, context).transformedText();
         }
@@ -262,7 +268,6 @@ public class TransformerExecutionService {
                 .responseClass(AgentModels.AiTransformerResult.class)
                 .context(operationContext)
                 .build();
-        aiContext.setObjectMapper(objectMapper);
 
         AgentModels.AiTransformerResult result = aiTextTransformer.apply(decoratedRequest, aiContext);
         if (includeAgentDecorators) {
