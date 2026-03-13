@@ -1354,3 +1354,37 @@ databaseChangeLog:
             columns:
               - column:
                   name: created_at
+
+  - changeSet:
+      id: 014-expand-propagation-column-lengths
+      author: hayden
+      changes:
+        - modifyDataType:
+            tableName: propagation_item
+            columnName: source_node_id
+            newDataType: VARCHAR(30000)
+
+        - modifyDataType:
+            tableName: propagation_item
+            columnName: mode
+            newDataType: VARCHAR(30000)
+
+        - modifyDataType:
+            tableName: propagation_item
+            columnName: correlation_key
+            newDataType: VARCHAR(30000)
+
+        - modifyDataType:
+            tableName: propagation_record
+            columnName: source_node_id
+            newDataType: VARCHAR(30000)
+
+        - modifyDataType:
+            tableName: propagation_record
+            columnName: mode
+            newDataType: VARCHAR(30000)
+
+        - modifyDataType:
+            tableName: propagation_record
+            columnName: correlation_key
+            newDataType: VARCHAR(30000)
