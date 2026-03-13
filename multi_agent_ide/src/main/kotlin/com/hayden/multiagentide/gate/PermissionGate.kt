@@ -72,6 +72,21 @@ class PermissionGate(
         return pendingInterrupts.values.toList()
     }
 
+    /**
+     * Normalizes a tool title to a stable key for ALLOW_ALWAYS matching.
+     * MCP tool names (mcp__*) are used as-is since they're already stable identifiers.
+     * For other tools (bash commands, file writes, etc.), extracts the first command token
+     * so that e.g. all "git ..." commands share the key "git" and "gradlew test ..." → "./gradlew".
+     */
+    private fun normalizeToolName(title: String?, fallback: String): String {
+        val t = title?.trim()?.takeIf { it.isNotBlank() } ?: return fallback
+        // MCP tool names are already stable; use as-is
+        if (t.startsWith("mcp__")) return t
+        // Extract first whitespace-delimited token as the command base
+        val firstToken = t.split(Regex("\\s+")).first().takeIf { it.isNotBlank() }
+        return firstToken ?: fallback
+    }
+
     override fun publishRequest(
         requestId: String,
         originNodeId: String,
@@ -84,7 +99,7 @@ class PermissionGate(
             return existing
         }
 
-        val toolName = toolCall.title?.takeIf { it.isNotBlank() } ?: toolCall.toolCallId.value
+        val toolName = normalizeToolName(toolCall.title, toolCall.toolCallId.value)
         requestIdToToolName[requestId] = toolName
 
         // Auto-resolve if this tool was previously granted ALLOW_ALWAYS
