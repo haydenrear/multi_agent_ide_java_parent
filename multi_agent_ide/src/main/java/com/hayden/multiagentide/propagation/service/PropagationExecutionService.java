@@ -109,6 +109,9 @@ public class PropagationExecutionService {
                 }
                 Propagator<?, ?, ?> model = modelOpt.get();
                 PropagationOutput output = run(model, beforePayload, layerId, key, stage, sourceName, sourceNodeId, payload, operationContext);
+                if (output == null) {
+                    output = failedOutput(beforePayload, "invalid - returned null");
+                }
                 PropagationMode mode = output.propagationModeOverride() != null ? output.propagationModeOverride() : model.propagationMode();
                 String correlationKey = correlationKey(entity.getRegistrationId(), layerId, stage, sourceNodeId, beforePayload);
                 var item = propagationItemService.createItemIfNeeded(

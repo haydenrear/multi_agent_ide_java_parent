@@ -105,7 +105,22 @@ public class TransformerExecutionService {
                 Transformer<?, ?, ?> model = modelOpt.get();
                 String afterText = applyTransformer(model, layerId, controllerId, endpointId, payload, currentText);
                 if (afterText == null) {
-                    throw new IllegalStateException("Transformer returned null output");
+                    Instant now = Instant.now();
+                    String errorMsg = "invalid - returned null";
+                    recordRepository.save(TransformationRecordEntity.builder()
+                            .recordId("transform-record-" + UUID.randomUUID())
+                            .registrationId(entity.getRegistrationId())
+                            .layerId(layerId)
+                            .controllerId(controllerId)
+                            .endpointId(endpointId)
+                            .action(TransformationAction.FAILED.name())
+                            .beforePayload(currentText)
+                            .afterPayload(currentText)
+                            .errorMessage(errorMsg)
+                            .createdAt(now)
+                            .build());
+                    emitTransformationEvent(entity.getRegistrationId(), layerId, controllerId, endpointId, TransformationAction.FAILED, errorMsg, now);
+                    continue;
                 }
                 TransformationAction action = afterText.equals(currentText) ? TransformationAction.PASSTHROUGH : TransformationAction.TRANSFORMED;
                 transformed = transformed || action == TransformationAction.TRANSFORMED;
