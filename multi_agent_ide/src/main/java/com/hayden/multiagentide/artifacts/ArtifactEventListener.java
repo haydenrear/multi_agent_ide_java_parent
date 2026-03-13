@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -178,7 +179,7 @@ public class ArtifactEventListener implements EventListener {
     }
 
     public void registerExecutionArtifact(String executionKey, Artifact workflowArtifact) {
-        treeBuilder.addArtifact(executionKey, workflowArtifact);
+        treeBuilder.addArtifactResult(executionKey, workflowArtifact);
         flushPendingArtifacts(executionKey);
         log.debug("Registered execution artifact for {}", executionKey);
     }
@@ -263,10 +264,12 @@ public class ArtifactEventListener implements EventListener {
         }
 
         if (treeBuilder.getExecutionTree(executionKey).isPresent()) {
-            boolean added = treeBuilder.addArtifact(executionKey, artifact);
-            if (added) {
+            ArtifactNode.AddResult result = treeBuilder.addArtifactResult(executionKey, artifact);
+            if (result == ArtifactNode.AddResult.ADDED) {
                 flushPendingArtifacts(executionKey);
                 log.debug("Added derived artifact: {} ({})", artifact.artifactKey().value(), artifact.artifactType());
+            } else if (result == ArtifactNode.AddResult.PARENT_NOT_FOUND) {
+                queueArtifact(executionKey, artifact, "parent pending");
             }
             return;
         }
@@ -280,10 +283,7 @@ public class ArtifactEventListener implements EventListener {
             }
         }
 
-        pendingArtifactsByExecution
-                .computeIfAbsent(executionKey, ignored -> java.util.Collections.synchronizedList(new ArrayList<>()))
-                .add(artifact);
-        log.debug("Queued artifact {} until execution root {} is available", artifact.artifactKey().value(), executionKey);
+        queueArtifact(executionKey, artifact, "execution root unavailable");
     }
 
     private void flushPendingArtifacts(String executionKey) {
@@ -292,12 +292,43 @@ public class ArtifactEventListener implements EventListener {
             return;
         }
 
-        for (Artifact artifact : pending) {
-            boolean added = treeBuilder.addArtifact(executionKey, artifact);
-            if (!added) {
-                log.debug("Skipped queued artifact {} for execution {}", artifact.artifactKey().value(), executionKey);
+        pending.sort(Comparator.comparingInt(a -> a.artifactKey().depth()));
+
+        boolean progressed;
+        do {
+            progressed = false;
+            List<Artifact> remaining = new ArrayList<>();
+            for (Artifact artifact : pending) {
+                ArtifactNode.AddResult result = treeBuilder.addArtifactResult(executionKey, artifact);
+                if (result == ArtifactNode.AddResult.ADDED) {
+                    progressed = true;
+                    log.debug("Added queued artifact {} for execution {}", artifact.artifactKey().value(), executionKey);
+                } else if (result == ArtifactNode.AddResult.PARENT_NOT_FOUND) {
+                    remaining.add(artifact);
+                } else {
+                    log.debug("Skipped queued artifact {} for execution {} due to {}", artifact.artifactKey().value(), executionKey, result);
+                }
+            }
+            pending = remaining;
+        } while (progressed && !pending.isEmpty());
+
+        if (!pending.isEmpty()) {
+            pendingArtifactsByExecution
+                    .computeIfAbsent(executionKey, ignored -> java.util.Collections.synchronizedList(new ArrayList<>()))
+                    .addAll(pending);
+            for (Artifact artifact : pending) {
+                log.debug("Re-queued artifact {} for execution {} because parent is still unavailable",
+                        artifact.artifactKey().value(),
+                        executionKey);
             }
         }
+    }
+
+    private void queueArtifact(String executionKey, Artifact artifact, String reason) {
+        pendingArtifactsByExecution
+                .computeIfAbsent(executionKey, ignored -> java.util.Collections.synchronizedList(new ArrayList<>()))
+                .add(artifact);
+        log.debug("Queued artifact {} for execution {}: {}", artifact.artifactKey().value(), executionKey, reason);
     }
 
     private String extractExecutionKey(ArtifactKey artifactKey) {

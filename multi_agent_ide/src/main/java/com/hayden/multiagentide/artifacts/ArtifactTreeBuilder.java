@@ -52,11 +52,15 @@ public class ArtifactTreeBuilder {
     public boolean addArtifact(com.hayden.acp_cdc_ai.acp.events.Artifact artifact) {
         var executionKey = getInsertionExecutionKey(artifact);
 
-        return executionKey.map(e -> addArtifact(e, artifact))
+        return executionKey.map(e -> addArtifactResult(e, artifact) == ArtifactNode.AddResult.ADDED)
                 .orElse(false);
     }
 
     public boolean addArtifact(String executionKey, com.hayden.acp_cdc_ai.acp.events.Artifact artifact) {
+        return addArtifactResult(executionKey, artifact) == ArtifactNode.AddResult.ADDED;
+    }
+
+    public ArtifactNode.AddResult addArtifactResult(String executionKey, com.hayden.acp_cdc_ai.acp.events.Artifact artifact) {
         com.hayden.acp_cdc_ai.acp.events.ArtifactKey key = artifact.artifactKey();
 
         // Get or create the execution tree
@@ -68,7 +72,7 @@ public class ArtifactTreeBuilder {
                 root = ArtifactNode.createRoot(artifact);
                 executionTrees.put(executionKey, root);
                 log.debug("Created execution tree root: {}", key);
-                return true;
+                return ArtifactNode.AddResult.ADDED;
             } else {
                 log.warn("First artifact for execution {} is not a root: {}", executionKey, key);
                 // Create a synthetic root and add this artifact under it
@@ -83,15 +87,15 @@ public class ArtifactTreeBuilder {
         switch (result) {
             case ADDED -> {
                 log.debug("Added artifact: {} (type: {})", key, artifact.artifactType());
-                return true;
+                return ArtifactNode.AddResult.ADDED;
             }
             case DUPLICATE_KEY -> {
                 log.warn("Duplicate artifact key in execution {}: {}", executionKey, key);
-                return false;
+                return ArtifactNode.AddResult.DUPLICATE_KEY;
             }
             case DUPLICATE_HASH -> {
                 log.debug("Skipped duplicate hash for artifact: {}", key);
-                return false;
+                return ArtifactNode.AddResult.DUPLICATE_HASH;
             }
             case PARENT_NOT_FOUND -> {
                 log.warn("Parent not found for artifact: {}", key);
@@ -99,7 +103,7 @@ public class ArtifactTreeBuilder {
             }
             default -> {
                 log.error("Unexpected add result: {}", result);
-                return false;
+                return result;
             }
         }
     }
@@ -115,11 +119,11 @@ public class ArtifactTreeBuilder {
      * Handles artifacts whose parent is not yet in the tree.
      * Since we have the invariant that messages come in order, this should be rare.
      */
-    private boolean handleOrphanArtifact(String executionKey, com.hayden.acp_cdc_ai.acp.events.Artifact artifact) {
+    private ArtifactNode.AddResult handleOrphanArtifact(String executionKey, com.hayden.acp_cdc_ai.acp.events.Artifact artifact) {
         // For now, log and reject - in production we might want to buffer these
         log.error("Orphan artifact detected (parent not found): {} - this violates ordering invariant", 
                 artifact.artifactKey());
-        return false;
+        return ArtifactNode.AddResult.PARENT_NOT_FOUND;
     }
     
 
