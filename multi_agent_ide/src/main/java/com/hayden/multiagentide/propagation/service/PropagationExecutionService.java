@@ -39,9 +39,9 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -398,8 +398,22 @@ public class PropagationExecutionService {
                 safe(layerId),
                 stage == null ? "" : stage.name(),
                 safe(sourceNodeId),
-                safe(payload));
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+                payloadHash(payload));
+        return raw;
+    }
+
+    private String payloadHash(String payload) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(safe(payload).getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to hash propagation payload", e);
+        }
     }
 
     private ArtifactKey resolveKey(String sourceNodeId) {
