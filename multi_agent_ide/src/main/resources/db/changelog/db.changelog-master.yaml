@@ -1388,3 +1388,12 @@ databaseChangeLog:
             tableName: propagation_record
             columnName: correlation_key
             newDataType: VARCHAR(30000)
+
+  - changeSet:
+      id: 015-drop-mode-not-null-propagation
+      author: hayden
+      changes:
+        - dropNotNullConstraint:
+            tableName: propagation_item
+            columnName: mode
+            columnDataType: VARCHAR(30000)

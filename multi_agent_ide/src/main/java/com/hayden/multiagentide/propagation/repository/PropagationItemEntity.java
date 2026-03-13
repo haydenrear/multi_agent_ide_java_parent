@@ -44,13 +44,13 @@ public class PropagationItemEntity extends JpaHibernateAuditedIded {
     @Column(columnDefinition = "TEXT")
     private String propagatedText;
 
-    @Column(nullable = false)
+    @Column
     private String mode;
 
     @Column(nullable = false)
     private String status;
 
-    @Column(nullable = false)
+    @Column
     private String resolutionType;
 
     @Column(length = 4000)
@@ -65,6 +65,6 @@ public class PropagationItemEntity extends JpaHibernateAuditedIded {
     @Column(nullable = false)
     private Instant updatedAt;
 
-    @Column(nullable = false)
+    @Column
     private Instant resolvedAt;
 }
