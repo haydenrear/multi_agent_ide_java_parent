@@ -74,10 +74,8 @@ public class ArtifactTreeBuilder {
                 log.debug("Created execution tree root: {}", key);
                 return ArtifactNode.AddResult.ADDED;
             } else {
-                log.warn("First artifact for execution {} is not a root: {}", executionKey, key);
-                // Create a synthetic root and add this artifact under it
-                // This handles the case where we might receive artifacts without the root
-                return handleOrphanArtifact(executionKey, artifact);
+                log.debug("First artifact for execution {} is not a root yet: {}", executionKey, key);
+                return ArtifactNode.AddResult.PARENT_NOT_FOUND;
             }
         }
 
@@ -98,8 +96,8 @@ public class ArtifactTreeBuilder {
                 return ArtifactNode.AddResult.DUPLICATE_HASH;
             }
             case PARENT_NOT_FOUND -> {
-                log.warn("Parent not found for artifact: {}", key);
-                return handleOrphanArtifact(executionKey, artifact);
+                log.debug("Parent not found for artifact: {}", key);
+                return ArtifactNode.AddResult.PARENT_NOT_FOUND;
             }
             default -> {
                 log.error("Unexpected add result: {}", result);
@@ -115,18 +113,6 @@ public class ArtifactTreeBuilder {
                 .max(Comparator.comparing(String::length));
     }
     
-    /**
-     * Handles artifacts whose parent is not yet in the tree.
-     * Since we have the invariant that messages come in order, this should be rare.
-     */
-    private ArtifactNode.AddResult handleOrphanArtifact(String executionKey, com.hayden.acp_cdc_ai.acp.events.Artifact artifact) {
-        // For now, log and reject - in production we might want to buffer these
-        log.error("Orphan artifact detected (parent not found): {} - this violates ordering invariant", 
-                artifact.artifactKey());
-        return ArtifactNode.AddResult.PARENT_NOT_FOUND;
-    }
-    
-
     /**
      * Gets an artifact from the in-memory tree.
      */

@@ -98,7 +98,7 @@ public class ArtifactNode {
         ArtifactNode parentNode = findNode(parentKey);
 
         if (parentNode == null) {
-            log.warn("Parent node not found for artifact: {} (expected parent: {})", key, parentKey);
+            log.debug("Parent node not found for artifact: {} (expected parent: {})", key, parentKey);
             return AddResult.PARENT_NOT_FOUND;
         }
 
