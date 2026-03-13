@@ -123,7 +123,8 @@ public class CliEventFormatter {
                         + " conflicts=" + e.conflictCount());
                 case Events.PropagationEvent e -> format(normalizedArgs, "PROPAGATION", e, "stage=" + e.stage()
                         + " action=" + e.action() + " mode=" + e.mode()
-                        + " source=" + summarize(normalizedArgs, e.sourceName()));
+                        + " source=" + summarize(normalizedArgs, e.sourceName())
+                        + " payloadType=" + summarize(normalizedArgs, e.payloadType()));
                 case Events.TransformationEvent e -> format(normalizedArgs, "TRANSFORMATION", e, "action=" + e.action()
                         + " controller=" + summarize(normalizedArgs, e.controllerId())
                         + " endpoint=" + summarize(normalizedArgs, e.endpointId()));
@@ -132,6 +133,9 @@ public class CliEventFormatter {
 
     private @NonNull CliEventArgs normArgs(CliEventArgs args, Events.GraphEvent event) {
         int maxFieldLength = Math.max(0, args.maxFieldLength());
+        if (event instanceof Events.PropagationEvent propagationEvent) {
+            maxFieldLength = Math.max(maxFieldLength, propagationEvent.prettyPrint().length());
+        }
         return maxFieldLength == args.maxFieldLength() && event == args.graphEvent()
                 ? args
                 : new CliEventArgs(maxFieldLength, event, args.prettyPrint(), args.layerId());

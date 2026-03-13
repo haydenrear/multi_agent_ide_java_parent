@@ -2,6 +2,7 @@ package com.hayden.multiagentide.propagation.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.propagation.controller.dto.*;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
@@ -19,7 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -31,6 +35,7 @@ public class PropagatorRegistrationService {
     private final PropagatorSemanticValidator semanticValidator;
     private final PropagatorExecutorValidator executorValidator;
     private final ObjectMapper objectMapper;
+    private final PropagatorAttachableCatalogService attachableCatalogService;
 
     @Transactional
     public PropagatorRegistrationResponse register(PropagatorRegistrationRequest request) {
@@ -153,6 +158,32 @@ public class PropagatorRegistrationService {
         }
     }
 
+    @Transactional
+    public int ensureAutoAiPropagatorsRegistered() {
+        Instant now = Instant.now();
+        Map<String, PropagatorRegistrationEntity> existingBySourcePath = new LinkedHashMap<>();
+        for (PropagatorRegistrationEntity entity : repository.findAll()) {
+            extractSourcePath(entity).ifPresent(sourcePath -> existingBySourcePath.put(sourcePath, entity));
+        }
+
+        int changed = 0;
+        for (ReadPropagatorAttachableTargetsResponse.ActionTarget action : attachableCatalogService.readAttachableTargets().actions()) {
+            for (String stage : action.stages()) {
+                String sourcePath = autoSourcePath(action.layerId(), stage);
+                PropagatorRegistrationRequest request = autoRegistrationRequest(action, stage, sourcePath);
+                PropagatorRegistrationEntity existing = existingBySourcePath.get(sourcePath);
+                if (existing == null) {
+                    saveRegistration("propagator-" + UUID.randomUUID(), request, now, null);
+                    changed++;
+                    continue;
+                }
+                saveRegistration(existing.getRegistrationId(), request, now, existing);
+                changed++;
+            }
+        }
+        return changed;
+    }
+
     private Propagator<?, ?, ?> buildPropagator(String registrationId, PropagatorRegistrationRequest request, ExecutableTool<?, ?, ?> executor, Instant now) {
         PropagationMode mode = request.propagationMode() == null || request.propagationMode().isBlank()
                 ? PropagationMode.INFORMATIONAL
@@ -183,5 +214,99 @@ public class PropagatorRegistrationService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
+    }
+
+    private void saveRegistration(String registrationId,
+                                  PropagatorRegistrationRequest request,
+                                  Instant now,
+                                  PropagatorRegistrationEntity existing) {
+        try {
+            ExecutableTool<?, ?, ?> executor = objectMapper.convertValue(request.executor(), ExecutableTool.class);
+            Propagator<?, ?, ?> propagator = buildPropagator(registrationId, request, executor, now);
+            List<PropagatorLayerBinding> bindings = request.layerBindings().stream()
+                    .map(binding -> PropagatorLayerBinding.builder()
+                            .layerId(binding.layerId())
+                            .enabled(binding.enabled())
+                            .includeDescendants(binding.includeDescendants())
+                            .isInheritable(binding.isInheritable())
+                            .isPropagatedToParent(binding.isPropagatedToParent())
+                            .matcherKey(FilterEnums.MatcherKey.valueOf(binding.matcherKey()))
+                            .matcherType(FilterEnums.MatcherType.valueOf(binding.matcherType()))
+                            .matcherText(binding.matcherText())
+                            .matchOn(PropagatorMatchOn.valueOf(binding.matchOn()))
+                            .updatedBy("system")
+                            .updatedAt(now)
+                            .build())
+                    .toList();
+
+            PropagatorRegistrationEntity entity = existing == null ? new PropagatorRegistrationEntity() : existing;
+            entity.setRegistrationId(registrationId);
+            entity.setRegisteredBy("system");
+            entity.setStatus(request.activate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name());
+            entity.setPropagatorKind(request.propagatorKind());
+            entity.setInheritable(request.isInheritable());
+            entity.setPropagatedToParent(request.isPropagatedToParent());
+            entity.setPropagatorJson(objectMapper.writeValueAsString(propagator));
+            entity.setLayerBindingsJson(objectMapper.writeValueAsString(bindings));
+            entity.setActivatedAt(request.activate() ? now : entity.getActivatedAt());
+            entity.setDeactivatedAt(request.activate() ? null : now);
+            repository.save(entity);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to save auto AI propagator registration", e);
+        }
+    }
+
+    private Optional<String> extractSourcePath(PropagatorRegistrationEntity entity) {
+        try {
+            return Optional.ofNullable(objectMapper.readTree(entity.getPropagatorJson()).path("sourcePath").asText(null));
+        } catch (Exception e) {
+            log.debug("Failed to read propagator sourcePath for registration {}", entity.getRegistrationId(), e);
+            return Optional.empty();
+        }
+    }
+
+    private PropagatorRegistrationRequest autoRegistrationRequest(ReadPropagatorAttachableTargetsResponse.ActionTarget action,
+                                                                 String stage,
+                                                                 String sourcePath) {
+        return PropagatorRegistrationRequest.builder()
+                .name(autoName(action.layerId(), stage))
+                .description("Automatically bootstrapped AI propagator for " + action.layerId() + " [" + stage + "]")
+                .sourcePath(sourcePath)
+                .propagatorKind("AI_TEXT")
+                .priority(100)
+                .propagationMode(PropagationMode.INFORMATIONAL.name())
+                .isInheritable(false)
+                .isPropagatedToParent(false)
+                .layerBindings(List.of(PropagatorRegistrationRequest.LayerBindingRequest.builder()
+                        .layerId(action.layerId())
+                        .layerType(FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name())
+                        .layerKey(action.methodName())
+                        .enabled(true)
+                        .includeDescendants(false)
+                        .isInheritable(false)
+                        .isPropagatedToParent(false)
+                        .matcherKey(FilterEnums.MatcherKey.TEXT.name())
+                        .matcherType(FilterEnums.MatcherType.EQUALS.name())
+                        .matcherText(action.methodName())
+                        .matchOn(stage)
+                        .build()))
+                .executor(Map.of(
+                        "executorType", "AI_PROPAGATOR",
+                        "modelRef", AcpChatOptionsString.DEFAULT_MODEL_NAME,
+                        "timeoutMs", 30_000,
+                        "sessionMode", "SAME_SESSION_FOR_ACTION",
+                        "includeAgentDecorators", Boolean.TRUE,
+                        "registrarPrompt", "Escalate out-of-domain, out-of-distribution, or otherwise controller-relevant request and result payloads."
+                ))
+                .activate(true)
+                .build();
+    }
+
+    private String autoSourcePath(String layerId, String stage) {
+        return "auto://ai-propagator/" + layerId + "/" + stage;
+    }
+
+    private String autoName(String layerId, String stage) {
+        return "auto-ai-propagator-" + layerId.replace('/', '-') + "-" + stage.toLowerCase();
     }
 }

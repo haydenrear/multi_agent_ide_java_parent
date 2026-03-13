@@ -526,8 +526,10 @@ public interface Events {
                         line("stage", e.stage()),
                         line("action", e.action()),
                         line("mode", e.mode()),
+                        line("sourceNodeId", e.sourceNodeId()),
                         line("sourceName", e.sourceName()),
-                        line("summaryText", e.summaryText()));
+                        line("payloadType", e.payloadType()),
+                        block("payload", summarizeObject(e.payload())));
                 case TransformationEvent e -> formatEvent("Transformation Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
@@ -1632,7 +1634,8 @@ public interface Events {
             String mode,
             String sourceNodeId,
             String sourceName,
-            String summaryText,
+            String payloadType,
+            Object payload,
             String correlationKey
     ) implements GraphEvent {
         @Override

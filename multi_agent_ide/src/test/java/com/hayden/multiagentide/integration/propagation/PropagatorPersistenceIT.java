@@ -10,6 +10,8 @@ import com.hayden.multiagentide.propagation.repository.PropagationRecordEntity;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
+import com.hayden.multiagentide.propagation.service.AutoAiPropagatorBootstrap;
+import com.hayden.multiagentide.propagation.service.PropagatorAttachableCatalogService;
 import com.hayden.multiagentidelib.propagation.model.PropagationItemStatus;
 import com.hayden.multiagentidelib.propagation.model.PropagationResolutionType;
 import jakarta.persistence.EntityManager;
@@ -55,6 +57,10 @@ class PropagatorPersistenceIT {
     private PropagationRecordRepository propagationRecordRepository;
     @Autowired
     private EntityManager entityManager;
+    @Autowired
+    private AutoAiPropagatorBootstrap autoAiPropagatorBootstrap;
+    @Autowired
+    private PropagatorAttachableCatalogService attachableCatalogService;
 
     @BeforeEach
     void setUp() {
@@ -63,6 +69,22 @@ class PropagatorPersistenceIT {
         propagatorRegistrationRepository.deleteAll();
         layerRepository.deleteAll();
         layerHierarchyBootstrap.seedLayersIfAbsent();
+    }
+
+    @Test
+    void startupBootstrap_registersAutoAiPropagatorsForEveryAttachableStage() {
+        autoAiPropagatorBootstrap.seedAutoAiPropagators();
+
+        int expectedCount = attachableCatalogService.readAttachableTargets().actions().stream()
+                .mapToInt(action -> action.stages().size())
+                .sum();
+
+        List<PropagatorRegistrationEntity> registrations = propagatorRegistrationRepository.findAll();
+        assertThat(registrations).hasSize(expectedCount);
+        assertThat(registrations)
+                .allMatch(entity -> "AI_TEXT".equals(entity.getPropagatorKind()))
+                .allMatch(entity -> "ACTIVE".equals(entity.getStatus()))
+                .allMatch(entity -> entity.getPropagatorJson().contains("\"sourcePath\":\"auto://ai-propagator/"));
     }
 
     @Test

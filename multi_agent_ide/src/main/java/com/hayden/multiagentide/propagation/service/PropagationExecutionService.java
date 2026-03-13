@@ -138,7 +138,7 @@ public class PropagationExecutionService {
                         .errorMessage(output.errorMessage())
                         .createdAt(now)
                         .build());
-                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, action, mode, sourceNodeId, sourceName, output.summaryText(), correlationKey, now);
+                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, action, mode, sourceNodeId, sourceName, payload, correlationKey, now);
             } catch (Exception e) {
                 log.error("Propagation execution failed for layer={} stage={} registration={}", layerId, stage, entity.getRegistrationId(), e);
                 Instant now = Instant.now();
@@ -154,7 +154,7 @@ public class PropagationExecutionService {
                         .errorMessage(e.getMessage())
                         .createdAt(now)
                         .build());
-                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, PropagationAction.FAILED, null, sourceNodeId, sourceName, null, null, now);
+                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, PropagationAction.FAILED, null, sourceNodeId, sourceName, payload, null, now);
             }
         }
     }
@@ -441,7 +441,7 @@ public class PropagationExecutionService {
 
     private void emitPropagationEvent(String registrationId, String layerId, PropagatorMatchOn stage,
                                       PropagationAction action, PropagationMode mode,
-                                      String sourceNodeId, String sourceName, String summaryText,
+                                      String sourceNodeId, String sourceName, Object payload,
                                       String correlationKey, Instant timestamp) {
         try {
             eventBus.publish(new Events.PropagationEvent(
@@ -455,7 +455,8 @@ public class PropagationExecutionService {
                     mode != null ? mode.name() : null,
                     sourceNodeId,
                     sourceName,
-                    summaryText,
+                    payload == null ? null : payload.getClass().getName(),
+                    payload,
                     correlationKey
             ));
         } catch (Exception e) {
