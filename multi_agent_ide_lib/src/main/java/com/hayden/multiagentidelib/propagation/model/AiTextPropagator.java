@@ -20,7 +20,6 @@ public record AiTextPropagator(
         ExecutableTool<AgentModels.AiPropagatorRequest, AgentModels.AiPropagatorResult, AiPropagatorContext> executor,
         FilterEnums.PolicyStatus status,
         int priority,
-        PropagationMode propagationMode,
         Instant createdAt,
         Instant updatedAt
 ) implements Propagator<AgentModels.AiPropagatorRequest, AgentModels.AiPropagatorResult, AiPropagatorContext> {
@@ -33,7 +32,6 @@ public record AiTextPropagator(
                     .successful(false)
                     .propagatedText(input == null ? null : input.input())
                     .summaryText(input == null ? null : input.input())
-                    .propagationMode(propagationMode)
                     .errorMessage("Propagator returned no result")
                     .build();
         }

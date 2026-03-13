@@ -122,7 +122,7 @@ public class CliEventFormatter {
                         + " successful=" + e.successful() + " merged=" + e.mergedCount()
                         + " conflicts=" + e.conflictCount());
                 case Events.PropagationEvent e -> format(normalizedArgs, "PROPAGATION", e, "stage=" + e.stage()
-                        + " action=" + e.action() + " mode=" + e.mode()
+                        + " action=" + e.action()
                         + " source=" + summarize(normalizedArgs, e.sourceName())
                         + " payloadType=" + summarize(normalizedArgs, e.payloadType()));
                 case Events.TransformationEvent e -> format(normalizedArgs, "TRANSFORMATION", e, "action=" + e.action()

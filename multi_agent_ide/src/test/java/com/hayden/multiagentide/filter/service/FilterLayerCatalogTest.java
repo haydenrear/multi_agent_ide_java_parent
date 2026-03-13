@@ -61,24 +61,4 @@ class FilterLayerCatalogTest {
                 });
     }
 
-    @Test
-    void metadataForEveryActionIncludesCanonicalLayerIdentity() {
-        assertThat(FilterLayerCatalog.actionDefinitions())
-                .allSatisfy(action -> {
-                    Map<String, Object> metadata = FilterLayerCatalog.metadataForLlmCall(
-                            Map.of(),
-                            action.agentName(),
-                            action.actionName(),
-                            action.methodName(),
-                            action.agentType(),
-                            null
-                    );
-
-                    assertThat(metadata)
-                            .containsEntry(FilterLayerCatalog.METADATA_AGENT_NAME, action.agentName())
-                            .containsEntry(FilterLayerCatalog.METADATA_ACTION_NAME, action.actionName())
-                            .containsEntry(FilterLayerCatalog.METADATA_METHOD_NAME, action.methodName())
-                            .containsEntry(FilterLayerCatalog.METADATA_LAYER_ID, action.layerId());
-                });
-    }
 }

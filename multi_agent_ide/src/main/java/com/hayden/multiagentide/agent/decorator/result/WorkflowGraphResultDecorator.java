@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
 import com.embabel.agent.api.common.OperationContext;
-import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentidelib.agent.AgentContext;
 import com.hayden.multiagentidelib.agent.AgentModels;

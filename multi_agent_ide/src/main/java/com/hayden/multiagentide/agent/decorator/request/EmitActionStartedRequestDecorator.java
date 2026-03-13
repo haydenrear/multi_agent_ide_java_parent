@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
 import com.embabel.agent.api.common.OperationContext;
-import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
 import com.hayden.multiagentide.embabel.EmbabelUtil;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;

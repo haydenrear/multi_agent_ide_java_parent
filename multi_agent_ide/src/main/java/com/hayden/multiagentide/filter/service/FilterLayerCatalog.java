@@ -19,9 +19,6 @@ import java.util.Set;
 public final class FilterLayerCatalog {
 
     public static final String METADATA_LAYER_ID = "layerId";
-    public static final String METADATA_AGENT_NAME = "agentName";
-    public static final String METADATA_ACTION_NAME = "actionName";
-    public static final String METADATA_METHOD_NAME = "methodName";
 
     public static final String CONTROLLER = "controller";
     public static final String CONTROLLER_UI_EVENT_POLL = "controller-ui-event-poll";
@@ -440,7 +437,8 @@ public final class FilterLayerCatalog {
     }
 
     public static Optional<String> resolveActionLayer(String agentName, String actionName, String methodName) {
-        ActionDefinition byMethod = ACTION_BY_AGENT_AND_METHOD.get(key(agentName, methodName));
+        String key = key(agentName, methodName);
+        ActionDefinition byMethod = ACTION_BY_AGENT_AND_METHOD.get(key);
         if (byMethod != null) {
             return Optional.of(byMethod.layerId());
         }
@@ -501,27 +499,6 @@ public final class FilterLayerCatalog {
         return actionDefinition != null
                 && (isInternalAutomationLayer(actionDefinition.parentLayerId())
                 || isInternalAutomationLayer(actionDefinition.layerId()));
-    }
-
-    public static Map<String, Object> metadataForLlmCall(
-            Map<String, Object> existingMetadata,
-            String agentName,
-            String actionName,
-            String methodName,
-            AgentType agentType,
-            AgentModels.AgentRequest currentRequest
-    ) {
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        if (existingMetadata != null && !existingMetadata.isEmpty()) {
-            metadata.putAll(existingMetadata);
-        }
-        putIfPresent(metadata, METADATA_AGENT_NAME, agentName);
-        putIfPresent(metadata, METADATA_ACTION_NAME, actionName);
-        putIfPresent(metadata, METADATA_METHOD_NAME, methodName);
-        resolveActionLayer(agentName, actionName, methodName)
-                .or(() -> resolveActionLayer(currentRequest, agentType))
-                .ifPresent(layerId -> metadata.put(METADATA_LAYER_ID, layerId));
-        return Map.copyOf(metadata);
     }
 
     private static void registerAction(ActionDefinition action) {

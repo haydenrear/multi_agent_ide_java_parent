@@ -1,9 +1,8 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
-import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentide.service.GitMergeService;
-import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.model.merge.MergeDescriptor;

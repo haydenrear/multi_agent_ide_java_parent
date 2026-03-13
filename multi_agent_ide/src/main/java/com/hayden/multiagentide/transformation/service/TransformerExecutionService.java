@@ -9,6 +9,7 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
@@ -257,13 +258,10 @@ public class TransformerExecutionService {
         PromptContext decoratedPromptContext = includeAgentDecorators
                 ? AgentInterfaces.decoratePromptContext(
                         promptContext,
-                        operationContext,
-                        promptContextDecorators,
-                        AI_TRANSFORMER_AGENT_NAME,
-                        AI_TRANSFORMER_ACTION_NAME,
-                        AI_TRANSFORMER_METHOD_NAME,
-                        parentRequest,
-                        decoratedRequest)
+                promptContextDecorators,
+                new DecoratorContext(
+                        operationContext, AI_TRANSFORMER_AGENT_NAME, AI_TRANSFORMER_ACTION_NAME, AI_TRANSFORMER_METHOD_NAME, parentRequest, decoratedRequest
+                ))
                 : promptContext;
 
         ToolContext toolContext = includeAgentDecorators

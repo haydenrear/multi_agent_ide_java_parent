@@ -24,7 +24,6 @@ public sealed interface Propagator<I, O, CTX extends FilterContext> extends BiFu
     ExecutableTool<?, ?, ?> executor();
     FilterEnums.PolicyStatus status();
     int priority();
-    PropagationMode propagationMode();
     Instant createdAt();
     Instant updatedAt();
 }

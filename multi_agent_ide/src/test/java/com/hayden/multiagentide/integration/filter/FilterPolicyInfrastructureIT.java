@@ -50,11 +50,7 @@ import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -1250,14 +1246,11 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 .blackboardHistory(emptyBlackboardHistory(actionKey))
                 .currentRequest(request)
                 .operationContext(operationContext)
-                .metadata(FilterLayerCatalog.metadataForLlmCall(
-                        Map.of(),
-                        AgentInterfaces.WORKFLOW_AGENT_NAME,
-                        AgentInterfaces.ACTION_ORCHESTRATOR,
-                        AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
-                        AgentType.ORCHESTRATOR,
-                        request
-                ))
+                .metadata(new HashMap<>())
+                .agentName(AgentInterfaces.WORKFLOW_AGENT_NAME)
+                .actionName(AgentInterfaces.ACTION_ORCHESTRATOR)
+                .methodName(AgentInterfaces.METHOD_COORDINATE_WORKFLOW)
+                .agentType(AgentType.ORCHESTRATOR)
                 .build();
     }
 
@@ -1272,14 +1265,11 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 .currentRequest(currentRequest)
                 .model(Map.of())
                 .operationContext(operationContext)
-                .metadata(FilterLayerCatalog.metadataForLlmCall(
-                        Map.of(),
-                        actionDefinition.agentName(),
-                        actionDefinition.actionName(),
-                        actionDefinition.methodName(),
-                        actionDefinition.agentType(),
-                        currentRequest
-                ))
+                .metadata(new HashMap<>())
+                .agentName(actionDefinition.agentName())
+                .actionName(actionDefinition.actionName())
+                .methodName(actionDefinition.methodName())
+                .agentType(actionDefinition.agentType())
                 .build();
     }
 

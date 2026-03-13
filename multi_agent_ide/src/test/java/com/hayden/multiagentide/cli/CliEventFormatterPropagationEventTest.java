@@ -30,7 +30,6 @@ class CliEventFormatterPropagationEventTest {
                 "workflow-agent/coordinateWorkflow",
                 "ACTION_REQUEST",
                 "PASSTHROUGH",
-                "INFORMATIONAL",
                 "ak:01ARZ3NDEKTSV4RRFFQ69G5FAV",
                 "workflow",
                 payload.getClass().getName(),

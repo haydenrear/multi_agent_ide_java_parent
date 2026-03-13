@@ -2,11 +2,7 @@ package com.hayden.multiagentidelib.prompt;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.agent.PreviousContext;
-import com.hayden.multiagentidelib.agent.UpstreamContext;
+import com.hayden.multiagentidelib.agent.*;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -43,10 +39,11 @@ public class PromptContextFactory {
             String templateName,
             Map<String, Object> model,
             String modelName,
-            OperationContext operationContext
+            OperationContext operationContext,
+            DecoratorContext decoratorContext
     ) {
         return build(agentType, input, null, input, blackboardHistory, templateName, model, modelName,
-                operationContext);
+                operationContext, decoratorContext);
     }
 
     public PromptContext build(
@@ -55,10 +52,11 @@ public class PromptContextFactory {
             BlackboardHistory blackboardHistory,
             String templateName,
             Map<String, Object> model,
-            OperationContext operationContext
+            OperationContext operationContext,
+            DecoratorContext decoratorContext
     ) {
         return build(agentType, input, null, input, blackboardHistory, templateName, model, AcpChatOptionsString.DEFAULT_MODEL_NAME,
-                operationContext);
+                operationContext, decoratorContext);
     }
 
     public PromptContext build(
@@ -69,10 +67,11 @@ public class PromptContextFactory {
             BlackboardHistory blackboardHistory,
             String templateName,
             Map<String, Object> model,
-            OperationContext operationContext
+            OperationContext operationContext,
+            DecoratorContext decoratorContext
     ) {
         return build(agentType, contextRequest, previousRequest, currentRequest, blackboardHistory, templateName, model, AcpChatOptionsString.DEFAULT_MODEL_NAME,
-                operationContext) ;
+                operationContext, decoratorContext);
     }
 
     /**
@@ -88,7 +87,8 @@ public class PromptContextFactory {
             String templateName,
             Map<String, Object> model,
             String modelName,
-            OperationContext operationContext
+            OperationContext operationContext,
+            DecoratorContext decoratorContext
     ) {
         List<UpstreamContext> upstreamContexts = new ArrayList<>();
         PreviousContext previousContext = null;
@@ -236,7 +236,10 @@ public class PromptContextFactory {
                 templateName,
                 model,
                 modelName,
-                operationContext
+                operationContext,
+                decoratorContext.agentName(),
+                decoratorContext.actionName(),
+                decoratorContext.methodName()
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
@@ -250,9 +253,11 @@ public class PromptContextFactory {
             BlackboardHistory blackboardHistory,
             String templateName,
             Map<String, Object> model,
-            OperationContext operationContext
+            OperationContext operationContext,
+            DecoratorContext decoratorContext
     ) {
-        return build(agentType, contextId, upstreamContexts, previousContext, blackboardHistory, templateName, model, AcpChatOptionsString.DEFAULT_MODEL_NAME, operationContext);
+        return build(agentType, contextId, upstreamContexts, previousContext, blackboardHistory, templateName, model, AcpChatOptionsString.DEFAULT_MODEL_NAME, operationContext,
+                        decoratorContext);
     }
 
     /**
@@ -268,7 +273,8 @@ public class PromptContextFactory {
             String templateName,
             Map<String, Object> model,
             String modelName,
-            OperationContext operationContext
+            OperationContext operationContext,
+            DecoratorContext decoratorContext
     ) {
         var pc = new PromptContext(
                 agentType,
@@ -282,7 +288,8 @@ public class PromptContextFactory {
                 templateName,
                 model,
                 modelName,
-                operationContext
+                operationContext,
+                decoratorContext
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
@@ -295,7 +302,8 @@ public class PromptContextFactory {
             BlackboardHistory blackboardHistory,
             String templateName,
             Map<String, Object> model,
-            OperationContext operationContext
+            OperationContext operationContext,
+            DecoratorContext decoratorContext
     ) {
         return build(
                 agentType,
@@ -306,7 +314,8 @@ public class PromptContextFactory {
                 templateName,
                 model,
                 AcpChatOptionsString.DEFAULT_MODEL_NAME,
-                operationContext
+                operationContext,
+                decoratorContext
         );
     }
 
@@ -323,7 +332,8 @@ public class PromptContextFactory {
             String templateName,
             Map<String, Object> model,
             String modelName,
-            OperationContext operationContext
+            OperationContext operationContext,
+            DecoratorContext decoratorContext
     ) {
         List<UpstreamContext> contexts = upstreamContext != null 
                 ? List.of(upstreamContext) 
@@ -340,7 +350,8 @@ public class PromptContextFactory {
                 templateName,
                 model,
                 modelName,
-                operationContext
+                operationContext,
+                decoratorContext
         );
 
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();

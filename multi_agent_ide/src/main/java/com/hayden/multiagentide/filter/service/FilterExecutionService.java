@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.*;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
@@ -316,14 +317,11 @@ public class FilterExecutionService {
         PromptContext decoratedPromptContext = includeAgentDecorators
                 ? AgentInterfaces.decoratePromptContext(
                         aiPromptContext,
-                        operationContext,
-                        promptContextDecorators,
-                        AI_FILTER_AGENT_NAME,
-                        AI_FILTER_ACTION_NAME,
-                        AI_FILTER_METHOD_NAME,
-                        decoratedContextRequest,
-                        aiSessionRequest
+                promptContextDecorators,
+                new DecoratorContext(
+                        operationContext, AI_FILTER_AGENT_NAME, AI_FILTER_ACTION_NAME, AI_FILTER_METHOD_NAME, decoratedContextRequest, aiSessionRequest
                 )
+        )
                 : aiPromptContext;
 
         ToolContext decoratedToolContext = includeAgentDecorators

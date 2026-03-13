@@ -14,10 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -55,14 +52,11 @@ class LayerIdResolverTest {
         PromptContext promptContext = PromptContext.builder()
                 .agentType(AgentType.ORCHESTRATOR)
                 .currentRequest(AgentModels.OrchestratorRequest.builder().build())
-                .metadata(FilterLayerCatalog.metadataForLlmCall(
-                        Map.of(),
-                        AgentInterfaces.WORKFLOW_AGENT_NAME,
-                        AgentInterfaces.ACTION_ORCHESTRATOR,
-                        AgentInterfaces.METHOD_COORDINATE_WORKFLOW,
-                        AgentType.ORCHESTRATOR,
-                        AgentModels.OrchestratorRequest.builder().build()
-                ))
+                .metadata(new HashMap<>())
+                .agentName(AgentInterfaces.WORKFLOW_AGENT_NAME)
+                .actionName(AgentInterfaces.ACTION_ORCHESTRATOR)
+                .methodName(AgentInterfaces.METHOD_COORDINATE_WORKFLOW)
+                .agentType(AgentType.ORCHESTRATOR)
                 .build();
 
         assertThat(layerIdResolver.resolveForPromptContributor(promptContext))
@@ -74,14 +68,11 @@ class LayerIdResolverTest {
         PromptContext promptContext = PromptContext.builder()
                 .agentType(AgentType.DISCOVERY_AGENT)
                 .currentRequest(AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest.builder().build())
-                .metadata(FilterLayerCatalog.metadataForLlmCall(
-                        Map.of(),
-                        AgentInterfaces.WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT,
-                        AgentInterfaces.ACTION_DISCOVERY_AGENT_INTERRUPT,
-                        AgentInterfaces.METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                        AgentType.DISCOVERY_AGENT,
-                        AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest.builder().build()
-                ))
+                .metadata(new HashMap<>())
+                .agentName(AgentInterfaces.WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT)
+                .actionName(AgentInterfaces.ACTION_DISCOVERY_AGENT_INTERRUPT)
+                .methodName(AgentInterfaces.METHOD_TRANSITION_TO_INTERRUPT_STATE)
+                .agentType(AgentType.DISCOVERY_AGENT)
                 .build();
 
         assertThat(layerIdResolver.resolveForPromptContributor(promptContext))

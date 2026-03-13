@@ -33,7 +33,7 @@ public class LayerIdResolver {
         if (explicitLayerId.isPresent()) {
             return explicitLayerId;
         }
-        Optional<String> metadataLayerId = resolveFromRuntimeMetadata(metadata);
+        Optional<String> metadataLayerId = resolveFromPromptContext(ctx);
 
         if (metadataLayerId.isPresent()) {
             return metadataLayerId;
@@ -110,10 +110,10 @@ public class LayerIdResolver {
                 .map(LayerEntity::getLayerId);
     }
 
-    private Optional<String> resolveFromRuntimeMetadata(Map<String, Object> metadata) {
-        String agentName = resolveRawMetadata(metadata, FilterLayerCatalog.METADATA_AGENT_NAME);
-        String actionName = resolveRawMetadata(metadata, FilterLayerCatalog.METADATA_ACTION_NAME);
-        String methodName = resolveRawMetadata(metadata, FilterLayerCatalog.METADATA_METHOD_NAME);
+    private Optional<String> resolveFromPromptContext(PromptContext ctx) {
+        String agentName = ctx.agentName();
+        String actionName = ctx.actionName();
+        String methodName = ctx.methodName();
         return FilterLayerCatalog.resolveActionLayer(agentName, actionName, methodName)
                 .flatMap(this::resolveExistingLayer);
     }

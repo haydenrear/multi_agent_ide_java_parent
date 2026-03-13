@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
-import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.propagation.integration.ActionRequestPropagationIntegration;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import lombok.RequiredArgsConstructor;

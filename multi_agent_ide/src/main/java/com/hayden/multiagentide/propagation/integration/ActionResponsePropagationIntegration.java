@@ -96,7 +96,6 @@ public class ActionResponsePropagationIntegration {
                     null,
                     PropagatorMatchOn.ACTION_RESPONSE.name(),
                     PropagationAction.PASSTHROUGH.name(),
-                    null,
                     sourceNodeId,
                     canonicalActionName,
                     payload.getClass().getName(),

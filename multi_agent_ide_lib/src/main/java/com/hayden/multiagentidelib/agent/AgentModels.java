@@ -9,7 +9,6 @@ import com.hayden.acp_cdc_ai.acp.filter.Instruction;
 import com.hayden.multiagentidelib.model.MergeResult;
 import com.hayden.multiagentidelib.model.merge.AgentMergeStatus;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
-import com.hayden.multiagentidelib.propagation.model.PropagationMode;
 import com.hayden.multiagentidelib.propagation.model.PropagationOutput;
 import com.hayden.multiagentidelib.template.ConsolidationTemplate;
 import com.hayden.multiagentidelib.template.DelegationTemplate;
@@ -5636,8 +5635,6 @@ public interface AgentModels {
             String sourceName,
             @JsonPropertyDescription("Node id of the source payload.")
             String sourceNodeId,
-            @JsonPropertyDescription("Default propagation mode requested for this run.")
-            PropagationMode propagationMode,
             @JsonPropertyDescription("Additional metadata for the propagator.")
             Map<String, String> metadata
     ) implements AgentRequest {
@@ -5658,9 +5655,6 @@ public interface AgentModels {
             }
             if (sourceNodeId != null && !sourceNodeId.isBlank()) {
                 builder.append("Source Node Id: ").append(sourceNodeId.trim()).append("\n");
-            }
-            if (propagationMode != null) {
-                builder.append("Propagation Mode: ").append(propagationMode.name()).append("\n");
             }
             return builder.toString().trim();
         }
@@ -5683,9 +5677,6 @@ public interface AgentModels {
             if (sourceNodeId != null && !sourceNodeId.isBlank()) {
                 builder.append("Source Node Id: ").append(sourceNodeId.trim()).append("\n");
             }
-            if (propagationMode != null) {
-                builder.append("Propagation Mode: ").append(propagationMode.name()).append("\n");
-            }
             if (input != null) {
                 builder.append("Input: ")
                         .append(input.length() > 200 ? input.substring(0, 200) + "..." : input)
@@ -5704,16 +5695,10 @@ public interface AgentModels {
             ArtifactKey contextId,
             @JsonPropertyDescription("Whether the AI propagator executed successfully.")
             boolean successful,
-            @JsonPropertyDescription("Text to propagate to the controller or human.")
+            @JsonPropertyDescription("Text propagated to the controller or human.")
             String propagatedText,
-            @JsonPropertyDescription("Short summary of why propagation is happening.")
+            @JsonPropertyDescription("Short summary of why you escalated.")
             String summaryText,
-            @JsonPropertyDescription("Propagation mode override returned by the propagator.")
-            PropagationMode propagationMode,
-            @JsonPropertyDescription("Whether a propagation item should be created.")
-            boolean createItem,
-            @JsonPropertyDescription("Whether downstream execution should be blocked pending escalation.")
-            boolean blockDownstream,
             @JsonPropertyDescription("Additional metadata emitted by the propagator.")
             Map<String, String> metadata,
             @JsonPropertyDescription("Error message if the AI propagator execution failed.")
@@ -5726,9 +5711,6 @@ public interface AgentModels {
             return PropagationOutput.builder()
                     .propagatedText(propagatedText)
                     .summaryText(summaryText)
-                    .propagationModeOverride(propagationMode)
-                    .createItem(createItem)
-                    .blockDownstream(blockDownstream)
                     .metadata(metadata)
                     .errorMessage(errorMessage)
                     .build();
@@ -5741,11 +5723,6 @@ public interface AgentModels {
             if (summaryText != null && !summaryText.isBlank()) {
                 builder.append("Summary: ").append(summaryText.trim()).append("\n");
             }
-            if (propagationMode != null) {
-                builder.append("Propagation Mode: ").append(propagationMode.name()).append("\n");
-            }
-            builder.append("Create Item: ").append(createItem).append("\n");
-            builder.append("Block Downstream: ").append(blockDownstream).append("\n");
             if (errorMessage != null && !errorMessage.isBlank()) {
                 builder.append("Error: ").append(errorMessage.trim()).append("\n");
             }

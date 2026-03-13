@@ -9,6 +9,7 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
@@ -23,7 +24,6 @@ import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.filter.config.FilterContextFactory;
 import com.hayden.multiagentidelib.propagation.model.AiTextPropagator;
 import com.hayden.multiagentidelib.propagation.model.PropagationAction;
-import com.hayden.multiagentidelib.propagation.model.PropagationMode;
 import com.hayden.multiagentidelib.propagation.model.PropagationOutput;
 import com.hayden.multiagentidelib.propagation.model.Propagator;
 import com.hayden.multiagentidelib.propagation.model.PropagatorMatchOn;
@@ -112,7 +112,6 @@ public class PropagationExecutionService {
                 if (output == null) {
                     output = failedOutput(beforePayload, "invalid - returned null");
                 }
-                PropagationMode mode = output.propagationModeOverride() != null ? output.propagationModeOverride() : model.propagationMode();
                 String correlationKey = correlationKey(entity.getRegistrationId(), layerId, stage, sourceNodeId, beforePayload);
                 var item = propagationItemService.createItemIfNeeded(
                         entity.getRegistrationId(),
@@ -121,7 +120,6 @@ public class PropagationExecutionService {
                         sourceName,
                         output.summaryText(),
                         output.propagatedText(),
-                        mode,
                         correlationKey
                 );
                 PropagationAction action = item.isPresent()
@@ -137,12 +135,11 @@ public class PropagationExecutionService {
                         .action(action.name())
                         .beforePayload(beforePayload)
                         .afterPayload(output.propagatedText())
-                        .mode(mode == null ? null : mode.name())
                         .correlationKey(correlationKey)
                         .errorMessage(output.errorMessage())
                         .createdAt(now)
                         .build());
-                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, action, mode, sourceNodeId, sourceName, payload, correlationKey, now);
+                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, action, sourceNodeId, sourceName, payload, correlationKey, now);
             } catch (Exception e) {
                 log.error("Propagation execution failed for layer={} stage={} registration={}", layerId, stage, entity.getRegistrationId(), e);
                 Instant now = Instant.now();
@@ -158,7 +155,7 @@ public class PropagationExecutionService {
                         .errorMessage(e.getMessage())
                         .createdAt(now)
                         .build());
-                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, PropagationAction.FAILED, null, sourceNodeId, sourceName, payload, null, now);
+                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, PropagationAction.FAILED, sourceNodeId, sourceName, payload, null, now);
             }
         }
     }
@@ -225,7 +222,6 @@ public class PropagationExecutionService {
                 .input(beforePayload)
                 .sourceName(context.sourceName())
                 .sourceNodeId(context.sourceNodeId())
-                .propagationMode(aiTextPropagator.propagationMode())
                 .metadata(Map.of(
                         "layerId", safe(context.layerId()),
                         "stage", context.actionStage() == null ? "" : context.actionStage().name()))
@@ -243,7 +239,7 @@ public class PropagationExecutionService {
                         parentRequest)
                 : request;
 
-        Map<String, Object> model = buildAiModel(aiExecutor, beforePayload, context, parentRequest, aiTextPropagator.propagationMode());
+        Map<String, Object> model = buildAiModel(aiExecutor, beforePayload, context, parentRequest);
         String resolvedModelName = aiExecutor.modelRef() == null || aiExecutor.modelRef().isBlank()
                 ? AcpChatOptionsString.DEFAULT_MODEL_NAME
                 : aiExecutor.modelRef();
@@ -264,13 +260,10 @@ public class PropagationExecutionService {
         PromptContext decoratedPromptContext = includeAgentDecorators
                 ? AgentInterfaces.decoratePromptContext(
                         promptContext,
-                        resolvedOperationContext,
-                        promptContextDecorators,
-                        AI_PROPAGATOR_AGENT_NAME,
-                        AI_PROPAGATOR_ACTION_NAME,
-                        AI_PROPAGATOR_METHOD_NAME,
-                        parentRequest,
-                        decoratedRequest)
+                promptContextDecorators,
+                new DecoratorContext(
+                        resolvedOperationContext, AI_PROPAGATOR_AGENT_NAME, AI_PROPAGATOR_ACTION_NAME, AI_PROPAGATOR_METHOD_NAME, parentRequest, decoratedRequest
+                ))
                 : promptContext;
 
         ToolContext toolContext = includeAgentDecorators
@@ -312,13 +305,11 @@ public class PropagationExecutionService {
     private Map<String, Object> buildAiModel(AiPropagatorTool aiExecutor,
                                              String beforePayload,
                                              DefaultPropagationContext context,
-                                             AgentModels.AgentRequest parentRequest,
-                                             PropagationMode defaultMode) {
+                                             AgentModels.AgentRequest parentRequest) {
         Map<String, Object> model = new LinkedHashMap<>();
         model.put("input", beforePayload);
         model.put("sourceName", context.sourceName());
         model.put("sourceNodeId", context.sourceNodeId());
-        model.put("propagationMode", defaultMode == null ? null : defaultMode.name());
         if (aiExecutor.registrarPrompt() != null && !aiExecutor.registrarPrompt().isBlank()) {
             model.put("registrarPrompt", aiExecutor.registrarPrompt());
         }
@@ -397,8 +388,6 @@ public class PropagationExecutionService {
         return PropagationOutput.builder()
                 .propagatedText(beforePayload)
                 .summaryText(message)
-                .createItem(true)
-                .blockDownstream(true)
                 .errorMessage(message)
                 .build();
     }
@@ -456,20 +445,26 @@ public class PropagationExecutionService {
     }
 
     private void emitPropagationEvent(String registrationId, String layerId, PropagatorMatchOn stage,
-                                      PropagationAction action, PropagationMode mode,
+                                      PropagationAction action,
                                       String sourceNodeId, String sourceName, Object payload,
                                       String correlationKey, Instant timestamp) {
+
+        if (sourceNodeId == null) {
+            ArtifactKey root = ArtifactKey.createRoot();
+            emitNodeError("Error - could not find node ID for %s.".formatted(payload == null ? "Unknown payload" :payload.getClass().getSimpleName()), root);
+            sourceNodeId = root.value();
+        }
+
         try {
             eventBus.publish(new Events.PropagationEvent(
                     "prop-event-" + UUID.randomUUID(),
                     timestamp,
-                    sourceNodeId != null ? sourceNodeId : "",
+                    sourceNodeId,
                     registrationId,
                     layerId,
                     stage != null ? stage.name() : null,
                     action.name(),
-                    mode != null ? mode.name() : null,
-                    sourceNodeId,
+                    new ArtifactKey(sourceNodeId).createChild().value(),
                     sourceName,
                     payload == null ? null : payload.getClass().getName(),
                     payload,

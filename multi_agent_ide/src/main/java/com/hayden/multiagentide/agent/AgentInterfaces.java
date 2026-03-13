@@ -603,6 +603,9 @@ public interface AgentInterfaces {
                 Map<String, Object> model
         ) {
             BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+            DecoratorContext decoratorContext = new DecoratorContext(
+                    context, multiAgentAgentName(), actionName, methodName, previousRequest, currentRequest
+            );
             PromptContext promptContext = promptContextFactory.build(
                     agentType,
                     contextRequest,
@@ -611,17 +614,13 @@ public interface AgentInterfaces {
                     history,
                     templateName,
                     model,
-                    context
+                    context,
+                    decoratorContext
             );
             return AgentInterfaces.decoratePromptContext(
                     promptContext,
-                    context,
                     promptContextDecorators,
-                    multiAgentAgentName(),
-                    actionName,
-                    methodName,
-                    previousRequest,
-                    currentRequest
+                    decoratorContext
             );
         }
 
@@ -2423,6 +2422,10 @@ public interface AgentInterfaces {
                 Map<String, Object> model
         ) {
             BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+
+            DecoratorContext decoratorContext = new DecoratorContext(
+                    context, multiAgentAgentName(), actionName, methodName, previousRequest, currentRequest
+            );
             PromptContext promptContext = promptContextFactory.build(
                     agentType,
                     contextRequest,
@@ -2431,17 +2434,13 @@ public interface AgentInterfaces {
                     history,
                     templateName,
                     model,
-                    context
+                    context,
+                    decoratorContext
             );
             return AgentInterfaces.decoratePromptContext(
                     promptContext,
-                    context,
                     promptContextDecorators,
-                    multiAgentAgentName(),
-                    actionName,
-                    methodName,
-                    previousRequest,
-                    currentRequest
+                    decoratorContext
             );
         }
 
@@ -2667,6 +2666,9 @@ public interface AgentInterfaces {
                 Map<String, Object> model
         ) {
             BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+            DecoratorContext decoratorContext = new DecoratorContext(
+                    context, multiAgentAgentName(), actionName, methodName, previousRequest, currentRequest
+            );
             PromptContext promptContext = promptContextFactory.build(
                     agentType,
                     contextRequest,
@@ -2675,17 +2677,13 @@ public interface AgentInterfaces {
                     history,
                     templateName,
                     model,
-                    context
+                    context,
+                    decoratorContext
             );
             return AgentInterfaces.decoratePromptContext(
                     promptContext,
-                    context,
                     promptContextDecorators,
-                    multiAgentAgentName(),
-                    actionName,
-                    methodName,
-                    previousRequest,
-                    currentRequest
+                    decoratorContext
             );
         }
 
@@ -2904,6 +2902,9 @@ public interface AgentInterfaces {
                 Map<String, Object> model
         ) {
             BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+            DecoratorContext decoratorContext = new DecoratorContext(
+                    context, multiAgentAgentName(), actionName, methodName, previousRequest, currentRequest
+            );
             PromptContext promptContext = promptContextFactory.build(
                     agentType,
                     contextRequest,
@@ -2912,17 +2913,13 @@ public interface AgentInterfaces {
                     history,
                     templateName,
                     model,
-                    context
+                    context,
+                    decoratorContext
             );
             return AgentInterfaces.decoratePromptContext(
                     promptContext,
-                    context,
                     promptContextDecorators,
-                    multiAgentAgentName(),
-                    actionName,
-                    methodName,
-                    previousRequest,
-                    currentRequest
+                    decoratorContext
             );
         }
 
@@ -3086,20 +3083,13 @@ public interface AgentInterfaces {
 
     static PromptContext decoratePromptContext(
             PromptContext promptContext,
-            OperationContext context,
             List<? extends PromptContextDecorator> decorators,
-            String agentName,
-            String actionName,
-            String methodName,
-            Artifact.AgentModel lastRequest,
-            Artifact.AgentModel agentRequest
+            DecoratorContext decoratorContext1
     ) {
         if (promptContext == null || decorators == null || decorators.isEmpty()) {
             return promptContext;
         }
-        DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest, agentRequest
-        );
+        DecoratorContext decoratorContext = decoratorContext1;
         List<? extends PromptContextDecorator> sortedDecorators = decorators.stream()
                 .filter(d -> d != null)
                 .sorted(Comparator.comparingInt(PromptContextDecorator::order))

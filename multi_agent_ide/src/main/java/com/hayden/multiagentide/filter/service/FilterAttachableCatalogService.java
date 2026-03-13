@@ -17,13 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -154,16 +148,13 @@ public class FilterAttachableCatalogService {
                 .currentContextId(actionKey)
                 .blackboardHistory(new BlackboardHistory(new BlackboardHistory.History(), actionKey.value(), null))
                 .currentRequest(currentRequest)
-                .metadata(FilterLayerCatalog.metadataForLlmCall(
-                        Map.of(),
-                        actionDefinition.agentName(),
-                        actionDefinition.actionName(),
-                        actionDefinition.methodName(),
-                        actionDefinition.agentType(),
-                        currentRequest
-                ))
+                .metadata(new HashMap<>())
                 .model(Map.of())
                 .hashContext(Artifact.HashContext.defaultHashContext())
+                .agentName(actionDefinition.agentName())
+                .methodName(actionDefinition.methodName())
+                .agentType(actionDefinition.agentType())
+                .actionName(actionDefinition.actionName())
                 .build();
     }
 

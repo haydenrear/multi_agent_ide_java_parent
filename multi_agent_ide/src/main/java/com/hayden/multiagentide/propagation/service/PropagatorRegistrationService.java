@@ -185,9 +185,6 @@ public class PropagatorRegistrationService {
     }
 
     private Propagator<?, ?, ?> buildPropagator(String registrationId, PropagatorRegistrationRequest request, ExecutableTool<?, ?, ?> executor, Instant now) {
-        PropagationMode mode = request.propagationMode() == null || request.propagationMode().isBlank()
-                ? PropagationMode.INFORMATIONAL
-                : PropagationMode.valueOf(request.propagationMode());
         if ("AI_TEXT".equalsIgnoreCase(request.propagatorKind())) {
             return AiTextPropagator.builder()
                     .id(registrationId)
@@ -197,7 +194,6 @@ public class PropagatorRegistrationService {
                     .executor((ExecutableTool<AgentModels.AiPropagatorRequest, AgentModels.AiPropagatorResult, AiPropagatorContext>) executor)
                     .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
                     .priority(request.priority())
-                    .propagationMode(mode)
                     .createdAt(now)
                     .updatedAt(now)
                     .build();
@@ -210,7 +206,6 @@ public class PropagatorRegistrationService {
                 .executor((ExecutableTool<String, Object, DefaultPropagationContext>) executor)
                 .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
                 .priority(request.priority())
-                .propagationMode(mode)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -274,7 +269,6 @@ public class PropagatorRegistrationService {
                 .sourcePath(sourcePath)
                 .propagatorKind("AI_TEXT")
                 .priority(100)
-                .propagationMode(PropagationMode.INFORMATIONAL.name())
                 .isInheritable(false)
                 .isPropagatedToParent(false)
                 .layerBindings(List.of(PropagatorRegistrationRequest.LayerBindingRequest.builder()

@@ -1,7 +1,6 @@
-package com.hayden.multiagentide.agent;
+package com.hayden.multiagentidelib.agent;
 
 import com.embabel.agent.api.common.OperationContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 
 /**

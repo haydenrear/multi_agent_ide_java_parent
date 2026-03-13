@@ -22,7 +22,6 @@ public record TextPropagator(
         ExecutableTool<String, Object, DefaultPropagationContext> executor,
         FilterEnums.PolicyStatus status,
         int priority,
-        PropagationMode propagationMode,
         Instant createdAt,
         Instant updatedAt
 ) implements Propagator<String, PropagationOutput, DefaultPropagationContext> {
@@ -31,10 +30,10 @@ public record TextPropagator(
     public PropagationOutput apply(String input, DefaultPropagationContext ctx) {
         FilterResult<Object> result = executor == null ? null : executor.apply(input, ctx);
         Object raw = result == null ? null : result.t();
-        return normalize(raw, ctx == null ? null : ctx.objectMapper(), input, propagationMode);
+        return normalize(raw, ctx == null ? null : ctx.objectMapper(), input);
     }
 
-    static PropagationOutput normalize(Object raw, ObjectMapper objectMapper, String fallbackText, PropagationMode defaultMode) {
+    static PropagationOutput normalize(Object raw, ObjectMapper objectMapper, String fallbackText) {
         if (raw instanceof PropagationOutput output) {
             return output;
         }
@@ -45,7 +44,6 @@ public record TextPropagator(
             return PropagationOutput.builder()
                     .propagatedText(text)
                     .summaryText(text)
-                    .propagationModeOverride(defaultMode)
                     .metadata(Map.of())
                     .build();
         }
@@ -58,7 +56,6 @@ public record TextPropagator(
         return PropagationOutput.builder()
                 .propagatedText(fallbackText)
                 .summaryText(fallbackText)
-                .propagationModeOverride(defaultMode)
                 .metadata(Map.of())
                 .build();
     }

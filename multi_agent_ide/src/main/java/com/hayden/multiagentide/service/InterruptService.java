@@ -2,6 +2,7 @@ package com.hayden.multiagentide.service;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
@@ -80,6 +81,9 @@ public class InterruptService {
 
                 Map<String, Object> modelWithFeedback = new java.util.HashMap<>(templateModel);
                 modelWithFeedback.put("interruptFeedback", feedback);
+                DecoratorContext decoratorContext = new DecoratorContext(
+                        context, AGENT_NAME, ACTION_AGENT_REVIEW, METHOD_RUN_INTERRUPT_AGENT_REVIEW, promptContext.previousRequest(), promptContext.currentRequest()
+                );
                 promptContext = promptContextFactory.build(
                         AgentType.REVIEW_RESOLUTION_AGENT,
                         promptContext.currentRequest(),
@@ -88,17 +92,13 @@ public class InterruptService {
                         promptContext.blackboardHistory(),
                         TEMPLATE_REVIEW_RESOLUTION,
                         modelWithFeedback,
-                        context
+                        context,
+                        decoratorContext
                 );
                 promptContext = AgentInterfaces.decoratePromptContext(
                         promptContext,
-                        context,
                         promptContextDecorators,
-                        AGENT_NAME,
-                        ACTION_AGENT_REVIEW,
-                        METHOD_RUN_INTERRUPT_AGENT_REVIEW,
-                        promptContext.previousRequest(),
-                        promptContext.currentRequest()
+                        decoratorContext
                 );
 
                 toolContext = AgentInterfaces.decorateToolContext(
@@ -275,6 +275,10 @@ public class InterruptService {
         // Rebuild prompt context with the interrupt request as currentRequest so that
         // prompt contributor factories (e.g. InterruptPromptContributorFactory,
         // WorktreeSandboxPromptContributorFactory) can see it and contribute.
+        DecoratorContext decoratorContext = new DecoratorContext(
+                context, AGENT_NAME, ACTION_AGENT_REVIEW, METHOD_RUN_INTERRUPT_AGENT_REVIEW, callerPromptContext.previousRequest(), request
+        );
+
         PromptContext promptContext = promptContextFactory.build(
                 AgentType.REVIEW_AGENT,
                 callerPromptContext.previousRequest(),
@@ -283,18 +287,14 @@ public class InterruptService {
                 history,
                 TEMPLATE_WORKFLOW_REVIEW,
                 callerPromptContext.model(),
-                context
+                context,
+                decoratorContext
         );
 
         promptContext = AgentInterfaces.decoratePromptContext(
                 promptContext,
-                context,
                 promptContextDecorators,
-                AGENT_NAME,
-                ACTION_AGENT_REVIEW,
-                METHOD_RUN_INTERRUPT_AGENT_REVIEW,
-                callerPromptContext.previousRequest(),
-                request
+                decoratorContext
         );
 
         ToolContext toolContext = AgentInterfaces.decorateToolContext(

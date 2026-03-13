@@ -95,6 +95,8 @@ public class ArtifactEventListener implements EventListener {
             case Events.PermissionResolvedEvent permissionResolvedEvent -> handleEventArtifact(permissionResolvedEvent);
             case Events.MergePhaseStartedEvent mergePhaseStartedEvent -> handleEventArtifact(mergePhaseStartedEvent);
             case Events.MergePhaseCompletedEvent mergePhaseCompletedEvent -> handleEventArtifact(mergePhaseCompletedEvent);
+            case Events.PropagationEvent evt -> handleEventArtifact(evt);
+            case Events.TransformationEvent evt -> handleEventArtifact(evt);
 
             case Events.AddChildNodeEvent ignored -> {
             }
@@ -107,10 +109,6 @@ public class ArtifactEventListener implements EventListener {
             case Events.TuiInteractionGraphEvent ignored -> {
             }
             case Events.TuiSystemGraphEvent ignored -> {
-            }
-            case Events.PropagationEvent ignored -> {
-            }
-            case Events.TransformationEvent ignored -> {
             }
         }
     }

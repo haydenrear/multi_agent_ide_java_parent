@@ -6,7 +6,7 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.AgentInterfaces;
-import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
@@ -164,18 +164,18 @@ public class WorktreeMergeConflictService {
                 TEMPLATE,
                 model,
                 AcpChatOptionsString.DEFAULT_MODEL_NAME,
-                operationContext
+                operationContext,
+                decoratorContext.agentName(),
+                decoratorContext.actionName(),
+                decoratorContext.methodName()
         );
 
         PromptContext decoratedPromptContext = AgentInterfaces.decoratePromptContext(
                 promptContext,
-                operationContext,
                 promptContextDecorators,
-                AGENT_NAME,
-                ACTION_NAME,
-                METHOD_NAME,
-                sourceRequest,
-                request
+                new DecoratorContext(
+                        operationContext, AGENT_NAME, ACTION_NAME, METHOD_NAME, sourceRequest, request
+                )
         );
 
         ToolContext toolContext = AgentInterfaces.decorateToolContext(

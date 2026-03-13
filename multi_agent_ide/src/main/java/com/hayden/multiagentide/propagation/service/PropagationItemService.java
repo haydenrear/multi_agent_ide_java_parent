@@ -28,11 +28,7 @@ public class PropagationItemService {
                                                               String sourceName,
                                                               String summaryText,
                                                               String propagatedText,
-                                                              PropagationMode mode,
                                                               String correlationKey) {
-        if (mode == null || mode == PropagationMode.INFORMATIONAL) {
-            return Optional.empty();
-        }
         Optional<PropagationItemEntity> existing = repository.findFirstByCorrelationKeyAndStatusOrderByCreatedAtDesc(
                 correlationKey,
                 PropagationItemStatus.PENDING.name()
@@ -49,7 +45,6 @@ public class PropagationItemService {
                 .sourceName(sourceName)
                 .summaryText(summaryText)
                 .propagatedText(propagatedText)
-                .mode(mode.name())
                 .status(PropagationItemStatus.PENDING.name())
                 .correlationKey(correlationKey)
                 .createdAt(now)
