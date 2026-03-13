@@ -132,9 +132,11 @@ public class CliEventFormatter {
     }
 
     private @NonNull CliEventArgs normArgs(CliEventArgs args, Events.GraphEvent event) {
-        int maxFieldLength = Math.max(0, args.maxFieldLength());
-        if (event instanceof Events.PropagationEvent propagationEvent) {
-            maxFieldLength = Math.max(maxFieldLength, propagationEvent.prettyPrint().length());
+        int maxFieldLength = args.maxFieldLength();
+        if (maxFieldLength >= 0) {
+            if (event instanceof Events.PropagationEvent propagationEvent) {
+                maxFieldLength = Math.max(maxFieldLength, propagationEvent.prettyPrint().length());
+            }
         }
         return maxFieldLength == args.maxFieldLength() && event == args.graphEvent()
                 ? args
@@ -592,6 +594,9 @@ public class CliEventFormatter {
             return "none";
         }
         String text = String.valueOf(value);
+        if (args.maxFieldLength() < 0) {
+            return text;
+        }
         int maxFieldLength = Math.max(0, args.maxFieldLength());
         if (text.length() <= maxFieldLength) {
             return text;

@@ -5,6 +5,7 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.adapter.SseEventAdapter;
 import com.hayden.multiagentide.cli.CliEventFormatter;
+import com.hayden.multiagentide.controller.model.NodeIdRequest;
 import com.hayden.multiagentide.filter.service.LayerIdResolver;
 import com.hayden.multiagentide.propagation.service.PropagationItemService;
 import com.hayden.multiagentide.repository.EventStreamRepository;
@@ -15,6 +16,9 @@ import com.hayden.multiagentide.ui.shared.SharedUiInteractionService;
 import com.hayden.multiagentide.ui.shared.UiActionCommand;
 import com.hayden.multiagentide.ui.shared.UiStateSnapshot;
 import com.hayden.multiagentide.ui.shared.UiStateStore;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -33,8 +37,9 @@ import java.util.UUID;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @RestController
-@RequestMapping("/api/llm-debug/ui")
+@RequestMapping("/api/ui")
 @RequiredArgsConstructor
+@Tag(name = "Debug UI", description = "Workflow graph, node events, and goal management for the debug UI")
 public class LlmDebugUiController {
 
     private static final String CONTROLLER_ID = "LlmDebugUiController";
@@ -52,25 +57,30 @@ public class LlmDebugUiController {
     private final PropagationItemService propagationItemService;
 
     @PostMapping("/nodes/state")
+    @Operation(summary = "Get current UI state snapshot for a node",
+            description = "Returns the full UiStateSnapshot for the given node scope — active panel focus, "
+                    + "chat input/search state, event stream position, and session list. This is the same state "
+                    + "that concrete renderers (TUI, web) consume. See UiStateStore for the server-side state model.")
     public UiStateSnapshot state(@RequestBody NodeIdRequest request) {
         return uiStateStore.snapshot(request.nodeId());
     }
 
     @PostMapping("/goals/start")
-    public StartGoalResponse startGoal(@RequestBody StartGoalRequest request) {
-        OrchestrationController.StartGoalResponse started = orchestrationController.startGoalAsync(
-                new OrchestrationController.StartGoalRequest(
-                        request.goal(),
-                        request.repositoryUrl(),
-                        request.baseBranch(),
-                        request.title(),
-                        request.tags()
-                )
-        );
+    @Operation(summary = "Start a new goal and return the root node identifier",
+            description = "Creates a new workflow execution for the given goal and repository. Returns the root "
+                    + "nodeId (ArtifactKey) which scopes all subsequent polling, event, and action calls. "
+                    + "Tags should be 3-8 short kebab-case descriptors covering change type and subsystem.")
+    public StartGoalResponse startGoal(@RequestBody OrchestrationController.StartGoalRequest request) {
+        OrchestrationController.StartGoalResponse started = orchestrationController.startGoalAsync(request);
         return new StartGoalResponse(started.nodeId(), started.nodeId(), "started");
     }
 
     @PostMapping("/nodes/actions")
+    @Operation(summary = "Dispatch a UI action event to a node",
+            description = "Publishes a TuiInteractionGraphEvent for the given node. actionType must match a value in "
+                    + "UiActionCommand.ActionType (case-insensitive). The payload map carries action-specific data. "
+                    + "The interaction is converted via SharedUiInteractionService.toInteractionEvent() and published "
+                    + "to the EventBus. Returns 'queued' on success or 'rejected' if the actionType is missing or invalid.")
     public ActionResponse action(@RequestBody UiActionRequest request) {
         String nodeId = request.nodeId();
         if (request.actionType() == null || request.actionType().isBlank()) {
@@ -103,6 +113,12 @@ public class LlmDebugUiController {
     }
 
     @PostMapping("/quick-actions")
+    @Operation(summary = "Execute a quick action (START_GOAL, SEND_MESSAGE)",
+            description = "Convenience endpoint combining goal creation and message injection. "
+                    + "START_GOAL requires 'goal' and 'repositoryUrl'; creates a new workflow and returns the root nodeId. "
+                    + "'tags' should be 3-8 short kebab-case descriptors. "
+                    + "SEND_MESSAGE requires 'nodeId'; publishes an AddMessageEvent to inject a human message "
+                    + "into the agent's conversation stream. Returns 'started'/'queued' on success or 'rejected' with an error message.")
     public QuickActionResponse quickAction(@RequestBody QuickActionRequest request) {
         String actionType = request == null || request.actionType() == null
                 ? ""
@@ -144,15 +160,23 @@ public class LlmDebugUiController {
     }
 
     @PostMapping("/nodes/events")
+    @Operation(summary = "List events for a node with cursor pagination",
+            description = "Returns paginated, formatted event summaries for all events within the node scope "
+                    + "(node and all descendants). Summaries are truncated by CliEventFormatter using the 'truncate' "
+                    + "parameter (default 180 chars, positive values clamped to [80, 10000]). "
+                    + "Pass a negative value (e.g. -1) to disable truncation and return full event text. "
+                    + "For full formatted detail of a single event, use the event-detail endpoint. "
+                    + "See CliEventFormatter.java for truncation logic.")
     public UiEventPage events(@RequestBody NodeEventsRequest request) {
         String nodeId = request.nodeId();
         int limit = request.limit() <= 0 ? 50 : request.limit();
-        int truncate = request.truncate() <= 0 ? 180 : request.truncate();
+        int rawTruncate = request.truncate();
+        int truncate = rawTruncate == 0 ? 180 : rawTruncate;
         String sort = request.sort() == null || request.sort().isBlank() ? "asc" : request.sort();
         String cursor = request.cursor();
 
         int safeLimit = Math.max(1, Math.min(500, limit));
-        int safeTruncate = Math.max(80, Math.min(10_000, truncate));
+        int safeTruncate = truncate < 0 ? truncate : Math.max(80, Math.min(10_000, truncate));
         String controllerLayerId = controllerLayerId();
 
         List<Events.GraphEvent> scopedEvents = eventStreamRepository.list().stream()
@@ -190,18 +214,26 @@ public class LlmDebugUiController {
     }
 
     @PostMapping("/nodes/events/detail")
+    @Operation(summary = "Get full formatted detail for a single event",
+            description = "Returns the complete formatted representation of a single event. The 'maxFieldLength' "
+                    + "parameter controls CliEventFormatter truncation (default 20000, positive values clamped to [120, 80000]). "
+                    + "Pass a negative value (e.g. -1) to disable truncation entirely and return the full untruncated event body. "
+                    + "Set 'pretty' to true for multi-line indented output. Propagation events auto-expand to "
+                    + "full prettyPrint() length regardless of maxFieldLength when maxFieldLength is positive. "
+                    + "See CliEventFormatter.java for formatting logic.")
     public UiEventDetail eventDetail(@RequestBody EventDetailRequest request) {
         String nodeId = request.nodeId();
         String eventId = request.eventId();
         boolean pretty = request.pretty();
-        int maxFieldLength = request.maxFieldLength() <= 0 ? 20000 : request.maxFieldLength();
+        int rawMaxFieldLength = request.maxFieldLength();
+        int maxFieldLength = rawMaxFieldLength == 0 ? 20000 : rawMaxFieldLength;
 
         Events.GraphEvent event = eventStreamRepository.findById(eventId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found: " + eventId));
         if (!matchesNodeScope(nodeId, event.nodeId())) {
             throw new ResponseStatusException(NOT_FOUND, "Event not in node scope: " + eventId);
         }
-        int safeMaxFieldLength = Math.max(120, Math.min(80_000, maxFieldLength));
+        int safeMaxFieldLength = maxFieldLength < 0 ? maxFieldLength : Math.max(120, Math.min(80_000, maxFieldLength));
         String controllerLayerId = controllerLayerId();
         String formatted = cliEventFormatter.format(
                 new CliEventFormatter.CliEventArgs(
@@ -221,6 +253,11 @@ public class LlmDebugUiController {
     }
 
     @PostMapping(value = "/nodes/events/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "Stream live events for a node via SSE",
+            description = "Opens a Server-Sent Events stream that pushes every new GraphEvent matching the given "
+                    + "nodeId scope (node and all descendants) in real time. Events are delivered as-is (not formatted). "
+                    + "The SSE connection stays open until the client disconnects. "
+                    + "See SseEventAdapter for connection management and keep-alive behavior.")
     public SseEmitter stream(@RequestBody NodeIdRequest request) {
         String nodeId = request.nodeId();
         return sseEventAdapter.registerEmitter(
@@ -230,6 +267,12 @@ public class LlmDebugUiController {
     }
 
     @PostMapping("/workflow-graph")
+    @Operation(summary = "Get the full workflow graph tree with metrics for a node",
+            description = "Primary polling endpoint. Returns the full workflow node tree rooted at the given nodeId, "
+                    + "with per-node metrics (event counts, pending items, route-back counts). "
+                    + "metrics.pendingItems surfaces PERMISSION, INTERRUPT, REVIEW, and PROPAGATION blocked states. "
+                    + "The response may be transformed by active ControllerEndpointTransformationIntegration policies. "
+                    + "Use errorWindowSeconds to control the recent-error time window (default 180s, range [30, 3600]).")
     public Object workflowGraph(@RequestBody WorkflowGraphRequest request) {
         String nodeId = request.nodeId();
         int errorWindowSeconds = request.errorWindowSeconds() <= 0 ? 180 : request.errorWindowSeconds();
@@ -397,7 +440,7 @@ public class LlmDebugUiController {
         String formatted = cliEventFormatter.format(
                 new CliEventFormatter.CliEventArgs(maxLength, event, false, layerId)
         );
-        if (formatted == null || formatted.length() <= maxLength) {
+        if (maxLength < 0 || formatted == null || formatted.length() <= maxLength) {
             return formatted;
         }
         return formatted.substring(0, Math.max(0, maxLength - 3)) + "...";
@@ -458,37 +501,29 @@ public class LlmDebugUiController {
 
     // ── Request/Response Records ─────────────────────────────────────
 
-    public record NodeIdRequest(String nodeId) {
-    }
-
-    public record UiActionRequest(String nodeId, String actionType, java.util.Map<String, Object> payload) {
+    @Schema(description = "Request to dispatch a UI action to a node.")
+    public record UiActionRequest(
+            @Schema(description = "ArtifactKey identifying the target node") String nodeId,
+            @Schema(description = "Action type — must match a UiActionCommand.ActionType enum value (case-insensitive)") String actionType,
+            @Schema(description = "Action-specific key-value payload") java.util.Map<String, Object> payload) {
     }
 
     public record ActionResponse(String actionId, String status) {
     }
 
-    public record StartGoalRequest(String goal, String repositoryUrl, String baseBranch, String title, List<String> tags) {
-        public StartGoalRequest(String goal, String repositoryUrl, String baseBranch, String title) {
-            this(goal, repositoryUrl, baseBranch, title, List.of());
-        }
-
-        public StartGoalRequest {
-            tags = tags == null ? List.of() : List.copyOf(tags);
-        }
-    }
-
     public record StartGoalResponse(String nodeId, String runId, String status) {
     }
 
+    @Schema(description = "Request for a quick action. Fields are context-dependent on actionType.")
     public record QuickActionRequest(
-            String actionType,
-            String nodeId,
-            String message,
-            String goal,
-            String repositoryUrl,
-            String baseBranch,
-            String title,
-            List<String> tags
+            @Schema(description = "Action to execute: 'START_GOAL' or 'SEND_MESSAGE'") String actionType,
+            @Schema(description = "Target node ArtifactKey (required for SEND_MESSAGE)") String nodeId,
+            @Schema(description = "Message text to inject (SEND_MESSAGE only)") String message,
+            @Schema(description = "Goal description for the new workflow (START_GOAL only, required)") String goal,
+            @Schema(description = "Git repository URL (START_GOAL only, required)") String repositoryUrl,
+            @Schema(description = "Base branch to target (START_GOAL only, optional)") String baseBranch,
+            @Schema(description = "Human-readable title for the goal (START_GOAL only, optional)") String title,
+            @Schema(description = "3-8 short kebab-case tags covering change type and subsystem (START_GOAL only)") List<String> tags
     ) {
         public QuickActionRequest(
                 String actionType,
@@ -510,26 +545,37 @@ public class LlmDebugUiController {
     public record QuickActionResponse(String actionId, String status, String nodeId, String error) {
     }
 
+    @Schema(description = "Request for paginated node events. Summaries are truncated by CliEventFormatter — "
+            + "see CliEventFormatter.java for the formatting and truncation pipeline.")
     public record NodeEventsRequest(
-            String nodeId,
-            int limit,
-            String cursor,
-            int truncate,
-            String sort
+            @Schema(description = "ArtifactKey scoping the query to this node and all descendants") String nodeId,
+            @Schema(description = "Max events per page (default 50, clamped to [1, 500])") int limit,
+            @Schema(description = "Opaque cursor from previous page's nextCursor for forward pagination") String cursor,
+            @Schema(description = "Max characters for each event summary field (default 180, positive values clamped to [80, 10000]). "
+                    + "Pass any negative value (e.g. -1) to disable truncation and return full event text. "
+                    + "0 is treated as the default (180). Controls CliEventFormatter.summarize() truncation length.") int truncate,
+            @Schema(description = "Sort order: 'asc' (default) or 'desc'. Desc without cursor starts from latest events.") String sort
     ) {
     }
 
+    @Schema(description = "Request for full event detail. Formatting is performed by CliEventFormatter — "
+            + "see CliEventFormatter.java for the complete rendering pipeline including filter integration.")
     public record EventDetailRequest(
-            String nodeId,
-            String eventId,
-            boolean pretty,
-            int maxFieldLength
+            @Schema(description = "ArtifactKey scope — event must be within this node's subtree") String nodeId,
+            @Schema(description = "Unique event identifier to retrieve") String eventId,
+            @Schema(description = "Enable multi-line indented output (CliEventFormatter prettyPrint mode)") boolean pretty,
+            @Schema(description = "Max characters per field value (default 20000, positive values clamped to [120, 80000]). "
+                    + "Pass any negative value (e.g. -1) to disable truncation entirely and return the full untruncated body. "
+                    + "0 is treated as the default (20000). "
+                    + "Controls CliEventFormatter.summarize() truncation. Propagation events auto-expand to full "
+                    + "prettyPrint() length when maxFieldLength is positive.") int maxFieldLength
     ) {
     }
 
+    @Schema(description = "Request for the workflow graph tree. This is the primary polling endpoint.")
     public record WorkflowGraphRequest(
-            String nodeId,
-            int errorWindowSeconds
+            @Schema(description = "ArtifactKey — automatically resolved to the root node for tree construction") String nodeId,
+            @Schema(description = "Seconds to look back for recent errors (default 180, range [30, 3600])") int errorWindowSeconds
     ) {
     }
 

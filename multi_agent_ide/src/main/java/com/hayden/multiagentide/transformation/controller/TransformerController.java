@@ -6,6 +6,8 @@ import com.hayden.multiagentide.transformation.repository.TransformerRegistratio
 import com.hayden.multiagentide.transformation.service.TransformerAttachableCatalogService;
 import com.hayden.multiagentide.transformation.service.TransformerDiscoveryService;
 import com.hayden.multiagentide.transformation.service.TransformerRegistrationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/transformers")
 @RequiredArgsConstructor
+@Tag(name = "Transformers", description = "Manage transformer registrations and layer assignments")
 public class TransformerController {
 
     private final TransformerRegistrationService registrationService;
@@ -23,16 +26,24 @@ public class TransformerController {
     private final ObjectMapper objectMapper;
 
     @GetMapping("/attachables")
+    @Operation(summary = "List attachable transformer targets",
+            description = "Source of truth for valid controller/endpoint combinations that transformers can bind to. "
+                    + "Transformers reshape controller endpoint responses before they are returned to the caller. "
+                    + "See ControllerEndpointTransformationIntegration for the transformation pipeline.")
     public ResponseEntity<ReadTransformerAttachableTargetsResponse> attachables() {
         return ResponseEntity.ok(attachableCatalogService.readAttachableTargets());
     }
 
     @PostMapping("/registrations")
+    @Operation(summary = "Register a new transformer",
+            description = "Registers a transformer that will process responses from the specified controller endpoint. "
+                    + "AI transformers (kind=AI) create AiTransformerRequest sessions.")
     public ResponseEntity<TransformerRegistrationResponse> register(@RequestBody TransformerRegistrationRequest request) {
         return ResponseEntity.ok(registrationService.register(request));
     }
 
     @GetMapping("/layers/{layerId}/registrations")
+    @Operation(summary = "List transformers registered at a layer")
     public ResponseEntity<ReadTransformersByLayerResponse> byLayer(@PathVariable String layerId) {
         List<ReadTransformersByLayerResponse.TransformerSummary> summaries = discoveryService.getActiveTransformersByLayer(layerId).stream()
                 .map(this::toSummary)
@@ -41,11 +52,13 @@ public class TransformerController {
     }
 
     @PostMapping("/registrations/{registrationId}/deactivate")
+    @Operation(summary = "Deactivate a transformer registration")
     public ResponseEntity<DeactivateTransformerResponse> deactivate(@PathVariable String registrationId) {
         return ResponseEntity.ok(registrationService.deactivate(registrationId));
     }
 
     @PutMapping("/registrations/{registrationId}/layers/{layerId}")
+    @Operation(summary = "Update a transformer's layer binding")
     public ResponseEntity<PutTransformerLayerResponse> updateLayer(@PathVariable String registrationId,
                                                                    @PathVariable String layerId,
                                                                    @RequestBody PutTransformerLayerRequest request) {

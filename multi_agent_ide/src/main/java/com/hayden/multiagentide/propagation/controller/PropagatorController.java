@@ -6,6 +6,8 @@ import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEnt
 import com.hayden.multiagentide.propagation.service.PropagatorAttachableCatalogService;
 import com.hayden.multiagentide.propagation.service.PropagatorDiscoveryService;
 import com.hayden.multiagentide.propagation.service.PropagatorRegistrationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/propagators")
 @RequiredArgsConstructor
+@Tag(name = "Propagators", description = "Manage propagator registrations and layer assignments")
 public class PropagatorController {
 
     private final PropagatorRegistrationService registrationService;
@@ -23,16 +26,28 @@ public class PropagatorController {
     private final ObjectMapper objectMapper;
 
     @GetMapping("/attachables")
+    @Operation(summary = "List attachable propagator targets",
+            description = "Source of truth for valid attachment targets (event types, layers) for propagator registrations. "
+                    + "Propagators are the escalatory mechanism for extracting out-of-domain (OOD) signals from agent execution — "
+                    + "check this first to understand what can be propagated.")
     public ResponseEntity<ReadPropagatorAttachableTargetsResponse> attachables() {
         return ResponseEntity.ok(attachableCatalogService.readAttachableTargets());
     }
 
     @PostMapping("/registrations")
+    @Operation(summary = "Register a new propagator",
+            description = "Registers a propagator that will fire on matching events at the specified layer. "
+                    + "AI propagators (kind=AI) create AiPropagatorRequest sessions. "
+                    + "When an AI propagator escalates via AskUserQuestionTool, it creates an interrupt "
+                    + "resolvable through the Interrupts API.")
     public ResponseEntity<PropagatorRegistrationResponse> register(@RequestBody PropagatorRegistrationRequest request) {
         return ResponseEntity.ok(registrationService.register(request));
     }
 
     @GetMapping("/layers/{layerId}/registrations")
+    @Operation(summary = "List propagators registered at a layer",
+            description = "Returns all active propagator registrations bound to the given layer, "
+                    + "with summary information including name, kind, status, and priority.")
     public ResponseEntity<ReadPropagatorsByLayerResponse> byLayer(@PathVariable String layerId) {
         List<ReadPropagatorsByLayerResponse.PropagatorSummary> summaries = discoveryService.getActivePropagatorsByLayer(layerId).stream()
                 .map(this::toSummary)
@@ -41,11 +56,13 @@ public class PropagatorController {
     }
 
     @PostMapping("/registrations/{registrationId}/deactivate")
+    @Operation(summary = "Deactivate a propagator registration")
     public ResponseEntity<DeactivatePropagatorResponse> deactivate(@PathVariable String registrationId) {
         return ResponseEntity.ok(registrationService.deactivate(registrationId));
     }
 
     @PutMapping("/registrations/{registrationId}/layers/{layerId}")
+    @Operation(summary = "Update a propagator's layer binding")
     public ResponseEntity<PutPropagatorLayerResponse> updateLayer(@PathVariable String registrationId,
                                                                   @PathVariable String layerId,
                                                                   @RequestBody PutPropagatorLayerRequest request) {

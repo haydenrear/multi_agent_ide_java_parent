@@ -4,6 +4,9 @@ import com.hayden.commitdiffcontext.git.parser.support.episodic.model.Onboarding
 import com.hayden.commitdiffcontext.git.parser.support.episodic.service.OnboardingOrchestrationService;
 
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -23,12 +26,17 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/orchestrator")
 @RequiredArgsConstructor
+@Tag(name = "Orchestrator", description = "Goal execution orchestration and onboarding run management")
 public class OrchestrationController {
 
     private final GoalExecutor goalExecutor;
     private final ObjectProvider<OnboardingOrchestrationService> onboardingOrchestrationServiceProvider;
 
     @PostMapping("/start")
+    @Operation(summary = "Start a new goal asynchronously",
+            description = "Creates a new root ArtifactKey and asynchronously executes the goal via GoalExecutor. "
+                    + "Returns the root nodeId immediately — poll /api/ui/nodes or subscribe to the event stream "
+                    + "to track execution progress. Both goal and repositoryUrl are required.")
     public StartGoalResponse startGoal(@RequestBody StartGoalRequest request) {
         return startGoalAsync(request);
     }
@@ -47,11 +55,18 @@ public class OrchestrationController {
     }
 
     @GetMapping("/onboarding/runs")
+    @Operation(summary = "List all onboarding runs",
+            description = "Returns metadata for all onboarding runs managed by OnboardingOrchestrationService. "
+                    + "Requires the onboarding orchestration bean to be present in the application context — "
+                    + "returns 500 if not configured.")
     public java.util.List<OnboardingRunMetadata> onboardingRuns() {
         return onboardingService().findRuns();
     }
 
     @PostMapping("/onboarding/runs/get")
+    @Operation(summary = "Get a single onboarding run by ID",
+            description = "Looks up a specific onboarding run by its runId. "
+                    + "Throws 400 if the run is not found.")
     public OnboardingRunMetadata onboardingRun(@RequestBody OnboardingRunRequest request) {
         return onboardingService().findRun(request.runId())
                 .orElseThrow(() -> new IllegalArgumentException("Onboarding run not found: " + request.runId()));
@@ -65,12 +80,13 @@ public class OrchestrationController {
         return service;
     }
 
+    @Schema(description = "Request to start a new goal execution.")
     public record StartGoalRequest(
-            String goal,
-            String repositoryUrl,
-            String baseBranch,
-            String title,
-            List<String> tags
+            @Schema(description = "Natural-language goal description — the instruction given to the agent") String goal,
+            @Schema(description = "Git repository URL the agent will operate on") String repositoryUrl,
+            @Schema(description = "Base branch for the goal (optional; defaults to main/master)") String baseBranch,
+            @Schema(description = "Human-readable title for this goal run") String title,
+            @Schema(description = "Optional tags for filtering/grouping runs") List<String> tags
     ) {
         public StartGoalRequest(String goal, String repositoryUrl, String baseBranch, String title) {
             this(goal, repositoryUrl, baseBranch, title, List.of());

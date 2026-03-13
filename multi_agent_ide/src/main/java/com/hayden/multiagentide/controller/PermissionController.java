@@ -6,6 +6,10 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.repository.EventStreamRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,14 +31,17 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/permissions")
 @RequiredArgsConstructor
+@Tag(name = "Permissions", description = "List, resolve, and inspect tool permission requests")
 public class PermissionController {
 
     private final PermissionGate permissionGate;
     private final EventStreamRepository eventStreamRepository;
 
+    @Schema(description = "Request to resolve a pending tool permission.")
     public record PermissionResolutionRequest(
-            String id,
-            PermissionOptionKind optionType
+            @Schema(description = "Permission requestId or ArtifactKey (scope-based lookup for descendants)") String id,
+            @Schema(description = "Resolution option: ALLOW_ONCE, ALLOW_ALWAYS, REJECT_ONCE, REJECT_ALWAYS. "
+                    + "Null cancels the request. ALLOW_ALWAYS/REJECT_ALWAYS persist for the session.") PermissionOptionKind optionType
     ) {
     }
 
@@ -86,6 +93,13 @@ public class PermissionController {
     }
 
     @GetMapping("/pending")
+    @Operation(summary = "List all pending permission requests",
+            description = "Returns all tool permission requests currently awaiting resolution. "
+                    + "Each entry includes the requestId, originNodeId (the orchestrator-level ArtifactKey), "
+                    + "nodeId (the specific agent node), toolCallId, and the raw permissions object describing "
+                    + "what the tool is requesting access to. "
+                    + "Resolve via POST /resolve with the requestId and a PermissionOptionKind. "
+                    + "See PermissionGate for the gate lifecycle and IPermissionGate for the resolution contract.")
     public List<PendingPermissionSummary> pending() {
         return permissionGate.pendingPermissionRequests().stream()
                 .map(p -> new PendingPermissionSummary(
@@ -99,6 +113,14 @@ public class PermissionController {
     }
 
     @PostMapping("/resolve")
+    @Operation(summary = "Resolve a pending permission request (ALLOW_ONCE, ALLOW_ALWAYS, REJECT_ONCE, REJECT_ALWAYS)",
+            description = "Resolves a pending tool permission request. The id field accepts either a direct requestId "
+                    + "or an ArtifactKey — when an ArtifactKey is provided, the system searches for matching "
+                    + "PermissionRequestedEvents within that node scope (most recent first). "
+                    + "optionType controls the resolution: ALLOW_ONCE/ALLOW_ALWAYS grants access, "
+                    + "REJECT_ONCE/REJECT_ALWAYS denies. ALLOW_ALWAYS and REJECT_ALWAYS persist for the session. "
+                    + "If optionType is null, the request is cancelled. "
+                    + "See IPermissionGate.Companion for the resolution factory methods.")
     public PermissionResolutionResponse resolve(
             @RequestBody PermissionResolutionRequest request
     ) {
@@ -124,7 +146,15 @@ public class PermissionController {
     }
 
     @GetMapping("/detail")
-    public PermissionDetailResponse detail(@RequestParam("id") String id) {
+    @Operation(summary = "Get full detail for a permission request including related tool calls",
+            description = "Returns full detail for a permission request: requestId, originNodeId, nodeId, toolCallId, "
+                    + "pending/resolved status, the raw permissions object, and all ToolCallEvents matching the same toolCallId. "
+                    + "The id parameter accepts a requestId, toolCallId, nodeId, or ArtifactKey — "
+                    + "ArtifactKey-based lookup matches any PermissionRequestedEvent whose nodeId or originNodeId "
+                    + "is a descendant of the given key. Tool call entries include content, locations, rawInput, and rawOutput "
+                    + "for full inspection of what the tool attempted.")
+    public PermissionDetailResponse detail(
+            @Parameter(description = "Permission requestId, toolCallId, nodeId, or ArtifactKey (scope-based lookup for descendants)") @RequestParam("id") String id) {
         var permissionEvent = findPermissionRequestEvent(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Permission request not found"));
 

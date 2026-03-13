@@ -16,6 +16,9 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -28,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/interrupts")
 @RequiredArgsConstructor
+@Tag(name = "Interrupts", description = "Request, resolve, and inspect interrupt signals for agent nodes")
 public class InterruptController {
 
     private final AgentControlService agentControlService;
@@ -36,6 +40,12 @@ public class InterruptController {
     private final EventStreamRepository eventStreamRepository;
 
     @PostMapping
+    @Operation(summary = "Request an interrupt (PAUSE, STOP, HUMAN_REVIEW, PRUNE)",
+            description = "Sends an interrupt signal to the agent node identified by originNodeId. "
+                    + "PAUSE suspends execution (resumable via resolve). STOP terminates the node. "
+                    + "HUMAN_REVIEW triggers a review gate requiring explicit resolution before the node continues. "
+                    + "PRUNE emits a NodePrunedEvent that removes the node from the active graph. "
+                    + "See Events.InterruptType for the full enum and AgentControlService for pause/stop semantics.")
     public InterruptStatusResponse requestInterrupt(@RequestBody InterruptRequest request) {
         String interruptId = UUID.randomUUID().toString();
         String reason = request.reason() != null ? request.reason() : "Interrupt requested";
@@ -59,6 +69,14 @@ public class InterruptController {
     }
 
     @PostMapping("/resolve")
+    @Operation(summary = "Resolve a pending interrupt by ID",
+            description = "Resolves a pending interrupt, unblocking the paused agent node. "
+                    + "The id field accepts either a direct interrupt requestId or an ArtifactKey (e.g. 'ak:01KJ...') — "
+                    + "when an ArtifactKey is provided, the system searches for matching interrupts within that node's scope "
+                    + "(including descendant nodes). resolutionType maps to IPermissionGate.ResolutionType. "
+                    + "reviewResult carries structured feedback (IPermissionGate.InterruptResult) when resolving HUMAN_REVIEW interrupts. "
+                    + "On success, publishes a ResolveInterruptEvent to the event bus. "
+                    + "See also: QuestionAnswerInterruptRequest for propagator-initiated interrupts that follow the same resolution path.")
     public InterruptStatusResponse resolveInterrupt(
             @RequestBody InterruptResolution request
     ) {
@@ -106,6 +124,9 @@ public class InterruptController {
     }
 
     @PostMapping("/status")
+    @Operation(summary = "Get status of an interrupt by ID",
+            description = "Returns the current status of an interrupt. Note: the current implementation returns UNKNOWN "
+                    + "for all queries — use /detail for richer interrupt inspection including tool call history.")
     public InterruptStatusResponse getStatus(@RequestBody InterruptStatusRequest request) {
         return new InterruptStatusResponse(request.interruptId(), "UNKNOWN", null, null);
     }
@@ -115,23 +136,26 @@ public class InterruptController {
     public record InterruptError(String message) {
     }
 
+    @Schema(description = "Request to create an interrupt signal on an agent node.")
     public record InterruptRequest(
-            Events.InterruptType type,
-            String originNodeId,
-            String reason
+            @Schema(description = "Interrupt type: PAUSE, STOP, HUMAN_REVIEW, or PRUNE. See Events.InterruptType.") Events.InterruptType type,
+            @Schema(description = "ArtifactKey of the target agent node") String originNodeId,
+            @Schema(description = "Human-readable reason for the interrupt") String reason
     ) {
     }
 
+    @Schema(description = "Request to resolve a pending interrupt. Accepts direct IDs or ArtifactKey for scope-based lookup.")
     public record InterruptResolution(
-            String id,
-            String originNodeId,
-            IPermissionGate.ResolutionType resolutionType,
-            String resolutionNotes,
-            IPermissionGate.InterruptResult reviewResult
+            @Schema(description = "Interrupt requestId, nodeId, or ArtifactKey (scope-based lookup for descendants)") String id,
+            @Schema(description = "Origin node ArtifactKey — used in the published ResolveInterruptEvent") String originNodeId,
+            @Schema(description = "Resolution outcome. See IPermissionGate.ResolutionType.") IPermissionGate.ResolutionType resolutionType,
+            @Schema(description = "Free-text notes attached to the resolution") String resolutionNotes,
+            @Schema(description = "Structured review feedback for HUMAN_REVIEW interrupts. See IPermissionGate.InterruptResult.") IPermissionGate.InterruptResult reviewResult
     ) {
     }
 
-    public record InterruptStatusRequest(String interruptId) {
+    public record InterruptStatusRequest(
+            @Schema(description = "Interrupt ID to check status for") String interruptId) {
     }
 
     public record InterruptStatusResponse(
@@ -175,6 +199,13 @@ public class InterruptController {
     }
 
     @PostMapping("/detail")
+    @Operation(summary = "Get full detail for an interrupt including tool calls",
+            description = "Returns comprehensive interrupt detail: the interrupt's origin, type, source/reroute agent types, "
+                    + "reason, contextForDecision, pending/resolved status, and the most recent 40 tool calls "
+                    + "within the interrupt's node scope. The id field accepts a requestId, nodeId, or ArtifactKey — "
+                    + "ArtifactKey-based lookup matches any InterruptRequestEvent whose nodeId is a descendant of the given key. "
+                    + "sourceAgentType and rerouteToAgentType reflect the unified interrupt handling model "
+                    + "(see InterruptRouting and handleUnifiedInterrupt for routing semantics).")
     public InterruptDetailResponse detail(@RequestBody InterruptDetailRequest request) {
         String id = request.id();
         Events.InterruptRequestEvent interruptEvent = findInterruptRequestEvent(id)
