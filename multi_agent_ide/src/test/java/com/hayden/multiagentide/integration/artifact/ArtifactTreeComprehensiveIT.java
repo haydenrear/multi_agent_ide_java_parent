@@ -395,14 +395,19 @@ class ArtifactTreeComprehensiveIT {
             artifactTreeBuilder.persistExecutionTree(execKey1);
             artifactTreeBuilder.persistExecutionTree(execKey2);
 
-            // Verify both have same content hash but are in different executions
+            // Verify both have same content hash
             String hash1 = computeSHA256(identicalContent);
-            List<ArtifactEntity> withHash = artifactRepository.findByContentHash(hash1);
+            Optional<ArtifactEntity> withHash = artifactRepository.findByContentHash(hash1);
 
-            assertThat(withHash).hasSize(2);
-            assertThat(withHash)
-                .extracting(ArtifactEntity::getExecutionKey)
-                .containsExactly(execKey1, execKey2);
+            assertThat(withHash).isPresent();
+            // Both artifacts have same content hash - database should have both entries
+            List<ArtifactEntity> exec1Artifacts = artifactRepository.findByExecutionKeyOrderByArtifactKey(execKey1);
+            List<ArtifactEntity> exec2Artifacts = artifactRepository.findByExecutionKeyOrderByArtifactKey(execKey2);
+
+            assertThat(exec1Artifacts).hasSize(1);
+            assertThat(exec2Artifacts).hasSize(1);
+            assertThat(exec1Artifacts.get(0).getContentHash())
+                .isEqualTo(exec2Artifacts.get(0).getContentHash());
         }
     }
 
