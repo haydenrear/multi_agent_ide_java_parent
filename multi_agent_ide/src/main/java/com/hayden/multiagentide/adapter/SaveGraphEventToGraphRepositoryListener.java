@@ -137,9 +137,13 @@ public class SaveGraphEventToGraphRepositoryListener implements EventListener {
             }
             case Events.MergePhaseCompletedEvent mergePhaseCompletedEvent -> {
             }
-            case Events.PropagationEvent ignored -> {
+            case Events.PropagationEvent propagationEvent -> {
+                log.debug("PropagationEvent handled by artifact system: stage={}, action={}, registrationId={}",
+                        propagationEvent.stage(), propagationEvent.action(), propagationEvent.registrationId());
             }
-            case Events.TransformationEvent ignored -> {
+            case Events.TransformationEvent transformationEvent -> {
+                log.debug("TransformationEvent handled by artifact system: action={}, registrationId={}",
+                        transformationEvent.action(), transformationEvent.registrationId());
             }
         }
     }
