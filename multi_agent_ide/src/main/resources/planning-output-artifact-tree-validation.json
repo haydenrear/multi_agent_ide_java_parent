@@ -1,0 +1,719 @@
+{
+  "planningOutputId": "planning-artifact-tree-validation-2026-03-13",
+  "timestamp": "2026-03-13T08:00:00.000Z",
+  "planningPhase": "EXECUTION_PLANNING",
+  "goal": "Design comprehensive validation and test coverage plan for artifact tree integrity verification based on discovery findings.",
+  "planningDecision": {
+    "decisionType": "PROCEED_WITH_IMPLEMENTATION",
+    "nextPhase": "IMPLEMENTATION",
+    "confidence": 0.95,
+    "rationale": "Discovery phase validated all architectural components and mechanisms are in place. Test plan decomposes validation requirements into implementable test cases covering all critical paths. Ready to execute comprehensive validation suite."
+  },
+  "testMatrix": {
+    "propagationArtifactEmission": {
+      "componentUnderTest": "PropagationExecutionService.java + ArtifactEventListener.java",
+      "testCases": [
+        {
+          "testId": "PROP-EMIT-001",
+          "title": "Propagation artifact emission and persistence - Happy path",
+          "description": "Verify that PropagationExecutionService emits PropagationEvent, ArtifactEventListener processes it, and artifacts are persisted to database",
+          "preconditions": [
+            "Valid propagation record exists",
+            "EventBus is operational",
+            "GraphRepository is accessible"
+          ],
+          "steps": [
+            "Create propagation execution context",
+            "Execute PropagationExecutionService.execute()",
+            "Verify PropagationEvent is emitted to EventBus",
+            "Verify ArtifactEventListener.onEvent(PropagationEvent) is triggered",
+            "Verify artifacts are queued for tree insertion",
+            "Verify SaveGraphEventToGraphRepositoryListener persists to database",
+            "Query GraphRepository to confirm artifact persistence"
+          ],
+          "expectedOutcome": "PropagationEvent emitted → ArtifactEventListener processes → Artifacts persisted to GraphRepository",
+          "validationPoints": [
+            "EventBus event count incremented",
+            "ArtifactEntity records created with correct parentKey",
+            "PropagationRecordEntity saved with correlationKey",
+            "No orphaned artifacts in tree"
+          ]
+        },
+        {
+          "testId": "PROP-EMIT-002",
+          "title": "Propagation with null output handling",
+          "description": "Verify that null propagation output is converted to failedOutput and persisted with error tracking",
+          "preconditions": [
+            "Propagator configured to return null",
+            "Error handling mechanism in place"
+          ],
+          "steps": [
+            "Execute PropagationExecutionService with null-returning propagator",
+            "Verify failedOutput is created with error message",
+            "Verify PropagationRecordEntity is saved with FAILED status",
+            "Verify PropagationEvent is still emitted",
+            "Verify error details are persisted"
+          ],
+          "expectedOutcome": "Null output → failedOutput conversion → Error tracked in database",
+          "validationPoints": [
+            "PropagationRecordEntity.status = FAILED",
+            "Error message logged and persisted",
+            "No null pointer exceptions",
+            "PropagationEvent emitted regardless of failure"
+          ]
+        },
+        {
+          "testId": "PROP-EMIT-003",
+          "title": "Multiple propagators with correlation key deduplication",
+          "description": "Verify that multiple propagators with same correlationKey are deduplicated correctly",
+          "preconditions": [
+            "Multiple propagators with identical correlationKey",
+            "PropagationRecordEntity correlation tracking enabled"
+          ],
+          "steps": [
+            "Execute multiple propagators with same correlationKey",
+            "Verify all propagation records are created",
+            "Verify duplicates are identified via correlationKey",
+            "Verify deduplication logic prevents duplicate tree entries"
+          ],
+          "expectedOutcome": "Multiple records with same correlationKey → Deduplication applied → Single logical propagation in tree",
+          "validationPoints": [
+            "All records persisted with correlationKey",
+            "Tree builder applies deduplication",
+            "No redundant artifacts in final tree"
+          ]
+        }
+      ]
+    },
+    "filterArtifactEmission": {
+      "componentUnderTest": "FilterExecutionService.java + ArtifactEventListener.java",
+      "testCases": [
+        {
+          "testId": "FILT-EMIT-001",
+          "title": "Filter artifact emission verification",
+          "description": "Verify that FilterExecutionService properly emits filter artifacts and event listener processes them",
+          "preconditions": [
+            "Filter execution context initialized",
+            "FilterDecisionRecordEntity persistence enabled"
+          ],
+          "steps": [
+            "Execute FilterExecutionService.executeFilters()",
+            "Verify FilterDecisionRecordEntity is saved",
+            "Verify filter artifacts are queued for tree insertion",
+            "Verify ArtifactEventListener processes filter events",
+            "Verify artifacts are persisted to database"
+          ],
+          "expectedOutcome": "Filter execution → Decision persisted → Artifacts emitted and persisted",
+          "validationPoints": [
+            "FilterDecisionRecordEntity saved with correct filter state",
+            "Filter artifacts added to artifact tree",
+            "No events lost in event stream"
+          ]
+        },
+        {
+          "testId": "FILT-EMIT-002",
+          "title": "Filter decision artifact parenting",
+          "description": "Verify that filter decision artifacts maintain proper parent-child relationships",
+          "preconditions": [
+            "Parent context (propagation or transformation) established",
+            "Filter applied within execution context"
+          ],
+          "steps": [
+            "Execute filter within propagation/transformation context",
+            "Verify filter artifacts reference correct parent",
+            "Verify tree structure maintains hierarchical relationships",
+            "Query artifact tree to confirm parenting"
+          ],
+          "expectedOutcome": "Filter artifacts properly parented to execution context",
+          "validationPoints": [
+            "ArtifactEntity.parentKey correctly set",
+            "Tree hierarchy validated via depth property",
+            "No orphaned filter artifacts"
+          ]
+        }
+      ]
+    },
+    "transformerParentChild": {
+      "componentUnderTest": "TransformerExecutionService.java + ArtifactTreeBuilder.java",
+      "testCases": [
+        {
+          "testId": "XFORM-PARENT-001",
+          "title": "Transformer artifact parent-child relationship establishment",
+          "description": "Verify that TransformerExecutionService establishes correct parent-child relationships for transformed artifacts",
+          "preconditions": [
+            "Input artifact (parent) exists",
+            "Transformer configured to create child artifacts",
+            "ArtifactTreeBuilder initialized"
+          ],
+          "steps": [
+            "Create parent artifact in tree",
+            "Execute TransformerExecutionService.transform()",
+            "Verify child artifacts are created with parent reference",
+            "Verify TransformationRecordEntity is saved",
+            "Verify TransformationEvent is emitted",
+            "Verify tree structure reflects parent-child relationship"
+          ],
+          "expectedOutcome": "Transformer execution → Child artifacts created → Parent reference established → Event emitted",
+          "validationPoints": [
+            "ArtifactEntity.parentKey = parent artifact key",
+            "TransformationRecordEntity persisted correctly",
+            "Tree depth increases appropriately",
+            "No circular parent-child references"
+          ]
+        },
+        {
+          "testId": "XFORM-PARENT-002",
+          "title": "Transformer with null output handling and parent preservation",
+          "description": "Verify that null transformer output preserves parent context and creates failedOutput artifact",
+          "preconditions": [
+            "Parent artifact established",
+            "Transformer configured to return null"
+          ],
+          "steps": [
+            "Execute TransformerExecutionService with null-returning transformer",
+            "Verify failedOutput artifact is created",
+            "Verify failedOutput maintains parent reference",
+            "Verify TransformationRecordEntity is saved with FAILED status",
+            "Verify tree structure is consistent"
+          ],
+          "expectedOutcome": "Null output → failedOutput artifact → Parent preserved → Error tracked",
+          "validationPoints": [
+            "failedOutput artifact has correct parentKey",
+            "TransformationRecordEntity.status = FAILED",
+            "Error message in failedOutput content",
+            "Tree remains internally consistent"
+          ]
+        },
+        {
+          "testId": "XFORM-PARENT-003",
+          "title": "Multi-level transformer chain with cascading parent references",
+          "description": "Verify that chained transformers maintain correct parent-child relationships across multiple levels",
+          "preconditions": [
+            "Multiple transformers configured in sequence",
+            "Each transformer produces child artifacts"
+          ],
+          "steps": [
+            "Execute first transformer (creates L1 children)",
+            "Execute second transformer on L1 outputs (creates L2 children)",
+            "Execute third transformer on L2 outputs (creates L3 children)",
+            "Verify each level maintains correct parent references",
+            "Verify tree depth matches transformer chain depth"
+          ],
+          "expectedOutcome": "Transformer chain → Multi-level hierarchy → All parent references correct",
+          "validationPoints": [
+            "L1 artifacts have root as parent",
+            "L2 artifacts have L1 as parent",
+            "L3 artifacts have L2 as parent",
+            "Artifact depth: root(0) → L1(1) → L2(2) → L3(3)",
+            "No gaps in parenting chain"
+          ]
+        }
+      ]
+    },
+    "nullOutputHandling": {
+      "componentUnderTest": "PropagationExecutionService.java + TransformerExecutionService.java",
+      "testCases": [
+        {
+          "testId": "NULL-001",
+          "title": "Null output conversion to failedOutput",
+          "description": "Verify that null outputs are converted to failedOutput with appropriate error messages",
+          "preconditions": [
+            "Service configured to handle null returns",
+            "Error message templates available"
+          ],
+          "steps": [
+            "Configure execution to return null",
+            "Execute service method",
+            "Verify null is caught before returning",
+            "Verify failedOutput is created",
+            "Verify error message contains relevant context"
+          ],
+          "expectedOutcome": "Null output → Caught → failedOutput created → Error message populated",
+          "validationPoints": [
+            "No NullPointerException thrown",
+            "failedOutput type is ERROR or FAILED",
+            "Error message is descriptive",
+            "Stack trace or error context preserved"
+          ]
+        },
+        {
+          "testId": "NULL-002",
+          "title": "Null output logging and audit trail",
+          "description": "Verify that null outputs are logged explicitly with audit trail for debugging",
+          "preconditions": [
+            "Logging framework configured",
+            "Audit trail mechanism in place"
+          ],
+          "steps": [
+            "Execute with null-returning operation",
+            "Verify explicit null output logging occurs",
+            "Verify log level is appropriate (WARN or ERROR)",
+            "Verify log includes execution context (executionKey, layerIndex, etc.)",
+            "Verify audit trail shows null handling event"
+          ],
+          "expectedOutcome": "Null output → Explicit log entry → Audit trail entry created",
+          "validationPoints": [
+            "Log contains 'null' or 'null output' keyword",
+            "Context information in log (executionKey, stage, propagator/transformer name)",
+            "Audit event recorded with timestamp"
+          ]
+        },
+        {
+          "testId": "NULL-003",
+          "title": "Null output with artifact tree impact assessment",
+          "description": "Verify that null outputs don't corrupt artifact tree structure",
+          "preconditions": [
+            "Artifact tree in progress",
+            "Null output scenario in middle of execution"
+          ],
+          "steps": [
+            "Build partial artifact tree",
+            "Execute operation returning null in middle of sequence",
+            "Verify failedOutput artifact is added to tree",
+            "Verify subsequent operations continue correctly",
+            "Verify tree structure remains valid (no orphans, proper parenting)"
+          ],
+          "expectedOutcome": "Null output in sequence → Tree remains consistent → Execution continues",
+          "validationPoints": [
+            "No tree structure corruption",
+            "failedOutput properly parented",
+            "Subsequent operations proceed without exception",
+            "Final tree is traversable and queryable"
+          ]
+        }
+      ]
+    },
+    "orphanArtifactHandling": {
+      "componentUnderTest": "ArtifactTreeBuilder.java + ArtifactNode.java",
+      "testCases": [
+        {
+          "testId": "ORPHAN-001",
+          "title": "Orphan artifact detection and buffering",
+          "description": "Verify that artifacts without parents are detected and buffered until parents exist",
+          "preconditions": [
+            "Artifact tree builder initialized",
+            "Orphan buffer mechanism enabled"
+          ],
+          "steps": [
+            "Insert artifact with non-existent parent",
+            "Verify addArtifactResult() returns PARENT_NOT_FOUND",
+            "Verify artifact is buffered (not discarded)",
+            "Verify artifact is logged for later linking",
+            "Verify orphan buffer state is accessible"
+          ],
+          "expectedOutcome": "Artifact without parent → PARENT_NOT_FOUND status → Artifact buffered",
+          "validationPoints": [
+            "Orphan artifact retained in buffer",
+            "Buffer size increases on orphan detection",
+            "Artifact metadata preserved for later linking"
+          ]
+        },
+        {
+          "testId": "ORPHAN-002",
+          "title": "Orphan artifact linking when parent appears",
+          "description": "Verify that buffered orphan artifacts are linked when parent is subsequently added",
+          "preconditions": [
+            "Orphan artifacts buffered from previous operations",
+            "Parent artifact about to be inserted"
+          ],
+          "steps": [
+            "Verify orphan buffer contains artifacts waiting for parent",
+            "Insert parent artifact",
+            "Verify addArtifactResult() triggers orphan link resolution",
+            "Verify buffered orphans are now linked to parent",
+            "Verify orphan buffer is cleaned up"
+          ],
+          "expectedOutcome": "Parent inserted → Orphan buffer checked → Orphans linked → Buffer cleared",
+          "validationPoints": [
+            "All orphans with matching parent key are linked",
+            "ArtifactNode parent reference established",
+            "Orphan buffer size decreases appropriately",
+            "Tree structure updated correctly"
+          ]
+        },
+        {
+          "testId": "ORPHAN-003",
+          "title": "Orphan artifact eventual persistence despite late parent arrival",
+          "description": "Verify that orphaned artifacts that were buffered are persisted correctly when parent finally arrives",
+          "preconditions": [
+            "Orphan artifacts buffered from early stages",
+            "Parent artifact added at late stage",
+            "Persistence mechanism operational"
+          ],
+          "steps": [
+            "Create scenario with out-of-order artifact insertion",
+            "Verify orphans are buffered correctly",
+            "Add parent artifact out of natural order",
+            "Trigger tree persistence",
+            "Query database to verify orphan artifacts are persisted with correct parent"
+          ],
+          "expectedOutcome": "Orphan artifacts persisted with correct parent despite insertion order",
+          "validationPoints": [
+            "ArtifactEntity records exist for all artifacts",
+            "Parent-child relationships correct in database",
+            "Artifact keys and parent keys match correctly"
+          ]
+        },
+        {
+          "testId": "ORPHAN-004",
+          "title": "Intermediate artifact creation for missing parent paths",
+          "description": "Verify that intermediate artifacts are automatically created when parent path is incomplete",
+          "preconditions": [
+            "ArtifactKey path structure: ak:root/stage/propagator/index",
+            "Parent path missing intermediate levels"
+          ],
+          "steps": [
+            "Insert artifact with path ak:root/stage/propagator/999/artifact (missing levels between root and stage)",
+            "Verify intermediate artifacts are auto-created",
+            "Verify intermediate artifacts have INTERMEDIATE_ARTIFACT type",
+            "Verify final artifact is parented correctly",
+            "Verify tree structure is complete"
+          ],
+          "expectedOutcome": "Missing path levels → Intermediate artifacts auto-created → Tree made complete",
+          "validationPoints": [
+            "No PARENT_NOT_FOUND status for artifact",
+            "Intermediate artifacts created and persisted",
+            "Final artifact properly parented to intermediate"
+          ]
+        }
+      ]
+    },
+    "contentHashDeduplication": {
+      "componentUnderTest": "ArtifactTreeBuilder.java + ArtifactNode.java",
+      "testCases": [
+        {
+          "testId": "DEDUP-001",
+          "title": "Content hash deduplication for identical artifacts",
+          "description": "Verify that artifacts with identical content are deduplicated via content hash",
+          "preconditions": [
+            "Two artifacts with identical content but different keys",
+            "Content hash generation enabled",
+            "Deduplication logic in ArtifactNode"
+          ],
+          "steps": [
+            "Create artifact A with content X",
+            "Insert artifact A into tree",
+            "Create artifact B with identical content X but different key",
+            "Insert artifact B into tree",
+            "Verify addArtifactResult() returns DUPLICATE_HASH",
+            "Verify artifact B is not duplicated in tree"
+          ],
+          "expectedOutcome": "Identical content → Same content hash → DUPLICATE_HASH → Single artifact stored",
+          "validationPoints": [
+            "addArtifactResult() returns DUPLICATE_HASH status",
+            "No duplicate artifact node created",
+            "Reference to first artifact maintained"
+          ]
+        },
+        {
+          "testId": "DEDUP-002",
+          "title": "Database deduplication with ArtifactDbRef",
+          "description": "Verify that database storage uses references (ArtifactDbRef) instead of duplicating content",
+          "preconditions": [
+            "Multiple artifacts with same content hash",
+            "ArtifactService.doPersist() invoked"
+          ],
+          "steps": [
+            "Create multiple artifacts with identical content",
+            "Call ArtifactService.doPersist(executionKey, root)",
+            "Verify first artifact is stored as full ArtifactEntity",
+            "Verify duplicate artifacts are stored as ArtifactDbRef references",
+            "Query database to confirm no content duplication"
+          ],
+          "expectedOutcome": "Multiple artifacts with same content → First stored as entity → Duplicates as references",
+          "validationPoints": [
+            "Database stores single ArtifactEntity for content",
+            "ArtifactDbRef records created for duplicates",
+            "No content duplication in database",
+            "Storage efficiency verified"
+          ]
+        },
+        {
+          "testId": "DEDUP-003",
+          "title": "Deduplication at scale with large artifact sets",
+          "description": "Verify that deduplication remains efficient with large numbers of artifacts",
+          "preconditions": [
+            "Large execution (1000+ artifacts)",
+            "Many artifacts share common content"
+          ],
+          "steps": [
+            "Execute workflow generating 1000+ artifacts",
+            "Verify deduplication correctly identifies duplicates",
+            "Measure database storage before and after deduplication",
+            "Verify performance is acceptable",
+            "Verify no deduplication logic errors under load"
+          ],
+          "expectedOutcome": "Large artifact sets deduplicated efficiently with minimal performance impact",
+          "validationPoints": [
+            "All duplicates correctly identified",
+            "Database storage reduced significantly",
+            "Tree traversal performance acceptable",
+            "No timeout or memory issues"
+          ]
+        }
+      ]
+    }
+  },
+  "validationStrategy": {
+    "level1_UnitTests": {
+      "scope": "Individual component method testing",
+      "components": [
+        "ArtifactNode.addArtifact() - Verify ADDED/DUPLICATE_KEY/DUPLICATE_HASH/PARENT_NOT_FOUND return values",
+        "ArtifactTreeBuilder.addArtifactResult() - Verify orphan buffering and deduplication logic",
+        "PropagationExecutionService.execute() - Verify event emission and null output handling",
+        "TransformerExecutionService.transform() - Verify parent-child relationship establishment",
+        "FilterExecutionService.executeFilters() - Verify filter decision persistence"
+      ],
+      "validationMethod": "Mock EventBus/Repositories, assert method returns and state changes"
+    },
+    "level2_IntegrationTests": {
+      "scope": "Cross-component interaction testing",
+      "interactions": [
+        "PropagationExecutionService → EventBus → ArtifactEventListener (propagation artifact emission)",
+        "TransformerExecutionService → ArtifactTreeBuilder → ArtifactNode (parent-child relationships)",
+        "FilterExecutionService → ArtifactEventListener → SaveGraphEventToGraphRepositoryListener (filter artifact persistence)",
+        "ArtifactEventListener → ArtifactTreeBuilder → ArtifactService (tree building and persistence)"
+      ],
+      "validationMethod": "Use real/in-memory EventBus and Repository mocks, verify event flow and artifact creation"
+    },
+    "level3_EndToEndTests": {
+      "scope": "Full workflow with all components",
+      "scenarios": [
+        "Complete propagation → transformation → filter execution with full tree building and persistence",
+        "Out-of-order artifact insertion with orphan buffering and late parent resolution",
+        "Null output handling at various stages with error tracking",
+        "Large-scale execution with deduplication at scale",
+        "Multi-layer transformer chains with cascading artifacts"
+      ],
+      "validationMethod": "Use test execution context with real or test repositories, verify final tree structure and database state"
+    },
+    "level4_DatabaseValidation": {
+      "scope": "Persistence layer verification",
+      "queryChecks": [
+        "SELECT * FROM artifact WHERE parentKey IS NULL AND type != 'ROOT' → Should be empty (no orphans in database)",
+        "SELECT COUNT(*) FROM artifact WHERE contentHash = X GROUP BY contentHash → Should show deduplication (multiple artifacts per hash)",
+        "SELECT parentKey FROM artifact WHERE artifactKey = Y → Should match expected parent",
+        "SELECT COUNT(*) FROM propagation_record WHERE correlationKey = Z → Should show correct correlation tracking",
+        "SELECT * FROM artifact WHERE executionKey = K ORDER BY depth → Should show correct hierarchy"
+      ],
+      "validationMethod": "Run queries after test execution, assert expected row counts and relationships"
+    }
+  },
+  "implementationSteps": [
+    {
+      "stepId": 1,
+      "title": "Create test infrastructure and test base classes",
+      "description": "Set up test utilities, base classes, and fixtures for artifact tree testing",
+      "tasks": [
+        "Create ArtifactTreeTestBase with artifact creation helper methods",
+        "Create EventBusTestSpy to capture and verify events",
+        "Create RepositoryTestMocks for GraphRepository, PropagationRepository, etc.",
+        "Create test data builders for ArtifactEntity, PropagationRecordEntity, etc.",
+        "Create database assertion utilities for verification queries"
+      ],
+      "estimatedComplexity": "MEDIUM",
+      "dependencies": []
+    },
+    {
+      "stepId": 2,
+      "title": "Implement unit tests for ArtifactNode and ArtifactTreeBuilder",
+      "description": "Verify core artifact tree structure behavior",
+      "tasks": [
+        "Test ArtifactNode.addArtifact() with ADDED/DUPLICATE_KEY/DUPLICATE_HASH/PARENT_NOT_FOUND scenarios",
+        "Test orphan buffering and linking logic in ArtifactTreeBuilder",
+        "Test deduplication with content hash collisions",
+        "Test intermediate artifact creation for missing parent paths"
+      ],
+      "estimatedComplexity": "MEDIUM",
+      "dependencies": [1]
+    },
+    {
+      "stepId": 3,
+      "title": "Implement unit tests for execution services (null output handling)",
+      "description": "Verify null output handling in PropagationExecutionService and TransformerExecutionService",
+      "tasks": [
+        "Test null output conversion to failedOutput",
+        "Test null output logging and error tracking",
+        "Test failedOutput artifact creation with parent preservation",
+        "Test event emission with null outputs"
+      ],
+      "estimatedComplexity": "MEDIUM",
+      "dependencies": [1]
+    },
+    {
+      "stepId": 4,
+      "title": "Implement integration tests for propagation artifact emission",
+      "description": "Verify full propagation → event emission → artifact listener → persistence flow",
+      "tasks": [
+        "Test PropagationExecutionService.execute() event emission",
+        "Test ArtifactEventListener processing of PropagationEvent",
+        "Test artifact queuing and tree insertion",
+        "Test SaveGraphEventToGraphRepositoryListener persistence",
+        "Test database queries verify artifacts persisted correctly"
+      ],
+      "estimatedComplexity": "HIGH",
+      "dependencies": [1, 2, 3]
+    },
+    {
+      "stepId": 5,
+      "title": "Implement integration tests for transformer parent-child relationships",
+      "description": "Verify transformer execution establishes correct parent-child relationships",
+      "tasks": [
+        "Test TransformerExecutionService.transform() parent reference establishment",
+        "Test multi-level transformer chains with cascading artifacts",
+        "Test null output handling in transformers with parent preservation",
+        "Test tree depth and hierarchy correctness",
+        "Verify database persists all parent-child relationships correctly"
+      ],
+      "estimatedComplexity": "HIGH",
+      "dependencies": [1, 2, 3]
+    },
+    {
+      "stepId": 6,
+      "title": "Implement integration tests for filter artifact emission",
+      "description": "Verify filter execution properly emits and persists filter artifacts",
+      "tasks": [
+        "Test FilterExecutionService.executeFilters() artifact emission",
+        "Test FilterDecisionRecordEntity persistence",
+        "Test filter artifact parenting to execution context",
+        "Test ArtifactEventListener processes filter artifacts",
+        "Verify database contains all filter decision artifacts"
+      ],
+      "estimatedComplexity": "MEDIUM",
+      "dependencies": [1, 4]
+    },
+    {
+      "stepId": 7,
+      "title": "Implement end-to-end workflow tests",
+      "description": "Test complete propagation → transformation → filter execution with tree building and persistence",
+      "tasks": [
+        "Test complete workflow with propagators, transformers, and filters",
+        "Test out-of-order artifact insertion with orphan buffering and late parent resolution",
+        "Test null outputs at various execution stages",
+        "Test large-scale execution (100+ artifacts) with deduplication",
+        "Verify final tree structure and database state correctness"
+      ],
+      "estimatedComplexity": "HIGH",
+      "dependencies": [1, 2, 3, 4, 5, 6]
+    },
+    {
+      "stepId": 8,
+      "title": "Implement database validation queries",
+      "description": "Create and execute database validation queries to verify persistence layer",
+      "tasks": [
+        "Query for orphaned artifacts (parentKey IS NULL for non-root)",
+        "Query to verify deduplication (contentHash grouping)",
+        "Query to verify parent-child relationships",
+        "Query to verify propagation correlation tracking",
+        "Query to verify artifact hierarchy depth",
+        "Assert all queries return expected results"
+      ],
+      "estimatedComplexity": "MEDIUM",
+      "dependencies": [4, 5, 6, 7]
+    },
+    {
+      "stepId": 9,
+      "title": "Execute all test cases and generate test coverage report",
+      "description": "Run all tests and generate coverage metrics",
+      "tasks": [
+        "Run all unit tests with coverage reporting",
+        "Run all integration tests with coverage reporting",
+        "Run end-to-end tests with coverage reporting",
+        "Generate code coverage report for artifact tree components",
+        "Verify coverage meets acceptance criteria (target: >85% for core components)",
+        "Generate test execution summary report"
+      ],
+      "estimatedComplexity": "MEDIUM",
+      "dependencies": [2, 3, 4, 5, 6, 7, 8]
+    },
+    {
+      "stepId": 10,
+      "title": "Performance and load testing",
+      "description": "Verify deduplication and tree operations at scale",
+      "tasks": [
+        "Create performance test with 1000+ artifacts",
+        "Measure tree building performance",
+        "Measure deduplication performance",
+        "Measure persistence performance",
+        "Verify no performance degradation with scale",
+        "Generate performance report with metrics"
+      ],
+      "estimatedComplexity": "MEDIUM",
+      "dependencies": [7, 8, 9]
+    },
+    {
+      "stepId": 11,
+      "title": "Documentation and sign-off",
+      "description": "Document test results, coverage, and validation outcomes",
+      "tasks": [
+        "Document test plan execution results",
+        "Document coverage metrics and gaps (if any)",
+        "Document performance metrics",
+        "Create validation sign-off report",
+        "Update artifact tree architecture documentation with validation results"
+      ],
+      "estimatedComplexity": "LOW",
+      "dependencies": [9, 10]
+    }
+  ],
+  "coverageTargets": {
+    "coreComponents": {
+      "ArtifactNode": "95%",
+      "ArtifactTreeBuilder": "90%",
+      "PropagationExecutionService": "85%",
+      "TransformerExecutionService": "85%",
+      "FilterExecutionService": "80%",
+      "ArtifactEventListener": "85%",
+      "SaveGraphEventToGraphRepositoryListener": "80%",
+      "ArtifactService": "85%"
+    },
+    "criticalPaths": {
+      "orphanArtifactHandling": "100%",
+      "contentHashDeduplication": "95%",
+      "nullOutputHandling": "95%",
+      "eventPersistenceChain": "90%",
+      "parentChildRelationships": "90%"
+    },
+    "overallTarget": "85%"
+  },
+  "riskAssessment": {
+    "highRiskAreas": [
+      {
+        "area": "Orphan artifact handling under high concurrency",
+        "risk": "Race conditions in orphan buffering and parent linking",
+        "mitigation": "Implement thread-safety tests with concurrent artifact insertion"
+      },
+      {
+        "area": "Database consistency with deduplication",
+        "risk": "ArtifactDbRef references may become invalid if referenced artifact deleted",
+        "mitigation": "Implement referential integrity tests and cascade behavior validation"
+      },
+      {
+        "area": "Large-scale artifact tree performance",
+        "risk": "Tree operations may degrade with thousands of artifacts",
+        "mitigation": "Load testing with 1000+ artifacts and performance profiling"
+      }
+    ]
+  },
+  "expectedOutcome": {
+    "successCriteria": [
+      "All unit tests pass (target: 95% success rate)",
+      "All integration tests pass (target: 100% success rate)",
+      "All end-to-end tests pass (target: 100% success rate)",
+      "Code coverage meets targets (overall 85%, critical paths 90%+)",
+      "No orphaned artifacts in test database",
+      "Deduplication verified at scale (1000+ artifacts)",
+      "Database validation queries all pass",
+      "Performance metrics within acceptable range (<5s for tree building of 1000 artifacts)",
+      "All parent-child relationships verified correct in database"
+    ],
+    "nextPhase": "IMPLEMENTATION",
+    "phaseActivities": [
+      "Create test infrastructure and utilities",
+      "Implement all test cases per implementation steps",
+      "Execute tests and generate coverage reports",
+      "Perform load and performance testing",
+      "Document results and create validation sign-off report"
+    ]
+  }
+}

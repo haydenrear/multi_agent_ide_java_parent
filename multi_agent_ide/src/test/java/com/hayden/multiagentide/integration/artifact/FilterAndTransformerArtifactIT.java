@@ -1,6 +1,5 @@
 package com.hayden.multiagentide.integration.artifact;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentide.artifacts.*;
@@ -48,9 +47,6 @@ class FilterAndTransformerArtifactIT {
     private ArtifactTreeBuilder artifactTreeBuilder;
 
     @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
     private EntityManager entityManager;
 
     private static final String TEST_REGISTRATION_ID = "filter-reg-123";
@@ -72,10 +68,11 @@ class FilterAndTransformerArtifactIT {
         void test_filterDecisionWithoutEvent() {
             // Create filter decision record
             FilterDecisionRecordEntity decision = new FilterDecisionRecordEntity();
-            decision.setRegistrationId(TEST_REGISTRATION_ID);
+            decision.setDecisionId("dec-001");
+            decision.setPolicyId("policy-001");
             decision.setLayerId(TEST_LAYER_ID);
-            decision.setSourceNodeId("source-stream-001");
-            decision.setAction(FilterAction.ACCEPTED);
+            decision.setFilterType("PATH_FILTER");
+            decision.setAction(FilterAction.ACCEPTED.name());
             decision.setCreatedAt(Instant.now());
 
             filterDecisionRepository.save(decision);
@@ -87,8 +84,8 @@ class FilterAndTransformerArtifactIT {
             assertThat(retrieved)
                 .isPresent()
                 .hasValueSatisfying(d -> {
-                    assertThat(d.getAction()).isEqualTo(FilterAction.ACCEPTED);
-                    assertThat(d.getSourceNodeId()).isEqualTo("source-stream-001");
+                    assertThat(d.getAction()).isEqualTo(FilterAction.ACCEPTED.name());
+                    assertThat(d.getPolicyId()).isEqualTo("policy-001");
                 });
 
             // Note: No FilterEvent should be emitted (architectural difference from propagators)
@@ -107,10 +104,11 @@ class FilterAndTransformerArtifactIT {
 
             for (int i = 0; i < actions.length; i++) {
                 FilterDecisionRecordEntity decision = new FilterDecisionRecordEntity();
-                decision.setRegistrationId(TEST_REGISTRATION_ID);
+                decision.setDecisionId("dec-" + i);
+                decision.setPolicyId("policy-" + i);
                 decision.setLayerId(TEST_LAYER_ID);
-                decision.setSourceNodeId("source-" + i);
-                decision.setAction(actions[i]);
+                decision.setFilterType("PATH_FILTER");
+                decision.setAction(actions[i].name());
                 decision.setCreatedAt(Instant.now());
 
                 filterDecisionRepository.save(decision);
@@ -123,10 +121,10 @@ class FilterAndTransformerArtifactIT {
             assertThat(allDecisions)
                 .extracting(FilterDecisionRecordEntity::getAction)
                 .containsExactlyInAnyOrder(
-                    FilterAction.ACCEPTED,
-                    FilterAction.REJECTED,
-                    FilterAction.ERROR,
-                    FilterAction.PASSTHROUGH
+                    FilterAction.ACCEPTED.name(),
+                    FilterAction.REJECTED.name(),
+                    FilterAction.ERROR.name(),
+                    FilterAction.PASSTHROUGH.name()
                 );
         }
 
@@ -171,10 +169,11 @@ class FilterAndTransformerArtifactIT {
 
             // Create filter decision record
             FilterDecisionRecordEntity decision = new FilterDecisionRecordEntity();
-            decision.setRegistrationId(TEST_REGISTRATION_ID);
+            decision.setDecisionId("dec-filter-001");
+            decision.setPolicyId("policy-stream-001");
             decision.setLayerId(TEST_LAYER_ID);
-            decision.setSourceNodeId(streamSource.artifactKey().value());
-            decision.setAction(FilterAction.ACCEPTED);
+            decision.setFilterType("PATH_FILTER");
+            decision.setAction(FilterAction.ACCEPTED.name());
             decision.setCreatedAt(Instant.now());
 
             filterDecisionRepository.save(decision);

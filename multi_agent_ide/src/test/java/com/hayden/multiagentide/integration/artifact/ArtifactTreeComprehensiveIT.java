@@ -1,15 +1,12 @@
 package com.hayden.multiagentide.integration.artifact;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentide.artifacts.*;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
-import com.hayden.multiagentide.events.EventBus;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordEntity;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
-import com.hayden.multiagentide.propagation.service.PropagationExecutionService;
 import com.hayden.multiagentide.propagation.repository.PropagationAction;
 import com.hayden.multiagentidelib.artifact.ArtifactType;
 import jakarta.persistence.EntityManager;
@@ -53,15 +50,6 @@ class ArtifactTreeComprehensiveIT {
 
     @Autowired
     private ArtifactTreeBuilder artifactTreeBuilder;
-
-    @Autowired
-    private ArtifactService artifactService;
-
-    @Autowired
-    private EventBus eventBus;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
     private EntityManager entityManager;
@@ -139,7 +127,7 @@ class ArtifactTreeComprehensiveIT {
                 correlationKey,
                 "input-123",
                 "output-123",
-                PropagationAction.ITEM_CREATED
+                PropagationAction.ITEM_CREATED.name()
             );
 
             propagationRecordRepository.save(record1);
@@ -193,7 +181,7 @@ class ArtifactTreeComprehensiveIT {
                 "corr-null-001",
                 "input-data",
                 null,  // null output
-                PropagationAction.FAILED
+                PropagationAction.FAILED.name()
             );
 
             propagationRecordRepository.save(failedRecord);
@@ -205,7 +193,7 @@ class ArtifactTreeComprehensiveIT {
             assertThat(retrieved)
                 .isPresent()
                 .hasValueSatisfying(r -> {
-                    assertThat(r.getAction()).isEqualTo(PropagationAction.FAILED);
+                    assertThat(r.getAction()).isEqualTo(PropagationAction.FAILED.name());
                     assertThat(r.getAfterPayload()).isNull();
                 });
         }
@@ -217,12 +205,14 @@ class ArtifactTreeComprehensiveIT {
 
             // Create and persist propagation record with null output
             PropagationRecordEntity failedRecord = new PropagationRecordEntity();
+            failedRecord.setRecordId(UUID.randomUUID().toString());
             failedRecord.setRegistrationId(TEST_REGISTRATION_ID);
             failedRecord.setLayerId(TEST_LAYER_ID);
-            failedRecord.setAction(PropagationAction.FAILED);
+            failedRecord.setAction(PropagationAction.FAILED.name());
             failedRecord.setCorrelationKey("corr-null-no-artifact");
             failedRecord.setBeforePayload("input");
             failedRecord.setAfterPayload(null);
+            failedRecord.setCreatedAt(Instant.now());
 
             propagationRecordRepository.save(failedRecord);
 
@@ -436,7 +426,7 @@ class ArtifactTreeComprehensiveIT {
         String correlationKey,
         String beforePayload,
         String afterPayload,
-        PropagationAction action
+        String action
     ) {
         PropagationRecordEntity record = new PropagationRecordEntity();
         record.setRecordId(UUID.randomUUID().toString());
