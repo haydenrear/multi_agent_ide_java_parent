@@ -4,6 +4,7 @@ import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentPlatform;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
+import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
@@ -152,7 +153,7 @@ public class TransformerExecutionService {
         ControllerEndpointTransformationContext context = filterContextFactory.get(
                 () -> new ControllerEndpointTransformationContext(
                         layerId,
-                        resolveCurrentKey(),
+                        ArtifactKey.createRoot(),
                         controllerId,
                         endpointId,
                         originalPayload,
@@ -191,6 +192,8 @@ public class TransformerExecutionService {
                 .currentContextId(resolveContextId(parentRequest, context.key()))
                 .blackboardHistory(BlackboardHistory.getEntireBlackboardHistory(operationContext))
                 .previousRequest(parentRequest)
+                .currentRequest(parentRequest)
+                .hashContext(Artifact.HashContext.defaultHashContext())
                 .operationContext(operationContext)
                 .build();
         AgentModels.AiTransformerRequest request = AgentModels.AiTransformerRequest.builder()
@@ -229,6 +232,7 @@ public class TransformerExecutionService {
                 .blackboardHistory(BlackboardHistory.getEntireBlackboardHistory(operationContext))
                 .previousRequest(parentRequest)
                 .currentRequest(decoratedRequest)
+                .hashContext(Artifact.HashContext.defaultHashContext())
                 .model(model)
                 .modelName(resolvedModelName)
                 .templateName(AI_TRANSFORMER_TEMPLATE_NAME)
@@ -310,31 +314,40 @@ public class TransformerExecutionService {
                 + " [controller=" + safe(context.controllerId()) + ", endpoint=" + safe(context.endpointId()) + "]";
     }
 
-    private ArtifactKey resolveCurrentKey() {
-        EventBus.AgentNodeKey currentNode = EventBus.Process.get();
-        if (currentNode != null && currentNode.id() != null && ArtifactKey.isValid(currentNode.id())) {
-            return new ArtifactKey(currentNode.id());
-        }
-        return ArtifactKey.createRoot();
-    }
-
     private ArtifactKey resolveContextId(AgentModels.AgentRequest parentRequest, ArtifactKey fallbackKey) {
         if (parentRequest != null && parentRequest.contextId() != null) {
-            return parentRequest.contextId().createChild();
+            return parentRequest.contextId();
         }
         if (fallbackKey != null) {
-            return fallbackKey.createChild();
+            return fallbackKey;
         }
-        return ArtifactKey.createRoot().createChild();
+        ArtifactKey root = ArtifactKey.createRoot();
+        emitNodeError("Transformer context key could not be resolved: parentRequest="
+                + (parentRequest == null ? "null" : parentRequest.getClass().getSimpleName() + "(contextId=null)")
+                + ", fallbackKey=null. Falling back to fresh root " + root.value()
+                + ". Transformer artifacts will be orphaned.", root);
+        return root;
+    }
+
+    private void emitNodeError(String message, ArtifactKey key) {
+        log.error(message);
+        if (eventBus != null) {
+            eventBus.publish(Events.NodeErrorEvent.err(message, key));
+        }
     }
 
     private OperationContext resolveOperationContext(ArtifactKey key) {
-        if (key == null) {
-            return null;
+        ArtifactKey searchThrough = key;
+        while (searchThrough != null) {
+            OperationContext ctx = Optional.ofNullable(agentPlatform.getAgentProcess(searchThrough.value()))
+                    .map(process -> AgentInterfaces.buildOpContext(process, AI_TRANSFORMER_AGENT_NAME))
+                    .orElse(null);
+            if (ctx != null) {
+                return ctx;
+            }
+            searchThrough = searchThrough.parent().orElse(null);
         }
-        return Optional.ofNullable(agentPlatform.getAgentProcess(key.value()))
-                .map(process -> AgentInterfaces.buildOpContext(process, AI_TRANSFORMER_AGENT_NAME))
-                .orElse(null);
+        return null;
     }
 
     private String toJson(Object value) {

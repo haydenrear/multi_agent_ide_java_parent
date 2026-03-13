@@ -31,8 +31,6 @@ class RequestEnrichmentTest {
         DiscoveryReport reportWithoutContext = new DiscoveryReport(
                 null,
                 "v1",
-                null,
-                null,
                 List.of(),
                 List.of(),
                 List.of(),

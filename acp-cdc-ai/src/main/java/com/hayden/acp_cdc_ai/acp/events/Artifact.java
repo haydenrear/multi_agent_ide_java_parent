@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 /**
  * Base interface for all artifacts in the execution tree.
- * 
+ *
  * Artifacts are immutable nodes that capture execution state:
  * - prompts, templates, arguments
  * - tool I/O
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public sealed interface Artifact
-        permits Artifact.AgentModelArtifact, Artifact.ArtifactDbRef, Artifact.EventArtifact, Artifact.ExecutionArtifact, Artifact.ExecutionConfigArtifact, Artifact.FilterDecisionRecordArtifact, Artifact.FilterDescriptorArtifact, Artifact.OutcomeEvidenceArtifact, Artifact.PolicyDeactivationArtifact, Artifact.PolicyLayerBindingToggleArtifact, Artifact.PolicyLayerBindingUpdateArtifact, Artifact.PolicyRegistrationArtifact, Artifact.PromptArgsArtifact, Artifact.RenderedPromptArtifact, Artifact.ToolCallArtifact, MessageStreamArtifact, Templated {
+        permits Artifact.AgentModelArtifact, Artifact.ArtifactDbRef, Artifact.EventArtifact, Artifact.ExecutionArtifact, Artifact.ExecutionConfigArtifact, Artifact.FilterDecisionRecordArtifact, Artifact.FilterDescriptorArtifact, Artifact.IntermediateArtifact, Artifact.OutcomeEvidenceArtifact, Artifact.PolicyDeactivationArtifact, Artifact.PolicyLayerBindingToggleArtifact, Artifact.PolicyLayerBindingUpdateArtifact, Artifact.PolicyRegistrationArtifact, Artifact.PromptArgsArtifact, Artifact.RenderedPromptArtifact, Artifact.ToolCallArtifact, MessageStreamArtifact, Templated {
 
     String SCHEMA = "schema";
 
@@ -339,6 +339,26 @@ public sealed interface Artifact
             List<Artifact> children
     ) implements Artifact {
 
+
+        @Override
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
+        }
+    }
+
+    /**
+     * Placeholder node used to keep the artifact tree connected until the
+     * concrete artifact for a key arrives later in the stream.
+     */
+    @Builder(toBuilder = true)
+    @With
+    record IntermediateArtifact(
+            ArtifactKey artifactKey,
+            String hash,
+            Map<String, String> metadata,
+            List<Artifact> children,
+            String expectedArtifactType
+    ) implements Artifact {
 
         @Override
         public Optional<String> contentHash() {

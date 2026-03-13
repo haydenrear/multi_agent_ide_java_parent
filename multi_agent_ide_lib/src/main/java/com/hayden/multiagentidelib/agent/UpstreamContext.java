@@ -240,6 +240,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record OrchestratorUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             String workflowGoal,
             String phase
@@ -268,6 +269,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record OrchestratorCollectorUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             AgentModels.DiscoveryCollectorResult discoveryCollectorResult,
             AgentModels.PlanningCollectorResult planningCollectorResult,
@@ -334,6 +336,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record DiscoveryOrchestratorUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             String orchestratorGoal,
             String phase
@@ -362,6 +365,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record DiscoveryAgentUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             String orchestratorGoal,
             String subdomainAssignment
@@ -390,6 +394,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record PlanningOrchestratorUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             DiscoveryCollectorContext discoveryContext
     ) implements UpstreamContext {
@@ -429,6 +434,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record PlanningAgentUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             DiscoveryCollectorContext discoveryContext
     ) implements UpstreamContext {
@@ -468,6 +474,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record TicketOrchestratorUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             DiscoveryCollectorContext discoveryContext,
             PlanningCollectorContext planningContext
@@ -516,6 +523,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record TicketAgentUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             DiscoveryCollectorContext discoveryContext,
             PlanningCollectorContext planningContext,
@@ -573,6 +581,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record ReviewUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             List<UpstreamContext> reviewedContexts,
             String reviewScope
@@ -640,6 +649,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record MergerUpstreamContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             List<UpstreamContext> mergeContexts,
             String mergeScope
@@ -708,6 +718,7 @@ public sealed interface UpstreamContext extends AgentContext
     @Builder
     @With
     record DiscoveryCollectorContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             AgentModels.DiscoveryCuration curation,
             String selectionRationale
@@ -751,6 +762,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record PlanningCollectorContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             AgentModels.PlanningCuration curation,
             String selectionRationale
@@ -809,6 +821,7 @@ public sealed interface UpstreamContext extends AgentContext
 
     @With
     record TicketCollectorContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
             AgentModels.TicketCuration curation,
             String selectionRationale

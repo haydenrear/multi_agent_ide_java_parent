@@ -14,7 +14,18 @@ public class PropagateActionResultDecorator implements ResultDecorator, Dispatch
 
     @Override
     public int order() {
-        return 9_000;
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
+        return integration.propagate(
+                t,
+                context.agentName(),
+                context.actionName(),
+                context.methodName(),
+                context.operationContext()
+        );
     }
 
     @Override
@@ -29,7 +40,24 @@ public class PropagateActionResultDecorator implements ResultDecorator, Dispatch
     }
 
     @Override
+    public <T extends AgentModels.AgentRequest> T decorateRequestResult(T t, DecoratorContext context) {
+        return integration.propagateRequestResult(
+                t,
+                context.agentName(),
+                context.actionName(),
+                context.methodName(),
+                context.operationContext()
+        );
+    }
+
+    @Override
     public <T extends AgentModels.AgentResult> T decorateFinalResult(T t, FinalResultDecoratorContext context) {
-        return t;
+        return integration.propagate(
+                t,
+                context.decoratorContext().agentName(),
+                context.decoratorContext().actionName(),
+                context.decoratorContext().methodName(),
+                context.decoratorContext().operationContext()
+        );
     }
 }

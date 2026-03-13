@@ -15,13 +15,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Builds and persists artifact trees from artifact events.
- * 
+ *
  * Uses a trie-like structure where:
  * - Artifacts are inserted at positions determined by their hierarchical key
  * - Deduplication happens automatically via content hash comparison among siblings
  * - Messages come in order (no level skipping), so no splitting required
  * - Nodes are never removed
- * 
+ *
  * Responsibilities:
  * - Maintains in-memory trie structure during execution
  * - Handles hash-based deduplication at insert time
@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 @Slf4j
 public class ArtifactTreeBuilder {
-    
+
     private final ArtifactRepository artifactRepository;
     private final ObjectMapper objectMapper;
     private final ArtifactService artifactService;
@@ -88,7 +88,7 @@ public class ArtifactTreeBuilder {
                 return ArtifactNode.AddResult.ADDED;
             }
             case DUPLICATE_KEY -> {
-                log.warn("Duplicate artifact key in execution {}: {}", executionKey, key);
+                log.debug("Duplicate artifact key in execution {}: {}", executionKey, key);
                 return ArtifactNode.AddResult.DUPLICATE_KEY;
             }
             case DUPLICATE_HASH -> {
@@ -112,7 +112,7 @@ public class ArtifactTreeBuilder {
         return executionTrees.keySet().stream().filter(s -> artifact.artifactKey().value().startsWith(s))
                 .max(Comparator.comparing(String::length));
     }
-    
+
     /**
      * Gets an artifact from the in-memory tree.
      */
@@ -121,7 +121,7 @@ public class ArtifactTreeBuilder {
         if (root == null) {
             return Optional.empty();
         }
-        
+
         try {
             com.hayden.acp_cdc_ai.acp.events.ArtifactKey artifactKey = new com.hayden.acp_cdc_ai.acp.events.ArtifactKey(artifactKeyStr);
             ArtifactNode node = root.findNode(artifactKey);
@@ -131,7 +131,7 @@ public class ArtifactTreeBuilder {
             return Optional.empty();
         }
     }
-    
+
     /**
      * Gets all artifacts in an execution (in-memory).
      */
@@ -142,7 +142,7 @@ public class ArtifactTreeBuilder {
         }
         return root.collectAll();
     }
-    
+
     /**
      * Gets the root node of an execution tree.
      */
@@ -161,7 +161,7 @@ public class ArtifactTreeBuilder {
     /**
      * Builds and returns the artifact tree for an execution.
      * Returns the root artifact with all children populated recursively.
-     * 
+     *
      * @param executionKey The execution key
      * @return The root artifact with children, or empty if no tree exists
      */
@@ -172,7 +172,7 @@ public class ArtifactTreeBuilder {
         }
         return Optional.of(root.buildArtifactTree());
     }
-    
+
     /**
      * Checks if a sibling with the given hash exists under a parent key.
      */
@@ -181,12 +181,12 @@ public class ArtifactTreeBuilder {
         if (root == null) {
             return false;
         }
-        
+
         ArtifactNode parentNode = root.findNode(parentKey);
         if (parentNode == null) {
             return false;
         }
-        
+
         return parentNode.hasSiblingWithHash(contentHash);
     }
 
@@ -201,7 +201,7 @@ public class ArtifactTreeBuilder {
     /**
      * Marks an execution as finished and persists the artifact tree.
      * This is the primary way to complete an execution and persist its artifacts.
-     * 
+     *
      * @param executionKey The execution key
      * @return The root artifact with all children populated, or empty if no tree exists
      */
@@ -212,7 +212,7 @@ public class ArtifactTreeBuilder {
             log.warn("No execution tree found for key: {}", executionKey);
             return Optional.empty();
         }
-        
+
         artifactService.doPersist(executionKey, root);
         return Optional.of(root.buildArtifactTree());
     }
@@ -240,7 +240,7 @@ public class ArtifactTreeBuilder {
         executionTrees.remove(executionKey);
         log.debug("Cleared execution state for: {}", executionKey);
     }
-    
+
 
     /**
      * Loads an execution tree from the database.
@@ -251,7 +251,7 @@ public class ArtifactTreeBuilder {
         if (entities.isEmpty()) {
             return Optional.empty();
         }
-        
+
         return rebuildTree(entities);
     }
 
@@ -263,9 +263,9 @@ public class ArtifactTreeBuilder {
         entity.setShared(true);
         return artifactRepository.save(entity);
     }
-    
+
     // ========== Private Helpers ==========
-    
+
     private Optional<com.hayden.acp_cdc_ai.acp.events.Artifact> rebuildTree(List<ArtifactEntity> entities) {
         if (entities.isEmpty()) {
             return Optional.empty();

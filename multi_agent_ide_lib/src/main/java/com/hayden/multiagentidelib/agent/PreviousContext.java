@@ -177,7 +177,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record OrchestratorPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -239,7 +241,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record OrchestratorCollectorPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -296,7 +300,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record DiscoveryOrchestratorPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -353,7 +359,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record PlanningOrchestratorPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -403,7 +411,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record TicketOrchestratorPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -460,7 +470,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record DiscoveryAgentPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -503,7 +515,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record PlanningAgentPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -546,7 +560,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record TicketAgentPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -589,7 +605,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record DiscoveryCollectorPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -639,7 +657,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record PlanningCollectorPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -689,7 +709,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record TicketCollectorPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -739,7 +761,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record ReviewPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,
@@ -782,7 +806,9 @@ public sealed interface PreviousContext extends AgentContext permits
 
     @Builder @With
     record MergerPreviousContext(
+            @SkipPropertyFilter
             ArtifactKey contextId,
+            @SkipPropertyFilter
             ArtifactKey previousContextId,
             String serializedOutput,
             String errorMessage,

@@ -4,6 +4,7 @@ import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentPlatform;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
+import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
@@ -207,6 +208,8 @@ public class PropagationExecutionService {
                 .currentContextId(resolveContextId(parentRequest, context.key()))
                 .blackboardHistory(BlackboardHistory.getEntireBlackboardHistory(resolvedOperationContext))
                 .previousRequest(parentRequest)
+                .currentRequest(parentRequest)
+                .hashContext(Artifact.HashContext.defaultHashContext())
                 .operationContext(resolvedOperationContext)
                 .build();
         AgentModels.AiPropagatorRequest request = AgentModels.AiPropagatorRequest.builder()
@@ -248,6 +251,7 @@ public class PropagationExecutionService {
                 .blackboardHistory(BlackboardHistory.getEntireBlackboardHistory(resolvedOperationContext))
                 .previousRequest(parentRequest)
                 .currentRequest(decoratedRequest)
+                .hashContext(Artifact.HashContext.defaultHashContext())
                 .model(model)
                 .modelName(resolvedModelName)
                 .templateName(AI_PROPAGATOR_TEMPLATE_NAME)
@@ -345,12 +349,17 @@ public class PropagationExecutionService {
 
     private ArtifactKey resolveContextId(AgentModels.AgentRequest parentRequest, ArtifactKey fallbackKey) {
         if (parentRequest != null && parentRequest.contextId() != null) {
-            return parentRequest.contextId().createChild();
+            return parentRequest.contextId();
         }
         if (fallbackKey != null) {
-            return fallbackKey.createChild();
+            return fallbackKey;
         }
-        return ArtifactKey.createRoot().createChild();
+        ArtifactKey root = ArtifactKey.createRoot();
+        emitNodeError("Propagator context key could not be resolved: parentRequest="
+                + (parentRequest == null ? "null" : parentRequest.getClass().getSimpleName() + "(contextId=null)")
+                + ", fallbackKey=null. Falling back to fresh root " + root.value()
+                + ". Propagator artifacts will be orphaned.", root);
+        return root;
     }
 
     private OperationContext resolveOperationContext(OperationContext operationContext, ArtifactKey key) {
@@ -363,10 +372,6 @@ public class PropagationExecutionService {
                 return fromKey.get();
             }
         }
-        EventBus.AgentNodeKey currentNode = EventBus.Process.get();
-        if (currentNode != null && currentNode.id() != null && ArtifactKey.isValid(currentNode.id())) {
-            return tryGetOpContext(new ArtifactKey(currentNode.id())).orElse(null);
-        }
         return null;
     }
 
@@ -376,6 +381,13 @@ public class PropagationExecutionService {
         }
         return Optional.ofNullable(agentPlatform.getAgentProcess(key.value()))
                 .map(process -> AgentInterfaces.buildOpContext(process, AI_PROPAGATOR_AGENT_NAME));
+    }
+
+    private void emitNodeError(String message, ArtifactKey key) {
+        log.error(message);
+        if (eventBus != null) {
+            eventBus.publish(Events.NodeErrorEvent.err(message, key));
+        }
     }
 
     private PropagationOutput failedOutput(String beforePayload, String message) {
@@ -420,11 +432,12 @@ public class PropagationExecutionService {
         if (sourceNodeId != null && ArtifactKey.isValid(sourceNodeId)) {
             return new ArtifactKey(sourceNodeId);
         }
-        EventBus.AgentNodeKey currentNode = EventBus.Process.get();
-        if (currentNode != null && currentNode.id() != null && ArtifactKey.isValid(currentNode.id())) {
-            return new ArtifactKey(currentNode.id());
-        }
-        return ArtifactKey.createRoot();
+        ArtifactKey root = ArtifactKey.createRoot();
+        emitNodeError("Propagator source key could not be resolved: sourceNodeId="
+                + (sourceNodeId == null ? "null" : "\"" + sourceNodeId + "\" (invalid format)")
+                + ". Falling back to fresh root " + root.value()
+                + ". Propagator artifacts will be orphaned.", root);
+        return root;
     }
 
     private String toJson(Object value) {

@@ -14,7 +14,7 @@ public class PropagateActionRequestDecorator implements RequestDecorator, Dispat
 
     @Override
     public int order() {
-        return 100;
+        return Integer.MAX_VALUE;
     }
 
     @Override

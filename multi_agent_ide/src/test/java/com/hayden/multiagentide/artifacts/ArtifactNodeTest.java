@@ -15,18 +15,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for ArtifactNode trie structure.
- * 
+ *
  * Tests verify:
  * - Trie insertion with hierarchical key navigation
  * - Hash-based deduplication among siblings
  * - Tree traversal and collection
  */
 class ArtifactNodeTest {
-    
+
     private ArtifactKey rootKey;
     private Artifact.ExecutionArtifact rootArtifact;
     private ArtifactNode rootNode;
-    
+
     @BeforeEach
     void setUp() {
         rootKey = ArtifactKey.createRoot();
@@ -40,25 +40,25 @@ class ArtifactNodeTest {
                 .build();
         rootNode = ArtifactNode.createRoot(rootArtifact);
     }
-    
+
     @Nested
     @DisplayName("Basic Node Operations")
     class BasicOperations {
-        
+
         @Test
         @DisplayName("createRoot creates node with correct artifact")
         void createRootCreatesNodeWithCorrectArtifact() {
             assertThat(rootNode.getArtifact()).isEqualTo(rootArtifact);
             assertThat(rootNode.getArtifactKey()).isEqualTo(rootKey);
         }
-        
+
         @Test
         @DisplayName("findNode returns self for root key")
         void findNodeReturnsSelfForRootKey() {
             ArtifactNode found = rootNode.findNode(rootKey);
             assertThat(found).isSameAs(rootNode);
         }
-        
+
         @Test
         @DisplayName("findNode returns null for non-existent key")
         void findNodeReturnsNullForNonExistent() {
@@ -66,7 +66,7 @@ class ArtifactNodeTest {
             ArtifactNode found = rootNode.findNode(otherKey);
             assertThat(found).isNull();
         }
-        
+
         @Test
         @DisplayName("new node has no children")
         void newNodeHasNoChildren() {
@@ -74,24 +74,24 @@ class ArtifactNodeTest {
             assertThat(rootNode.size()).isEqualTo(1);
         }
     }
-    
+
     @Nested
     @DisplayName("Child Addition")
     class ChildAddition {
-        
+
         @Test
         @DisplayName("addArtifact adds direct child successfully")
         void addArtifactAddsDirectChild() {
             ArtifactKey childKey = rootKey.createChild();
             Artifact.AgentModelArtifact childArtifact = createAgentModelArtifact(childKey, "InputArtifacts");
-            
+
             ArtifactNode.AddResult result = rootNode.addArtifact(childArtifact);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
             assertThat(rootNode.getChildren()).hasSize(1);
             assertThat(rootNode.size()).isEqualTo(2);
         }
-        
+
         @Test
         @DisplayName("addArtifact adds grandchild under correct parent")
         void addArtifactAddsGrandchildUnderCorrectParent() {
@@ -99,37 +99,37 @@ class ArtifactNodeTest {
             ArtifactKey childKey = rootKey.createChild();
             Artifact.AgentModelArtifact childArtifact = createAgentModelArtifact(childKey, "InputArtifacts");
             rootNode.addArtifact(childArtifact);
-            
+
             // Add grandchild
             ArtifactKey grandchildKey = childKey.createChild();
             Artifact.RenderedPromptArtifact grandchildArtifact = createRenderedPromptArtifact(
                     grandchildKey, "Hello world", "abc123");
-            
+
             ArtifactNode.AddResult result = rootNode.addArtifact(grandchildArtifact);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
             assertThat(rootNode.size()).isEqualTo(3);
-            
+
             // Verify grandchild is under correct parent
             ArtifactNode childNode = rootNode.findNode(childKey);
             assertThat(childNode).isNotNull();
             assertThat(childNode.getChildren()).hasSize(1);
         }
-        
+
         @Test
         @DisplayName("addArtifact with duplicate key returns DUPLICATE_KEY")
         void addArtifactWithDuplicateKeyReturnsDuplicateKey() {
             ArtifactKey childKey = rootKey.createChild();
             Artifact.AgentModelArtifact firstArtifact = createAgentModelArtifact(childKey, "First");
             Artifact.AgentModelArtifact secondArtifact = createAgentModelArtifact(childKey, "Second");
-            
+
             rootNode.addArtifact(firstArtifact);
             ArtifactNode.AddResult result = rootNode.addArtifact(secondArtifact);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.DUPLICATE_KEY);
             assertThat(rootNode.getChildren()).hasSize(1);
         }
-        
+
         @Test
         @DisplayName("addArtifact for root key returns DUPLICATE_KEY")
         void addArtifactForRootKeyReturnsDuplicateKey() {
@@ -141,130 +141,170 @@ class ArtifactNodeTest {
                     .metadata(new java.util.HashMap<>())
                     .children(new ArrayList<>())
                     .build();
-            
+
             ArtifactNode.AddResult result = rootNode.addArtifact(duplicateRoot);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.DUPLICATE_KEY);
         }
-        
+
         @Test
-        @DisplayName("addArtifact with missing parent returns PARENT_NOT_FOUND")
-        void addArtifactWithMissingParentReturnsParentNotFound() {
-            // Create a key that's a grandchild of root, but parent doesn't exist
+        @DisplayName("addArtifact with missing parent creates placeholders and adds artifact")
+        void addArtifactWithMissingParentCreatesPlaceholderPath() {
             ArtifactKey missingParentKey = rootKey.createChild();
             ArtifactKey orphanKey = missingParentKey.createChild();
-            
             Artifact.AgentModelArtifact orphanArtifact = createAgentModelArtifact(orphanKey, "Orphan");
-            
+
             ArtifactNode.AddResult result = rootNode.addArtifact(orphanArtifact);
-            
-            assertThat(result).isEqualTo(ArtifactNode.AddResult.PARENT_NOT_FOUND);
+
+            assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
+            ArtifactNode placeholderParent = rootNode.findNode(missingParentKey);
+            assertThat(placeholderParent).isNotNull();
+            assertThat(placeholderParent.getArtifact()).isInstanceOf(Artifact.IntermediateArtifact.class);
+            ArtifactNode orphanNode = rootNode.findNode(orphanKey);
+            assertThat(orphanNode).isNotNull();
+            assertThat(orphanNode.getArtifact()).isEqualTo(orphanArtifact);
         }
+
+        @Test
+        @DisplayName("real parent replaces placeholder and keeps queued child")
+        void realParentReplacesPlaceholderAndKeepsChild() {
+            ArtifactKey parentKey = rootKey.createChild();
+            ArtifactKey childKey = parentKey.createChild();
+
+            Artifact.RenderedPromptArtifact childArtifact = createRenderedPromptArtifact(childKey, "child", "child-hash");
+            ArtifactNode.AddResult childResult = rootNode.addArtifact(childArtifact);
+
+            assertThat(childResult).isEqualTo(ArtifactNode.AddResult.ADDED);
+            assertThat(rootNode.findNode(parentKey)).isNotNull();
+            assertThat(rootNode.findNode(parentKey).getArtifact()).isInstanceOf(Artifact.IntermediateArtifact.class);
+
+            Artifact.PromptArgsArtifact parentArtifact = Artifact.PromptArgsArtifact.builder()
+                    .artifactKey(parentKey)
+                    .args(Map.of("input", "value"))
+                    .hash("parent-hash")
+                    .metadata(new HashMap<>())
+                    .children(new ArrayList<>())
+                    .build();
+
+            ArtifactNode.AddResult parentResult = rootNode.addArtifact(parentArtifact);
+
+            assertThat(parentResult).isEqualTo(ArtifactNode.AddResult.ADDED);
+            ArtifactNode parentNode = rootNode.findNode(parentKey);
+            assertThat(parentNode).isNotNull();
+            assertThat(parentNode.getArtifact()).isInstanceOf(Artifact.PromptArgsArtifact.class);
+            assertThat(parentNode.getChildren()).hasSize(1);
+            assertThat(rootNode.findNode(childKey)).isNotNull();
+            assertThat(parentNode.buildArtifactTree().children())
+                    .singleElement()
+                    .extracting(Artifact::artifactKey)
+                    .isEqualTo(childKey);
+        }
+
     }
-    
+
     @Nested
     @DisplayName("Hash-Based Deduplication")
     class HashDeduplication {
-        
+
         @Test
         @DisplayName("addArtifact with duplicate hash still adds distinct key")
         void addArtifactWithDuplicateHashStillAddsDistinctKey() {
             String sharedHash = "abc123def456";
-            
+
             ArtifactKey firstChildKey = rootKey.createChild();
             Artifact.RenderedPromptArtifact firstChild = createRenderedPromptArtifact(
                     firstChildKey, "Same content", sharedHash);
-            
+
             ArtifactKey secondChildKey = rootKey.createChild();
             Artifact.RenderedPromptArtifact secondChild = createRenderedPromptArtifact(
                     secondChildKey, "Same content", sharedHash);
-            
+
             rootNode.addArtifact(firstChild);
             ArtifactNode.AddResult result = rootNode.addArtifact(secondChild);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
             assertThat(rootNode.getChildren()).hasSize(2);
         }
-        
+
         @Test
         @DisplayName("addArtifact with different hash adds successfully")
         void addArtifactWithDifferentHashAddsSuccessfully() {
             ArtifactKey firstChildKey = rootKey.createChild();
             Artifact.RenderedPromptArtifact firstChild = createRenderedPromptArtifact(
                     firstChildKey, "Content A", "hash-a");
-            
+
             ArtifactKey secondChildKey = rootKey.createChild();
             Artifact.RenderedPromptArtifact secondChild = createRenderedPromptArtifact(
                     secondChildKey, "Content B", "hash-b");
-            
+
             rootNode.addArtifact(firstChild);
             ArtifactNode.AddResult result = rootNode.addArtifact(secondChild);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
             assertThat(rootNode.getChildren()).hasSize(2);
         }
-        
+
         @Test
         @DisplayName("addArtifact without hash always adds")
         void addArtifactWithoutHashAlwaysAdds() {
             // AgentModelArtifact has no contentHash
             ArtifactKey firstChildKey = rootKey.createChild();
             Artifact.AgentModelArtifact firstChild = createAgentModelArtifact(firstChildKey, "Group1");
-            
+
             ArtifactKey secondChildKey = rootKey.createChild();
             Artifact.AgentModelArtifact secondChild = createAgentModelArtifact(secondChildKey, "Group2");
-            
+
             rootNode.addArtifact(firstChild);
             ArtifactNode.AddResult result = rootNode.addArtifact(secondChild);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
             assertThat(rootNode.getChildren()).hasSize(2);
         }
-        
+
         @Test
         @DisplayName("hasSiblingWithHash returns true when hash exists")
         void hasSiblingWithHashReturnsTrueWhenExists() {
             String hash = "existing-hash";
             ArtifactKey childKey = rootKey.createChild();
             Artifact.RenderedPromptArtifact child = createRenderedPromptArtifact(childKey, "Text", hash);
-            
+
             rootNode.addArtifact(child);
-            
+
             assertThat(rootNode.hasSiblingWithHash(hash)).isTrue();
         }
-        
+
         @Test
         @DisplayName("hasSiblingWithHash returns false when hash doesn't exist")
         void hasSiblingWithHashReturnsFalseWhenNotExists() {
             assertThat(rootNode.hasSiblingWithHash("non-existent")).isFalse();
         }
-        
+
         @Test
         @DisplayName("hash deduplication is scoped to siblings only")
         void hashDeduplicationIsScopedToSiblingsOnly() {
             String sharedHash = "shared-hash";
-            
+
             // Add child with hash
             ArtifactKey childKey = rootKey.createChild();
             Artifact.RenderedPromptArtifact child = createRenderedPromptArtifact(
                     childKey, "Text", sharedHash);
             rootNode.addArtifact(child);
-            
+
             // Add grandchild with same hash - should succeed (different parent)
             ArtifactKey grandchildKey = childKey.createChild();
             Artifact.RenderedPromptArtifact grandchild = createRenderedPromptArtifact(
                     grandchildKey, "Text", sharedHash);
-            
+
             ArtifactNode.AddResult result = rootNode.addArtifact(grandchild);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
         }
     }
-    
+
     @Nested
     @DisplayName("Tree Collection")
     class TreeCollection {
-        
+
         @Test
         @DisplayName("collectAll returns all artifacts in subtree")
         void collectAllReturnsAllArtifacts() {
@@ -272,36 +312,38 @@ class ArtifactNodeTest {
             ArtifactKey child1Key = rootKey.createChild();
             ArtifactKey child2Key = rootKey.createChild();
             ArtifactKey grandchildKey = child1Key.createChild();
-            
+
             rootNode.addArtifact(createAgentModelArtifact(child1Key, "Child1"));
             rootNode.addArtifact(createAgentModelArtifact(child2Key, "Child2"));
             rootNode.addArtifact(createAgentModelArtifact(grandchildKey, "Grandchild"));
-            
+
             List<Artifact> allArtifacts = rootNode.collectAll();
-            
+
             assertThat(allArtifacts).hasSize(4);
-            assertThat(allArtifacts).contains(rootArtifact);
+            assertThat(allArtifacts)
+                    .extracting(Artifact::artifactKey)
+                    .contains(rootKey);
         }
-        
+
         @Test
         @DisplayName("size returns correct count")
         void sizeReturnsCorrectCount() {
             ArtifactKey child1Key = rootKey.createChild();
             ArtifactKey child2Key = rootKey.createChild();
             ArtifactKey grandchildKey = child1Key.createChild();
-            
+
             rootNode.addArtifact(createAgentModelArtifact(child1Key, "Child1"));
             rootNode.addArtifact(createAgentModelArtifact(child2Key, "Child2"));
             rootNode.addArtifact(createAgentModelArtifact(grandchildKey, "Grandchild"));
-            
+
             assertThat(rootNode.size()).isEqualTo(4);
         }
     }
-    
+
     @Nested
     @DisplayName("Template Artifacts")
     class TemplateArtifacts {
-        
+
         @Test
         @DisplayName("PromptTemplateVersion artifacts can be added")
         void promptTemplateVersionCanBeAdded() {
@@ -313,22 +355,22 @@ class ArtifactNodeTest {
                     .templateArtifactKey(childKey)
                     .lastUpdatedAt(Instant.now())
                     .build();
-            
+
             ArtifactNode.AddResult result = rootNode.addArtifact(template);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
             assertThat(rootNode.getChildren()).hasSize(1);
-            
+
             ArtifactNode templateNode = rootNode.findNode(childKey);
             assertThat(templateNode).isNotNull();
             assertThat(templateNode.getArtifact()).isInstanceOf(PromptTemplateVersion.class);
         }
-        
+
         @Test
         @DisplayName("duplicate PromptTemplateVersion hash is accepted for distinct key")
         void duplicateTemplateHashIsAcceptedForDistinctKey() {
             String sharedHash = "template-hash-shared";
-            
+
             ArtifactKey firstKey = rootKey.createChild();
             PromptTemplateVersion first = PromptTemplateVersion.builder()
                     .templateStaticId("tpl.agent.test.first")
@@ -337,7 +379,7 @@ class ArtifactNodeTest {
                     .templateArtifactKey(firstKey)
                     .lastUpdatedAt(Instant.now())
                     .build();
-            
+
             ArtifactKey secondKey = rootKey.createChild();
             PromptTemplateVersion second = PromptTemplateVersion.builder()
                     .templateStaticId("tpl.agent.test.second")
@@ -346,14 +388,14 @@ class ArtifactNodeTest {
                     .templateArtifactKey(secondKey)
                     .lastUpdatedAt(Instant.now())
                     .build();
-            
+
             rootNode.addArtifact(first);
             ArtifactNode.AddResult result = rootNode.addArtifact(second);
-            
+
             assertThat(result).isEqualTo(ArtifactNode.AddResult.ADDED);
         }
     }
-    
+
     // ========== Helper Methods ==========
 
     private Artifact.AgentModelArtifact createAgentModelArtifact(ArtifactKey key, String name) {

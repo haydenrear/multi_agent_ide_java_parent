@@ -416,7 +416,10 @@ public class FilterExecutionService {
     private PromptContext buildPromptContextFromGraphEvent(GraphEventObjectContext graphCtx) {
         ArtifactKey key = graphCtx.key();
         if (key == null) {
-            return PromptContext.builder().agentType(AgentType.AI_FILTER).build();
+            return PromptContext.builder()
+                    .agentType(AgentType.AI_FILTER)
+                    .hashContext(Artifact.HashContext.defaultHashContext())
+                    .build();
         }
 
         ResolvedAgentContext resolved = resolveAgentContext(key);
@@ -424,6 +427,7 @@ public class FilterExecutionService {
             return PromptContext.builder()
                     .agentType(AgentType.AI_FILTER)
                     .currentContextId(key)
+                    .hashContext(Artifact.HashContext.defaultHashContext())
                     .build();
         }
 
@@ -436,6 +440,7 @@ public class FilterExecutionService {
                 .blackboardHistory(resolved.blackboardHistory())
                 .previousRequest(lastRequest)
                 .currentRequest(lastRequest)
+                .hashContext(Artifact.HashContext.defaultHashContext())
                 .operationContext(resolved.operationContext())
                 .build();
     }
@@ -746,14 +751,19 @@ public class FilterExecutionService {
                 && ArtifactKey.isValid(graphEventSource.event().nodeId())) {
             return graphEventSource.event().nodeId();
         }
-        EventBus.AgentNodeKey process = EventBus.Process.get();
-        if (process != null && process.id() != null && ArtifactKey.isValid(process.id())) {
-            return process.id();
-        }
         if (layerId != null && ArtifactKey.isValid(layerId)) {
             return layerId;
         }
-        return ArtifactKey.createRoot().value();
+        ArtifactKey root = ArtifactKey.createRoot();
+        String message = "Filter node id could not be resolved: layerId="
+                + (layerId == null ? "null" : "\"" + layerId + "\" (invalid format)")
+                + ", source=" + (source == null ? "null" : source.getClass().getSimpleName())
+                + ". Falling back to fresh root " + root.value() + ".";
+        log.error(message);
+        if (eventBus != null) {
+            eventBus.publish(Events.NodeErrorEvent.err(message, root));
+        }
+        return root.value();
     }
 
     private String buildFilterErrorMessage(String policyId, String layerId, Throwable throwable) {

@@ -220,7 +220,7 @@ public class ArtifactEventListener implements EventListener {
 
             ArtifactKey artifactKey = event.artifactKey();
             String executionKey = extractExecutionKey(artifactKey);
-            addOrQueueArtifact(executionKey, artifact);
+            addOrQueueArtifactTree(executionKey, artifact);
         } catch (Exception e) {
             log.error("Failed to handle artifact event: {}", event, e);
         }
@@ -263,6 +263,15 @@ public class ArtifactEventListener implements EventListener {
             return;
         }
 
+        if (artifact instanceof Artifact.ExecutionArtifact) {
+            ArtifactNode.AddResult result = treeBuilder.addArtifactResult(executionKey, artifact);
+            if (result == ArtifactNode.AddResult.ADDED || result == ArtifactNode.AddResult.DUPLICATE_KEY) {
+                flushPendingArtifacts(executionKey);
+                log.debug("Registered execution root artifact {} via event path", artifact.artifactKey().value());
+                return;
+            }
+        }
+
         if (treeBuilder.getExecutionTree(executionKey).isPresent()) {
             ArtifactNode.AddResult result = treeBuilder.addArtifactResult(executionKey, artifact);
             if (result == ArtifactNode.AddResult.ADDED) {
@@ -284,6 +293,21 @@ public class ArtifactEventListener implements EventListener {
         }
 
         queueArtifact(executionKey, artifact, "execution root unavailable");
+    }
+
+    private void addOrQueueArtifactTree(String executionKey, Artifact rootArtifact) {
+        if (rootArtifact == null) {
+            return;
+        }
+
+        List<Artifact> artifacts = new ArrayList<>();
+        artifacts.add(rootArtifact);
+        artifacts.addAll(rootArtifact.collectRecursiveChildren());
+        artifacts.sort(Comparator.comparingInt(a -> a.artifactKey().depth()));
+
+        for (Artifact artifact : artifacts) {
+            addOrQueueArtifact(executionKey, artifact);
+        }
     }
 
     private void flushPendingArtifacts(String executionKey) {
@@ -328,7 +352,32 @@ public class ArtifactEventListener implements EventListener {
         pendingArtifactsByExecution
                 .computeIfAbsent(executionKey, ignored -> java.util.Collections.synchronizedList(new ArrayList<>()))
                 .add(artifact);
-        log.debug("Queued artifact {} for execution {}: {}", artifact.artifactKey().value(), executionKey, reason);
+        ArtifactKey artifactKey = artifact.artifactKey();
+        ArtifactKey parentKey = artifactKey == null ? null : artifactKey.parent().orElse(null);
+        log.debug("Queued artifact {} for execution {}: {} (child type: {}, expected parent: {}, nearest ancestor type: {})",
+                artifact.artifactKey().value(),
+                executionKey,
+                reason,
+                artifact.artifactType(),
+                parentKey,
+                nearestAncestorType(executionKey, parentKey));
+    }
+
+    private String nearestAncestorType(String executionKey, ArtifactKey targetKey) {
+        if (targetKey == null) {
+            return "NONE";
+        }
+        return treeBuilder.getExecutionTree(executionKey)
+                .map(root -> {
+                    ArtifactKey cursor = targetKey;
+                    ArtifactNode current = root.findNode(cursor);
+                    while (current == null && cursor.parent().isPresent()) {
+                        cursor = cursor.parent().get();
+                        current = root.findNode(cursor);
+                    }
+                    return current == null ? "NONE" : current.getArtifact().artifactType();
+                })
+                .orElse("NONE");
     }
 
     private String extractExecutionKey(ArtifactKey artifactKey) {

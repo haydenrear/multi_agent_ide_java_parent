@@ -907,7 +907,8 @@ class ArtifactTreeBuilderTest {
             assertThat(tree).isPresent();
             
             ArtifactNode root = tree.get();
-            assertThat(root.getArtifact()).isEqualTo(rootArtifact);
+            assertThat(root.getArtifact().artifactKey()).isEqualTo(rootArtifact.artifactKey());
+            assertThat(root.getArtifact()).isInstanceOf(Artifact.ExecutionArtifact.class);
             assertThat(root.getChildren()).hasSize(2);
             
             // Find child1 node

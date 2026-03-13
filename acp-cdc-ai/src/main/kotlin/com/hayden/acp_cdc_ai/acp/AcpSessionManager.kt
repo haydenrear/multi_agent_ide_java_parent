@@ -11,6 +11,8 @@ import com.agentclientprotocol.model.FileSystemCapability
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.Transport
 import com.hayden.acp_cdc_ai.acp.AcpChatModel.AcpSessionOperations
+import com.hayden.acp_cdc_ai.acp.events.Artifact
+import com.hayden.acp_cdc_ai.acp.events.ArtifactHashing
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.EventBus
 import com.hayden.acp_cdc_ai.acp.events.Events
@@ -55,10 +57,19 @@ class AcpSessionManager {
         }
 
         init {
-            eventBus.publish(Events.ChatSessionCreatedEvent(UUID.randomUUID().toString(), Instant.now(), messageParent.value, chatModelKey, chatOptions))
+            eventBus.publish(
+                Events.ChatSessionCreatedEvent(
+                    UUID.randomUUID().toString(),
+                    Instant.now(),
+                    messageParent.value,
+                    chatModelKey,
+                    chatOptions
+                )
+            )
         }
 
-        suspend fun prompt(content: List<ContentBlock>, _meta: JsonElement? = null): Flow<Event> = session.prompt(content, _meta)
+        suspend fun prompt(content: List<ContentBlock>, _meta: JsonElement? = null): Flow<Event> =
+            session.prompt(content, _meta)
 
         fun appendStreamWindow(
             memoryId: Any?,

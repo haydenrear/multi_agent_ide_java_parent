@@ -3,6 +3,7 @@ package com.hayden.multiagentidelib.template;
 import com.hayden.multiagentidelib.agent.AgentContext;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.multiagentidelib.agent.SkipPropertyFilter;
 import lombok.With;
 
 import java.util.List;
@@ -11,10 +12,9 @@ import java.util.Map;
 //TODO: add report type, specific to a particular thing, such as architecture, etc.
 @With
 public record DiscoveryReport(
+        @SkipPropertyFilter
         ArtifactKey contextId,
         String schemaVersion,
-        ArtifactKey resultId,
-        ArtifactKey upstreamContextId,
         List<FileReference> fileReferences,
         List<CrossLink> crossLinks,
         List<SemanticTag> semanticTags,

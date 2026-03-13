@@ -70,5 +70,11 @@ public record PromptContext(
         if (metadata == null) {
             metadata = Map.of();
         }
+        if (promptContributors == null) {
+            promptContributors = List.of();
+        }
+        if (hashContext == null) {
+            hashContext = Artifact.HashContext.defaultHashContext();
+        }
     }
 }

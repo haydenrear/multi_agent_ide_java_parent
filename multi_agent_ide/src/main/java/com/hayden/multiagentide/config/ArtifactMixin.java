@@ -22,6 +22,7 @@ public interface ArtifactMixin {
             @JsonSubTypes.Type(value = Artifact.ExecutionConfigArtifact.class, name = "ExecutionConfig"),
             @JsonSubTypes.Type(value = Artifact.RenderedPromptArtifact.class, name = "RenderedPrompt"),
             @JsonSubTypes.Type(value = Artifact.PromptArgsArtifact.class, name = "PromptArgs"),
+            @JsonSubTypes.Type(value = Artifact.IntermediateArtifact.class, name = "IntermediateArtifact"),
             @JsonSubTypes.Type(value = Artifact.FilterDescriptorArtifact.class, name = "FilterDescriptor"),
             @JsonSubTypes.Type(value = Artifact.FilterDecisionRecordArtifact.class, name = "FilterDecisionRecord"),
             @JsonSubTypes.Type(value = Artifact.ToolCallArtifact.class, name = "ToolCall"),

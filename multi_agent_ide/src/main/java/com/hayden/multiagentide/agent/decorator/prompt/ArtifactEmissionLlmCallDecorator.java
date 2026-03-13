@@ -510,21 +510,23 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
         // Check if this contributor artifact already exists
         return getOrCreateArtifact(
                 () -> {
-                    var promptTemplateVersionKey = key.createChild();
-                    
-                    // Build contribution template artifact (checking hash)
-                    var contributionTemplate = buildPromptContributorArtifact(promptContext, pc, promptTemplateVersionKey.createChild());
-                    
-                    // Build contribution args artifact (checking hash)
-                    var contributionArgs = buildPromptContributorTemplate(promptContext, pc, promptTemplateVersionKey.createChild());
+                    var contributionTemplateKey = key.createChild();
 
-                    // Build contribution args artifact (checking hash)
-                    var filterDescriptor = buildFilterDescriptor(promptContext, pc, promptTemplateVersionKey.createChild());
+                    // Materialize the contributor node itself so descendants do not rely on placeholder insertion.
+                    var contributionArgs = buildPromptContributorTemplate(promptContext, pc, contributionTemplateKey.createChild());
+                    var filterDescriptor = buildFilterDescriptor(promptContext, pc, contributionTemplateKey.createChild());
 
-                    List<Artifact> children = Lists.newArrayList(contributionTemplate, contributionArgs);
+                    List<Artifact> contributionChildren = Lists.newArrayList(contributionArgs);
+                    Optional.ofNullable(filterDescriptor).ifPresent(contributionChildren::add);
 
-                    Optional.ofNullable(filterDescriptor)
-                            .ifPresent(children::add);
+                    var contributionTemplate = buildPromptContributorArtifact(
+                            promptContext,
+                            pc,
+                            contributionTemplateKey,
+                            contributionChildren
+                    );
+
+                    List<Artifact> children = Lists.newArrayList(contributionTemplate);
 
                     return Artifact.RenderedPromptArtifact.builder()
                             .artifactKey(key)
@@ -546,7 +548,8 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
     private Artifact buildPromptContributorArtifact(
             PromptContext context,
             PromptContributor promptContributor,
-            ArtifactKey key
+            ArtifactKey key,
+            List<Artifact> children
     ) {
         var promptContributorName = promptContributor.name();
         var contributedText = promptContributor.template();
@@ -559,7 +562,7 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
                         .templateText(contributedText)
                         .hash(hash)
                         .metadata(promptContributorMetadata(context, promptContributor))
-                        .children(Lists.newArrayList())
+                        .children(new ArrayList<>(children))
                         .build(),
                 hash,
                 key

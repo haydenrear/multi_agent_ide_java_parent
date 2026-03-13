@@ -12,8 +12,8 @@ public class ControllerEndpointTransformationIntegration {
     private final TransformerExecutionService transformerExecutionService;
 
     public TransformerExecutionService.TransformationExecutionResult maybeTransform(String controllerId,
-                                                                                   String endpointId,
-                                                                                   Object payload) {
+                                                                                    String endpointId,
+                                                                                    Object payload) {
         return transformerExecutionService.transform(FilterLayerCatalog.CONTROLLER, controllerId, endpointId, payload);
     }
 }
