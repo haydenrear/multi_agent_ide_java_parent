@@ -71,9 +71,31 @@ public class PermissionController {
     ) {
     }
 
+    public record PendingPermissionSummary(
+            String requestId,
+            String originNodeId,
+            String nodeId,
+            String toolCallId,
+            Object permissions
+    ) {
+    }
+
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @SuppressWarnings("unused")
     public record PermissionError(String message) {
+    }
+
+    @GetMapping("/pending")
+    public List<PendingPermissionSummary> pending() {
+        return permissionGate.pendingPermissionRequests().stream()
+                .map(p -> new PendingPermissionSummary(
+                        p.getRequestId(),
+                        p.getOriginNodeId(),
+                        p.getNodeId(),
+                        p.getToolCallId(),
+                        p.getPermissions()
+                ))
+                .toList();
     }
 
     @PostMapping("/resolve")

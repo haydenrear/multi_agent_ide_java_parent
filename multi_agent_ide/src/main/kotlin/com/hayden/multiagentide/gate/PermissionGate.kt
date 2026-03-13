@@ -46,6 +46,12 @@ class PermissionGate(
 
     private val pendingInterrupts = ConcurrentHashMap<String, IPermissionGate.PendingInterruptRequest>()
 
+    // Maps requestId -> tool name for ALLOW_ALWAYS lookup
+    private val requestIdToToolName = ConcurrentHashMap<String, String>()
+
+    // Tool names granted ALLOW_ALWAYS — auto-resolved on future publishRequest
+    private val alwaysAllowedToolNames = ConcurrentHashMap.newKeySet<String>()
+
     override fun getInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): IPermissionGate.PendingInterruptRequest? {
         return pendingInterrupts.entries
             .filter { requestId.test(it.value) }
@@ -76,6 +82,32 @@ class PermissionGate(
         val existing = pendingRequests[requestId]
         if (existing != null) {
             return existing
+        }
+
+        val toolName = toolCall.title?.takeIf { it.isNotBlank() } ?: toolCall.toolCallId.value
+        requestIdToToolName[requestId] = toolName
+
+        // Auto-resolve if this tool was previously granted ALLOW_ALWAYS
+        if (alwaysAllowedToolNames.contains(toolName)) {
+            log.info("Auto-resolving permission for always-allowed tool '{}' requestId={}", toolName, requestId)
+            val deferred = CompletableDeferred<RequestPermissionResponse>()
+            val autoResolved = IPermissionGate.PendingPermissionRequest(
+                requestId = requestId,
+                originNodeId = originNodeId,
+                toolCallId = toolCall.toolCallId.value,
+                permissions = permissions,
+                deferred = deferred,
+                meta = meta,
+                nodeId = null
+            )
+            val allowAlwaysOption = IPermissionGate.allowAlways()
+            val response = RequestPermissionResponse(
+                com.agentclientprotocol.model.RequestPermissionOutcome.Selected(allowAlwaysOption.optionId),
+                meta
+            )
+            deferred.complete(response)
+            requestIdToToolName.remove(requestId)
+            return autoResolved
         }
 
         val now = Instant.now()
@@ -169,6 +201,16 @@ class PermissionGate(
             RequestPermissionOutcome.Cancelled
         } else {
             RequestPermissionOutcome.Selected(selected.optionId)
+        }
+        // Persist ALLOW_ALWAYS grant by tool name so future requests are auto-resolved
+        if (selected?.kind == com.agentclientprotocol.model.PermissionOptionKind.ALLOW_ALWAYS) {
+            val toolName = requestIdToToolName.remove(requestId)
+            if (toolName != null) {
+                log.info("Registering ALLOW_ALWAYS for tool '{}' — future requests will auto-resolve", toolName)
+                alwaysAllowedToolNames.add(toolName)
+            }
+        } else {
+            requestIdToToolName.remove(requestId)
         }
         completePending(pending, outcome, selected?.optionId?.toString())
         return true
