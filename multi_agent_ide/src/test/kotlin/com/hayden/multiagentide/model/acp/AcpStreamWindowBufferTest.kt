@@ -18,12 +18,15 @@ import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.Transport
 import com.hayden.acp_cdc_ai.acp.AcpSessionManager
 import com.hayden.acp_cdc_ai.acp.AcpStreamWindowBuffer
+import com.hayden.acp_cdc_ai.acp.config.AcpResolvedCall
 import com.hayden.acp_cdc_ai.acp.parseGenerationsFromAcpEvent
 import com.hayden.acp_cdc_ai.acp.events.EventBus
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.EventListener
 import com.hayden.acp_cdc_ai.acp.events.Events
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
+import com.hayden.acp_cdc_ai.sandbox.SandboxTranslation
+import com.hayden.acp_cdc_ai.sandbox.SandboxTranslationStrategy
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -356,6 +359,8 @@ class AcpStreamWindowBufferTest {
         val session = mock(ClientSession::class.java)
         val sessionCreationParameters = mock(SessionCreationParameters::class.java)
         val permissionGate = mock(IPermissionGate::class.java)
+        val sandbox = mock(SandboxTranslation::class.java)
+        val resolvedCall = mock(AcpResolvedCall::class.java)
         val messageParent = ArtifactKey.createRoot()
         return manager.AcpSessionContext(
             scope, transport, protocol, client, session,
@@ -364,7 +369,9 @@ class AcpStreamWindowBufferTest {
             sessionCreationParameters = sessionCreationParameters,
             permissionGate = permissionGate,
             chatOptions = "{}",
-            chatKey = messageParent
+            chatKey = messageParent,
+            sandbox = sandbox,
+            resolvedCall = resolvedCall,
         )
     }
 

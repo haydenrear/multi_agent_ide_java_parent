@@ -438,7 +438,9 @@ class AcpChatModel(
                 sessionCreationParameters = sessionParams,
                 permissionGate = permissionGate,
                 chatKey = chatKey,
-                chatOptions = objectMapper.writeValueAsString(resolvedCall)
+                chatOptions = objectMapper.writeValueAsString(resolvedCall),
+                sandbox = sandboxTranslation,
+                resolvedCall = resolvedCall,
             )
 
         } catch (ex: Exception) {
