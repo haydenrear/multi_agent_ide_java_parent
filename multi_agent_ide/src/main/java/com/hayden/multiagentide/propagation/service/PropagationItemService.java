@@ -85,7 +85,7 @@ public class PropagationItemService {
                 .layerId(entity.getLayerId())
                 .sourceNodeId(entity.getSourceNodeId())
                 .sourceType("ACTION_RESPONSE")
-                .action(resolutionType == PropagationResolutionType.ACKNOWLEDGED ? PropagationAction.PROPAGATION_ACKNOWLEDGED.name() : PropagationAction.ITEM_CREATED.name())
+                .action(PropagationAction.PROPAGATION_ACKNOWLEDGED.name())
                 .beforePayload(entity.getPropagatedText())
                 .afterPayload(entity.getPropagatedText())
                 .mode(entity.getMode())
