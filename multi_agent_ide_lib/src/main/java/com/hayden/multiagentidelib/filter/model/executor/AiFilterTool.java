@@ -31,19 +31,8 @@ public final class AiFilterTool<I, O>
 
     public static final String TEMPLATE_NAME = "filter/ai_filter";
 
-    private final String modelRef;
     private final String registrarPrompt;
-    private final int maxTokens;
-    private final Object outputSchema;
     private final SessionMode sessionMode;
-    private final String sessionKeyOverride;
-    private final String requestModelType;
-    private final String resultModelType;
-    private final Boolean includeAgentDecorators;
-    private final String controllerModelRef;
-    private final String controllerPromptTemplate;
-    private final String responseMode;
-    private final int timeoutMs;
     private final String configVersion;
 
     @Autowired
@@ -73,9 +62,7 @@ public final class AiFilterTool<I, O>
     public @NotNull FilterResult<AgentModels.AiFilterResult> apply(AgentModels.AiFilterRequest i, FilterContext.AiFilterContext ctx) {
         try {
             String templateName = ctx.templateName() != null ? ctx.templateName() : TEMPLATE_NAME;
-
             try {
-
                 AgentModels.AiFilterResult aiResult = llmRunner.runWithTemplate(
                         templateName,
                         ctx.promptContext(),
@@ -84,16 +71,13 @@ public final class AiFilterTool<I, O>
                         AgentModels.AiFilterResult.class,
                         ctx.context()
                 );
-
                 if (aiResult == null) {
                     return aiFailResult("LLM returned null result");
                 }
-
                 return new FilterResult<>(aiResult, buildAiFilterDescriptor());
             } catch (Exception e) {
                 return aiFailResult("LLM call threw error: %s".formatted(e.getMessage()));
             }
-
         } catch (Exception e) {
             log.error("Error when attempting to filter {}.", i, e);
             return new FilterResult<>(
@@ -118,27 +102,13 @@ public final class AiFilterTool<I, O>
 
     private FilterDescriptor buildAiFilterDescriptor() {
         Map<String, String> details = new LinkedHashMap<>();
-        putIfPresent(details, "modelRef", modelRef);
         putIfPresent(details, "registrarPrompt", registrarPrompt);
-        putIfPresent(details, "maxTokens", String.valueOf(maxTokens));
         putIfPresent(details, "sessionMode", sessionMode == null ? null : sessionMode.name());
-        putIfPresent(details, "sessionKeyOverride", sessionKeyOverride);
-        putIfPresent(details, "requestModelType", requestModelType);
-        putIfPresent(details, "resultModelType", resultModelType);
-        putIfPresent(details, "includeAgentDecorators", includeAgentDecorators == null ? null : includeAgentDecorators.toString());
-        putIfPresent(details, "controllerModelRef", controllerModelRef);
-        putIfPresent(details, "controllerPromptTemplate", controllerPromptTemplate);
-        putIfPresent(details, "templateName", TEMPLATE_NAME);
-        putIfPresent(details, "timeoutMs", String.valueOf(timeoutMs));
+        details.put("templateName", TEMPLATE_NAME);
         putIfPresent(details, "configVersion", configVersion);
 
         FilterDescriptor.Entry entry = new FilterDescriptor.Entry(
-                "EXECUTOR",
-                null,
-                null,
-                null,
-                null,
-                null,
+                "EXECUTOR", null, null, null, null, null,
                 "TRANSFORMED",
                 FilterEnums.ExecutorType.AI.name(),
                 details,
@@ -154,52 +124,12 @@ public final class AiFilterTool<I, O>
         target.put(key, value);
     }
 
-    public String modelRef() {
-        return modelRef;
-    }
-
-    public int maxTokens() {
-        return maxTokens;
-    }
-
     public String registrarPrompt() {
         return registrarPrompt;
     }
 
-    public Object outputSchema() {
-        return outputSchema;
-    }
-
     public SessionMode sessionMode() {
         return sessionMode;
-    }
-
-    public String sessionKeyOverride() {
-        return sessionKeyOverride;
-    }
-
-    public String requestModelType() {
-        return requestModelType;
-    }
-
-    public String resultModelType() {
-        return resultModelType;
-    }
-
-    public Boolean includeAgentDecorators() {
-        return includeAgentDecorators;
-    }
-
-    public String controllerModelRef() {
-        return controllerModelRef;
-    }
-
-    public String controllerPromptTemplate() {
-        return controllerPromptTemplate;
-    }
-
-    public String responseMode() {
-        return responseMode;
     }
 
     public String templateName() {
@@ -207,13 +137,7 @@ public final class AiFilterTool<I, O>
     }
 
     @Override
-    public int timeoutMs() {
-        return timeoutMs;
-    }
-
-    @Override
     public String configVersion() {
         return configVersion;
     }
-
 }

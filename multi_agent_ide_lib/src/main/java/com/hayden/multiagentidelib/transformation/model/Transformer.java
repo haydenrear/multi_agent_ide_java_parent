@@ -24,7 +24,6 @@ public sealed interface Transformer<I, O, CTX extends FilterContext> extends BiF
     ExecutableTool<?, ?, ?> executor();
     FilterEnums.PolicyStatus status();
     int priority();
-    boolean replaceEndpointResponse();
     Instant createdAt();
     Instant updatedAt();
 }

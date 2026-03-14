@@ -20,13 +20,10 @@ public class TransformerExecutorValidator {
             errors.add("executorType is required");
             return errors;
         }
-        if (executorNode.path("timeoutMs").asInt(0) <= 0) {
-            errors.add("timeoutMs must be > 0");
-        }
         switch (executorType) {
             case "PYTHON" -> requireNonBlank(executorNode, "scriptPath", errors);
             case "AI_TRANSFORMER", "AI" -> {
-                requireNonBlank(executorNode, "modelRef", errors);
+                requireNonBlank(executorNode, "registrarPrompt", errors);
                 validateSessionMode(executorNode, errors);
             }
             case "BINARY", "JAVA_FUNCTION" -> {

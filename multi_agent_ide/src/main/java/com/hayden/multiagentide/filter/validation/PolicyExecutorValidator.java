@@ -29,11 +29,6 @@ public class PolicyExecutorValidator {
             return errors;
         }
 
-        int timeoutMs = executorNode.has("timeoutMs") ? executorNode.get("timeoutMs").asInt(0) : 0;
-        if (timeoutMs <= 0) {
-            errors.add("timeoutMs must be > 0");
-        }
-
         switch (executorType) {
             case "BINARY" -> validateBinaryExecutor(executorNode, errors);
             case "JAVA_FUNCTION" -> validateJavaFunctionExecutor(executorNode, errors);
@@ -61,7 +56,7 @@ public class PolicyExecutorValidator {
     }
 
     private void validateAiExecutor(JsonNode node, List<String> errors) {
-        requireNonBlank(node, "modelRef", "AI", errors);
+        requireNonBlank(node, "registrarPrompt", "AI", errors);
         if (node.hasNonNull("sessionMode")) {
             String sessionMode = node.get("sessionMode").asText("");
             boolean valid = "PER_INVOCATION".equals(sessionMode)

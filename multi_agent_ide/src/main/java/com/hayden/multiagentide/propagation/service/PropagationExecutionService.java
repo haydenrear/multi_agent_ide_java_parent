@@ -227,22 +227,17 @@ public class PropagationExecutionService {
                         "stage", context.actionStage() == null ? "" : context.actionStage().name()))
                 .build();
 
-        boolean includeAgentDecorators = !Boolean.FALSE.equals(aiExecutor.includeAgentDecorators());
-        AgentModels.AiPropagatorRequest decoratedRequest = includeAgentDecorators
-                ? AgentInterfaces.decorateRequest(
-                        request,
-                        resolvedOperationContext,
-                        requestDecorators,
-                        AI_PROPAGATOR_AGENT_NAME,
-                        AI_PROPAGATOR_ACTION_NAME,
-                        AI_PROPAGATOR_METHOD_NAME,
-                        parentRequest)
-                : request;
+        AgentModels.AiPropagatorRequest decoratedRequest = AgentInterfaces.decorateRequest(
+                request,
+                resolvedOperationContext,
+                requestDecorators,
+                AI_PROPAGATOR_AGENT_NAME,
+                AI_PROPAGATOR_ACTION_NAME,
+                AI_PROPAGATOR_METHOD_NAME,
+                parentRequest);
 
         Map<String, Object> model = buildAiModel(aiExecutor, beforePayload, context, parentRequest);
-        String resolvedModelName = aiExecutor.modelRef() == null || aiExecutor.modelRef().isBlank()
-                ? AcpChatOptionsString.DEFAULT_MODEL_NAME
-                : aiExecutor.modelRef();
+        String resolvedModelName = AcpChatOptionsString.DEFAULT_MODEL_NAME;
 
         PromptContext promptContext = PromptContext.builder()
                 .agentType(AgentType.AI_PROPAGATOR)
@@ -257,26 +252,22 @@ public class PropagationExecutionService {
                 .operationContext(resolvedOperationContext)
                 .build();
 
-        PromptContext decoratedPromptContext = includeAgentDecorators
-                ? AgentInterfaces.decoratePromptContext(
-                        promptContext,
+        PromptContext decoratedPromptContext = AgentInterfaces.decoratePromptContext(
+                promptContext,
                 promptContextDecorators,
                 new DecoratorContext(
                         resolvedOperationContext, AI_PROPAGATOR_AGENT_NAME, AI_PROPAGATOR_ACTION_NAME, AI_PROPAGATOR_METHOD_NAME, parentRequest, decoratedRequest
-                ))
-                : promptContext;
+                ));
 
-        ToolContext toolContext = includeAgentDecorators
-                ? AgentInterfaces.decorateToolContext(
-                        ToolContext.empty(),
-                        decoratedRequest,
-                        parentRequest,
-                        resolvedOperationContext,
-                        toolContextDecorators,
-                        AI_PROPAGATOR_AGENT_NAME,
-                        AI_PROPAGATOR_ACTION_NAME,
-                        AI_PROPAGATOR_METHOD_NAME)
-                : ToolContext.empty();
+        ToolContext toolContext = AgentInterfaces.decorateToolContext(
+                ToolContext.empty(),
+                decoratedRequest,
+                parentRequest,
+                resolvedOperationContext,
+                toolContextDecorators,
+                AI_PROPAGATOR_AGENT_NAME,
+                AI_PROPAGATOR_ACTION_NAME,
+                AI_PROPAGATOR_METHOD_NAME);
 
         AiPropagatorContext aiContext = AiPropagatorContext.builder()
                 .propagationContext(context)
@@ -289,16 +280,14 @@ public class PropagationExecutionService {
                 .build();
 
         AgentModels.AiPropagatorResult result = aiTextPropagator.apply(decoratedRequest, aiContext);
-        if (includeAgentDecorators) {
-            result = AgentInterfaces.decorateResult(
-                    result,
-                    resolvedOperationContext,
-                    resultDecorators,
-                    AI_PROPAGATOR_AGENT_NAME,
-                    AI_PROPAGATOR_ACTION_NAME,
-                    AI_PROPAGATOR_METHOD_NAME,
-                    decoratedRequest);
-        }
+        result = AgentInterfaces.decorateResult(
+                result,
+                resolvedOperationContext,
+                resultDecorators,
+                AI_PROPAGATOR_AGENT_NAME,
+                AI_PROPAGATOR_ACTION_NAME,
+                AI_PROPAGATOR_METHOD_NAME,
+                decoratedRequest);
         return result.toOutput();
     }
 
@@ -312,9 +301,6 @@ public class PropagationExecutionService {
         model.put("sourceNodeId", context.sourceNodeId());
         if (aiExecutor.registrarPrompt() != null && !aiExecutor.registrarPrompt().isBlank()) {
             model.put("registrarPrompt", aiExecutor.registrarPrompt());
-        }
-        if (aiExecutor.maxTokens() > 0) {
-            model.put("maxTokens", aiExecutor.maxTokens());
         }
         if (context.actionStage() != null) {
             model.put("stage", context.actionStage().name());

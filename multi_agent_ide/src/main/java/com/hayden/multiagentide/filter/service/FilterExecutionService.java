@@ -259,8 +259,6 @@ public class FilterExecutionService {
                                                                   PolicyRegistrationEntity policy) {
         var aiExecutor = p.executor();
         aiFilterToolHydration.hydrate(aiExecutor);
-        boolean includeAgentDecorators = !Boolean.FALSE.equals(aiExecutor.includeAgentDecorators());
-
 
         PromptContext promptContext = getPromptContext(filterContext);
         OperationContext operationContext = getOpContext(filterContext, promptContext);
@@ -274,17 +272,15 @@ public class FilterExecutionService {
             return Optional.empty();
         }
 
-        AgentModels.AgentRequest decoratedContextRequest = includeAgentDecorators
-                ? AgentInterfaces.decorateRequest(
-                        promptContext.currentRequest(),
-                        operationContext,
-                        requestDecorators,
-                        AI_FILTER_AGENT_NAME,
-                        AI_FILTER_ACTION_NAME,
-                        AI_FILTER_METHOD_NAME,
-                        promptContext.previousRequest()
-                )
-                : promptContext.currentRequest();
+        AgentModels.AgentRequest decoratedContextRequest = AgentInterfaces.decorateRequest(
+                promptContext.currentRequest(),
+                operationContext,
+                requestDecorators,
+                AI_FILTER_AGENT_NAME,
+                AI_FILTER_ACTION_NAME,
+                AI_FILTER_METHOD_NAME,
+                promptContext.previousRequest()
+        );
 
         AgentModels.AiFilterRequest aiSessionRequest = AgentModels.AiFilterRequest.builder()
                 .contextId(aiFilterSessionResolver.resolveSessionKey(
@@ -302,40 +298,33 @@ public class FilterExecutionService {
                 decoratedContextRequest
         );
 
-        String resolvedModelName = aiExecutor.modelRef() == null || aiExecutor.modelRef().isBlank()
-                ? AcpChatOptionsString.DEFAULT_MODEL_NAME : aiExecutor.modelRef();
-
         PromptContext aiPromptContext = promptContext
                 .toBuilder()
                 .templateName(AI_FILTER_TEMPLATE_NAME)
-                .modelName(resolvedModelName)
+                .modelName(AcpChatOptionsString.DEFAULT_MODEL_NAME)
                 .currentRequest(aiSessionRequest)
                 .previousRequest(decoratedContextRequest)
                 .model(model)
                 .build();
 
-        PromptContext decoratedPromptContext = includeAgentDecorators
-                ? AgentInterfaces.decoratePromptContext(
-                        aiPromptContext,
+        PromptContext decoratedPromptContext = AgentInterfaces.decoratePromptContext(
+                aiPromptContext,
                 promptContextDecorators,
                 new DecoratorContext(
                         operationContext, AI_FILTER_AGENT_NAME, AI_FILTER_ACTION_NAME, AI_FILTER_METHOD_NAME, decoratedContextRequest, aiSessionRequest
                 )
-        )
-                : aiPromptContext;
+        );
 
-        ToolContext decoratedToolContext = includeAgentDecorators
-                ? AgentInterfaces.decorateToolContext(
-                        ToolContext.empty(),
-                        aiSessionRequest,
-                        decoratedContextRequest,
-                        operationContext,
-                        toolContextDecorators,
-                        AI_FILTER_AGENT_NAME,
-                        AI_FILTER_ACTION_NAME,
-                        AI_FILTER_METHOD_NAME
-                )
-                : ToolContext.empty();
+        ToolContext decoratedToolContext = AgentInterfaces.decorateToolContext(
+                ToolContext.empty(),
+                aiSessionRequest,
+                decoratedContextRequest,
+                operationContext,
+                toolContextDecorators,
+                AI_FILTER_AGENT_NAME,
+                AI_FILTER_ACTION_NAME,
+                AI_FILTER_METHOD_NAME
+        );
 
         FilterContext.AiFilterContext aiFilterContext = FilterContext.AiFilterContext.builder()
                 .filterContext(filterContext)
@@ -352,18 +341,15 @@ public class FilterExecutionService {
         if (result.res() != null) {
             return Optional.of(
                     result.toBuilder()
-                            .res(
-                                    includeAgentDecorators
-                                            ? AgentInterfaces.decorateResult(
-                                                    result.res(),
-                                                    operationContext,
-                                                    resultDecorators,
-                                                    AI_FILTER_AGENT_NAME,
-                                                    AI_FILTER_ACTION_NAME,
-                                                    AI_FILTER_METHOD_NAME,
-                                                    aiSessionRequest)
-                                            : result.res()
-                            ).build());
+                            .res(AgentInterfaces.decorateResult(
+                                    result.res(),
+                                    operationContext,
+                                    resultDecorators,
+                                    AI_FILTER_AGENT_NAME,
+                                    AI_FILTER_ACTION_NAME,
+                                    AI_FILTER_METHOD_NAME,
+                                    aiSessionRequest))
+                            .build());
         }
 
         return Optional.of(result);
@@ -503,23 +489,6 @@ public class FilterExecutionService {
         if (aiExecutor.registrarPrompt() != null && !aiExecutor.registrarPrompt().isBlank()) {
             model.put("registrarPrompt", aiExecutor.registrarPrompt());
         }
-        if (aiExecutor.responseMode() != null && !aiExecutor.responseMode().isBlank()) {
-            model.put("responseMode", aiExecutor.responseMode());
-        } else {
-            model.put("responseMode", "INSTRUCTION_LIST");
-        }
-        if (aiExecutor.requestModelType() != null && !aiExecutor.requestModelType().isBlank()) {
-            model.put("requestModelType", aiExecutor.requestModelType());
-        }
-        if (aiExecutor.resultModelType() != null && !aiExecutor.resultModelType().isBlank()) {
-            model.put("resultModelType", aiExecutor.resultModelType());
-        }
-        if (aiExecutor.outputSchema() != null) {
-            model.put("outputSchema", aiExecutor.outputSchema());
-        }
-        if (aiExecutor.maxTokens() > 0) {
-            model.put("maxTokens", aiExecutor.maxTokens());
-        }
         if (decoratedRequest != null) {
             model.put("contextRequest", decoratedRequest.prettyPrint());
         }
@@ -567,7 +536,6 @@ public class FilterExecutionService {
         }
 
         Map<String, String> details = new LinkedHashMap<>();
-        details.put("timeoutMs", String.valueOf(executor.timeoutMs()));
         putIfPresent(details, "configVersion", executor.configVersion());
 
         switch (executor) {
@@ -656,16 +624,8 @@ public class FilterExecutionService {
 
     private void addAiDetails(Map<String, String> details,
                               AiFilterTool ai) {
-        putIfPresent(details, "modelRef", ai.modelRef());
         putIfPresent(details, "sessionMode", ai.sessionMode() == null ? null : ai.sessionMode().name());
-        putIfPresent(details, "sessionKeyOverride", ai.sessionKeyOverride());
-        putIfPresent(details, "requestModelType", ai.requestModelType());
-        putIfPresent(details, "resultModelType", ai.resultModelType());
         putIfPresent(details, "registrarPrompt", ai.registrarPrompt());
-        putIfPresent(details, "includeAgentDecorators", ai.includeAgentDecorators() == null ? null : ai.includeAgentDecorators().toString());
-        putIfPresent(details, "controllerModelRef", ai.controllerModelRef());
-        putIfPresent(details, "controllerPromptTemplate", ai.controllerPromptTemplate());
-        putIfPresent(details, "outputSchemaJson", toJsonSafely(ai.outputSchema()));
         details.put("templateName", ai.templateName());
     }
 

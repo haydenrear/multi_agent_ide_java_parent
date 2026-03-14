@@ -286,10 +286,7 @@ public class PropagatorRegistrationService {
                         .build()))
                 .executor(Map.of(
                         "executorType", "AI_PROPAGATOR",
-                        "modelRef", AcpChatOptionsString.DEFAULT_MODEL_NAME,
-                        "timeoutMs", 30_000,
                         "sessionMode", "SAME_SESSION_FOR_ACTION",
-                        "includeAgentDecorators", Boolean.TRUE,
                         "registrarPrompt", "Escalate out-of-domain, out-of-distribution, or otherwise controller-relevant request and result payloads."
                 ))
                 .activate(true)

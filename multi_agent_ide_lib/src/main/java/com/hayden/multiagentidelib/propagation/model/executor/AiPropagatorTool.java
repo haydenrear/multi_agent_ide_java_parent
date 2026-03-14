@@ -24,15 +24,9 @@ public final class AiPropagatorTool
 
     public static final String TEMPLATE_NAME = "propagation/ai_propagator";
 
-    private final String modelRef;
     private final String registrarPrompt;
-    private final int maxTokens;
     private final AiFilterTool.SessionMode sessionMode;
-    private final String sessionKeyOverride;
-    private final String responseMode;
-    private final int timeoutMs;
     private final String configVersion;
-    private final Boolean includeAgentDecorators;
 
     @Autowired
     private LlmRunner llmRunner;
@@ -80,13 +74,9 @@ public final class AiPropagatorTool
 
     private FilterDescriptor descriptor() {
         Map<String, String> details = new LinkedHashMap<>();
-        if (modelRef != null && !modelRef.isBlank()) details.put("modelRef", modelRef);
         if (registrarPrompt != null && !registrarPrompt.isBlank()) details.put("registrarPrompt", registrarPrompt);
-        if (maxTokens > 0) details.put("maxTokens", String.valueOf(maxTokens));
         if (sessionMode != null) details.put("sessionMode", sessionMode.name());
-        if (sessionKeyOverride != null && !sessionKeyOverride.isBlank()) details.put("sessionKeyOverride", sessionKeyOverride);
         details.put("templateName", TEMPLATE_NAME);
-        details.put("timeoutMs", String.valueOf(timeoutMs));
         if (configVersion != null && !configVersion.isBlank()) details.put("configVersion", configVersion);
         return new FilterDescriptor.SimpleFilterDescriptor(
                 java.util.List.of(),
@@ -101,41 +91,16 @@ public final class AiPropagatorTool
     }
 
     @Override
-    public int timeoutMs() {
-        return timeoutMs;
-    }
-
-    @Override
     public String configVersion() {
         return configVersion;
-    }
-
-    public String modelRef() {
-        return modelRef;
     }
 
     public String registrarPrompt() {
         return registrarPrompt;
     }
 
-    public int maxTokens() {
-        return maxTokens;
-    }
-
     public AiFilterTool.SessionMode sessionMode() {
         return sessionMode;
-    }
-
-    public String sessionKeyOverride() {
-        return sessionKeyOverride;
-    }
-
-    public String responseMode() {
-        return responseMode;
-    }
-
-    public Boolean includeAgentDecorators() {
-        return includeAgentDecorators;
     }
 
     public String templateName() {

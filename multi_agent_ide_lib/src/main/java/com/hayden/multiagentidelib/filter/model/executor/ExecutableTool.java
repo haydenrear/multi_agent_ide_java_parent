@@ -38,8 +38,6 @@ public interface ExecutableTool<I, O, CTX extends FilterContext> extends BiFunct
 
     FilterEnums.ExecutorType executorType();
 
-    int timeoutMs();
-
     String configVersion();
 
     static <I, O, CTX extends FilterContext> O parseExecutorResponse(String response,
