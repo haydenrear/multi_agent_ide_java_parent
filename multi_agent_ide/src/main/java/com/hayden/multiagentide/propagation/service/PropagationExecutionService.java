@@ -120,6 +120,7 @@ public class PropagationExecutionService {
                         sourceName,
                         output.summaryText(),
                         output.propagatedText(),
+                        stage != null ? stage.name() : null,
                         correlationKey
                 );
                 PropagationAction action = item.isPresent()

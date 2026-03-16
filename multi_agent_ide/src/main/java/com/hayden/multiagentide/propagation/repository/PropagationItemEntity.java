@@ -45,6 +45,9 @@ public class PropagationItemEntity extends JpaHibernateAuditedIded {
     private String propagatedText;
 
     @Column
+    private String stage;
+
+    @Column
     private String mode;
 
     @Column(nullable = false)

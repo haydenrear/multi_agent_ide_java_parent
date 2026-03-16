@@ -3,6 +3,7 @@ package com.hayden.multiagentide.propagation.service;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemResponse;
 import com.hayden.multiagentide.propagation.repository.PropagationItemEntity;
 import com.hayden.multiagentide.propagation.repository.PropagationItemRepository;
+import org.springframework.data.domain.PageRequest;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordEntity;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
 import com.hayden.multiagentidelib.propagation.model.*;
@@ -28,6 +29,7 @@ public class PropagationItemService {
                                                               String sourceName,
                                                               String summaryText,
                                                               String propagatedText,
+                                                              String stage,
                                                               String correlationKey) {
         Optional<PropagationItemEntity> existing = repository.findFirstByCorrelationKeyAndStatusOrderByCreatedAtDesc(
                 correlationKey,
@@ -45,6 +47,7 @@ public class PropagationItemService {
                 .sourceName(sourceName)
                 .summaryText(summaryText)
                 .propagatedText(propagatedText)
+                .stage(stage)
                 .status(PropagationItemStatus.PENDING.name())
                 .correlationKey(correlationKey)
                 .createdAt(now)
@@ -55,6 +58,15 @@ public class PropagationItemService {
 
     public List<PropagationItemEntity> findPendingItems() {
         return repository.findByStatusOrderByCreatedAtDesc(PropagationItemStatus.PENDING.name());
+    }
+
+    private static final List<String> ACTION_STAGES = List.of("ACTION_REQUEST", "ACTION_RESPONSE");
+
+    public List<PropagationItemEntity> recentByNode(String sourceNodeId, int limit) {
+        if (sourceNodeId == null || sourceNodeId.isBlank()) {
+            return List.of();
+        }
+        return repository.findBySourceNodeIdAndStageInOrderByCreatedAtDesc(sourceNodeId, ACTION_STAGES, PageRequest.of(0, limit));
     }
 
     public List<PropagationItemEntity> findPendingBySourceNodeId(String sourceNodeId) {

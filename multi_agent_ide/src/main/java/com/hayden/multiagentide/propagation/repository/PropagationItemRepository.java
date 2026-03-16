@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.propagation.repository;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -12,4 +13,6 @@ public interface PropagationItemRepository extends JpaRepository<PropagationItem
     List<PropagationItemEntity> findByStatusOrderByCreatedAtDesc(String status);
     List<PropagationItemEntity> findBySourceNodeIdAndStatusOrderByCreatedAtDesc(String sourceNodeId, String status);
     Optional<PropagationItemEntity> findFirstByCorrelationKeyAndStatusOrderByCreatedAtDesc(String correlationKey, String status);
+    List<PropagationItemEntity> findBySourceNodeIdOrderByCreatedAtDesc(String sourceNodeId, Pageable pageable);
+    List<PropagationItemEntity> findBySourceNodeIdAndStageInOrderByCreatedAtDesc(String sourceNodeId, List<String> stages, Pageable pageable);
 }

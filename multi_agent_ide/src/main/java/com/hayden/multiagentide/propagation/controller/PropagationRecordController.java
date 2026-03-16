@@ -15,18 +15,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/propagations/records")
 @RequiredArgsConstructor
-@Tag(name = "Propagation Records", description = "Query recent propagation execution records")
+@Tag(name = "Propagation Records", description = "DEBUG endpoint — audit propagator execution lifecycle. "
+        + "NOT for monitoring agent content. Use POST /api/propagations/items/by-node for controller monitoring.")
 public class PropagationRecordController {
 
     private final PropagationRecordQueryService queryService;
 
     @GetMapping
-    @Operation(summary = "List recent propagation execution records",
-            description = "Returns recent propagation execution records, optionally filtered by layerId. "
-                    + "Propagators are the escalatory mechanism for out-of-domain (OOD) signal extraction — "
-                    + "these records show what was propagated, when, and at which layer. "
-                    + "Use this to audit propagator behavior or debug why an expected escalation did not fire. "
-                    + "See PropagatorRegistrationEntity for the propagator lifecycle model.")
+    @Operation(summary = "List recent propagation execution records (DEBUG only)",
+            description = "Returns lightweight audit records of propagator executions (fired/passthrough/transformed/failed). "
+                    + "These do NOT contain the full agent request/response payload — they show propagator mechanics only. "
+                    + "Use this to debug why a propagator did not fire or to audit propagator firing patterns. "
+                    + "For controller monitoring (reading full action payloads by node), use POST /api/propagations/items/by-node instead.")
     public ResponseEntity<ReadPropagationRecordsResponse> recent(
             @Parameter(description = "Filter records to a specific layer ID (optional)") @RequestParam(value = "layerId", required = false) String layerId,
             @Parameter(description = "Maximum number of records to return (default 50)") @RequestParam(value = "limit", defaultValue = "50") int limit) {

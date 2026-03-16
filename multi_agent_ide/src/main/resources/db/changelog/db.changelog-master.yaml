@@ -1397,3 +1397,21 @@ databaseChangeLog:
             tableName: propagation_item
             columnName: mode
             columnDataType: VARCHAR(30000)
+
+  - changeSet:
+      id: 016-add-stage-to-propagation-item
+      author: hayden
+      changes:
+        - addColumn:
+            tableName: propagation_item
+            columns:
+              - column:
+                  name: stage
+                  type: VARCHAR(255)
+
+        - createIndex:
+            tableName: propagation_item
+            indexName: idx_prop_item_stage
+            columns:
+              - column:
+                  name: stage

@@ -2,6 +2,8 @@ package com.hayden.multiagentide.propagation.controller;
 
 import jakarta.validation.Valid;
 import com.hayden.multiagentide.propagation.controller.dto.ReadPropagationItemsResponse;
+import com.hayden.multiagentide.propagation.controller.dto.RecentPropagationItemsByNodeRequest;
+import com.hayden.multiagentide.propagation.controller.dto.RecentPropagationItemsByNodeResponse;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemRequest;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemResponse;
 import com.hayden.multiagentide.propagation.service.PropagationItemService;
@@ -15,7 +17,9 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/propagations/items")
 @RequiredArgsConstructor
-@Tag(name = "Propagation Items", description = "List and resolve pending propagation items")
+@Tag(name = "Propagation Items", description = "List, monitor, and resolve propagation items. "
+        + "Use /by-node for primary controller monitoring (full request/response payloads). "
+        + "Use /records for debugging propagator behavior.")
 public class PropagationController {
 
     private final PropagationItemService propagationItemService;
@@ -38,6 +42,38 @@ public class PropagationController {
                         .build())
                 .toList();
         return ResponseEntity.ok(ReadPropagationItemsResponse.builder().items(items).totalCount(items.size()).build());
+    }
+
+    @PostMapping("/by-node")
+    @Operation(
+            summary = "Recent propagation events by node (primary controller monitoring endpoint)",
+            description = "Returns the last N full request/response payloads that passed through propagators for a given node. "
+                    + "Call this repeatedly to monitor agent behavior — the propagatedText field contains the complete "
+                    + "serialized payload (action request or response) as seen by the propagator. "
+                    + "Default limit is 2. For debugging propagator internals use /api/propagations/records instead."
+    )
+    public ResponseEntity<RecentPropagationItemsByNodeResponse> recentByNode(
+            @RequestBody @Valid RecentPropagationItemsByNodeRequest request) {
+        int limit = request.limit() > 0 ? request.limit() : 2;
+        var items = propagationItemService.recentByNode(request.nodeId(), limit).stream()
+                .map(item -> RecentPropagationItemsByNodeResponse.PropagationItemPayload.builder()
+                        .itemId(item.getItemId())
+                        .registrationId(item.getRegistrationId())
+                        .layerId(item.getLayerId())
+                        .sourceNodeId(item.getSourceNodeId())
+                        .sourceName(item.getSourceName())
+                        .stage(item.getStage())
+                        .summaryText(item.getSummaryText())
+                        .propagatedText(item.getPropagatedText())
+                        .mode(item.getMode())
+                        .status(item.getStatus())
+                        .resolutionType(item.getResolutionType())
+                        .resolutionNotes(item.getResolutionNotes())
+                        .createdAt(item.getCreatedAt())
+                        .resolvedAt(item.getResolvedAt())
+                        .build())
+                .toList();
+        return ResponseEntity.ok(RecentPropagationItemsByNodeResponse.builder().items(items).totalCount(items.size()).build());
     }
 
     @PostMapping("/{itemId}/resolve")

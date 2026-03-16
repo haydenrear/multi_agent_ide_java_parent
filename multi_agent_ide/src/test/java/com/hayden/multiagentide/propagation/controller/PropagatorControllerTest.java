@@ -6,10 +6,12 @@ import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEnt
 import com.hayden.multiagentide.propagation.service.PropagatorAttachableCatalogService;
 import com.hayden.multiagentide.propagation.service.PropagatorDiscoveryService;
 import com.hayden.multiagentide.propagation.service.PropagatorRegistrationService;
+import com.hayden.multiagentide.config.ValidationExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.util.List;
 
@@ -34,8 +36,12 @@ class PropagatorControllerTest {
 
     @BeforeEach
     void setUp() {
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
         mockMvc = MockMvcBuilders.standaloneSetup(
                 new PropagatorController(registrationService, discoveryService, attachableCatalogService, objectMapper))
+                .setValidator(validator)
+                .setControllerAdvice(new ValidationExceptionHandler())
                 .build();
     }
 
@@ -97,6 +103,18 @@ class PropagatorControllerTest {
         mockMvc.perform(post("/api/propagators/registrations/prop-1/deactivate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("INACTIVE"));
+    }
+
+    @Test
+    void byLayer_blankLayerId_returns400() throws Exception {
+        mockMvc.perform(post("/api/propagators/registrations/by-layer")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"layerId":""}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Validation failed"))
+                .andExpect(jsonPath("$.fields[0].field").value("layerId"));
     }
 
     @Test
