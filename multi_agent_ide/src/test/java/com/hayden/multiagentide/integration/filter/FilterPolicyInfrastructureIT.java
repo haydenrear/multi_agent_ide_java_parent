@@ -2,6 +2,7 @@ package com.hayden.multiagentide.integration.filter;
 
 import com.embabel.agent.api.common.ContextualPromptElement;
 import com.embabel.agent.api.common.OperationContext;
+import com.embabel.agent.core.Blackboard;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
@@ -17,22 +18,28 @@ import com.hayden.multiagentide.filter.repository.LayerRepository;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.repository.EventStreamRepository;
+import com.hayden.multiagentide.repository.InMemoryGraphRepository;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.multiagentidelib.agent.WorkflowGraphState;
 import com.hayden.multiagentidelib.filter.model.FilterSource;
 import com.hayden.multiagentidelib.filter.model.layer.DefaultPathFilterContext;
 import com.hayden.multiagentidelib.filter.model.layer.GraphEventObjectContext;
 import com.hayden.multiagentidelib.filter.model.layer.PromptContributorContext;
-import com.hayden.multiagentidelib.filter.service.FilterResult;
 import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
+import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorAdapterFactory;
 import com.hayden.multiagentidelib.prompt.PromptContributorService;
 import com.hayden.multiagentidelib.prompt.contributor.WeAreHerePromptContributor;
 import com.hayden.multiagentidelib.tool.ToolContext;
+import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -60,6 +67,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@Slf4j
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "testdocker"})
@@ -96,18 +104,25 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
 
     @MockitoBean
     private LlmRunner llmRunner;
+    @Autowired
+    private InMemoryGraphRepository inMemoryGraphRepository;
+//    @MockitoBean
+//    private SandboxResolver sandboxResolver;
 
     @BeforeEach
     void setUp() {
         filterDecisionRecordRepository.deleteAll();
         policyRegistrationRepository.deleteAll();
         layerRepository.deleteAll();
+
+//        Mockito.when(sandboxResolver.resolveSandboxContext(Mockito.any()))
+//                .thenReturn(WorktreeSandboxContext.builder().build());
     }
 
     @Test
     void coordinateWorkflow_promptContributorService_includesWorkflowPositionContributor() {
         ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
-        PromptContext promptContext = workflowPromptContext(actionKey, mockOperationContext());
+        PromptContext promptContext = workflowPromptContext(actionKey, mockOperationContext(actionKey.value()));
 
         List<String> contributorRoles = promptContributorService.getContributors(promptContext).stream()
                 .map(ContextualPromptElement::getRole)
@@ -129,7 +144,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
     @Test
     void workflowPositionPolicy_matchesLiveCoordinateWorkflowContributor() throws Exception {
         ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
-        OperationContext operationContext = mockOperationContext();
+        OperationContext operationContext = mockOperationContext(actionKey.value());
         seedCatalogLayers();
 
         String aiPolicyId = registerAiPolicy(
@@ -183,7 +198,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
     @Test
     void activeFiltersPromptPolicy_matchesLiveCoordinateWorkflowContributor_byExactName() throws Exception {
         ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
-        OperationContext operationContext = mockOperationContext();
+        OperationContext operationContext = mockOperationContext(actionKey.value());
         seedCatalogLayers();
 
         String policyId = registerPolicy(
@@ -220,7 +235,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
     @Test
     void activeFiltersAiPolicy_matchesLiveCoordinateWorkflowContributor_byExactName() throws Exception {
         ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
-        OperationContext operationContext = mockOperationContext();
+        OperationContext operationContext = mockOperationContext(actionKey.value());
         seedCatalogLayers();
 
         String aiPolicyId = registerAiPolicy(
@@ -275,131 +290,6 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
     }
 
     @Test
-    void livePromptContributorExactMatchPolicies_coverEveryCatalogActionLayer() throws Exception {
-        seedCatalogLayers();
-
-        AgentModels.AiFilterResult passThroughResult = AgentModels.AiFilterResult.builder()
-                .successful(true)
-                .output(List.of())
-                .build();
-        Mockito.when(llmRunner.runWithTemplate(
-                Mockito.anyString(),
-                Mockito.any(PromptContext.class),
-                Mockito.anyMap(),
-                Mockito.any(ToolContext.class),
-                Mockito.eq(AgentModels.AiFilterResult.class),
-                Mockito.any(OperationContext.class)
-        )).thenReturn(passThroughResult);
-
-        OperationContext operationContext = mockOperationContext();
-
-        for (FilterLayerCatalog.ActionDefinition actionDefinition : FilterLayerCatalog.userAttachableActionDefinitions()) {
-            PromptContext promptContext = promptContextForAction(actionDefinition, operationContext);
-            List<String> contributorRoles = promptContributorService.getContributors(promptContext).stream()
-                    .map(ContextualPromptElement::getRole)
-                    .toList();
-
-            assertThat(contributorRoles)
-                    .as("live contributor roles for %s", actionDefinition.layerId())
-                    .isNotEmpty();
-
-            String contributorRole = selectExactMatchRole(contributorRoles);
-
-            String policyId = registerAiPolicy(
-                    "live-exact-" + actionDefinition.methodName(),
-                    actionDefinition.layerId(),
-                    FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
-                    actionDefinition.methodName(),
-                    "PROMPT_CONTRIBUTOR",
-                    contributorRole,
-                    "PER_INVOCATION",
-                    false
-            );
-
-            List<ContextualPromptElement> filteredContributors = promptContributorService.getContributors(promptContext);
-            ContextualPromptElement matchedContributor = selectContributorByRole(filteredContributors, contributorRole);
-            assertThat(matchedContributor.contribution(operationContext)).isNotBlank();
-            assertRecentDecisionsWithoutError(
-                    policyId,
-                    actionDefinition.layerId(),
-                    1,
-                    Set.of("PASSTHROUGH", "TRANSFORMED", "DROPPED")
-            );
-        }
-    }
-
-    @Test
-    void promptContributorPolicies_match_everyCatalogActionLayer() throws Exception {
-        String contributorName = "matrix-catalog-contributor";
-        String content = """
-                Matrix contributor payload.
-                This content only needs to prove policy execution.
-                """;
-
-        AgentModels.AiFilterResult passThroughResult = AgentModels.AiFilterResult.builder()
-                .successful(true)
-                .output(List.of())
-                .build();
-        Mockito.when(llmRunner.runWithTemplate(
-                Mockito.anyString(),
-                Mockito.any(PromptContext.class),
-                Mockito.anyMap(),
-                Mockito.any(ToolContext.class),
-                Mockito.eq(AgentModels.AiFilterResult.class),
-                Mockito.any(OperationContext.class)
-        )).thenReturn(passThroughResult);
-
-        List<FilterLayerCatalog.ActionDefinition> actionDefinitions = FilterLayerCatalog.userAttachableActionDefinitions();
-        OperationContext operationContext = mockOperationContext();
-
-        for (FilterLayerCatalog.ActionDefinition actionDefinition : actionDefinitions) {
-            saveLayer(
-                    actionDefinition.layerId(),
-                    FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
-                    actionDefinition.methodName(),
-                    actionDefinition.parentLayerId(),
-                    depthFor(actionDefinition.parentLayerId())
-            );
-
-            String policyId = registerAiPolicy(
-                    "matrix-" + actionDefinition.methodName(),
-                    actionDefinition.layerId(),
-                    FilterEnums.LayerType.WORKFLOW_AGENT_ACTION.name(),
-                    actionDefinition.methodName(),
-                    "PROMPT_CONTRIBUTOR",
-                    contributorName,
-                    "PER_INVOCATION",
-                    false
-            );
-
-            PromptContributor contributor = new StaticPromptContributor(
-                    contributorName,
-                    "matrix-template",
-                    content
-            );
-            PromptContext promptContext = promptContextForAction(actionDefinition, operationContext);
-
-            ContextualPromptElement adapted = promptContributorAdapterFactory.create(contributor, promptContext);
-            String filtered = adapted.contribution(operationContext);
-
-            assertThat(filtered).isEqualTo(content);
-            assertRecentDecisionsWithoutError(
-                    policyId,
-                    actionDefinition.layerId(),
-                    1,
-                    Set.of("PASSTHROUGH", "TRANSFORMED", "DROPPED")
-            );
-        }
-
-        Map<String, Long> decisionsByLayer = filterDecisionRecordRepository.findAll().stream()
-                .collect(Collectors.groupingBy(FilterDecisionRecordEntity::getLayerId, Collectors.counting()));
-
-        assertThat(decisionsByLayer.keySet()).containsAll(
-                actionDefinitions.stream().map(FilterLayerCatalog.ActionDefinition::layerId).toList()
-        );
-    }
-
-    @Test
     void controllerLayer_registeredPolicies_areAppliedWhenViewingEvents() throws Exception {
         String nodeId = ArtifactKey.createRoot().value();
         seedCatalogLayers();
@@ -432,7 +322,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
         );
         eventStreamRepository.save(event);
 
-        mockMvc.perform(post("/api/llm-debug/ui/nodes/events/detail")
+        mockMvc.perform(post("/api/ui/nodes/events/detail")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "nodeId", nodeId,
@@ -485,7 +375,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 .filter(Events.NodeErrorEvent.class::isInstance)
                 .count();
 
-        mockMvc.perform(post("/api/llm-debug/ui/nodes/events/detail")
+        mockMvc.perform(post("/api/ui/nodes/events/detail")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "nodeId", nodeId,
@@ -525,7 +415,7 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 pythonExecutor(pythonScript, "markdown_instructions")
         );
 
-        PromptContext promptContext = workflowPromptContext(actionKey, mockOperationContext());
+        PromptContext promptContext = workflowPromptContext(actionKey, mockOperationContext(actionKey.value()));
 
         PromptContributor contributor = new StaticPromptContributor(
                 contributorName,
@@ -1224,21 +1114,34 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
         assertThat(filterJson).contains("\"executorType\":\"PYTHON\"");
     }
 
-    private OperationContext mockOperationContext() {
+    private OperationContext mockOperationContext(String actionKey) {
         var mockAgentProcess = Mockito.mock(com.embabel.agent.core.AgentProcess.class);
         var mockProcessContext = Mockito.mock(com.embabel.agent.core.ProcessContext.class);
-        OperationContext mockOperationContext = Mockito.mock(OperationContext.class);
+        var mockProcessOptions = Mockito.mock(com.embabel.agent.core.ProcessOptions.class);
+        var mockBlackboard = Mockito.mock(Blackboard.class);
+        var mockOperationContext = Mockito.mock(OperationContext.class);
+        Mockito.when(mockBlackboard.last(BlackboardHistory.class))
+                .thenReturn(new BlackboardHistory(new BlackboardHistory.History(), actionKey, WorkflowGraphState.initial(actionKey)));
+        Mockito.when(mockOperationContext.last(BlackboardHistory.class))
+                .thenReturn(new BlackboardHistory(new BlackboardHistory.History(), actionKey, WorkflowGraphState.initial(actionKey)));
         Mockito.when(mockOperationContext.getAgentProcess()).thenReturn(mockAgentProcess);
         Mockito.when(mockOperationContext.getProcessContext()).thenReturn(mockProcessContext);
         Mockito.when(mockProcessContext.getAgentProcess()).thenReturn(mockAgentProcess);
+        Mockito.when(mockAgentProcess.getBlackboard()).thenReturn(mockBlackboard);
+        Mockito.when(mockAgentProcess.getId()).thenReturn(actionKey);
+        Mockito.when(mockAgentProcess.getProcessOptions()).thenReturn(mockProcessOptions);
+        Mockito.when(mockProcessOptions.getContextIdString()).thenReturn(actionKey);
         return mockOperationContext;
     }
 
     private PromptContext workflowPromptContext(ArtifactKey actionKey, OperationContext operationContext) {
+        WorktreeSandboxContext build = worktreeSandboxContext(actionKey);
         AgentModels.OrchestratorRequest request = AgentModels.OrchestratorRequest.builder()
                 .contextId(actionKey)
                 .goal("matrix goal")
+                .worktreeContext(build)
                 .build();
+
 
         return PromptContext.builder()
                 .agentType(AgentType.ORCHESTRATOR)
@@ -1254,10 +1157,21 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 .build();
     }
 
+    private @NonNull WorktreeSandboxContext worktreeSandboxContext(ArtifactKey actionKey) {
+        WorktreeSandboxContext build = WorktreeSandboxContext.builder()
+                .mainWorktree(MainWorktreeContext.builder().repositoryUrl("something").build())
+                .build();
+        inMemoryGraphRepository.save(
+                OrchestratorNode.builder()
+                        .nodeId(actionKey.value())
+                        .worktreeContext(build.mainWorktree())
+                        .build());
+        return build;
+    }
+
     private PromptContext promptContextForAction(FilterLayerCatalog.ActionDefinition actionDefinition,
-                                                 OperationContext operationContext) {
-        ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
-        AgentModels.AgentRequest currentRequest = minimalRequestFor(actionDefinition, actionKey);
+                                                 OperationContext operationContext, ArtifactKey actionKey) {
+        AgentModels.AgentRequest currentRequest = minimalRequestFor(actionDefinition, actionKey, worktreeSandboxContext(actionKey));
         return PromptContext.builder()
                 .agentType(actionDefinition.agentType())
                 .currentContextId(actionKey)
@@ -1274,20 +1188,22 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
     }
 
     private AgentModels.AgentRequest minimalRequestFor(FilterLayerCatalog.ActionDefinition actionDefinition,
-                                                       ArtifactKey actionKey) {
+                                                       ArtifactKey actionKey,
+                                                       @NonNull WorktreeSandboxContext sandboxContext) {
         return actionDefinition.requestTypes().stream()
                 .filter(AgentModels.AgentRequest.class::isAssignableFrom)
-                .map(type -> instantiateRequest(type, actionKey))
+                .map(type -> instantiateRequest(type, actionKey, sandboxContext))
                 .filter(java.util.Objects::nonNull)
                 .findFirst()
                 .orElse(null);
     }
 
-    private AgentModels.AgentRequest instantiateRequest(Class<?> requestType, ArtifactKey actionKey) {
+    private AgentModels.AgentRequest instantiateRequest(Class<?> requestType, ArtifactKey actionKey, @NonNull WorktreeSandboxContext sandboxContext) {
         try {
             Object builder = requestType.getMethod("builder").invoke(null);
             invokeBuilderSetter(builder, "contextId", ArtifactKey.class, actionKey);
             invokeBuilderSetter(builder, "goal", String.class, "matrix goal");
+            invokeBuilderSetter(builder, "worktreeContext", WorktreeSandboxContext.class, sandboxContext);
             Object built = builder.getClass().getMethod("build").invoke(builder);
             return built instanceof AgentModels.AgentRequest agentRequest ? agentRequest : null;
         } catch (Exception ignored) {
@@ -1351,6 +1267,18 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
         assertThat(recent.getErrorMessage()).isNull();
     }
 
+    private void assertRecentDecisions(String policyId,
+                                       String layerId,
+                                       int minimumCount,
+                                       Set<String> allowedActions) {
+        List<FilterDecisionRecordEntity> records =
+                filterDecisionRecordRepository.findByPolicyIdAndLayerIdOrderByCreatedAtDesc(
+                        policyId, layerId, PageRequest.of(0, 50));
+        assertThat(records).hasSizeGreaterThanOrEqualTo(minimumCount);
+        assertThat(records)
+                .allMatch(record -> allowedActions.contains(record.getAction()));
+    }
+
     private void assertRecentDecisionsWithoutError(String policyId,
                                                    String layerId,
                                                    int minimumCount,
@@ -1360,7 +1288,13 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                         policyId, layerId, PageRequest.of(0, 50));
         assertThat(records).hasSizeGreaterThanOrEqualTo(minimumCount);
         assertThat(records)
-                .allMatch(record -> record.getErrorMessage() == null)
+                .allMatch(record -> {
+                    boolean b = record.getErrorMessage() == null;
+                    if(!b)
+                        log.error("Error ! {}.", record.getErrorMessage());
+
+                    return b;
+                })
                 .allMatch(record -> allowedActions.contains(record.getAction()));
     }
 

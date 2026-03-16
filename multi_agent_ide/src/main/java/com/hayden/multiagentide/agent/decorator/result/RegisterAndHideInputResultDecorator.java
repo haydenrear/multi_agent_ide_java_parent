@@ -18,7 +18,7 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
 
     @Override
     public int order() {
-        return 10_000;
+        return 10_005;
     }
 
     @Override

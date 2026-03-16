@@ -243,7 +243,9 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
         if (context == null || interruptRequest == null) {
             return;
         }
+
         GraphNode originNode = requireNode(context, interruptRequest, requiredNode);
+
         if (originNode == null) {
             return;
         }

@@ -44,7 +44,7 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
 
     @Override
     public int order() {
-        return 1000;
+        return 1_000;
     }
 
     @Override

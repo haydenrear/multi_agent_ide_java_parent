@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @RequiredArgsConstructor
-public class RegisterAndHideInputRequestDecorator implements DispatchedAgentRequestDecorator, RequestDecorator {
+public class RegisterBlackboardHistoryInputRequestDecorator implements DispatchedAgentRequestDecorator, RequestDecorator {
 
     private final BlackboardHistoryService blackboardHistoryService;
 

@@ -39,7 +39,7 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
 
     @Override
     public int order() {
-        return 10_000;
+        return 10_003;
     }
 
     @Override

@@ -275,12 +275,25 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                        context.getAgentProcess().getId());
     }
 
-    private static String resolveNodeId(OperationContext context) {
+    public static String resolveNodeId(OperationContext context) {
         if (context == null) {
             return null;
         }
-        var options = context.getProcessContext().getProcessOptions();
-        return options.getContextIdString();
+
+        String contextIdString;
+
+        try {
+            contextIdString = context.getAgentProcess().getProcessOptions().getContextIdString();
+        } catch (Exception e) {
+            contextIdString = null;
+        }
+
+        String id = context.getAgentProcess().getId();
+
+        if (!Objects.equals(contextIdString, id)) {
+           log.error("Context ID string {} did not match ID {}", contextIdString, id);
+        }
+        return id;
     }
 
     public long countType(Class<?> requestType) {

@@ -901,18 +901,7 @@ public class RequestEnrichment {
     }
 
     private String resolveWorkflowRunId(OperationContext context) {
-        if (context == null || context.getProcessContext() == null) {
-            return null;
-        }
-        var options = context.getProcessContext().getProcessOptions();
-        if (options == null) {
-            return null;
-        }
-        String nodeId = options.getContextIdString();
-        if (nodeId == null || nodeId.isBlank()) {
-            return null;
-        }
-        return nodeId;
+        return BlackboardHistory.resolveNodeId(context);
     }
 
     /**
