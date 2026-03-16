@@ -16,6 +16,7 @@ import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentide.filter.service.AiFilterSessionResolver;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
+import com.hayden.multiagentide.propagation.model.Propagation;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordEntity;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
 import com.hayden.multiagentidelib.agent.AgentModels;
@@ -113,7 +114,10 @@ public class PropagationExecutionService {
                     output = failedOutput(beforePayload, "invalid - returned null");
                 }
                 String correlationKey = correlationKey(entity.getRegistrationId(), layerId, stage, sourceNodeId, beforePayload);
-                String itemPayload = output.propagatedText() != null && !output.propagatedText().isBlank() ? output.propagatedText() : beforePayload;
+                String llmOut = output.propagatedText() != null && !output.propagatedText().isBlank()
+                        ? output.propagatedText()
+                        : (output.errorMessage() != null ? "LLM propagator failed: " + output.errorMessage() : "LLM propagator returned no output");
+                String itemPayload = toJson(new Propagation(llmOut, beforePayload));
                 var item = propagationItemService.createItemIfNeeded(
                         entity.getRegistrationId(),
                         layerId,
@@ -145,6 +149,18 @@ public class PropagationExecutionService {
             } catch (Exception e) {
                 log.error("Propagation execution failed for layer={} stage={} registration={}", layerId, stage, entity.getRegistrationId(), e);
                 Instant now = Instant.now();
+                String failurePayload = toJson(new Propagation("Propagation execution failed: " + e.getMessage(), beforePayload));
+                String correlationKey = correlationKey(entity.getRegistrationId(), layerId, stage, sourceNodeId, beforePayload);
+                propagationItemService.createItemIfNeeded(
+                        entity.getRegistrationId(),
+                        layerId,
+                        sourceNodeId,
+                        sourceName,
+                        "Propagation execution failed: " + e.getMessage(),
+                        failurePayload,
+                        stage != null ? stage.name() : null,
+                        correlationKey
+                );
                 recordRepository.save(PropagationRecordEntity.builder()
                         .recordId("prop-record-" + UUID.randomUUID())
                         .registrationId(entity.getRegistrationId())
@@ -153,11 +169,11 @@ public class PropagationExecutionService {
                         .sourceType(stage.name())
                         .action(PropagationAction.FAILED.name())
                         .beforePayload(beforePayload)
-                        .afterPayload(beforePayload)
+                        .afterPayload(failurePayload)
                         .errorMessage(e.getMessage())
                         .createdAt(now)
                         .build());
-                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, PropagationAction.FAILED, sourceNodeId, sourceName, payload, null, now);
+                emitPropagationEvent(entity.getRegistrationId(), layerId, stage, PropagationAction.FAILED, sourceNodeId, sourceName, payload, correlationKey, now);
             }
         }
     }
