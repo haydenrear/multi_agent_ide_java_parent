@@ -3,6 +3,8 @@ package com.hayden.multiagentide.controller;
 import com.hayden.multiagentide.controller.debug.RunDebugResponseMapper;
 import com.hayden.multiagentide.controller.model.RunIdRequest;
 import com.hayden.multiagentide.model.DebugRun;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import com.hayden.multiagentide.service.DebugRunPersistenceValidationService;
 import com.hayden.multiagentide.service.DebugRunQueryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,7 +31,7 @@ public class LlmDebugRunsController {
 
     @PostMapping("/start")
     @Operation(summary = "Start a new debug run")
-    public StartRunResponse start(@RequestBody StartRunRequest request) {
+    public StartRunResponse start(@RequestBody @Valid StartRunRequest request) {
         DebugRun run = queryService.startRun(new OrchestrationController.StartGoalRequest(
                 request.goal(),
                 request.repositoryUrl(),
@@ -51,7 +53,7 @@ public class LlmDebugRunsController {
 
     @PostMapping("/get")
     @Operation(summary = "Get a debug run by ID")
-    public DebugRun get(@RequestBody RunIdRequest request) {
+    public DebugRun get(@RequestBody @Valid RunIdRequest request) {
         return queryService.findRun(request.runId())
                 .map(responseMapper::mapRun)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Run not found: " + request.runId()));
@@ -60,7 +62,7 @@ public class LlmDebugRunsController {
     @PostMapping("/timeline")
     @Operation(summary = "Get timeline events for a debug run")
     public DebugRunQueryService.RunTimelinePage timeline(
-            @RequestBody RunTimelineRequest request
+            @RequestBody @Valid RunTimelineRequest request
     ) {
         int limit = request.limit() <= 0 ? 200 : request.limit();
         return responseMapper.mapTimelinePage(queryService.timeline(request.runId(), limit, request.cursor()));
@@ -69,7 +71,7 @@ public class LlmDebugRunsController {
     @PostMapping("/actions")
     @Operation(summary = "Apply an action to a debug run node")
     public DebugRunQueryService.ActionResponse action(
-            @RequestBody RunActionRequestWrapper request
+            @RequestBody @Valid RunActionRequestWrapper request
     ) {
         return responseMapper.mapAction(queryService.applyAction(
                 request.runId(),
@@ -80,18 +82,18 @@ public class LlmDebugRunsController {
     @PostMapping("/persistence-validation")
     @Operation(summary = "Trigger persistence validation for a debug run")
     public DebugRunPersistenceValidationService.PersistenceValidationSummary validatePersistence(
-            @RequestBody RunIdRequest request) {
+            @RequestBody @Valid RunIdRequest request) {
         return responseMapper.mapValidation(persistenceValidationService.validate(request.runId()));
     }
 
     @PostMapping("/persistence-validation/get")
     @Operation(summary = "Get latest persistence validation result for a debug run")
     public DebugRunPersistenceValidationService.PersistenceValidationSummary getPersistenceValidation(
-            @RequestBody RunIdRequest request) {
+            @RequestBody @Valid RunIdRequest request) {
         return responseMapper.mapValidation(persistenceValidationService.getLatest(request.runId()));
     }
 
-    public record StartRunRequest(String goal, String repositoryUrl, String baseBranch, String title, List<String> tags) {
+    public record StartRunRequest(@NotBlank String goal, @NotBlank String repositoryUrl, String baseBranch, String title, List<String> tags) {
         public StartRunRequest(String goal, String repositoryUrl, String baseBranch, String title) {
             this(goal, repositoryUrl, baseBranch, title, List.of());
         }

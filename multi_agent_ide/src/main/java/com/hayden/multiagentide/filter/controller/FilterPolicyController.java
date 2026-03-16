@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.filter.controller;
 
+import jakarta.validation.Valid;
 import com.hayden.multiagentide.filter.controller.dto.*;
 import com.hayden.multiagentide.filter.repository.LayerEntity;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
@@ -43,7 +44,7 @@ public class FilterPolicyController {
                     + "Layer IDs follow the pattern: 'workflow-agent', 'workflow-agent/actionName', "
                     + "'controller', 'controller-ui-event-poll'. See LayerService for the hierarchy model.")
     public ResponseEntity<ReadPoliciesByLayerResponse> getPoliciesByLayer(
-            @RequestBody ReadPoliciesByLayerRequest request) {
+            @RequestBody @Valid ReadPoliciesByLayerRequest request) {
 
         String layerId = request.layerId();
         String status = request.statusOrDefault();
@@ -79,7 +80,7 @@ public class FilterPolicyController {
             description = "Returns child layers under the given layerId. Set recursive=true to include "
                     + "the full subtree. Useful for discovering the layer hierarchy before binding policies.")
     public ResponseEntity<ReadLayerChildrenResponse> getLayerChildren(
-            @RequestBody ReadLayerChildrenRequest request) {
+            @RequestBody @Valid ReadLayerChildrenRequest request) {
 
         String layerId = request.layerId();
         List<LayerEntity> children = layerService.getChildLayers(layerId, request.recursive());
@@ -114,7 +115,7 @@ public class FilterPolicyController {
             description = "Registers a filter using JSON_PATH expressions (JsonPath syntax, root is $). "
                     + "The filter produces Instruction objects — see Instruction.java for the sealed interface contract.")
     public ResponseEntity<PolicyRegistrationResponse> registerJsonPathFilter(
-            @RequestBody PolicyRegistrationRequest request) {
+            @RequestBody @Valid PolicyRegistrationRequest request) {
         return ResponseEntity.ok(policyRegistrationService.registerPolicy(
                 FilterEnums.FilterKind.JSON_PATH, request));
     }
@@ -124,7 +125,7 @@ public class FilterPolicyController {
             description = "Registers a filter using MARKDOWN_PATH heading-scope selectors (e.g. '#', '## Section'). "
                     + "Operates on prompt contributor text content. See Path.java for path type semantics.")
     public ResponseEntity<PolicyRegistrationResponse> registerMarkdownPathFilter(
-            @RequestBody PolicyRegistrationRequest request) {
+            @RequestBody @Valid PolicyRegistrationRequest request) {
         return ResponseEntity.ok(policyRegistrationService.registerPolicy(
                 FilterEnums.FilterKind.MARKDOWN_PATH, request));
     }
@@ -134,7 +135,7 @@ public class FilterPolicyController {
             description = "Registers a filter using Java regex patterns against the raw string payload. "
                     + "See FilterEnums.PathType.REGEX and Path.java for regex path semantics.")
     public ResponseEntity<PolicyRegistrationResponse> registerRegexPathFilter(
-            @RequestBody PolicyRegistrationRequest request) {
+            @RequestBody @Valid PolicyRegistrationRequest request) {
         return ResponseEntity.ok(policyRegistrationService.registerPolicy(
                 FilterEnums.FilterKind.REGEX_PATH, request));
     }
@@ -145,7 +146,7 @@ public class FilterPolicyController {
                     + "The AI filter runs as a separate agent session with its own ArtifactKey. "
                     + "See AiFilterSessionEvent for the event emitted when the AI filter executes.")
     public ResponseEntity<PolicyRegistrationResponse> registerAiPathFilter(
-            @RequestBody PolicyRegistrationRequest request) {
+            @RequestBody @Valid PolicyRegistrationRequest request) {
         return ResponseEntity.ok(policyRegistrationService.registerPolicy(
                 FilterEnums.FilterKind.AI_PATH, request));
     }
@@ -156,7 +157,7 @@ public class FilterPolicyController {
     @Operation(summary = "Deactivate a filter policy globally",
             description = "Marks the policy as inactive across all layers. The policy can be re-enabled later with the enable endpoint.")
     public ResponseEntity<DeactivatePolicyResponse> deactivatePolicy(
-            @RequestBody DeactivatePolicyRequest request) {
+            @RequestBody @Valid DeactivatePolicyRequest request) {
         return ResponseEntity.ok(policyRegistrationService.deactivatePolicy(request.policyId()));
     }
 
@@ -165,7 +166,7 @@ public class FilterPolicyController {
             description = "Disables the policy binding at the given layer. Set includeDescendants=true to disable "
                     + "at all child layers as well.")
     public ResponseEntity<TogglePolicyLayerResponse> disablePolicyAtLayer(
-            @RequestBody TogglePolicyLayerRequest request) {
+            @RequestBody @Valid TogglePolicyLayerRequest request) {
         return ResponseEntity.ok(policyRegistrationService.togglePolicyAtLayer(
                 request.policyId(), request.layerId(), false, request.includeDescendants()));
     }
@@ -175,7 +176,7 @@ public class FilterPolicyController {
             description = "Enables the policy binding at the given layer. Set includeDescendants=true to enable "
                     + "at all child layers as well.")
     public ResponseEntity<TogglePolicyLayerResponse> enablePolicyAtLayer(
-            @RequestBody TogglePolicyLayerRequest request) {
+            @RequestBody @Valid TogglePolicyLayerRequest request) {
         return ResponseEntity.ok(policyRegistrationService.togglePolicyAtLayer(
                 request.policyId(), request.layerId(), true, request.includeDescendants()));
     }
@@ -184,7 +185,7 @@ public class FilterPolicyController {
     @Operation(summary = "Update a policy's layer binding configuration",
             description = "Updates layer binding properties for a policy — priority, matcher settings, etc.")
     public ResponseEntity<PutPolicyLayerResponse> updatePolicyLayerBinding(
-            @RequestBody PutPolicyLayerRequest request) {
+            @RequestBody @Valid PutPolicyLayerRequest request) {
         return ResponseEntity.ok(policyRegistrationService.updatePolicyLayerBinding(
                 request.policyId(), request));
     }
@@ -196,7 +197,7 @@ public class FilterPolicyController {
             description = "Returns recent filter execution records for a given policy and layer — what was filtered, "
                     + "when, and what decision was made. Useful for debugging when events appear to be missing.")
     public ResponseEntity<ReadRecentFilteredRecordsResponse> getRecentFilteredRecords(
-            @RequestBody ReadRecentFilteredRecordsRequest request) {
+            @RequestBody @Valid ReadRecentFilteredRecordsRequest request) {
         return ResponseEntity.ok(filterDecisionQueryService.getRecentRecordsByPolicyAndLayer(
                 request.policyId(), request.layerId(), request.limitOrDefault(), request.cursor()));
     }

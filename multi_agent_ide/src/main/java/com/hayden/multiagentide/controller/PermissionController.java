@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.controller;
 
+import jakarta.validation.Valid;
 import com.agentclientprotocol.model.PermissionOptionKind;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
@@ -122,7 +123,7 @@ public class PermissionController {
                     + "If optionType is null, the request is cancelled. "
                     + "See IPermissionGate.Companion for the resolution factory methods.")
     public PermissionResolutionResponse resolve(
-            @RequestBody PermissionResolutionRequest request
+            @RequestBody @Valid PermissionResolutionRequest request
     ) {
         var id = Optional.ofNullable(request)
                 .flatMap(p -> Optional.ofNullable(p.id))

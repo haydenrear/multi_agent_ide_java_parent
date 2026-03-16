@@ -1,15 +1,16 @@
 package com.hayden.multiagentide.propagation.controller.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 
 import java.util.List;
 
 @Builder(toBuilder = true)
 public record PropagatorRegistrationRequest(
-        String name,
+        @NotBlank String name,
         String description,
-        String sourcePath,
-        String propagatorKind,
+        @NotBlank String sourcePath,
+        @NotBlank String propagatorKind,
         int priority,
         String propagationMode,
         boolean isInheritable,

@@ -1,15 +1,16 @@
 package com.hayden.multiagentide.transformation.controller.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 
 import java.util.List;
 
 @Builder(toBuilder = true)
 public record TransformerRegistrationRequest(
-        String name,
+        @NotBlank String name,
         String description,
-        String sourcePath,
-        String transformerKind,
+        @NotBlank String sourcePath,
+        @NotBlank String transformerKind,
         int priority,
         boolean replaceEndpointResponse,
         boolean isInheritable,

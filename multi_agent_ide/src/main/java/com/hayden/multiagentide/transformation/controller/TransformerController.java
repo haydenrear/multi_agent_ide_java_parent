@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.transformation.controller;
 
+import jakarta.validation.Valid;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.transformation.controller.dto.*;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationEntity;
@@ -38,7 +39,7 @@ public class TransformerController {
     @Operation(summary = "Register a new transformer",
             description = "Registers a transformer that will process responses from the specified controller endpoint. "
                     + "AI transformers (kind=AI) create AiTransformerRequest sessions.")
-    public ResponseEntity<TransformerRegistrationResponse> register(@RequestBody TransformerRegistrationRequest request) {
+    public ResponseEntity<TransformerRegistrationResponse> register(@RequestBody @Valid TransformerRegistrationRequest request) {
         return ResponseEntity.ok(registrationService.register(request));
     }
 
@@ -46,7 +47,7 @@ public class TransformerController {
     @Operation(summary = "List transformers registered at a layer",
             description = "Returns all active transformer registrations bound to the given layer. "
                     + "Accepts layerId in request body to support slash-containing layer identifiers (e.g. workflow-agent/coordinateWorkflow).")
-    public ResponseEntity<ReadTransformersByLayerResponse> byLayer(@RequestBody ReadTransformersByLayerRequest request) {
+    public ResponseEntity<ReadTransformersByLayerResponse> byLayer(@RequestBody @Valid ReadTransformersByLayerRequest request) {
         String layerId = request.layerId();
         List<ReadTransformersByLayerResponse.TransformerSummary> summaries = discoveryService.getActiveTransformersByLayer(layerId).stream()
                 .map(this::toSummary)
@@ -65,7 +66,7 @@ public class TransformerController {
             description = "Updates the layer binding for a transformer registration. "
                     + "The layerId is provided inside the request body layerBinding to support slash-containing layer identifiers.")
     public ResponseEntity<PutTransformerLayerResponse> updateLayer(@PathVariable String registrationId,
-                                                                   @RequestBody PutTransformerLayerRequest request) {
+                                                                   @RequestBody @Valid PutTransformerLayerRequest request) {
         return ResponseEntity.ok(registrationService.updateLayerBinding(registrationId, request));
     }
 

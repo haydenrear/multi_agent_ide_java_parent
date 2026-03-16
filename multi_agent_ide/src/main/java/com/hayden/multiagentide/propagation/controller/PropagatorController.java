@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.propagation.controller;
 
+import jakarta.validation.Valid;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.propagation.controller.dto.*;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
@@ -40,7 +41,7 @@ public class PropagatorController {
                     + "AI propagators (kind=AI) create AiPropagatorRequest sessions. "
                     + "When an AI propagator escalates via AskUserQuestionTool, it creates an interrupt "
                     + "resolvable through the Interrupts API.")
-    public ResponseEntity<PropagatorRegistrationResponse> register(@RequestBody PropagatorRegistrationRequest request) {
+    public ResponseEntity<PropagatorRegistrationResponse> register(@RequestBody @Valid PropagatorRegistrationRequest request) {
         return ResponseEntity.ok(registrationService.register(request));
     }
 
@@ -49,7 +50,7 @@ public class PropagatorController {
             description = "Returns all active propagator registrations bound to the given layer, "
                     + "with summary information including name, kind, status, and priority. "
                     + "Accepts layerId in request body to support slash-containing layer identifiers (e.g. workflow-agent/coordinateWorkflow).")
-    public ResponseEntity<ReadPropagatorsByLayerResponse> byLayer(@RequestBody ReadPropagatorsByLayerRequest request) {
+    public ResponseEntity<ReadPropagatorsByLayerResponse> byLayer(@RequestBody @Valid ReadPropagatorsByLayerRequest request) {
         String layerId = request.layerId();
         List<ReadPropagatorsByLayerResponse.PropagatorSummary> summaries = discoveryService.getActivePropagatorsByLayer(layerId).stream()
                 .map(this::toSummary)
@@ -68,7 +69,7 @@ public class PropagatorController {
             description = "Updates the layer binding for a propagator registration. "
                     + "The layerId is provided inside the request body layerBinding to support slash-containing layer identifiers.")
     public ResponseEntity<PutPropagatorLayerResponse> updateLayer(@PathVariable String registrationId,
-                                                                  @RequestBody PutPropagatorLayerRequest request) {
+                                                                  @RequestBody @Valid PutPropagatorLayerRequest request) {
         return ResponseEntity.ok(registrationService.updateLayerBinding(registrationId, request));
     }
 

@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.controller;
 
+import jakarta.validation.Valid;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
@@ -46,7 +47,7 @@ public class InterruptController {
                     + "HUMAN_REVIEW triggers a review gate requiring explicit resolution before the node continues. "
                     + "PRUNE emits a NodePrunedEvent that removes the node from the active graph. "
                     + "See Events.InterruptType for the full enum and AgentControlService for pause/stop semantics.")
-    public InterruptStatusResponse requestInterrupt(@RequestBody InterruptRequest request) {
+    public InterruptStatusResponse requestInterrupt(@RequestBody @Valid InterruptRequest request) {
         String interruptId = UUID.randomUUID().toString();
         String reason = request.reason() != null ? request.reason() : "Interrupt requested";
         Events.InterruptType type = request.type();
@@ -78,7 +79,7 @@ public class InterruptController {
                     + "On success, publishes a ResolveInterruptEvent to the event bus. "
                     + "See also: QuestionAnswerInterruptRequest for propagator-initiated interrupts that follow the same resolution path.")
     public InterruptStatusResponse resolveInterrupt(
-            @RequestBody InterruptResolution request
+            @RequestBody @Valid InterruptResolution request
     ) {
         String interruptId = request.id();
         if (interruptId == null || interruptId.isBlank()) {
@@ -127,7 +128,7 @@ public class InterruptController {
     @Operation(summary = "Get status of an interrupt by ID",
             description = "Returns the current status of an interrupt. Note: the current implementation returns UNKNOWN "
                     + "for all queries — use /detail for richer interrupt inspection including tool call history.")
-    public InterruptStatusResponse getStatus(@RequestBody InterruptStatusRequest request) {
+    public InterruptStatusResponse getStatus(@RequestBody @Valid InterruptStatusRequest request) {
         return new InterruptStatusResponse(request.interruptId(), "UNKNOWN", null, null);
     }
 
@@ -206,7 +207,7 @@ public class InterruptController {
                     + "ArtifactKey-based lookup matches any InterruptRequestEvent whose nodeId is a descendant of the given key. "
                     + "sourceAgentType and rerouteToAgentType reflect the unified interrupt handling model "
                     + "(see InterruptRouting and handleUnifiedInterrupt for routing semantics).")
-    public InterruptDetailResponse detail(@RequestBody InterruptDetailRequest request) {
+    public InterruptDetailResponse detail(@RequestBody @Valid InterruptDetailRequest request) {
         String id = request.id();
         Events.InterruptRequestEvent interruptEvent = findInterruptRequestEvent(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Interrupt request not found"));

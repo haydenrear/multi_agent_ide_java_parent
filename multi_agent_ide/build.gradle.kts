@@ -17,6 +17,7 @@ description = "multi-agent-ide"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-websocket")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation(project(":multi_agent_ide_java_parent:utilitymodule"))
     implementation(project(":multi_agent_ide_java_parent:acp-cdc-ai"))
     implementation("com.agentclientprotocol:acp:0.15.3")

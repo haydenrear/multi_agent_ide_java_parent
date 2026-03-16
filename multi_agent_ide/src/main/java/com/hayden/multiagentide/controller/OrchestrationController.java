@@ -4,6 +4,8 @@ import com.hayden.commitdiffcontext.git.parser.support.episodic.model.Onboarding
 import com.hayden.commitdiffcontext.git.parser.support.episodic.service.OnboardingOrchestrationService;
 
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,7 +39,7 @@ public class OrchestrationController {
             description = "Creates a new root ArtifactKey and asynchronously executes the goal via GoalExecutor. "
                     + "Returns the root nodeId immediately — poll /api/ui/nodes or subscribe to the event stream "
                     + "to track execution progress. Both goal and repositoryUrl are required.")
-    public StartGoalResponse startGoal(@RequestBody StartGoalRequest request) {
+    public StartGoalResponse startGoal(@RequestBody @Valid StartGoalRequest request) {
         return startGoalAsync(request);
     }
 
@@ -67,7 +69,7 @@ public class OrchestrationController {
     @Operation(summary = "Get a single onboarding run by ID",
             description = "Looks up a specific onboarding run by its runId. "
                     + "Throws 400 if the run is not found.")
-    public OnboardingRunMetadata onboardingRun(@RequestBody OnboardingRunRequest request) {
+    public OnboardingRunMetadata onboardingRun(@RequestBody @Valid OnboardingRunRequest request) {
         return onboardingService().findRun(request.runId())
                 .orElseThrow(() -> new IllegalArgumentException("Onboarding run not found: " + request.runId()));
     }
@@ -82,8 +84,8 @@ public class OrchestrationController {
 
     @Schema(description = "Request to start a new goal execution.")
     public record StartGoalRequest(
-            @Schema(description = "Natural-language goal description — the instruction given to the agent") String goal,
-            @Schema(description = "Git repository URL the agent will operate on") String repositoryUrl,
+            @NotBlank @Schema(description = "Natural-language goal description — the instruction given to the agent") String goal,
+            @NotBlank @Schema(description = "Git repository URL the agent will operate on") String repositoryUrl,
             @Schema(description = "Base branch for the goal (optional; defaults to main/master)") String baseBranch,
             @Schema(description = "Human-readable title for this goal run") String title,
             @Schema(description = "Optional tags for filtering/grouping runs") List<String> tags

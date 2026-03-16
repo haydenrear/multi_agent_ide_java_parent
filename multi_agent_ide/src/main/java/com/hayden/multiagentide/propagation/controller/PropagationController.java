@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.propagation.controller;
 
+import jakarta.validation.Valid;
 import com.hayden.multiagentide.propagation.controller.dto.ReadPropagationItemsResponse;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemRequest;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemResponse;
@@ -42,7 +43,7 @@ public class PropagationController {
     @PostMapping("/{itemId}/resolve")
     @Operation(summary = "Resolve a propagation item by ID")
     public ResponseEntity<ResolvePropagationItemResponse> resolve(@PathVariable String itemId,
-                                                                  @RequestBody ResolvePropagationItemRequest request) {
+                                                                  @RequestBody @Valid ResolvePropagationItemRequest request) {
         PropagationResolutionType resolutionType = PropagationResolutionType.valueOf(request.resolutionType());
         return ResponseEntity.ok(propagationItemService.resolve(itemId, resolutionType, request.resolutionNotes()));
     }

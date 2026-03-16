@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.controller;
 
+import jakarta.validation.Valid;
 import com.hayden.multiagentide.service.AgentControlService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -29,7 +30,7 @@ public class AgentControlController {
     @Operation(summary = "Request pause for a node",
             description = "Queues a pause signal for the target node via AgentControlService. "
                     + "The node will suspend at its next safe checkpoint. Resume via /resume.")
-    public ControlActionResponse pause(@RequestBody ControlActionRequest request) {
+    public ControlActionResponse pause(@RequestBody @Valid ControlActionRequest request) {
         String actionId = agentControlService.requestPause(request.nodeId(), request.message());
         return new ControlActionResponse(actionId, "queued");
     }
@@ -38,7 +39,7 @@ public class AgentControlController {
     @Operation(summary = "Request stop for a node",
             description = "Terminates the target node. Unlike pause, this is not resumable. "
                     + "Use /delete to also remove the node and its subtree from the graph.")
-    public ControlActionResponse stop(@RequestBody ControlActionRequest request) {
+    public ControlActionResponse stop(@RequestBody @Valid ControlActionRequest request) {
         String actionId = agentControlService.requestStop(request.nodeId());
         return new ControlActionResponse(actionId, "queued");
     }
@@ -47,7 +48,7 @@ public class AgentControlController {
     @Operation(summary = "Request resume for a paused node",
             description = "Resumes a node that was previously paused. "
                     + "The optional message is passed to AgentControlService for context.")
-    public ControlActionResponse resume(@RequestBody ControlActionRequest request) {
+    public ControlActionResponse resume(@RequestBody @Valid ControlActionRequest request) {
         String actionId = agentControlService.requestResume(request.nodeId(), request.message());
         return new ControlActionResponse(actionId, "queued");
     }
@@ -56,7 +57,7 @@ public class AgentControlController {
     @Operation(summary = "Request prune (trim subtree) for a node",
             description = "Removes the node's subtree while keeping the node itself. "
                     + "Useful for discarding an unproductive branch without stopping the parent.")
-    public ControlActionResponse prune(@RequestBody ControlActionRequest request) {
+    public ControlActionResponse prune(@RequestBody @Valid ControlActionRequest request) {
         String actionId = agentControlService.requestPrune(request.nodeId(), request.message());
         return new ControlActionResponse(actionId, "queued");
     }
@@ -65,7 +66,7 @@ public class AgentControlController {
     @Operation(summary = "Request branch creation from a node",
             description = "Forks the current node's execution context into a new branch, "
                     + "allowing parallel exploration from the same point.")
-    public ControlActionResponse branch(@RequestBody ControlActionRequest request) {
+    public ControlActionResponse branch(@RequestBody @Valid ControlActionRequest request) {
         String actionId = agentControlService.requestBranch(request.nodeId(), request.message());
         return new ControlActionResponse(actionId, "queued");
     }
@@ -77,7 +78,7 @@ public class AgentControlController {
             description = "Deletes the target node and all descendant nodes from the graph, "
                     + "including all associated events in EventStreamRepository. "
                     + "This is a destructive operation — use /stop if you only want to halt execution.")
-    public ControlActionResponse delete(@RequestBody ControlActionRequest request) {
+    public ControlActionResponse delete(@RequestBody @Valid ControlActionRequest request) {
 //        TODO:
         String actionId = agentControlService.delete(request.nodeId());
         return new ControlActionResponse(actionId, "queued");
@@ -88,7 +89,7 @@ public class AgentControlController {
             description = "Triggers a HUMAN_REVIEW gate on the target node, suspending execution until "
                     + "explicitly resolved via POST /api/interrupts/resolve. "
                     + "See InterruptController for the resolution contract.")
-    public ControlActionResponse reviewRequest(@RequestBody ControlActionRequest request) {
+    public ControlActionResponse reviewRequest(@RequestBody @Valid ControlActionRequest request) {
         String actionId = agentControlService.requestReview(request.nodeId(), request.message());
         return new ControlActionResponse(actionId, "queued");
     }

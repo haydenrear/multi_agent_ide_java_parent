@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.controller;
 
+import jakarta.validation.Valid;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
@@ -61,7 +62,7 @@ public class LlmDebugUiController {
             description = "Returns the full UiStateSnapshot for the given node scope — active panel focus, "
                     + "chat input/search state, event stream position, and session list. This is the same state "
                     + "that concrete renderers (TUI, web) consume. See UiStateStore for the server-side state model.")
-    public UiStateSnapshot state(@RequestBody NodeIdRequest request) {
+    public UiStateSnapshot state(@RequestBody @Valid NodeIdRequest request) {
         return uiStateStore.snapshot(request.nodeId());
     }
 
@@ -70,7 +71,7 @@ public class LlmDebugUiController {
             description = "Creates a new workflow execution for the given goal and repository. Returns the root "
                     + "nodeId (ArtifactKey) which scopes all subsequent polling, event, and action calls. "
                     + "Tags should be 3-8 short kebab-case descriptors covering change type and subsystem.")
-    public StartGoalResponse startGoal(@RequestBody OrchestrationController.StartGoalRequest request) {
+    public StartGoalResponse startGoal(@RequestBody @Valid OrchestrationController.StartGoalRequest request) {
         OrchestrationController.StartGoalResponse started = orchestrationController.startGoalAsync(request);
         return new StartGoalResponse(started.nodeId(), started.nodeId(), "started");
     }
@@ -81,7 +82,7 @@ public class LlmDebugUiController {
                     + "UiActionCommand.ActionType (case-insensitive). The payload map carries action-specific data. "
                     + "The interaction is converted via SharedUiInteractionService.toInteractionEvent() and published "
                     + "to the EventBus. Returns 'queued' on success or 'rejected' if the actionType is missing or invalid.")
-    public ActionResponse action(@RequestBody UiActionRequest request) {
+    public ActionResponse action(@RequestBody @Valid UiActionRequest request) {
         String nodeId = request.nodeId();
         if (request.actionType() == null || request.actionType().isBlank()) {
             return new ActionResponse(null, "rejected");
@@ -119,7 +120,7 @@ public class LlmDebugUiController {
                     + "'tags' should be 3-8 short kebab-case descriptors. "
                     + "SEND_MESSAGE requires 'nodeId'; publishes an AddMessageEvent to inject a human message "
                     + "into the agent's conversation stream. Returns 'started'/'queued' on success or 'rejected' with an error message.")
-    public QuickActionResponse quickAction(@RequestBody QuickActionRequest request) {
+    public QuickActionResponse quickAction(@RequestBody @Valid QuickActionRequest request) {
         String actionType = request == null || request.actionType() == null
                 ? ""
                 : request.actionType().trim().toUpperCase();
@@ -167,7 +168,7 @@ public class LlmDebugUiController {
                     + "Pass a negative value (e.g. -1) to disable truncation and return full event text. "
                     + "For full formatted detail of a single event, use the event-detail endpoint. "
                     + "See CliEventFormatter.java for truncation logic.")
-    public UiEventPage events(@RequestBody NodeEventsRequest request) {
+    public UiEventPage events(@RequestBody @Valid NodeEventsRequest request) {
         String nodeId = request.nodeId();
         int limit = request.limit() <= 0 ? 50 : request.limit();
         int rawTruncate = request.truncate();
@@ -221,7 +222,7 @@ public class LlmDebugUiController {
                     + "Set 'pretty' to true for multi-line indented output. Propagation events auto-expand to "
                     + "full prettyPrint() length regardless of maxFieldLength when maxFieldLength is positive. "
                     + "See CliEventFormatter.java for formatting logic.")
-    public UiEventDetail eventDetail(@RequestBody EventDetailRequest request) {
+    public UiEventDetail eventDetail(@RequestBody @Valid EventDetailRequest request) {
         String nodeId = request.nodeId();
         String eventId = request.eventId();
         boolean pretty = request.pretty();
@@ -258,7 +259,7 @@ public class LlmDebugUiController {
                     + "nodeId scope (node and all descendants) in real time. Events are delivered as-is (not formatted). "
                     + "The SSE connection stays open until the client disconnects. "
                     + "See SseEventAdapter for connection management and keep-alive behavior.")
-    public SseEmitter stream(@RequestBody NodeIdRequest request) {
+    public SseEmitter stream(@RequestBody @Valid NodeIdRequest request) {
         String nodeId = request.nodeId();
         return sseEventAdapter.registerEmitter(
                 event -> matchesNodeScope(nodeId, event.nodeId()),
@@ -273,7 +274,7 @@ public class LlmDebugUiController {
                     + "metrics.pendingItems surfaces PERMISSION, INTERRUPT, REVIEW, and PROPAGATION blocked states. "
                     + "The response may be transformed by active ControllerEndpointTransformationIntegration policies. "
                     + "Use errorWindowSeconds to control the recent-error time window (default 180s, range [30, 3600]).")
-    public Object workflowGraph(@RequestBody WorkflowGraphRequest request) {
+    public Object workflowGraph(@RequestBody @Valid WorkflowGraphRequest request) {
         String nodeId = request.nodeId();
         int errorWindowSeconds = request.errorWindowSeconds() <= 0 ? 180 : request.errorWindowSeconds();
 

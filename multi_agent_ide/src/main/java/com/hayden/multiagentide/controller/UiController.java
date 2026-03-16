@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.controller;
 
+import jakarta.validation.Valid;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
@@ -34,7 +35,7 @@ public class UiController {
                     + "If snapshot is omitted but nodeId is set, the current UiStateSnapshot is fetched automatically "
                     + "and appended to the message. Feedback is intended for human review annotations — "
                     + "use /message for plain agent messages without snapshot enrichment.")
-    public UiFeedbackResponse submitFeedback(@RequestBody UiFeedbackRequest request) {
+    public UiFeedbackResponse submitFeedback(@RequestBody @Valid UiFeedbackRequest request) {
         String nodeId = request.nodeId() != null ? request.nodeId() : "unknown";
         Events.UiStateSnapshot snapshot = request.snapshot();
         if (snapshot == null && request.nodeId() != null) {
@@ -76,7 +77,7 @@ public class UiController {
                     + "On success (status == 'reverted'), publishes a UiDiffRevertedEvent with the current revision and renderTree. "
                     + "On failure, publishes a UiDiffRejectedEvent with errorCode and message. "
                     + "Returns the UiDiffResult regardless of outcome.")
-    public UiDiffResult revertDiff(@RequestBody UiRevertRequest request) {
+    public UiDiffResult revertDiff(@RequestBody @Valid UiRevertRequest request) {
         String sessionId = request.nodeId() != null ? request.nodeId() : "unknown";
         UiDiffResult result = uiStateService.revert(sessionId);
         Events.UiStateSnapshot snapshot = uiStateService.getSnapshot(sessionId);
@@ -110,7 +111,7 @@ public class UiController {
                     + "Blank messages are silently ignored (returns status 'ignored'). "
                     + "Use this to inject instructions or context into a running agent node without snapshot enrichment. "
                     + "See /feedback for enriched feedback that attaches the current UiStateSnapshot.")
-    public UiFeedbackResponse submitMessage(@RequestBody UiMessageRequest request) {
+    public UiFeedbackResponse submitMessage(@RequestBody @Valid UiMessageRequest request) {
         String nodeId = request.nodeId() != null ? request.nodeId() : "unknown";
         String message = request.message() != null ? request.message() : "";
         if (message.isBlank()) {

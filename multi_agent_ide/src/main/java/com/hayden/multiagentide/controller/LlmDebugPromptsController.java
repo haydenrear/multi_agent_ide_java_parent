@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.controller;
 
+import jakarta.validation.Valid;
 import com.hayden.multiagentide.service.PromptFileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,7 +25,7 @@ public class LlmDebugPromptsController {
 
     @PostMapping
     @Operation(summary = "Add a new prompt file")
-    public PromptFileService.PromptChangeResult add(@RequestBody AddPromptRequest request) {
+    public PromptFileService.PromptChangeResult add(@RequestBody @Valid AddPromptRequest request) {
         return promptFileService.addPrompt(new PromptFileService.AddPromptRequest(
                 request.promptKey(),
                 request.path(),
@@ -34,7 +35,7 @@ public class LlmDebugPromptsController {
 
     @PostMapping("/update")
     @Operation(summary = "Update the content of an existing prompt file")
-    public PromptFileService.PromptChangeResult update(@RequestBody UpdatePromptRequest request) {
+    public PromptFileService.PromptChangeResult update(@RequestBody @Valid UpdatePromptRequest request) {
         return promptFileService.updatePrompt(request.promptKey(), request.content());
     }
 

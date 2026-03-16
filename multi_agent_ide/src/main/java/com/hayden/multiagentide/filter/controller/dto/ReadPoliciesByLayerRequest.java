@@ -1,10 +1,11 @@
 package com.hayden.multiagentide.filter.controller.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
 public record ReadPoliciesByLayerRequest(
-        String layerId,
+        @NotBlank String layerId,
         String status
 ) {
     public String statusOrDefault() {
