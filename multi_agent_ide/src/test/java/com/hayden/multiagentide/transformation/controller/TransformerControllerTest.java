@@ -78,7 +78,11 @@ class TransformerControllerTest {
                                 """)
                         .build()));
 
-        mockMvc.perform(get("/api/transformers/layers/controller/registrations"))
+        mockMvc.perform(post("/api/transformers/registrations/by-layer")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"layerId":"controller"}
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transformers[0].name").value("Transformer One"));
     }
@@ -98,7 +102,7 @@ class TransformerControllerTest {
         when(registrationService.updateLayerBinding(any(), any())).thenReturn(
                 PutTransformerLayerResponse.builder().ok(true).registrationId("transformer-1").layerId("controller").message("updated").build());
 
-        mockMvc.perform(put("/api/transformers/registrations/transformer-1/layers/controller")
+        mockMvc.perform(put("/api/transformers/registrations/transformer-1/layers")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {"registrationId":"transformer-1","layerBinding":{"layerId":"controller","enabled":true,"includeDescendants":false,"isInheritable":false,"isPropagatedToParent":false,"matcherKey":"PATH","matcherType":"EXACT","matcherText":"UiController#index","matchOn":"CONTROLLER_ENDPOINT_RESPONSE"}}

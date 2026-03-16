@@ -71,7 +71,11 @@ class TransformerPersistenceIT {
     void registrationLifecycle_andQueryEndpoints_persistCorrectly() throws Exception {
         String registrationId = registerTransformer("controller");
 
-        mockMvc.perform(get("/api/transformers/layers/controller/registrations"))
+        mockMvc.perform(post("/api/transformers/registrations/by-layer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"layerId":"controller"}
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalCount").value(1))
                 .andExpect(jsonPath("$.transformers[0].registrationId").value(registrationId));
@@ -79,7 +83,7 @@ class TransformerPersistenceIT {
         TransformerRegistrationEntity entity = transformerRegistrationRepository.findByRegistrationId(registrationId).orElseThrow();
         assertThat(entity.getStatus()).isEqualTo("ACTIVE");
 
-        mockMvc.perform(put("/api/transformers/registrations/{registrationId}/layers/{layerId}", registrationId, "controller-ui-event-poll")
+        mockMvc.perform(put("/api/transformers/registrations/{registrationId}/layers", registrationId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"registrationId":"%s","layerBinding":{"layerId":"controller-ui-event-poll","enabled":true,"includeDescendants":false,"isInheritable":false,"isPropagatedToParent":false,"matcherKey":"TEXT","matcherType":"EQUALS","matcherText":"UiController#index","matchOn":"CONTROLLER_ENDPOINT_RESPONSE"}}

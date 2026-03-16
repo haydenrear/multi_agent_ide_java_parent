@@ -44,11 +44,13 @@ public class PropagatorController {
         return ResponseEntity.ok(registrationService.register(request));
     }
 
-    @GetMapping("/layers/{layerId}/registrations")
+    @PostMapping("/registrations/by-layer")
     @Operation(summary = "List propagators registered at a layer",
             description = "Returns all active propagator registrations bound to the given layer, "
-                    + "with summary information including name, kind, status, and priority.")
-    public ResponseEntity<ReadPropagatorsByLayerResponse> byLayer(@PathVariable String layerId) {
+                    + "with summary information including name, kind, status, and priority. "
+                    + "Accepts layerId in request body to support slash-containing layer identifiers (e.g. workflow-agent/coordinateWorkflow).")
+    public ResponseEntity<ReadPropagatorsByLayerResponse> byLayer(@RequestBody ReadPropagatorsByLayerRequest request) {
+        String layerId = request.layerId();
         List<ReadPropagatorsByLayerResponse.PropagatorSummary> summaries = discoveryService.getActivePropagatorsByLayer(layerId).stream()
                 .map(this::toSummary)
                 .toList();
@@ -61,10 +63,11 @@ public class PropagatorController {
         return ResponseEntity.ok(registrationService.deactivate(registrationId));
     }
 
-    @PutMapping("/registrations/{registrationId}/layers/{layerId}")
-    @Operation(summary = "Update a propagator's layer binding")
+    @PutMapping("/registrations/{registrationId}/layers")
+    @Operation(summary = "Update a propagator's layer binding",
+            description = "Updates the layer binding for a propagator registration. "
+                    + "The layerId is provided inside the request body layerBinding to support slash-containing layer identifiers.")
     public ResponseEntity<PutPropagatorLayerResponse> updateLayer(@PathVariable String registrationId,
-                                                                  @PathVariable String layerId,
                                                                   @RequestBody PutPropagatorLayerRequest request) {
         return ResponseEntity.ok(registrationService.updateLayerBinding(registrationId, request));
     }

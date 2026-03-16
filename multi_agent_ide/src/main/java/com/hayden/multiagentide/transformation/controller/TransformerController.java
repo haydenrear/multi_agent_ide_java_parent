@@ -42,9 +42,12 @@ public class TransformerController {
         return ResponseEntity.ok(registrationService.register(request));
     }
 
-    @GetMapping("/layers/{layerId}/registrations")
-    @Operation(summary = "List transformers registered at a layer")
-    public ResponseEntity<ReadTransformersByLayerResponse> byLayer(@PathVariable String layerId) {
+    @PostMapping("/registrations/by-layer")
+    @Operation(summary = "List transformers registered at a layer",
+            description = "Returns all active transformer registrations bound to the given layer. "
+                    + "Accepts layerId in request body to support slash-containing layer identifiers (e.g. workflow-agent/coordinateWorkflow).")
+    public ResponseEntity<ReadTransformersByLayerResponse> byLayer(@RequestBody ReadTransformersByLayerRequest request) {
+        String layerId = request.layerId();
         List<ReadTransformersByLayerResponse.TransformerSummary> summaries = discoveryService.getActiveTransformersByLayer(layerId).stream()
                 .map(this::toSummary)
                 .toList();
@@ -57,10 +60,11 @@ public class TransformerController {
         return ResponseEntity.ok(registrationService.deactivate(registrationId));
     }
 
-    @PutMapping("/registrations/{registrationId}/layers/{layerId}")
-    @Operation(summary = "Update a transformer's layer binding")
+    @PutMapping("/registrations/{registrationId}/layers")
+    @Operation(summary = "Update a transformer's layer binding",
+            description = "Updates the layer binding for a transformer registration. "
+                    + "The layerId is provided inside the request body layerBinding to support slash-containing layer identifiers.")
     public ResponseEntity<PutTransformerLayerResponse> updateLayer(@PathVariable String registrationId,
-                                                                   @PathVariable String layerId,
                                                                    @RequestBody PutTransformerLayerRequest request) {
         return ResponseEntity.ok(registrationService.updateLayerBinding(registrationId, request));
     }

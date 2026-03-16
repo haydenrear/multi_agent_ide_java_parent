@@ -79,7 +79,11 @@ class PropagatorControllerTest {
                                 """)
                         .build()));
 
-        mockMvc.perform(get("/api/propagators/layers/workflow-agent/registrations"))
+        mockMvc.perform(post("/api/propagators/registrations/by-layer")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"layerId":"workflow-agent"}
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalCount").value(1))
                 .andExpect(jsonPath("$.propagators[0].name").value("Propagator One"));
@@ -100,7 +104,7 @@ class PropagatorControllerTest {
         when(registrationService.updateLayerBinding(any(), any())).thenReturn(
                 PutPropagatorLayerResponse.builder().ok(true).registrationId("prop-1").layerId("workflow-agent").message("updated").build());
 
-        mockMvc.perform(put("/api/propagators/registrations/prop-1/layers/workflow-agent")
+        mockMvc.perform(put("/api/propagators/registrations/prop-1/layers")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {"registrationId":"prop-1","layerBinding":{"layerId":"workflow-agent","enabled":true,"includeDescendants":false,"isInheritable":false,"isPropagatedToParent":false,"matcherKey":"PATH","matcherType":"EXACT","matcherText":"workflow-agent","matchOn":"ACTION_REQUEST"}}

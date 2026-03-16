@@ -100,7 +100,11 @@ class PropagatorPersistenceIT {
     void registrationLifecycle_andQueryEndpoints_persistCorrectly() throws Exception {
         String registrationId = registerPropagator("workflow-agent");
 
-        mockMvc.perform(get("/api/propagators/layers/workflow-agent/registrations"))
+        mockMvc.perform(post("/api/propagators/registrations/by-layer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"layerId":"workflow-agent"}
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalCount").value(1))
                 .andExpect(jsonPath("$.propagators[0].registrationId").value(registrationId));
@@ -108,7 +112,7 @@ class PropagatorPersistenceIT {
         PropagatorRegistrationEntity entity = propagatorRegistrationRepository.findByRegistrationId(registrationId).orElseThrow();
         assertThat(entity.getStatus()).isEqualTo("ACTIVE");
 
-        mockMvc.perform(put("/api/propagators/registrations/{registrationId}/layers/{layerId}", registrationId, "controller")
+        mockMvc.perform(put("/api/propagators/registrations/{registrationId}/layers", registrationId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"registrationId":"%s","layerBinding":{"layerId":"controller","enabled":true,"includeDescendants":false,"isInheritable":false,"isPropagatedToParent":false,"matcherKey":"TEXT","matcherType":"EQUALS","matcherText":"workflow","matchOn":"ACTION_RESPONSE"}}
