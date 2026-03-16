@@ -1415,3 +1415,12 @@ databaseChangeLog:
             columns:
               - column:
                   name: stage
+
+  - changeSet:
+      id: 017-summary-text-to-text
+      author: system
+      changes:
+        - modifyDataType:
+            tableName: propagation_item
+            columnName: summary_text
+            newDataType: TEXT

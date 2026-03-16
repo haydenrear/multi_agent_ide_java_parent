@@ -123,7 +123,7 @@ public class PropagationExecutionService {
                         layerId,
                         sourceNodeId,
                         sourceName,
-                        output.summaryText(),
+                        truncateSummary(output.summaryText()),
                         itemPayload,
                         stage != null ? stage.name() : null,
                         correlationKey
@@ -156,7 +156,7 @@ public class PropagationExecutionService {
                         layerId,
                         sourceNodeId,
                         sourceName,
-                        "Propagation execution failed: " + e.getMessage(),
+                        truncateSummary("Propagation execution failed: " + e.getMessage()),
                         failurePayload,
                         stage != null ? stage.name() : null,
                         correlationKey
@@ -196,7 +196,7 @@ public class PropagationExecutionService {
         if (model instanceof AiTextPropagator aiTextPropagator) {
             return runAiPropagator(aiTextPropagator, context, beforePayload, originalPayload, operationContext);
         }
-        return PropagationOutput.builder().propagatedText(beforePayload).summaryText(beforePayload).build();
+        return PropagationOutput.builder().propagatedText(beforePayload).summaryText(truncateSummary(beforePayload)).build();
     }
 
     private PropagationOutput runAiPropagator(AiTextPropagator aiTextPropagator,
@@ -207,7 +207,7 @@ public class PropagationExecutionService {
         if (!(aiTextPropagator.executor() instanceof AiPropagatorTool aiExecutor)) {
             return PropagationOutput.builder()
                     .propagatedText(beforePayload)
-                    .summaryText(beforePayload)
+                    .summaryText(truncateSummary(beforePayload))
                     .errorMessage("AI propagator executor is not an AiPropagatorTool")
                     .build();
         }
@@ -391,9 +391,17 @@ public class PropagationExecutionService {
     private PropagationOutput failedOutput(String beforePayload, String message) {
         return PropagationOutput.builder()
                 .propagatedText(beforePayload)
-                .summaryText(message)
+                .summaryText(truncateSummary(message))
                 .errorMessage(message)
                 .build();
+    }
+
+    /** Truncates summary text to 3800 chars so it fits safely in any VARCHAR column. */
+    private static String truncateSummary(String text) {
+        if (text == null || text.length() <= 3800) {
+            return text;
+        }
+        return text.substring(0, 3800) + "…";
     }
 
     private boolean transformed(String beforePayload, String afterPayload) {
