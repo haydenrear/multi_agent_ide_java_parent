@@ -84,7 +84,8 @@ public class PermissionController {
             String originNodeId,
             String nodeId,
             String toolCallId,
-            Object permissions
+            Object permissions,
+            Object meta
     ) {
     }
 
@@ -108,7 +109,8 @@ public class PermissionController {
                         p.getOriginNodeId(),
                         p.getNodeId(),
                         p.getToolCallId(),
-                        p.getPermissions()
+                        p.getPermissions(),
+                        p.getMeta()
                 ))
                 .toList();
     }
