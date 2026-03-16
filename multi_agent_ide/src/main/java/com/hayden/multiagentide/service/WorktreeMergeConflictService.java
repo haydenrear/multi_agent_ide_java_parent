@@ -111,6 +111,14 @@ public class WorktreeMergeConflictService {
                     .notes(List.of())
                     .build();
         }
+        if (descriptor.successful() && (descriptor.conflictFiles() == null || descriptor.conflictFiles().isEmpty())) {
+            return AgentModels.MergeConflictResult.builder()
+                    .successful(true)
+                    .output("Merge completed with no conflicts.")
+                    .resolvedConflictFiles(List.of())
+                    .notes(List.of())
+                    .build();
+        }
         OperationContext operationContext = decoratorContext != null ? decoratorContext.operationContext() : null;
         if (operationContext == null) {
             return AgentModels.MergeConflictResult.builder()

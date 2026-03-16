@@ -163,13 +163,7 @@ public class PermissionController {
                 .anyMatch(p -> Objects.equals(p.getRequestId(), permissionEvent.requestId()));
         String status = pending ? "PENDING" : "RESOLVED_OR_UNKNOWN";
 
-        List<ToolCallInfo> toolCalls = eventStreamRepository.list().stream()
-                .filter(Events.ToolCallEvent.class::isInstance)
-                .map(Events.ToolCallEvent.class::cast)
-                .filter(tc -> Objects.equals(tc.toolCallId(), permissionEvent.toolCallId()))
-                .sorted(Comparator.comparing(Events.ToolCallEvent::timestamp))
-                .map(this::toToolCallInfo)
-                .toList();
+        List<ToolCallInfo> toolCalls = findToolCallsForPermission(permissionEvent);
 
         return new PermissionDetailResponse(
                 permissionEvent.requestId(),
@@ -180,6 +174,35 @@ public class PermissionController {
                 permissionEvent.permissions(),
                 toolCalls
         );
+    }
+
+    private List<ToolCallInfo> findToolCallsForPermission(Events.PermissionRequestedEvent permissionEvent) {
+        String toolCallId = permissionEvent.toolCallId();
+        if (toolCallId != null && !toolCallId.isBlank()) {
+            List<ToolCallInfo> byToolCallId = eventStreamRepository.list().stream()
+                    .filter(Events.ToolCallEvent.class::isInstance)
+                    .map(Events.ToolCallEvent.class::cast)
+                    .filter(tc -> Objects.equals(tc.toolCallId(), toolCallId))
+                    .sorted(Comparator.comparing(Events.ToolCallEvent::timestamp))
+                    .map(this::toToolCallInfo)
+                    .toList();
+            if (!byToolCallId.isEmpty()) {
+                return byToolCallId;
+            }
+        }
+        // Fall back to node-scope matching when toolCallId is absent or unmatched.
+        String scopeId = permissionEvent.nodeId() != null ? permissionEvent.nodeId() : permissionEvent.originNodeId();
+        if (scopeId == null || scopeId.isBlank()) {
+            return List.of();
+        }
+        return eventStreamRepository.list().stream()
+                .filter(Events.ToolCallEvent.class::isInstance)
+                .map(Events.ToolCallEvent.class::cast)
+                .filter(tc -> matchesNodeScope(scopeId, tc.nodeId()))
+                .sorted(Comparator.comparing(Events.ToolCallEvent::timestamp).reversed())
+                .limit(40)
+                .map(this::toToolCallInfo)
+                .toList();
     }
 
     private Optional<Events.PermissionRequestedEvent> findPermissionRequestEvent(String id) {
