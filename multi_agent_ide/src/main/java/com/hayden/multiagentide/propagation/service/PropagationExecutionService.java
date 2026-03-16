@@ -113,7 +113,7 @@ public class PropagationExecutionService {
                     output = failedOutput(beforePayload, "invalid - returned null");
                 }
                 String correlationKey = correlationKey(entity.getRegistrationId(), layerId, stage, sourceNodeId, beforePayload);
-                String itemPayload = output.propagatedText() != null ? output.propagatedText() : beforePayload;
+                String itemPayload = output.propagatedText() != null && !output.propagatedText().isBlank() ? output.propagatedText() : beforePayload;
                 var item = propagationItemService.createItemIfNeeded(
                         entity.getRegistrationId(),
                         layerId,
