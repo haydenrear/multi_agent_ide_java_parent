@@ -105,7 +105,7 @@ class LlmDebugUiControllerWorkflowGraphTest {
         eventStreamRepository.save(new Events.ActionStartedEvent(
                 uid(), NOW.minusSeconds(100), childId, "WorkflowDiscoveryAgent", "discovery"));
 
-        mockMvc.perform(post("/api/llm-debug/ui/workflow-graph")
+        mockMvc.perform(post("/api/ui/workflow-graph")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nodeId\":\"" + childId + "\",\"errorWindowSeconds\":180}"))
                 .andDo(print())
@@ -420,7 +420,7 @@ class LlmDebugUiControllerWorkflowGraphTest {
         //  ASSERTIONS
         // ============================================
 
-        mockMvc.perform(post("/api/llm-debug/ui/workflow-graph")
+        mockMvc.perform(post("/api/ui/workflow-graph")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nodeId\":\"" + rootId + "\",\"errorWindowSeconds\":180}"))
                 .andDo(print())
@@ -575,7 +575,7 @@ class LlmDebugUiControllerWorkflowGraphTest {
                 .build();
         graphRepository.save(resolvedInterrupt);
 
-        mockMvc.perform(post("/api/llm-debug/ui/workflow-graph")
+        mockMvc.perform(post("/api/ui/workflow-graph")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nodeId\":\"" + rootId + "\",\"errorWindowSeconds\":180}"))
                 .andDo(print())
