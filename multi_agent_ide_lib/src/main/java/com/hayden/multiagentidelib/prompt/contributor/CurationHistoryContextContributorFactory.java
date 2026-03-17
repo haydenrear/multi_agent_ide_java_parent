@@ -1019,10 +1019,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             }
             sb.append("Current request type: ").append(request.getClass().getSimpleName()).append("\n");
             sb.append("Routing guardrails: ").append(request.routeGuardrailsExtraction()).append("\n");
-            String summary = request.prettyPrintInterruptContinuation();
-            if (summary == null || summary.isBlank()) {
-                summary = request.prettyPrint();
-            }
+            String summary = request.prettyPrint(new AgentPretty.AgentSerializationCtx.SkipWorktreeContextSerializationCtx());
             if (summary != null && !summary.isBlank()) {
                 sb.append("Request details: ").append(summary.replace("\n", " | ")).append("\n");
             }
@@ -1061,7 +1058,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
 
         @Override
         public String contribute(PromptContext ctx) {
-            String rendered = data != null ? data.prettyPrint() : null;
+            String rendered = data != null ? data.prettyPrint(new AgentPretty.AgentSerializationCtx.SkipWorktreeContextSerializationCtx()) : null;
             return header + (rendered != null && !rendered.isBlank() ? rendered.trim() : "(none)");
         }
 

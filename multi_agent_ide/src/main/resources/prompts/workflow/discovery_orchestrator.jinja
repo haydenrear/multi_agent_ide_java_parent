@@ -7,10 +7,9 @@ Based on this information and files you find on the repository, or information a
 decide how to divide up the discovery phase of the workflow.
 
 Fan-out policy:
-- Default to exactly 1 discovery agent request.
-- Only use more than 1 discovery agent request when the goal is truly complex and can be split into independent, non-overlapping discovery tracks.
-- Prefer a single broad request over multiple narrow requests unless parallelism is clearly necessary.
+- Submit ALL discovery agent requests in a single response. Do not meter or stagger — all requests are dispatched at once.
+- Default to exactly 1 discovery agent request unless the goal is truly complex and can be split into independent, non-overlapping discovery tracks.
 - If you fan out (>1), include clear delegation rationale explaining why 1 agent is insufficient and why each request can run independently.
-- Keep request count minimal even when fanning out.
+- Do not defer or omit any discovery request that is necessary to fully understand the codebase for the goal.
 
 {% include "workflow/_interrupt_guidance.jinja" %}

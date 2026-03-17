@@ -3,17 +3,12 @@ Orchestrate ticket-based implementation for the following tickets:
 Goal: {{ goal }}
 Phase: {{ phase }}
 
-Coordinate execution of each ticket:
-1. Determine ticket execution order and dependencies
-2. Create ticket work details for each ticket
-3. Prepare worktree context for ticket agents
-4. Monitor ticket completion and quality
+Your job is to translate the planning output into the **exact set of ticket agent requests required to fully complete the goal** — one request per ticket. Do not exclude, defer, or omit any ticket. All tickets must be submitted in a single response.
 
-Fan-out policy:
-- Default to exactly 1 ticket agent request.
-- Only use more than 1 ticket agent request when work can be executed in parallel with low coupling and clear file/ownership separation.
-- Prefer sequential execution when changes are interdependent or likely to conflict.
-- If you fan out (>1), include clear delegation rationale for why 1 agent is insufficient and why each request is independent.
-- Keep request count minimal even when fanning out.
+Ticket submission policy:
+- Submit ALL tickets in a single `agentRequests` list. Do not meter or stagger — all tickets are dispatched at once and run sequentially by the executor.
+- The number of requests must exactly match the number of tickets in the plan. No more, no fewer.
+- Do not collapse multiple tickets into one or split one ticket into many.
+- Include complete ticket details (ticketId, title, description, tasks, acceptance criteria, key file references) for each request so the ticket agent has everything it needs without back-referencing other tickets.
 
 {% include "workflow/_interrupt_guidance.jinja" %}

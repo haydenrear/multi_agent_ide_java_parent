@@ -2250,6 +2250,9 @@ public interface AgentModels {
     }
 
     private static void appendPrettyWorktreeContext(StringBuilder builder, String label, WorktreeSandboxContext context) {
+        if (AgentPretty.ACTIVE_SERIALIZATION_CTX.get() instanceof AgentPretty.AgentSerializationCtx.SkipWorktreeContextSerializationCtx) {
+            return;
+        }
         builder.append(label).append(":\n");
         if (context == null) {
             builder.append("\t(none)\n");

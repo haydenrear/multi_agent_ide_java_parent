@@ -32,6 +32,7 @@ public final class FilterLayerCatalog {
     public static final String AI_FILTER = "ai-filter";
     public static final String AI_PROPAGATOR = "ai-propagator";
     public static final String AI_TRANSFORMER = "ai-transformer";
+    public static final String PROMPT_HEALTH_CHECK = "prompt-health-check";
 
     public record LayerDefinition(
             String layerId,
@@ -63,7 +64,8 @@ public final class FilterLayerCatalog {
             layer(WORKTREE_MERGE_CONFLICT, FilterEnums.LayerType.WORKFLOW_AGENT, WORKTREE_MERGE_CONFLICT, CONTROLLER, 1),
             layer(AI_FILTER, FilterEnums.LayerType.WORKFLOW_AGENT, AI_FILTER, CONTROLLER, 1),
             layer(AI_PROPAGATOR, FilterEnums.LayerType.WORKFLOW_AGENT, AI_PROPAGATOR, CONTROLLER, 1),
-            layer(AI_TRANSFORMER, FilterEnums.LayerType.WORKFLOW_AGENT, AI_TRANSFORMER, CONTROLLER, 1)
+            layer(AI_TRANSFORMER, FilterEnums.LayerType.WORKFLOW_AGENT, AI_TRANSFORMER, CONTROLLER, 1),
+            layer(PROMPT_HEALTH_CHECK, FilterEnums.LayerType.WORKFLOW_AGENT, PROMPT_HEALTH_CHECK, CONTROLLER, 1)
     );
 
     private static final Map<String, LayerDefinition> ROOT_LAYER_BY_ID = new LinkedHashMap<>();
@@ -382,6 +384,13 @@ public final class FilterLayerCatalog {
                 AgentType.AI_TRANSFORMER,
                 AI_TRANSFORMER,
                 AgentModels.AiTransformerRequest.class
+        ));
+        registerAction(action(
+                PROMPT_HEALTH_CHECK,
+                "prompt-health-check",
+                "checkPromptHealth",
+                AgentType.AI_PROPAGATOR,
+                PROMPT_HEALTH_CHECK
         ));
 
         mapRoot(AgentType.ORCHESTRATOR, WORKFLOW_AGENT);

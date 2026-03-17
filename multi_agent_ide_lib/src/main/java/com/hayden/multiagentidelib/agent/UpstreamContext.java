@@ -41,6 +41,14 @@ public sealed interface UpstreamContext extends AgentContext
                     prettyPrint();
             case AgentSerializationCtx.ResultsSerialization resultsSerialization ->
                     prettyPrint();
+            case AgentSerializationCtx.SkipWorktreeContextSerializationCtx skipWorktreeCtx -> {
+                AgentPretty.ACTIVE_SERIALIZATION_CTX.set(skipWorktreeCtx);
+                try {
+                    yield prettyPrint();
+                } finally {
+                    AgentPretty.ACTIVE_SERIALIZATION_CTX.remove();
+                }
+            }
         };
     }
 

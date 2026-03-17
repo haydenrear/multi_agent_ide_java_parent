@@ -1,12 +1,14 @@
 Goal: {{ goal }}
 Planning Results: {{ planningResults }}
 
-Create structured tickets with:
-- Ticket ID and title
-- Clear implementation tasks
-- Dependencies between tickets
-- Acceptance criteria
-- Estimated effort
+## Output instructions
+
+Return your result using the structured `PlanningCollectorResult` schema. Do NOT write files, create documents, or use terminal/Edit/Write tools. Express all decisions through structured output fields:
+
+- `finalizedTickets` — list of `PlanningTicket` objects (ticketId, title, description, tasks, dependencies, acceptanceCriteria, effortEstimate, priority)
+- `dependencyGraph` — list of `TicketDependency` objects describing ordering constraints
+- `consolidatedOutput` — human-readable summary
+- `collectorDecision` — routing decision (decisionType, requestedPhase, rationale)
 
 {% include "workflow/_interrupt_guidance.jinja" %}
 
