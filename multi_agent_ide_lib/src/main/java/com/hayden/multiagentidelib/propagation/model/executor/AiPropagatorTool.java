@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
@@ -21,6 +22,7 @@ import java.util.Map;
 
 @Slf4j
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
 public final class AiPropagatorTool
         implements ExecutableTool<AgentModels.AiPropagatorRequest, AgentModels.AiPropagatorResult, AiPropagatorContext> {
 
