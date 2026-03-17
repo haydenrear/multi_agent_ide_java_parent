@@ -10,6 +10,12 @@ services:
     volumes:
 #       https://github.com/jupyter/docker-stacks the host should be UID ~1000 (jovyan)
       - /Users/hayde/jupyter/sessions/db:/home/jovyan/work/workspaces
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8888/api || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   multi-agent-ide-postgres:
     image: localhost:5005/postgres-pgvector
     container_name: multi-agent-ide-postgres
