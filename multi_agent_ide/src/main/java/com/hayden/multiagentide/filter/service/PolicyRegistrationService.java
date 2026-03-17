@@ -1,12 +1,10 @@
 package com.hayden.multiagentide.filter.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.filter.controller.dto.*;
 import com.hayden.multiagentide.artifacts.PolicyLifecycleArtifactService;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
-import com.hayden.multiagentide.filter.validation.PolicyExecutorValidator;
 import com.hayden.multiagentide.filter.validation.PolicySemanticValidator;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentidelib.filter.model.policy.PolicyLayerBinding;
@@ -28,7 +26,6 @@ import java.util.stream.Collectors;
 public class PolicyRegistrationService {
 
     private final PolicyRegistrationRepository policyRegistrationRepository;
-    private final PolicyExecutorValidator executorValidator;
     private final PolicySemanticValidator semanticValidator;
     private final LayerService layerService;
     private final ObjectMapper objectMapper;
@@ -43,23 +40,6 @@ public class PolicyRegistrationService {
             return PolicyRegistrationResponse.builder()
                     .ok(false)
                     .message("Validation failed: " + String.join("; ", semanticErrors))
-                    .build();
-        }
-
-        // Executor validation
-        try {
-            JsonNode executorNode = objectMapper.valueToTree(request.executor());
-            List<String> executorErrors = executorValidator.validate(executorNode);
-            if (!executorErrors.isEmpty()) {
-                return PolicyRegistrationResponse.builder()
-                        .ok(false)
-                        .message("Executor validation failed: " + String.join("; ", executorErrors))
-                        .build();
-            }
-        } catch (Exception e) {
-            return PolicyRegistrationResponse.builder()
-                    .ok(false)
-                    .message("Invalid executor configuration: " + e.getMessage())
                     .build();
         }
 

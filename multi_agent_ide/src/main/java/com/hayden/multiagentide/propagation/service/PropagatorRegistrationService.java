@@ -1,12 +1,10 @@
 package com.hayden.multiagentide.propagation.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.propagation.controller.dto.*;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
-import com.hayden.multiagentide.propagation.validation.PropagatorExecutorValidator;
 import com.hayden.multiagentide.propagation.validation.PropagatorSemanticValidator;
 import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
 import com.hayden.multiagentidelib.propagation.model.*;
@@ -31,7 +29,6 @@ public class PropagatorRegistrationService {
 
     private final PropagatorRegistrationRepository repository;
     private final PropagatorSemanticValidator semanticValidator;
-    private final PropagatorExecutorValidator executorValidator;
     private final ObjectMapper objectMapper;
     private final PropagatorAttachableCatalogService attachableCatalogService;
 
@@ -40,11 +37,6 @@ public class PropagatorRegistrationService {
         List<String> semanticErrors = semanticValidator.validate(request);
         if (!semanticErrors.isEmpty()) {
             return PropagatorRegistrationResponse.builder().ok(false).message(String.join("; ", semanticErrors)).build();
-        }
-        JsonNode executorNode = objectMapper.valueToTree(request.executor());
-        List<String> executorErrors = executorValidator.validate(executorNode);
-        if (!executorErrors.isEmpty()) {
-            return PropagatorRegistrationResponse.builder().ok(false).message(String.join("; ", executorErrors)).build();
         }
         Instant now = Instant.now();
         String registrationId = "propagator-" + UUID.randomUUID();

@@ -1,12 +1,10 @@
 package com.hayden.multiagentide.transformation.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.transformation.controller.dto.*;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationEntity;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
-import com.hayden.multiagentide.transformation.validation.TransformerExecutorValidator;
 import com.hayden.multiagentide.transformation.validation.TransformerSemanticValidator;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
@@ -29,7 +27,6 @@ public class TransformerRegistrationService {
 
     private final TransformerRegistrationRepository repository;
     private final TransformerSemanticValidator semanticValidator;
-    private final TransformerExecutorValidator executorValidator;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -37,11 +34,6 @@ public class TransformerRegistrationService {
         List<String> semanticErrors = semanticValidator.validate(request);
         if (!semanticErrors.isEmpty()) {
             return TransformerRegistrationResponse.builder().ok(false).message(String.join("; ", semanticErrors)).build();
-        }
-        JsonNode executorNode = objectMapper.valueToTree(request.executor());
-        List<String> executorErrors = executorValidator.validate(executorNode);
-        if (!executorErrors.isEmpty()) {
-            return TransformerRegistrationResponse.builder().ok(false).message(String.join("; ", executorErrors)).build();
         }
         Instant now = Instant.now();
         String registrationId = "transformer-" + UUID.randomUUID();
