@@ -257,13 +257,13 @@ class CurationHistoryContextContributorFactoryTest {
 
         var rendered = render(factory.create(context), context);
 
-        assertThat(rendered).contains("## Request Context");
+        assertThat(rendered).contains("## Prior Workflow Context");
         assertThat(rendered).contains("Action: action-0");
-        assertThat(rendered).contains("Now, you are in this phase: DISCOVERY");
-        assertThat(rendered).contains("Goal extraction: initial goal");
+        assertThat(rendered).contains("Phase: DISCOVERY");
+        assertThat(rendered).contains("Goal: initial goal");
         assertThat(rendered).contains("Action: action-1");
-        assertThat(rendered).contains("Now, you are in this phase: DISCOVERY_ORCHESTRATOR");
-        assertThat(rendered).contains("Goal extraction: discover goal");
+        assertThat(rendered).contains("Phase: DISCOVERY_ORCHESTRATOR");
+        assertThat(rendered).contains("Goal: discover goal");
         assertThat(indexOf(rendered, "Action: action-1"))
                 .isLessThan(indexOf(rendered, "## Discovery Curation"));
     }

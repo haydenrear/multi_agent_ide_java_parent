@@ -53,7 +53,7 @@ public class BlackboardHistoryService {
     ) {
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
 
-//        context.getAgentProcess().clear();
+        context.getAgentProcess().clear();
 
         context.getAgentProcess().addObject(history);
 

@@ -253,7 +253,9 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         }
 
         // Step 2: Walk history chronologically to build temporally-ordered contributors.
-        List<BlackboardHistory.Entry> entries = bh.copyOfEntries();
+        // Collapse consecutive runs of the same action+request-class (retries) into a single
+        // entry so agents don't see the same request repeated multiple times in their context.
+        List<CollapsedEntry> entries = collapseConsecutiveRequests(bh.copyOfEntries());
         List<PromptContributor> contributors = new ArrayList<>();
         int seq = 0;
         AgentModels.CurationPhase lastPhase = null;
@@ -266,10 +268,9 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
         EnumSet<CurationType> emittedCurationTypes = EnumSet.noneOf(CurationType.class);
 
         for (int i = 0; i < entries.size(); i++) {
-            BlackboardHistory.Entry entry = entries.get(i);
-            if (!(entry instanceof BlackboardHistory.DefaultEntry de)) {
-                continue;
-            }
+            CollapsedEntry collapsed = entries.get(i);
+            BlackboardHistory.DefaultEntry de = collapsed.entry();
+            int retryCount = collapsed.retryCount();
             Object input = de.input();
             if (input == null) {
                 continue;
@@ -468,43 +469,43 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.CommitAgentRequest commitAgentRequest -> {}
                     case AgentModels.MergeConflictRequest mergeConflictRequest -> {}
                     case AgentModels.ContextManagerRequest contextManagerRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.ContextManagerRoutingRequest contextManagerRoutingRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.DiscoveryAgentRequest discoveryAgentRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.DiscoveryAgentRequests discoveryAgentRequests ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.DiscoveryCollectorRequest discoveryCollectorRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.DiscoveryOrchestratorRequest discoveryOrchestratorRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.MergerRequest mergerRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.OrchestratorRequest orchestratorRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.PlanningAgentRequest planningAgentRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.PlanningAgentRequests planningAgentRequests ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.PlanningCollectorRequest planningCollectorRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.PlanningOrchestratorRequest planningOrchestratorRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.ResultsRequest resultsRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.ReviewRequest reviewRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.TicketAgentRequest ticketAgentRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.TicketAgentRequests ticketAgentRequests ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.TicketCollectorRequest ticketCollectorRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.TicketOrchestratorRequest ticketOrchestratorRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de) ;
+                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                 }
 
                 lastPhase = b.phase;
@@ -552,7 +553,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
 
     Bind addPromptContributor(AgentModels.AgentRequest req, List<PromptContributor> contributors,
                               AgentModels.CurationPhase lastPhase, int seq,
-                              BlackboardHistory.Entry de) {
+                              BlackboardHistory.DefaultEntry de, int retryCount) {
         if (hasRenderableRequest(req)) {
             AgentModels.CurationPhase newPhase = req.curationPhaseExtraction();
             seq = maybeAddBinder(contributors, lastPhase, newPhase, seq);
@@ -561,7 +562,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     req,
                     de.actionName(),
                     BASE_PRIORITY + seq++,
-                    true));
+                    true,
+                    retryCount));
             lastPhase = newPhase;
         }
 
@@ -569,6 +571,49 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
     }
 
     record Bind(int seq, AgentModels.CurationPhase phase) {}
+
+    /** A history entry with consecutive-duplicate collapse metadata. */
+    record CollapsedEntry(BlackboardHistory.DefaultEntry entry, int retryCount) {}
+
+    /**
+     * Collapses consecutive runs of entries with the same action name and input class
+     * (i.e., retries of the same action) into a single entry carrying the last (most recent)
+     * attempt. Non-request entries are never collapsed.
+     */
+    private List<CollapsedEntry> collapseConsecutiveRequests(List<BlackboardHistory.Entry> raw) {
+        List<CollapsedEntry> result = new ArrayList<>();
+        int i = 0;
+        while (i < raw.size()) {
+            if (!(raw.get(i) instanceof BlackboardHistory.DefaultEntry de)) {
+                i++;
+                continue;
+            }
+            Object input = de.input();
+            // Only collapse AgentRequest runs; leave results and other entries as-is.
+            if (!(input instanceof AgentModels.AgentRequest)) {
+                result.add(new CollapsedEntry(de, 1));
+                i++;
+                continue;
+            }
+            String actionName = de.actionName();
+            Class<?> inputClass = input.getClass();
+            int count = 1;
+            BlackboardHistory.DefaultEntry last = de;
+            while (i + count < raw.size()) {
+                BlackboardHistory.Entry next = raw.get(i + count);
+                if (!(next instanceof BlackboardHistory.DefaultEntry nextDe)) break;
+                Object nextInput = nextDe.input();
+                if (nextInput == null
+                        || nextInput.getClass() != inputClass
+                        || !Objects.equals(nextDe.actionName(), actionName)) break;
+                last = nextDe;
+                count++;
+            }
+            result.add(new CollapsedEntry(last, count));
+            i += count;
+        }
+        return result;
+    }
 
     // -----------------------------------------------------------------------
     // Allowed-types population (preserves the original switch semantics)
@@ -775,11 +820,9 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
     // Resolution pairing for interrupts
     // -----------------------------------------------------------------------
 
-    private String findResolutionAfter(List<BlackboardHistory.Entry> entries, int startIndex) {
+    private String findResolutionAfter(List<CollapsedEntry> entries, int startIndex) {
         for (int i = startIndex + 1; i < entries.size(); i++) {
-            if (!(entries.get(i) instanceof BlackboardHistory.DefaultEntry de)) {
-                continue;
-            }
+            BlackboardHistory.DefaultEntry de = entries.get(i).entry();
             if (de.input() instanceof Events.ResolveInterruptEvent re) {
                 return re.toAddMessage();
             }
@@ -999,7 +1042,8 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             AgentModels.AgentRequest request,
             String actionName,
             int contributorPriority,
-            boolean isHistorical
+            boolean isHistorical,
+            int retryCount
     ) implements PromptContributor {
 
         @Override
@@ -1019,6 +1063,10 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                 sb.append(HISTORICAL_REQUEST_CONTEXT_HEADER.trim()).append("\n");
             } else {
                 sb.append(CURRENT_PHASE_HEADER.trim()).append("\n");
+            }
+            if (retryCount > 1) {
+                sb.append("Note: This action was attempted ").append(retryCount)
+                        .append(" times consecutively; showing the most recent attempt.\n");
             }
             if (actionName != null && !actionName.isBlank()) {
                 sb.append("Action: ").append(actionName).append("\n");
