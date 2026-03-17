@@ -324,6 +324,36 @@ public class LlmDebugUiController {
                 .body();
     }
 
+    @PostMapping("/workflow-graph/status")
+    @Operation(summary = "Get compact run status for a node",
+            description = "Lightweight endpoint returning RUNNING, COMPLETE, or FAILED for a workflow node. "
+                    + "COMPLETE is set when a GOAL_COMPLETED event is present. FAILED when NODE_ERROR count > 0 "
+                    + "and no GOAL_COMPLETED. Suitable for polling loops that only need a terminal-status check.")
+    public WorkflowStatusResponse workflowStatus(@RequestBody @Valid NodeIdRequest request) {
+        String nodeId = request.nodeId();
+        String rootNodeId = toRootNodeId(nodeId);
+        Instant errorWindowStart = Instant.now().minusSeconds(180);
+        EventStreamRepository.ScopedEventStats stats =
+                eventStreamRepository.computeScopedStats(rootNodeId, errorWindowStart);
+        Map<String, Integer> counts = stats.eventTypeCounts() != null ? stats.eventTypeCounts() : Map.of();
+        int goalCompleted = counts.getOrDefault("GOAL_COMPLETED", 0);
+        int nodeErrors = counts.getOrDefault("NODE_ERROR", 0);
+        String status = goalCompleted > 0 ? "COMPLETE" : (nodeErrors > 0 ? "FAILED" : "RUNNING");
+        String summary = goalCompleted > 0
+                ? "Goal completed (" + goalCompleted + " GOAL_COMPLETED event(s))"
+                : nodeErrors > 0
+                ? "Run has " + nodeErrors + " NODE_ERROR event(s), no GOAL_COMPLETED"
+                : "Run is in progress";
+        return new WorkflowStatusResponse(nodeId, status, summary, stats.totalEvents());
+    }
+
+    public record WorkflowStatusResponse(
+            String nodeId,
+            @Schema(description = "RUNNING | COMPLETE | FAILED") String status,
+            String summary,
+            long totalEvents
+    ) {}
+
     private WorkflowNode buildWorkflowNode(
             String nid,
             Map<String, GraphNode> allNodes,

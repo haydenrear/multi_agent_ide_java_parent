@@ -119,6 +119,7 @@ public class PropagationExecutionService {
                         ? output.propagatedText()
                         : (output.errorMessage() != null ? "LLM propagator failed: " + output.errorMessage() : "LLM propagator returned no output");
                 String itemPayload = toJson(new Propagation(llmOut, parseJsonNode(beforePayload)));
+                warnIfRawSummary(output.summaryText(), entity.getRegistrationId(), layerId);
                 var item = propagationItemService.createItemIfNeeded(
                         entity.getRegistrationId(),
                         layerId,
@@ -395,6 +396,18 @@ public class PropagationExecutionService {
                 .summaryText(message)
                 .errorMessage(message)
                 .build();
+    }
+
+    /**
+     * Warn when a propagator writes a raw payload as summaryText (>500 chars).
+     * summaryText should be a short human-readable digest; if it's large it's
+     * almost certainly a raw payload dump rather than a proper summary.
+     */
+    private void warnIfRawSummary(String summaryText, String registrationId, String layerId) {
+        if (summaryText != null && summaryText.length() > 500) {
+            log.warn("Propagator summaryText is {} chars (expected <500) — propagator may be writing raw payload instead of a digest. registrationId={} layerId={}",
+                    summaryText.length(), registrationId, layerId);
+        }
     }
 
     private JsonNode parseJsonNode(String json) {

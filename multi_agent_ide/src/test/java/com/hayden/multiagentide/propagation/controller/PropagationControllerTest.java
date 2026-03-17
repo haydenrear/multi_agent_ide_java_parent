@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.propagation.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemResponse;
 import com.hayden.multiagentide.propagation.service.PropagationItemService;
 import com.hayden.multiagentide.propagation.repository.PropagationItemEntity;
@@ -27,7 +28,7 @@ class PropagationControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new PropagationController(propagationItemService)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new PropagationController(propagationItemService, new ObjectMapper())).build();
     }
 
     @Test

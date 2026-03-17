@@ -32,15 +32,6 @@ public class SandboxResolver {
 
     private final GraphRepository graphRepository;
     private final WorktreeRepository worktreeRepository;
-    private final WorktreeService worktreeService;
-
-    private EventBus eventBus;
-
-    @Autowired
-    @Lazy
-    public void setEventBus(EventBus eventBus) {
-        this.eventBus = eventBus;
-    }
 
     public WorktreeSandboxContext resolveSandboxContext(DecoratorContext context) {
 
