@@ -53,6 +53,13 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             return request;
         }
 
+        // Internal automation requests build their own context — skip sandbox resolution.
+        if (request instanceof AgentModels.AiPropagatorRequest
+                || request instanceof AgentModels.AiFilterRequest
+                || request instanceof AgentModels.AiTransformerRequest) {
+            return request;
+        }
+
         if (request instanceof AgentModels.DispatchedRequest || request instanceof AgentModels.ResultsRequest) {
             String formatted = "Worktree context was not attached correctly to dispatched request %s.".formatted(request);
             log.error(formatted);
