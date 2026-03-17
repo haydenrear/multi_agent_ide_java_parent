@@ -40,6 +40,16 @@ public interface AgentPretty {
         record SkipWorktreeContextSerializationCtx() implements AgentSerializationCtx {
         }
 
+        /**
+         * Signals that a request is being rendered as a historical workflow entry, not the
+         * current active request. Implementations should suppress fields that are only
+         * meaningful for the current step (routing guardrails, phase instructions) to avoid
+         * confusing downstream agents about where they are in the workflow.
+         * Also suppresses worktree context (same as SkipWorktreeContextSerializationCtx).
+         */
+        record HistoricalRequestSerializationCtx() implements AgentSerializationCtx {
+        }
+
     }
 
     default String prettyPrint(AgentSerializationCtx serializationCtx) {
@@ -56,6 +66,14 @@ public interface AgentPretty {
                     prettyPrint();
             case AgentSerializationCtx.SkipWorktreeContextSerializationCtx skipWorktreeCtx -> {
                 ACTIVE_SERIALIZATION_CTX.set(skipWorktreeCtx);
+                try {
+                    yield prettyPrint();
+                } finally {
+                    ACTIVE_SERIALIZATION_CTX.remove();
+                }
+            }
+            case AgentSerializationCtx.HistoricalRequestSerializationCtx historicalCtx -> {
+                ACTIVE_SERIALIZATION_CTX.set(historicalCtx);
                 try {
                     yield prettyPrint();
                 } finally {

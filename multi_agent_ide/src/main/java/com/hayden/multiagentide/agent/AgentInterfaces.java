@@ -1291,8 +1291,6 @@ public interface AgentInterfaces {
             );
             var model = new HashMap<String, Object>();
             model.put("goal", input.goal());
-            Optional.ofNullable(lastRequest.phase())
-                    .ifPresent(p -> model.put("phase", p));
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.DISCOVERY_ORCHESTRATOR,
