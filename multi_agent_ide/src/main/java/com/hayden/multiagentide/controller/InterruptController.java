@@ -23,6 +23,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,6 +40,30 @@ public class InterruptController {
     private final EventBus eventBus;
     private final PermissionGate permissionGate;
     private final EventStreamRepository eventStreamRepository;
+
+    public record PendingInterruptSummary(
+            String interruptId,
+            String originNodeId,
+            String reason,
+            String interruptType
+    ) {
+    }
+
+    @GetMapping("/pending")
+    @Operation(summary = "List all pending interrupt requests",
+            description = "Returns all interrupt requests currently awaiting resolution. "
+                    + "Each entry includes the interruptId, originNodeId, reason, and interruptType. "
+                    + "Resolve via POST /resolve with the interruptId or originNodeId as the id field.")
+    public List<PendingInterruptSummary> pending() {
+        return permissionGate.pendingInterruptRequests().stream()
+                .map(p -> new PendingInterruptSummary(
+                        p.getInterruptId(),
+                        p.getOriginNodeId(),
+                        p.getReason(),
+                        p.getType() != null ? p.getType().name() : null
+                ))
+                .toList();
+    }
 
     @PostMapping
     @Operation(summary = "Request an interrupt (PAUSE, STOP, HUMAN_REVIEW, PRUNE)",
