@@ -863,7 +863,7 @@ public class RequestEnrichment {
 
         // For orchestrators, collectors, and dispatchers: try to recycle previous contextId
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(
-                context.getAgentProcess().getBlackboard()
+                context.getAgentProcess()
         );
         if (history != null) {
             ArtifactKey recycled = findPreviousContextId(history, currentRequest);

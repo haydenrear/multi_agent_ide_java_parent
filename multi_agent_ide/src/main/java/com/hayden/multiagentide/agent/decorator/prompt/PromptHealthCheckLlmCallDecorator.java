@@ -5,6 +5,7 @@ import com.embabel.common.textio.template.TemplateRenderer;
 import com.hayden.multiagentide.filter.prompt.FilteredPromptContributorAdapter;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.propagation.service.PropagationExecutionService;
+import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorAdapter;
 import com.hayden.multiagentidelib.prompt.PromptContext;
@@ -18,7 +19,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Decorator that fires registered propagators on the {@code prompt-health-check} layer
@@ -75,10 +75,12 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
                     ? promptContext.agentType().name()
                     : "UNKNOWN";
 
-            PromptHealthPayload payload = new PromptHealthPayload(
-                    sourceName,
-                    assembledPrompt
-            );
+            AgentModels.AiPropagatorRequest payload = AgentModels.AiPropagatorRequest.builder()
+                    .input(assembledPrompt)
+                    .sourceName(sourceName)
+                    .sourceNodeId(sourceNodeId)
+                    .goal("prompt-health-check")
+                    .build();
 
             propagationExecutionService.execute(
                     FilterLayerCatalog.PROMPT_HEALTH_CHECK,
@@ -167,14 +169,4 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
         return result;
     }
 
-    /**
-     * Payload sent to propagators on the prompt-health-check layer.
-     *
-     * @param agentType        The agent type that owns this prompt.
-     * @param assembledPrompt  Template text followed by all contributor outputs with dividers.
-     */
-    public record PromptHealthPayload(
-            String agentType,
-            String assembledPrompt
-    ) {}
 }

@@ -55,7 +55,7 @@ public class SandboxResolver {
     }
 
     public String resolveOrchestratorNode(OperationContext context) {
-        var options = context.getProcessContext().getAgentProcess();
+        var options = context.getAgentProcess();
         String contextId = options.getId();
         return contextId;
     }

@@ -10,11 +10,8 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
-import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
-import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
-import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentide.filter.service.AiFilterSessionResolver;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.propagation.model.Propagation;
@@ -24,12 +21,7 @@ import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.filter.config.FilterContextFactory;
-import com.hayden.multiagentidelib.propagation.model.AiTextPropagator;
-import com.hayden.multiagentidelib.propagation.model.PropagationAction;
-import com.hayden.multiagentidelib.propagation.model.PropagationOutput;
-import com.hayden.multiagentidelib.propagation.model.Propagator;
-import com.hayden.multiagentidelib.propagation.model.PropagatorMatchOn;
-import com.hayden.multiagentidelib.propagation.model.TextPropagator;
+import com.hayden.multiagentidelib.propagation.model.*;
 import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
 import com.hayden.multiagentidelib.propagation.model.layer.AiPropagatorContext;
 import com.hayden.multiagentidelib.propagation.model.layer.DefaultPropagationContext;
@@ -73,24 +65,10 @@ public class PropagationExecutionService {
     @Lazy
     private EventBus eventBus;
 
-    @Autowired(required = false)
-    @Lazy
-    private List<PromptContextDecorator> promptContextDecorators = new ArrayList<>();
-
-    @Autowired(required = false)
-    @Lazy
-    private List<ToolContextDecorator> toolContextDecorators = new ArrayList<>();
-
-    @Autowired(required = false)
-    @Lazy
-    private List<RequestDecorator> requestDecorators = new ArrayList<>();
-
-    @Autowired(required = false)
-    @Lazy
-    private List<ResultDecorator> resultDecorators = new ArrayList<>();
-
     @Autowired
     private AiPropagatorToolHydration aiPropagatorToolHydration;
+    @Autowired
+    private DecorateRequestResults decorateRequestResults;
 
     public void execute(String layerId,
                         PropagatorMatchOn stage,
@@ -101,7 +79,8 @@ public class PropagationExecutionService {
         String beforePayload = toJson(payload);
         ArtifactKey key = resolveKey(sourceNodeId);
         for (var entity : discoveryService.getActivePropagatorsByLayer(layerId)) {
-            if (discoveryService.applicableBindings(entity, layerId, stage).isEmpty()) {
+            List<PropagatorLayerBinding> propagatorLayerBindings = discoveryService.applicableBindings(entity, layerId, stage);
+            if (propagatorLayerBindings.isEmpty()) {
                 continue;
             }
             try {
@@ -139,7 +118,7 @@ public class PropagationExecutionService {
                         .registrationId(entity.getRegistrationId())
                         .layerId(layerId)
                         .sourceNodeId(sourceNodeId)
-                        .sourceType(stage.name())
+                        .sourceType(Optional.ofNullable(stage).map(Enum::name).orElse(null))
                         .action(action.name())
                         .beforePayload(beforePayload)
                         .afterPayload(output.propagatedText())
@@ -247,14 +226,14 @@ public class PropagationExecutionService {
                         "stage", context.actionStage() == null ? "" : context.actionStage().name()))
                 .build();
 
-        AgentModels.AiPropagatorRequest decoratedRequest = AgentInterfaces.decorateRequest(
-                request,
-                resolvedOperationContext,
-                requestDecorators,
-                AI_PROPAGATOR_AGENT_NAME,
-                AI_PROPAGATOR_ACTION_NAME,
-                AI_PROPAGATOR_METHOD_NAME,
-                parentRequest);
+        AgentModels.AiPropagatorRequest decoratedRequest = decorateRequestResults.decorateRequest(
+                new DecorateRequestResults.DecorateRequestArgs<>(
+                        request,
+                        resolvedOperationContext,
+                        AI_PROPAGATOR_AGENT_NAME,
+                        AI_PROPAGATOR_ACTION_NAME,
+                        AI_PROPAGATOR_METHOD_NAME,
+                        parentRequest));
 
         Map<String, Object> model = buildAiModel(aiExecutor, beforePayload, context, parentRequest);
         String resolvedModelName = AcpChatOptionsString.DEFAULT_MODEL_NAME;
@@ -272,22 +251,22 @@ public class PropagationExecutionService {
                 .operationContext(resolvedOperationContext)
                 .build();
 
-        PromptContext decoratedPromptContext = AgentInterfaces.decoratePromptContext(
-                promptContext,
-                promptContextDecorators,
-                new DecoratorContext(
-                        resolvedOperationContext, AI_PROPAGATOR_AGENT_NAME, AI_PROPAGATOR_ACTION_NAME, AI_PROPAGATOR_METHOD_NAME, parentRequest, decoratedRequest
-                ));
+        PromptContext decoratedPromptContext = decorateRequestResults.decoratePromptContext(
+                new DecorateRequestResults.DecoratePromptContextArgs(
+                        promptContext,
+                        new DecoratorContext(
+                                resolvedOperationContext, AI_PROPAGATOR_AGENT_NAME, AI_PROPAGATOR_ACTION_NAME, AI_PROPAGATOR_METHOD_NAME, parentRequest, decoratedRequest
+                        )));
 
-        ToolContext toolContext = AgentInterfaces.decorateToolContext(
-                ToolContext.empty(),
-                decoratedRequest,
-                parentRequest,
-                resolvedOperationContext,
-                toolContextDecorators,
-                AI_PROPAGATOR_AGENT_NAME,
-                AI_PROPAGATOR_ACTION_NAME,
-                AI_PROPAGATOR_METHOD_NAME);
+        ToolContext toolContext = decorateRequestResults.decorateToolContext(
+                new DecorateRequestResults.DecorateToolArgs(
+                        ToolContext.empty(),
+                        decoratedRequest,
+                        parentRequest,
+                        resolvedOperationContext,
+                        AI_PROPAGATOR_AGENT_NAME,
+                        AI_PROPAGATOR_ACTION_NAME,
+                        AI_PROPAGATOR_METHOD_NAME));
 
         AiPropagatorContext aiContext = AiPropagatorContext.builder()
                 .propagationContext(context)
@@ -300,14 +279,14 @@ public class PropagationExecutionService {
                 .build();
 
         AgentModels.AiPropagatorResult result = aiTextPropagator.apply(decoratedRequest, aiContext);
-        result = AgentInterfaces.decorateResult(
-                result,
-                resolvedOperationContext,
-                resultDecorators,
-                AI_PROPAGATOR_AGENT_NAME,
-                AI_PROPAGATOR_ACTION_NAME,
-                AI_PROPAGATOR_METHOD_NAME,
-                decoratedRequest);
+        result = decorateRequestResults.decorateResult(
+                new DecorateRequestResults.DecorateResultArgs<>(
+                        result,
+                        resolvedOperationContext,
+                        AI_PROPAGATOR_AGENT_NAME,
+                        AI_PROPAGATOR_ACTION_NAME,
+                        AI_PROPAGATOR_METHOD_NAME,
+                        decoratedRequest));
         return result.toOutput();
     }
 
