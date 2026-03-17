@@ -67,6 +67,18 @@ class AcpStreamWindowBuffer(private val eventBus: EventBus) {
         return generations
     }
 
+    /**
+     * Flush all buffered windows across all nodeIds.
+     * Called before a permission request blocks execution so that any buffered
+     * ToolCallEvents are published to the event bus before the gate suspends.
+     */
+    fun flushAll(): List<Generation> {
+        val keys = streamWindows.keys.toList()
+        val generations = mutableListOf<Generation>()
+        keys.forEach { flushWindow(it, isFinal = true)?.let(generations::add) }
+        return generations
+    }
+
     private fun flushWindow(key: StreamKey, isFinal: Boolean): Generation? {
         val window = streamWindows.remove(key) ?: return null
         return window.flush(isFinal)

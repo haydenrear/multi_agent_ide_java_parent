@@ -65,7 +65,7 @@ class AcpSessionManager {
         @OptIn(UnstableApi::class)
         suspend fun resetSession() {
             session = client.newSession(sessionCreationParameters)
-            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value) }
+            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value, streamWindows) }
             val modelToSet = sandbox.model ?: resolvedCall.effectiveModel()
             modelToSet?.takeIf { it.isNotBlank() }?.let {
                 log.info("Setting ACP session model to {}", it)

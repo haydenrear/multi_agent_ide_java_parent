@@ -422,8 +422,12 @@ class AcpChatModel(
 
             val messageParent = chatKey.createChild()
 
+            // Create the buffer first so AcpSessionOperations and AcpSessionContext share the same instance.
+            // This allows requestPermissions to flush buffered ToolCallEvents before blocking.
+            val streamWindows = AcpStreamWindowBuffer(sessionManager.eventBus)
+
             val session = client.newSession(sessionParams)
-            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value) }
+            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value, streamWindows) }
 
             val modelToSet = sandboxTranslation.model ?: resolvedCall.effectiveModel()
             modelToSet?.takeIf { it.isNotBlank() }?.let {
@@ -433,6 +437,7 @@ class AcpChatModel(
 
             sessionManager.AcpSessionContext(
                 scope, transport, protocol, client, session,
+                streamWindows = streamWindows,
                 messageParent = messageParent,
                 chatModelKey = chatKey,
                 sessionCreationParameters = sessionParams,
@@ -644,7 +649,8 @@ class AcpChatModel(
 
     class AcpSessionOperations(
         private val permissionGate: IPermissionGate,
-        private val originNodeId: String
+        private val originNodeId: String,
+        private val streamWindows: AcpStreamWindowBuffer
     ) : ClientSessionOperations {
 
         private val activeTerminals = ConcurrentHashMap<String, Process>()
@@ -654,6 +660,10 @@ class AcpChatModel(
             permissions: List<PermissionOption>,
             _meta: JsonElement?
         ): RequestPermissionResponse {
+            // Flush all buffered stream events (ToolCallEvent, thoughts, etc.) before
+            // blocking on the permission gate. Without this, buffered ToolCallEvents
+            // are not visible to the /detail endpoint until after the permission resolves.
+            streamWindows.flushAll()
             val requestId = toolCall.toolCallId.value
             permissionGate.publishRequest(requestId, originNodeId, toolCall, permissions, _meta)
             return permissionGate.awaitResponse(requestId)
