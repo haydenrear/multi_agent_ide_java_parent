@@ -1,5 +1,7 @@
 package com.hayden.multiagentide.propagation.controller.dto;
 
+import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 
@@ -16,7 +18,7 @@ public record PropagatorRegistrationRequest(
         boolean isInheritable,
         boolean isPropagatedToParent,
         List<LayerBindingRequest> layerBindings,
-        Object executor,
+        @Schema(description = "AI propagator executor configuration. Only AI_PROPAGATOR executors are supported via this API.") AiPropagatorTool executor,
         boolean activate
 ) {
     @Builder(toBuilder = true)

@@ -2,18 +2,16 @@ package com.hayden.multiagentide.propagation.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.propagation.controller.dto.*;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
 import com.hayden.multiagentide.propagation.validation.PropagatorExecutorValidator;
 import com.hayden.multiagentide.propagation.validation.PropagatorSemanticValidator;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
+import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
 import com.hayden.multiagentidelib.propagation.model.*;
+import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
 import com.hayden.multiagentidelib.propagation.model.layer.AiPropagatorContext;
-import com.hayden.multiagentidelib.propagation.model.layer.DefaultPropagationContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,7 +49,7 @@ public class PropagatorRegistrationService {
         Instant now = Instant.now();
         String registrationId = "propagator-" + UUID.randomUUID();
         try {
-            ExecutableTool<?, ?, ?> executor = objectMapper.convertValue(request.executor(), ExecutableTool.class);
+            AiPropagatorTool executor = request.executor();
             Propagator<?, ?, ?> propagator = buildPropagator(registrationId, request, executor, now);
             List<PropagatorLayerBinding> bindings = request.layerBindings().stream()
                     .map(binding -> PropagatorLayerBinding.builder()
@@ -184,26 +182,13 @@ public class PropagatorRegistrationService {
         return changed;
     }
 
-    private Propagator<?, ?, ?> buildPropagator(String registrationId, PropagatorRegistrationRequest request, ExecutableTool<?, ?, ?> executor, Instant now) {
-        if ("AI_TEXT".equalsIgnoreCase(request.propagatorKind())) {
-            return AiTextPropagator.builder()
-                    .id(registrationId)
-                    .name(request.name())
-                    .description(request.description())
-                    .sourcePath(request.sourcePath())
-                    .executor((ExecutableTool<AgentModels.AiPropagatorRequest, AgentModels.AiPropagatorResult, AiPropagatorContext>) executor)
-                    .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
-                    .priority(request.priority())
-                    .createdAt(now)
-                    .updatedAt(now)
-                    .build();
-        }
-        return TextPropagator.builder()
+    private Propagator<?, ?, ?> buildPropagator(String registrationId, PropagatorRegistrationRequest request, AiPropagatorTool executor, Instant now) {
+        return AiTextPropagator.builder()
                 .id(registrationId)
                 .name(request.name())
                 .description(request.description())
                 .sourcePath(request.sourcePath())
-                .executor((ExecutableTool<String, Object, DefaultPropagationContext>) executor)
+                .executor(executor)
                 .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
                 .priority(request.priority())
                 .createdAt(now)
@@ -216,7 +201,7 @@ public class PropagatorRegistrationService {
                                   Instant now,
                                   PropagatorRegistrationEntity existing) {
         try {
-            ExecutableTool<?, ?, ?> executor = objectMapper.convertValue(request.executor(), ExecutableTool.class);
+            AiPropagatorTool executor = request.executor();
             Propagator<?, ?, ?> propagator = buildPropagator(registrationId, request, executor, now);
             List<PropagatorLayerBinding> bindings = request.layerBindings().stream()
                     .map(binding -> PropagatorLayerBinding.builder()
@@ -284,10 +269,10 @@ public class PropagatorRegistrationService {
                         .matcherText(action.methodName())
                         .matchOn(stage)
                         .build()))
-                .executor(Map.of(
-                        "executorType", "AI_PROPAGATOR",
-                        "sessionMode", "SAME_SESSION_FOR_ACTION",
-                        "registrarPrompt", "Escalate out-of-domain, out-of-distribution, or otherwise controller-relevant request and result payloads."
+                .executor(new AiPropagatorTool(
+                        "Escalate out-of-domain, out-of-distribution, or otherwise controller-relevant request and result payloads.",
+                        AiFilterTool.SessionMode.SAME_SESSION_FOR_ACTION,
+                        null
                 ))
                 .activate(true)
                 .build();
