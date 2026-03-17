@@ -1,28 +1,33 @@
 package com.hayden.multiagentide.propagation.controller;
 
 import jakarta.validation.Valid;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.propagation.controller.dto.ReadPropagationItemsResponse;
 import com.hayden.multiagentide.propagation.controller.dto.RecentPropagationItemsByNodeRequest;
 import com.hayden.multiagentide.propagation.controller.dto.RecentPropagationItemsByNodeResponse;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemRequest;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemResponse;
+import com.hayden.multiagentide.propagation.model.Propagation;
 import com.hayden.multiagentide.propagation.service.PropagationItemService;
 import com.hayden.multiagentidelib.propagation.model.PropagationResolutionType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/propagations/items")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Propagation Items", description = "List, monitor, and resolve propagation items. "
         + "Use /by-node for primary controller monitoring (full request/response payloads). "
         + "Use /records for debugging propagator behavior.")
 public class PropagationController {
 
     private final PropagationItemService propagationItemService;
+    private final ObjectMapper objectMapper;
 
     @GetMapping
     @Operation(summary = "List all pending propagation items")
@@ -64,7 +69,7 @@ public class PropagationController {
                         .sourceName(item.getSourceName())
                         .stage(item.getStage())
                         .summaryText(item.getSummaryText())
-                        .propagatedText(item.getPropagatedText())
+                        .propagatedText(parsePropagation(item.getPropagatedText()))
                         .mode(item.getMode())
                         .status(item.getStatus())
                         .resolutionType(item.getResolutionType())
@@ -82,5 +87,17 @@ public class PropagationController {
                                                                   @RequestBody @Valid ResolvePropagationItemRequest request) {
         PropagationResolutionType resolutionType = PropagationResolutionType.valueOf(request.resolutionType());
         return ResponseEntity.ok(propagationItemService.resolve(itemId, resolutionType, request.resolutionNotes()));
+    }
+
+    private Propagation parsePropagation(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(raw, Propagation.class);
+        } catch (Exception e) {
+            log.debug("propagatedText is not a Propagation record, wrapping as llmOutput: {}", e.getMessage());
+            return new Propagation(raw, null);
+        }
     }
 }

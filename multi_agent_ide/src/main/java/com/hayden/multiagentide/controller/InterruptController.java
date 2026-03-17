@@ -6,15 +6,12 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.service.AgentControlService;
 import com.hayden.multiagentide.gate.PermissionGate;
-import com.hayden.multiagentide.repository.EventStreamRepository;
+import com.hayden.multiagentide.service.PermissionGateService;
+
 import java.time.Instant;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,7 +36,7 @@ public class InterruptController {
     private final AgentControlService agentControlService;
     private final EventBus eventBus;
     private final PermissionGate permissionGate;
-    private final EventStreamRepository eventStreamRepository;
+    private final PermissionGateService permissionGateService;
 
     public record PendingInterruptSummary(
             String interruptId,
@@ -119,8 +116,8 @@ public class InterruptController {
         );
         String resolvedInterruptId = interruptId;
 
-        if (!resolved && isArtifactKey(interruptId)) {
-            for (String candidateInterruptId : findInterruptIdsInScope(interruptId)) {
+        if (!resolved && permissionGateService.isArtifactKey(interruptId)) {
+            for (String candidateInterruptId : permissionGateService.findInterruptIdsInScope(interruptId)) {
                 resolved = permissionGate.resolveInterrupt(
                         candidateInterruptId,
                         request.resolutionType(),
@@ -192,20 +189,6 @@ public class InterruptController {
     ) {
     }
 
-    public record ToolCallInfo(
-            String eventId,
-            Instant timestamp,
-            String nodeId,
-            String toolCallId,
-            String title,
-            String kind,
-            String status,
-            String phase,
-            Object rawInput,
-            Object rawOutput
-    ) {
-    }
-
     public record InterruptDetailResponse(
             String interruptId,
             String requestId,
@@ -217,7 +200,7 @@ public class InterruptController {
             String reason,
             String contextForDecision,
             String status,
-            List<ToolCallInfo> toolCalls
+            List<PermissionGateService.ToolCallInfo> toolCalls
     ) {
     }
 
@@ -234,7 +217,7 @@ public class InterruptController {
                     + "(see InterruptRouting and handleUnifiedInterrupt for routing semantics).")
     public InterruptDetailResponse detail(@RequestBody @Valid InterruptDetailRequest request) {
         String id = request.id();
-        Events.InterruptRequestEvent interruptEvent = findInterruptRequestEvent(id)
+        Events.InterruptRequestEvent interruptEvent = permissionGateService.findInterruptRequestEvent(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Interrupt request not found"));
 
         boolean pending = permissionGate.pendingInterruptRequests().stream()
@@ -242,15 +225,8 @@ public class InterruptController {
                         || Objects.equals(p.getInterruptId(), interruptEvent.nodeId()));
         String status = pending ? "PENDING" : "RESOLVED_OR_UNKNOWN";
 
-        List<ToolCallInfo> toolCalls = eventStreamRepository.list().stream()
-                .filter(Events.ToolCallEvent.class::isInstance)
-                .map(Events.ToolCallEvent.class::cast)
-                .filter(tc -> matchesNodeScope(interruptEvent.nodeId(), tc.nodeId())
-                        || matchesNodeScope(interruptEvent.requestId(), tc.nodeId()))
-                .sorted(Comparator.comparing(Events.ToolCallEvent::timestamp).reversed())
-                .limit(40)
-                .map(this::toToolCallInfo)
-                .toList();
+        List<PermissionGateService.ToolCallInfo> toolCalls = permissionGateService.findToolCallsInScope(
+                interruptEvent.nodeId(), 40);
 
         return new InterruptDetailResponse(
                 interruptEvent.requestId(),
@@ -265,90 +241,5 @@ public class InterruptController {
                 status,
                 toolCalls
         );
-    }
-
-    private List<String> findInterruptIdsInScope(String scopeNodeId) {
-        LinkedHashSet<String> candidates = new LinkedHashSet<>();
-        eventStreamRepository.list().stream()
-                .sorted(Comparator.comparing(Events.GraphEvent::timestamp).reversed())
-                .forEach(event -> {
-                    if (event instanceof Events.InterruptRequestEvent interruptEvent
-                            && matchesNodeScope(scopeNodeId, interruptEvent.nodeId())) {
-                        Stream.of(interruptEvent.requestId(), interruptEvent.nodeId())
-                                .filter(Objects::nonNull)
-                                .filter(s -> !s.isBlank())
-                                .forEach(candidates::add);
-                    }
-                    if (event instanceof Events.NodeReviewRequestedEvent reviewRequested
-                            && matchesNodeScope(scopeNodeId, reviewRequested.nodeId())
-                            && reviewRequested.reviewNodeId() != null
-                            && !reviewRequested.reviewNodeId().isBlank()) {
-                        candidates.add(reviewRequested.reviewNodeId());
-                    }
-                });
-        return candidates.stream().toList();
-    }
-
-    private Optional<Events.InterruptRequestEvent> findInterruptRequestEvent(String id) {
-        if (id == null || id.isBlank()) {
-            return Optional.empty();
-        }
-        return eventStreamRepository.list().stream()
-                .filter(Events.InterruptRequestEvent.class::isInstance)
-                .map(Events.InterruptRequestEvent.class::cast)
-                .filter(event -> matchesInterruptIdentifier(id, event))
-                .sorted(Comparator.comparing(Events.InterruptRequestEvent::timestamp).reversed())
-                .findFirst();
-    }
-
-    private boolean matchesInterruptIdentifier(String id, Events.InterruptRequestEvent event) {
-        if (isArtifactKey(id)) {
-            return matchesNodeScope(id, event.nodeId());
-        }
-        return id.equals(event.requestId())
-                || id.equals(event.nodeId());
-    }
-
-    private ToolCallInfo toToolCallInfo(Events.ToolCallEvent event) {
-        return new ToolCallInfo(
-                event.eventId(),
-                event.timestamp(),
-                event.nodeId(),
-                event.toolCallId(),
-                event.title(),
-                event.kind(),
-                event.status(),
-                event.phase(),
-                event.rawInput(),
-                event.rawOutput()
-        );
-    }
-
-    private boolean isArtifactKey(String value) {
-        if (value == null || value.isBlank()) {
-            return false;
-        }
-        try {
-            new ArtifactKey(value);
-            return true;
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private boolean matchesNodeScope(String scopeNodeId, String eventNodeId) {
-        if (scopeNodeId == null || scopeNodeId.isBlank() || eventNodeId == null || eventNodeId.isBlank()) {
-            return false;
-        }
-        if (scopeNodeId.equals(eventNodeId)) {
-            return true;
-        }
-        try {
-            ArtifactKey candidate = new ArtifactKey(eventNodeId);
-            ArtifactKey scope = new ArtifactKey(scopeNodeId);
-            return candidate.isDescendantOf(scope);
-        } catch (Exception ignored) {
-            return eventNodeId.startsWith(scopeNodeId + "/");
-        }
     }
 }

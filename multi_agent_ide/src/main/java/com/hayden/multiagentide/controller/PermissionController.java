@@ -2,11 +2,10 @@ package com.hayden.multiagentide.controller;
 
 import jakarta.validation.Valid;
 import com.agentclientprotocol.model.PermissionOptionKind;
-import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
-import com.hayden.multiagentide.repository.EventStreamRepository;
+import com.hayden.multiagentide.service.PermissionGateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -22,10 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -36,7 +32,7 @@ import java.util.Optional;
 public class PermissionController {
 
     private final PermissionGate permissionGate;
-    private final EventStreamRepository eventStreamRepository;
+    private final PermissionGateService permissionGateService;
 
     @Schema(description = "Request to resolve a pending tool permission.")
     public record PermissionResolutionRequest(
@@ -52,22 +48,6 @@ public class PermissionController {
     ) {
     }
 
-    public record ToolCallInfo(
-            String eventId,
-            Instant timestamp,
-            String nodeId,
-            String toolCallId,
-            String title,
-            String kind,
-            String status,
-            String phase,
-            List<Map<String, Object>> content,
-            List<Map<String, Object>> locations,
-            Object rawInput,
-            Object rawOutput
-    ) {
-    }
-
     public record PermissionDetailResponse(
             String requestId,
             String originNodeId,
@@ -75,7 +55,7 @@ public class PermissionController {
             String toolCallId,
             String status,
             Object permissions,
-            List<ToolCallInfo> toolCalls
+            List<PermissionGateService.ToolCallInfo> toolCalls
     ) {
     }
 
@@ -135,9 +115,9 @@ public class PermissionController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Permission request not found");
 
         String resolvedRequestId = id;
-        boolean resolved = performResolution(id, request.optionType);
-        if (!resolved && isArtifactKey(id)) {
-            resolvedRequestId = resolveFromScope(id, request.optionType);
+        boolean resolved = permissionGateService.performPermissionResolution(id, request.optionType);
+        if (!resolved && permissionGateService.isArtifactKey(id)) {
+            resolvedRequestId = permissionGateService.resolvePermissionFromScope(id, request.optionType);
             resolved = resolvedRequestId != null;
         }
 
@@ -158,14 +138,12 @@ public class PermissionController {
                     + "for full inspection of what the tool attempted.")
     public PermissionDetailResponse detail(
             @Parameter(description = "Permission requestId, toolCallId, nodeId, or ArtifactKey (scope-based lookup for descendants)") @RequestParam("id") String id) {
-        var permissionEvent = findPermissionRequestEvent(id)
+        Events.PermissionRequestedEvent permissionEvent = permissionGateService.findPermissionRequestEvent(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Permission request not found"));
 
         boolean pending = permissionGate.pendingPermissionRequests().stream()
                 .anyMatch(p -> Objects.equals(p.getRequestId(), permissionEvent.requestId()));
         String status = pending ? "PENDING" : "RESOLVED_OR_UNKNOWN";
-
-        List<ToolCallInfo> toolCalls = findToolCallsForPermission(permissionEvent);
 
         return new PermissionDetailResponse(
                 permissionEvent.requestId(),
@@ -174,137 +152,7 @@ public class PermissionController {
                 permissionEvent.toolCallId(),
                 status,
                 permissionEvent.permissions(),
-                toolCalls
+                permissionGateService.findToolCallsForPermission(permissionEvent)
         );
     }
-
-    private List<ToolCallInfo> findToolCallsForPermission(Events.PermissionRequestedEvent permissionEvent) {
-        String toolCallId = permissionEvent.toolCallId();
-        if (toolCallId != null && !toolCallId.isBlank()) {
-            List<ToolCallInfo> byToolCallId = eventStreamRepository.list().stream()
-                    .filter(Events.ToolCallEvent.class::isInstance)
-                    .map(Events.ToolCallEvent.class::cast)
-                    .filter(tc -> Objects.equals(tc.toolCallId(), toolCallId))
-                    .sorted(Comparator.comparing(Events.ToolCallEvent::timestamp))
-                    .map(this::toToolCallInfo)
-                    .toList();
-            if (!byToolCallId.isEmpty()) {
-                return byToolCallId;
-            }
-        }
-        // Fall back to node-scope matching when toolCallId is absent or unmatched.
-        String scopeId = permissionEvent.nodeId() != null ? permissionEvent.nodeId() : permissionEvent.originNodeId();
-        if (scopeId == null || scopeId.isBlank()) {
-            return List.of();
-        }
-        return eventStreamRepository.list().stream()
-                .filter(Events.ToolCallEvent.class::isInstance)
-                .map(Events.ToolCallEvent.class::cast)
-                .filter(tc -> matchesNodeScope(scopeId, tc.nodeId()))
-                .sorted(Comparator.comparing(Events.ToolCallEvent::timestamp).reversed())
-                .limit(40)
-                .map(this::toToolCallInfo)
-                .toList();
-    }
-
-    private Optional<Events.PermissionRequestedEvent> findPermissionRequestEvent(String id) {
-        if (id == null || id.isBlank()) {
-            return Optional.empty();
-        }
-        return eventStreamRepository.list().stream()
-                .filter(Events.PermissionRequestedEvent.class::isInstance)
-                .map(Events.PermissionRequestedEvent.class::cast)
-                .filter(event -> matchesPermissionIdentifier(id, event))
-                .sorted(Comparator.comparing(Events.PermissionRequestedEvent::timestamp).reversed())
-                .findFirst();
-    }
-
-    private boolean matchesPermissionIdentifier(String id, Events.PermissionRequestedEvent event) {
-        if (isArtifactKey(id)) {
-            return matchesNodeScope(id, event.nodeId())
-                    || matchesNodeScope(id, event.originNodeId());
-        }
-        return id.equals(event.requestId())
-                || id.equals(event.toolCallId())
-                || id.equals(event.nodeId());
-    }
-
-    private ToolCallInfo toToolCallInfo(Events.ToolCallEvent event) {
-        return new ToolCallInfo(
-                event.eventId(),
-                event.timestamp(),
-                event.nodeId(),
-                event.toolCallId(),
-                event.title(),
-                event.kind(),
-                event.status(),
-                event.phase(),
-                event.content(),
-                event.locations(),
-                event.rawInput(),
-                event.rawOutput()
-        );
-    }
-
-    private String resolveFromScope(String scopeNodeId, PermissionOptionKind optionType) {
-        List<Events.PermissionRequestedEvent> candidates = eventStreamRepository.list().stream()
-                .filter(Events.PermissionRequestedEvent.class::isInstance)
-                .map(Events.PermissionRequestedEvent.class::cast)
-                .filter(event -> matchesNodeScope(scopeNodeId, event.nodeId()))
-                .sorted(Comparator.comparing(Events.PermissionRequestedEvent::timestamp).reversed())
-                .toList();
-
-        for (Events.PermissionRequestedEvent candidate : candidates) {
-            if (performResolution(candidate.requestId(), optionType)) {
-                return candidate.requestId();
-            }
-        }
-        return null;
-    }
-
-    private boolean performResolution(String requestId, PermissionOptionKind optionType) {
-        if (optionType == null) {
-            return permissionGate.resolveCancelled(requestId);
-        }
-        var o = switch(optionType) {
-            case ALLOW_ONCE ->
-                    IPermissionGate.Companion.allowOnce();
-            case ALLOW_ALWAYS ->
-                    IPermissionGate.Companion.allowAlways();
-            case REJECT_ONCE ->
-                    IPermissionGate.Companion.rejectOnce();
-            case REJECT_ALWAYS ->
-                    IPermissionGate.Companion.rejectAlways();
-        };
-        return permissionGate.resolveSelected(requestId, o);
-    }
-
-    private boolean isArtifactKey(String value) {
-        if (value == null || value.isBlank()) {
-            return false;
-        }
-        try {
-            new ArtifactKey(value);
-            return true;
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private boolean matchesNodeScope(String scopeNodeId, String eventNodeId) {
-        if (scopeNodeId == null || scopeNodeId.isBlank() || eventNodeId == null || eventNodeId.isBlank()) {
-            return false;
-        }
-        if (scopeNodeId.equals(eventNodeId)) {
-            return true;
-        }
-        try {
-            ArtifactKey candidate = new ArtifactKey(eventNodeId);
-            ArtifactKey scope = new ArtifactKey(scopeNodeId);
-            return candidate.isDescendantOf(scope);
-        } catch (Exception ignored) {
-            return eventNodeId.startsWith(scopeNodeId + "/");
-        }
-    }
-
 }

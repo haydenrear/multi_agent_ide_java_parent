@@ -2,6 +2,7 @@ package com.hayden.multiagentide.propagation.service;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentPlatform;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
@@ -117,13 +118,13 @@ public class PropagationExecutionService {
                 String llmOut = output.propagatedText() != null && !output.propagatedText().isBlank()
                         ? output.propagatedText()
                         : (output.errorMessage() != null ? "LLM propagator failed: " + output.errorMessage() : "LLM propagator returned no output");
-                String itemPayload = toJson(new Propagation(llmOut, beforePayload));
+                String itemPayload = toJson(new Propagation(llmOut, parseJsonNode(beforePayload)));
                 var item = propagationItemService.createItemIfNeeded(
                         entity.getRegistrationId(),
                         layerId,
                         sourceNodeId,
                         sourceName,
-                        truncateSummary(output.summaryText()),
+                        output.summaryText(),
                         itemPayload,
                         stage != null ? stage.name() : null,
                         correlationKey
@@ -149,14 +150,14 @@ public class PropagationExecutionService {
             } catch (Exception e) {
                 log.error("Propagation execution failed for layer={} stage={} registration={}", layerId, stage, entity.getRegistrationId(), e);
                 Instant now = Instant.now();
-                String failurePayload = toJson(new Propagation("Propagation execution failed: " + e.getMessage(), beforePayload));
+                String failurePayload = toJson(new Propagation("Propagation execution failed: " + e.getMessage(), parseJsonNode(beforePayload)));
                 String correlationKey = correlationKey(entity.getRegistrationId(), layerId, stage, sourceNodeId, beforePayload);
                 propagationItemService.createItemIfNeeded(
                         entity.getRegistrationId(),
                         layerId,
                         sourceNodeId,
                         sourceName,
-                        truncateSummary("Propagation execution failed: " + e.getMessage()),
+                        "Propagation execution failed: " + e.getMessage(),
                         failurePayload,
                         stage != null ? stage.name() : null,
                         correlationKey
@@ -196,7 +197,7 @@ public class PropagationExecutionService {
         if (model instanceof AiTextPropagator aiTextPropagator) {
             return runAiPropagator(aiTextPropagator, context, beforePayload, originalPayload, operationContext);
         }
-        return PropagationOutput.builder().propagatedText(beforePayload).summaryText(truncateSummary(beforePayload)).build();
+        return PropagationOutput.builder().propagatedText(beforePayload).summaryText(beforePayload).build();
     }
 
     private PropagationOutput runAiPropagator(AiTextPropagator aiTextPropagator,
@@ -207,7 +208,7 @@ public class PropagationExecutionService {
         if (!(aiTextPropagator.executor() instanceof AiPropagatorTool aiExecutor)) {
             return PropagationOutput.builder()
                     .propagatedText(beforePayload)
-                    .summaryText(truncateSummary(beforePayload))
+                    .summaryText(beforePayload)
                     .errorMessage("AI propagator executor is not an AiPropagatorTool")
                     .build();
         }
@@ -391,17 +392,17 @@ public class PropagationExecutionService {
     private PropagationOutput failedOutput(String beforePayload, String message) {
         return PropagationOutput.builder()
                 .propagatedText(beforePayload)
-                .summaryText(truncateSummary(message))
+                .summaryText(message)
                 .errorMessage(message)
                 .build();
     }
 
-    /** Truncates summary text to 3800 chars so it fits safely in any VARCHAR column. */
-    private static String truncateSummary(String text) {
-        if (text == null || text.length() <= 3800) {
-            return text;
+    private JsonNode parseJsonNode(String json) {
+        try {
+            return objectMapper.readTree(json);
+        } catch (Exception e) {
+            return objectMapper.valueToTree(json);
         }
-        return text.substring(0, 3800) + "…";
     }
 
     private boolean transformed(String beforePayload, String afterPayload) {

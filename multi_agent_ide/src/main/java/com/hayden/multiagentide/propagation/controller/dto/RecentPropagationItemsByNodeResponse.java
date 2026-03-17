@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.propagation.controller.dto;
 
+import com.hayden.multiagentide.propagation.model.Propagation;
 import lombok.Builder;
 
 import java.time.Instant;
@@ -16,7 +17,7 @@ public record RecentPropagationItemsByNodeResponse(List<PropagationItemPayload> 
             String sourceName,
             String stage,
             String summaryText,
-            String propagatedText,
+            Propagation propagatedText,
             String mode,
             String status,
             String resolutionType,
