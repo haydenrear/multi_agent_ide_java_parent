@@ -15,21 +15,9 @@ public class PropagatorExecutorValidator {
             errors.add("Executor configuration is required");
             return errors;
         }
-        String executorType = executorNode.path("executorType").asText("");
-        if (executorType.isBlank()) {
-            errors.add("executorType is required");
-            return errors;
-        }
-        switch (executorType) {
-            case "PYTHON" -> requireNonBlank(executorNode, "scriptPath", errors);
-            case "AI_PROPAGATOR", "AI" -> {
-                requireNonBlank(executorNode, "registrarPrompt", errors);
-                validateSessionMode(executorNode, errors);
-            }
-            case "BINARY", "JAVA_FUNCTION" -> {
-            }
-            default -> errors.add("Unknown executorType: " + executorType);
-        }
+        // executor field is strongly typed as AiPropagatorTool — validate its required fields directly
+        requireNonBlank(executorNode, "registrarPrompt", errors);
+        validateSessionMode(executorNode, errors);
         return errors;
     }
 
