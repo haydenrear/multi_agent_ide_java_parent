@@ -128,6 +128,7 @@ public class CliEventFormatter {
                 case Events.TransformationEvent e -> format(normalizedArgs, "TRANSFORMATION", e, "action=" + e.action()
                         + " controller=" + summarize(normalizedArgs, e.controllerId())
                         + " endpoint=" + summarize(normalizedArgs, e.endpointId()));
+                case Events.CompactionEvent e -> format(normalizedArgs, "COMPACTION", e, "message=" + summarize(normalizedArgs, e.message()));
             };
     }
 

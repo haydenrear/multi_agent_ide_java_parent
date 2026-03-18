@@ -646,6 +646,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             case Events.PropagationEvent propagationEvent ->
                     buildTargets(propagationEvent.sourceNodeId(), null);
             case Events.TransformationEvent ignored -> new ArrayList<>();
+            case Events.CompactionEvent ignored -> buildTargets(event.nodeId(), null);
         };
     }
 

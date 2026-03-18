@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 public interface Events {
 
@@ -115,6 +116,7 @@ public interface Events {
             @JsonSubTypes.Type(value = InterruptRequestEvent.class, name = "INTERRUPT_REQUEST_EVENT"),
             @JsonSubTypes.Type(value = NodeStatusChangedEvent.class, name = "NODE_STATUS_CHANGED"),
             @JsonSubTypes.Type(value = NodeErrorEvent.class, name = "NODE_ERROR"),
+            @JsonSubTypes.Type(value = CompactionEvent.class, name = "COMPACTION"),
             @JsonSubTypes.Type(value = NodeBranchedEvent.class, name = "NODE_BRANCHED"),
             @JsonSubTypes.Type(value = NodePrunedEvent.class, name = "NODE_PRUNED"),
             @JsonSubTypes.Type(value = NodeReviewRequestedEvent.class, name = "NODE_REVIEW_REQUESTED"),
@@ -538,6 +540,11 @@ public interface Events {
                         line("controllerId", e.controllerId()),
                         line("endpointId", e.endpointId()),
                         line("action", e.action()));
+                case CompactionEvent e -> formatEvent("Compaction Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("message", e.message()));
             };
         }
 
@@ -850,6 +857,28 @@ public interface Events {
         @Override
         public String eventType() {
             return "NODE_ERROR";
+        }
+    }
+
+    record CompactionEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String message
+    ) implements GraphEvent {
+
+        public static CompactionEvent of(String message, ArtifactKey key) {
+            return new CompactionEvent(
+                    UUID.randomUUID().toString(),
+                    Instant.now(),
+                    key.value(),
+                    message
+            );
+        }
+
+        @Override
+        public String eventType() {
+            return "COMPACTION";
         }
     }
 

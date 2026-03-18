@@ -179,11 +179,19 @@ class AcpChatModel(
         try {
             doPerformPrompt(session, content, sessionContext, memoryId, generations)
             // If the session emitted a compaction event ("Compacting..."), the stream ends and
-            // the session waits for the next user message.  Re-issue the same prompt after a
-            // brief pause so the LLM can complete its response with the compacted context.
+            // the session waits for the next user message.  Re-issue the same prompt after
+            // waiting for compaction to finish so the LLM can complete its response with the
+            // compacted context.
             if (isSessionCompacting(generations)) {
-                log.info("ACP session compaction detected — re-issuing prompt after brief pause")
-                Thread.sleep(2000)
+                log.info("ACP session compaction detected for {} — waiting 30s then re-issuing prompt",
+                    sessionContext.chatModelKey)
+                sessionManager.eventBus.publish(
+                    Events.CompactionEvent.of(
+                        "ACP session compacting for ${sessionContext.chatModelKey.value} — prompt will be re-issued after 30s wait",
+                        sessionContext.chatModelKey
+                    )
+                )
+                Thread.sleep(30_000)
                 generations.clear()
                 doPerformPrompt(session, content, sessionContext, memoryId, generations)
             }
@@ -226,16 +234,21 @@ class AcpChatModel(
     }
 
     /**
-     * Returns true when the only non-blank output from a prompt call is a compaction notice
-     * ("Compacting..." or "...").  In this case the ACP session has compacted its context and
-     * the stream has ended — the caller must re-issue the same prompt to get a real response.
+     * Returns true when the last non-blank generation text is a compaction notice rather than
+     * the expected JSON response.  We expect a JSON object as output; we use a regex to strip
+     * any leading thinking tokens and find the first '{'.  If no '{' exists and the text contains
+     * a compaction marker ("Compacting..." or is just "...") it means the session compacted and
+     * ended the stream before producing actual output.
      */
     private fun isSessionCompacting(generations: List<Generation>): Boolean {
-        val texts = generations
+        val lastText = generations
+            .asReversed()
             .mapNotNull { runCatching { it.output.text }.getOrNull() }
-            .filter { it.isNotBlank() }
-        if (texts.isEmpty()) return false
-        return texts.all { it.trim() == "Compacting..." || it.trim() == "..." }
+            .firstOrNull { it.isNotBlank() }
+            ?: return false
+        val firstBrace = Regex("\\{").find(lastText)
+        val hasJsonObject = firstBrace != null
+        return !hasJsonObject && (lastText.contains("Compacting...") || lastText.trim() == "...")
     }
 
     private suspend fun doPerformPrompt(

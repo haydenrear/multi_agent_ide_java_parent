@@ -177,6 +177,9 @@ public class AgentEventListener implements EventListener {
             case Events.TransformationEvent transformationEvent -> {
                 log.debug("Transformation event: {} action={}", transformationEvent.eventId(), transformationEvent.action());
             }
+            case Events.CompactionEvent compactionEvent -> {
+                log.info("Compaction event: {} node={}", compactionEvent.eventId(), compactionEvent.nodeId());
+            }
         }
     }
 
