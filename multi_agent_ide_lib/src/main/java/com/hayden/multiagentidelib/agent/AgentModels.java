@@ -2273,6 +2273,7 @@ public interface AgentModels {
         }
 
         builder.append("\tSubmodule Worktrees:\n");
+        var submodules = context.submoduleWorktrees();
         if (submodules == null || submodules.isEmpty()) {
             builder.append("\t\t(none)\n");
             return;

@@ -66,6 +66,14 @@ public sealed interface PreviousContext extends AgentContext permits
                     AgentPretty.ACTIVE_SERIALIZATION_CTX.remove();
                 }
             }
+            case AgentSerializationCtx.CollectorSerialization collectorSerialization -> {
+                AgentPretty.ACTIVE_SERIALIZATION_CTX.set(collectorSerialization);
+                try {
+                    yield prettyPrint();
+                } finally {
+                    AgentPretty.ACTIVE_SERIALIZATION_CTX.remove();
+                }
+            }
         };
     }
 

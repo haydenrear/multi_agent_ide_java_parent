@@ -9,6 +9,7 @@ import lombok.With;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public sealed interface UpstreamContext extends AgentContext
         permits
@@ -51,6 +52,14 @@ public sealed interface UpstreamContext extends AgentContext
             }
             case AgentSerializationCtx.HistoricalRequestSerializationCtx historicalCtx -> {
                 AgentPretty.ACTIVE_SERIALIZATION_CTX.set(historicalCtx);
+                try {
+                    yield prettyPrint();
+                } finally {
+                    AgentPretty.ACTIVE_SERIALIZATION_CTX.remove();
+                }
+            }
+            case AgentSerializationCtx.CollectorSerialization collectorSerialization -> {
+                AgentPretty.ACTIVE_SERIALIZATION_CTX.set(collectorSerialization);
                 try {
                     yield prettyPrint();
                 } finally {
@@ -166,13 +175,13 @@ public sealed interface UpstreamContext extends AgentContext
         }
     }
 
-    private static void appendStringMap(StringBuilder builder, String label, java.util.Map<String, String> values, String indent) {
+    private static void appendStringMap(StringBuilder builder, String label, Map<String, String> values, String indent) {
         builder.append(indent).append(label).append(":\n");
         if (values == null || values.isEmpty()) {
             builder.append(indent).append("\t(none)\n");
             return;
         }
-        for (java.util.Map.Entry<String, String> entry : values.entrySet()) {
+        for (Map.Entry<String, String> entry : values.entrySet()) {
             String key = entry.getKey() == null || entry.getKey().isBlank() ? "(blank-key)" : entry.getKey().trim();
             String value = entry.getValue();
             if (value == null) {

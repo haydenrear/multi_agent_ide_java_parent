@@ -2329,20 +2329,6 @@ public interface AgentInterfaces {
             return rootRequest != null ? rootRequest.goal() : "Continue workflow";
         }
 
-        private static String resolveMergeSummary(
-                AgentModels.MergerRequest request,
-                AgentModels.MergerRouting routing
-        ) {
-            String requestSummary = request != null
-                    ? request.prettyPrint(new AgentPretty.AgentSerializationCtx.MergeSummarySerialization())
-                    : "";
-            AgentModels.MergerAgentResult result = routing != null ? routing.mergerResult() : null;
-            String resultSummary = result != null
-                    ? result.prettyPrint(new AgentPretty.AgentSerializationCtx.MergeSummarySerialization())
-                    : "";
-            return firstNonBlank(requestSummary, resultSummary);
-        }
-
         private static String firstNonBlank(String... values) {
             if (values == null) {
                 return "";
