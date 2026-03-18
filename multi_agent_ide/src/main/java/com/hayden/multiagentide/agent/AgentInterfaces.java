@@ -1414,7 +1414,7 @@ public interface AgentInterfaces {
                     "goal",
                     goal,
                     "discoveryResults",
-                    d.prettyPrint(new AgentPretty.AgentSerializationCtx.ResultsSerialization())
+                    d.prettyPrint(new AgentPretty.AgentSerializationCtx.CollectorSerialization())
             );
 
             PromptContext promptContext = buildPromptContext(
@@ -1603,7 +1603,7 @@ public interface AgentInterfaces {
 
             Optional.ofNullable(goal)
                     .ifPresent(g -> model.put("goal", g));
-            model.put("planningResults", planningAgentResults.prettyPrint(new AgentPretty.AgentSerializationCtx.ResultsSerialization()));
+            model.put("planningResults", planningAgentResults.prettyPrint(new AgentPretty.AgentSerializationCtx.CollectorSerialization()));
 
             PromptContext promptContext = buildPromptContext(
                     AgentType.PLANNING_AGENT_DISPATCH,
@@ -1821,7 +1821,7 @@ public interface AgentInterfaces {
                     "goal",
                     goal,
                     "ticketResults",
-                    ticketAgentResults.prettyPrint(new AgentPretty.AgentSerializationCtx.ResultsSerialization())
+                    ticketAgentResults.prettyPrint(new AgentPretty.AgentSerializationCtx.CollectorSerialization())
             );
 
             PromptContext promptContext = buildPromptContext(

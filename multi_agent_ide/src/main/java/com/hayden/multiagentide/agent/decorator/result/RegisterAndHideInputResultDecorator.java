@@ -4,6 +4,8 @@ import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.BlackboardHistoryService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,6 +15,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class RegisterAndHideInputResultDecorator implements DispatchedAgentResultDecorator, ResultDecorator, FinalResultDecorator {
+
+    private static final Logger log = LoggerFactory.getLogger(RegisterAndHideInputResultDecorator.class);
 
     private final BlackboardHistoryService blackboardHistoryService;
 
@@ -27,15 +31,21 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
             return null;
         }
 
+        log.info("hideInput (result) — agent={} action={} resultType={}",
+                context.agentName(), context.actionName(),
+                request.getClass().getSimpleName());
         blackboardHistoryService.hideInput(
                 context.operationContext()
         );
-        
+
         return request;
     }
 
     @Override
     public <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
+        log.info("hideInput (routing) — agent={} action={} routingType={}",
+                context.agentName(), context.actionName(),
+                t != null ? t.getClass().getSimpleName() : "(null)");
         blackboardHistoryService.hideInput(
                 context.operationContext()
         );
@@ -45,6 +55,9 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
 
     @Override
     public <T extends AgentModels.AgentRequest> T decorateRequestResult(T t, DecoratorContext context) {
+        log.info("hideInput (requestResult) — agent={} action={} requestType={}",
+                context.agentName(), context.actionName(),
+                t != null ? t.getClass().getSimpleName() : "(null)");
         blackboardHistoryService.hideInput(
                 context.operationContext()
         );
@@ -54,6 +67,9 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
 
     @Override
     public <T extends AgentModels.AgentResult> T decorateFinalResult(T t, FinalResultDecoratorContext context) {
+        log.info("hideInput (finalResult) — agent={} action={} resultType={}",
+                context.decoratorContext().agentName(), context.decoratorContext().actionName(),
+                t != null ? t.getClass().getSimpleName() : "(null)");
         blackboardHistoryService.hideInput(
                 context.decoratorContext().operationContext()
         );

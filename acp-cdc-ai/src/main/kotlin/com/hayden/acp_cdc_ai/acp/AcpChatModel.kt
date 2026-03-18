@@ -185,7 +185,7 @@ class AcpChatModel(
             if (isSessionCompacting(generations)) {
                 log.info("ACP session compaction detected for {} — waiting 30s then re-issuing prompt",
                     sessionContext.chatModelKey)
-                sessionManager.eventBus.publish(
+                eventBus.publish(
                     Events.CompactionEvent.of(
                         "ACP session compacting for ${sessionContext.chatModelKey.value} — prompt will be re-issued after 30s wait",
                         sessionContext.chatModelKey
@@ -194,6 +194,13 @@ class AcpChatModel(
                 Thread.sleep(30_000)
                 generations.clear()
                 doPerformPrompt(session, content, sessionContext, memoryId, generations)
+                if (isSessionCompacting(generations)) {
+                    log.info("ACP session still compacting after retry for {} — resetting session and re-issuing",
+                        sessionContext.chatModelKey)
+                    session.resetSession()
+                    generations.clear()
+                    doPerformPrompt(session, content, sessionContext, memoryId, generations)
+                }
             }
         } catch (e: JsonRpcException) {
             if (e.message?.contains("Prompt is too long") == true) {

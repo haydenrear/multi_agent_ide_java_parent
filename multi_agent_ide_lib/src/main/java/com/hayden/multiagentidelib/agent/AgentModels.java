@@ -2250,34 +2250,28 @@ public interface AgentModels {
     }
 
     private static void appendPrettyWorktreeContext(StringBuilder builder, String label, WorktreeSandboxContext context) {
-        if (AgentPretty.ACTIVE_SERIALIZATION_CTX.get() instanceof AgentPretty.AgentSerializationCtx.SkipWorktreeContextSerializationCtx) {
+        var serCtx = AgentPretty.ACTIVE_SERIALIZATION_CTX.get();
+        // SkipWorktreeContext and HistoricalRequest both suppress worktree entirely —
+        // worktree info is provided authoritatively by WorktreeSandboxPromptContributorFactory.
+        if (serCtx instanceof AgentPretty.AgentSerializationCtx.SkipWorktreeContextSerializationCtx
+                || serCtx instanceof AgentPretty.AgentSerializationCtx.HistoricalRequestSerializationCtx) {
             return;
         }
-        builder.append(label).append(":\n");
-        if (context == null) {
-            builder.append("\t(none)\n");
+        if (serCtx instanceof AgentPretty.AgentSerializationCtx.CollectorSerialization) {
+            // Compact: only the parent worktree path
+            String path = context != null && context.mainWorktree() != null
+                    ? String.valueOf(context.mainWorktree().worktreePath())
+                    : "(none)";
+            var submodules = context != null ? context.submoduleWorktrees() : null;
+            boolean hasSubmodules = submodules != null && !submodules.isEmpty();
+            builder.append(label).append(": ").append(path);
+            if (hasSubmodules) {
+                builder.append(" (and git submodules)");
+            }
+            builder.append("\n");
             return;
-        }
-        var main = context.mainWorktree();
-        if (main == null) {
-            builder.append("\tMain Worktree: (none)\n");
-        } else {
-            builder.append("\tMain Worktree:\n");
-            builder.append("\t\tId: ").append(main.worktreeId()).append("\n");
-            builder.append("\t\tPath: ").append(main.worktreePath()).append("\n");
-            builder.append("\t\tBase Branch: ").append(main.baseBranch()).append("\n");
-            builder.append("\t\tDerived Branch: ").append(main.derivedBranch()).append("\n");
-            builder.append("\t\tStatus: ").append(main.status()).append("\n");
-            builder.append("\t\tParent Worktree Id: ").append(main.parentWorktreeId()).append("\n");
-            builder.append("\t\tAssociated Node Id: ").append(main.associatedNodeId()).append("\n");
-            builder.append("\t\tCreated At: ").append(main.createdAt()).append("\n");
-            builder.append("\t\tLast Commit Hash: ").append(main.lastCommitHash()).append("\n");
-            builder.append("\t\tRepository Url: ").append(main.repositoryUrl()).append("\n");
-            builder.append("\t\tHas Submodules: ").append(main.hasSubmodules()).append("\n");
-            appendPrettyMap(builder, "\t\tMetadata", main.metadata());
         }
 
-        List<SubmoduleWorktreeContext> submodules = context.submoduleWorktrees();
         builder.append("\tSubmodule Worktrees:\n");
         if (submodules == null || submodules.isEmpty()) {
             builder.append("\t\t(none)\n");

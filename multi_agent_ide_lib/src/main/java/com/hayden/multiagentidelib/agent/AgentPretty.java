@@ -32,6 +32,15 @@ public interface AgentPretty {
         }
 
         /**
+         * Used when serializing results for collector/dispatch routing prompts.
+         * Outputs only the parent (main) worktree — omits all submodule worktree
+         * entries and replaces them with a count note, e.g. "(with 25 submodules)".
+         * This prevents prompt bloat when multiple agents' results are consolidated.
+         */
+        record CollectorSerialization() implements AgentSerializationCtx {
+        }
+
+        /**
          * Suppresses worktree context serialization in any prettyPrint call.
          * Worktree context is provided once, authoritatively, by WorktreeSandboxPromptContributorFactory.
          * Emitting it for every historical request or result causes agents to resolve relative
@@ -64,6 +73,14 @@ public interface AgentPretty {
                     prettyPrint();
             case AgentSerializationCtx.ResultsSerialization resultsSerialization ->
                     prettyPrint();
+            case AgentSerializationCtx.CollectorSerialization collectorCtx -> {
+                ACTIVE_SERIALIZATION_CTX.set(collectorCtx);
+                try {
+                    yield prettyPrint();
+                } finally {
+                    ACTIVE_SERIALIZATION_CTX.remove();
+                }
+            }
             case AgentSerializationCtx.SkipWorktreeContextSerializationCtx skipWorktreeCtx -> {
                 ACTIVE_SERIALIZATION_CTX.set(skipWorktreeCtx);
                 try {

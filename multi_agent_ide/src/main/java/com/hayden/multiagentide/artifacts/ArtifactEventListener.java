@@ -158,15 +158,15 @@ public class ArtifactEventListener implements EventListener {
             case Events.PermissionResolvedEvent ignored -> true;
             case Events.MergePhaseStartedEvent ignored -> true;
             case Events.MergePhaseCompletedEvent ignored -> true;
+            case Events.PropagationEvent ignored -> true;
+            case Events.TransformationEvent ignored -> true;
+            case Events.CompactionEvent ignored -> true;
             case Events.AddChildNodeEvent ignored -> false;
             case Events.NodeStatusChangedEvent ignored -> false;
             case Events.CurrentModeUpdateEvent ignored -> false;
             case Events.AvailableCommandsUpdateEvent ignored -> false;
             case Events.TuiInteractionGraphEvent ignored -> false;
             case Events.TuiSystemGraphEvent ignored -> false;
-            case Events.PropagationEvent ignored -> true;
-            case Events.TransformationEvent ignored -> true;
-            case Events.CompactionEvent ignored -> true;
         };
     }
 
