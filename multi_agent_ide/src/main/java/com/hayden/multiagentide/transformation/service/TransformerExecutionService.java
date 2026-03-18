@@ -9,11 +9,8 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
-import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
-import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
-import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentide.filter.service.AiFilterSessionResolver;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.transformation.repository.TransformationRecordEntity;
@@ -39,9 +36,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -67,21 +62,9 @@ public class TransformerExecutionService {
     @Lazy
     private EventBus eventBus;
 
-    @Autowired(required = false)
+    @Autowired
     @Lazy
-    private List<PromptContextDecorator> promptContextDecorators = new ArrayList<>();
-
-    @Autowired(required = false)
-    @Lazy
-    private List<ToolContextDecorator> toolContextDecorators = new ArrayList<>();
-
-    @Autowired(required = false)
-    @Lazy
-    private List<RequestDecorator> requestDecorators = new ArrayList<>();
-
-    @Autowired(required = false)
-    @Lazy
-    private List<ResultDecorator> resultDecorators = new ArrayList<>();
+    private DecorateRequestResults decorateRequestResults;
 
     @Autowired
     private AiTransformerToolHydration aiTransformerToolHydration;
@@ -225,14 +208,15 @@ public class TransformerExecutionService {
                 .metadata(Map.of("layerId", safe(context.layerId())))
                 .build();
 
-        AgentModels.AiTransformerRequest decoratedRequest = AgentInterfaces.decorateRequest(
-                request,
-                operationContext,
-                requestDecorators,
-                AI_TRANSFORMER_AGENT_NAME,
-                AI_TRANSFORMER_ACTION_NAME,
-                AI_TRANSFORMER_METHOD_NAME,
-                parentRequest);
+        AgentModels.AiTransformerRequest decoratedRequest = decorateRequestResults.decorateRequest(
+                new DecorateRequestResults.DecorateRequestArgs<>(
+                        request,
+                        operationContext,
+                        AI_TRANSFORMER_AGENT_NAME,
+                        AI_TRANSFORMER_ACTION_NAME,
+                        AI_TRANSFORMER_METHOD_NAME,
+                        parentRequest
+                ));
 
         Map<String, Object> model = buildAiModel(aiExecutor, currentText, context, parentRequest);
 
@@ -249,22 +233,23 @@ public class TransformerExecutionService {
                 .operationContext(operationContext)
                 .build();
 
-        PromptContext decoratedPromptContext = AgentInterfaces.decoratePromptContext(
-                promptContext,
-                promptContextDecorators,
-                new DecoratorContext(
-                        operationContext, AI_TRANSFORMER_AGENT_NAME, AI_TRANSFORMER_ACTION_NAME, AI_TRANSFORMER_METHOD_NAME, parentRequest, decoratedRequest
-                ));
+        PromptContext decoratedPromptContext = decorateRequestResults.decoratePromptContext(
+                new DecorateRequestResults.DecoratePromptContextArgs(
+                        promptContext,
+                        new DecoratorContext(
+                                operationContext, AI_TRANSFORMER_AGENT_NAME, AI_TRANSFORMER_ACTION_NAME, AI_TRANSFORMER_METHOD_NAME, parentRequest, decoratedRequest
+                        )));
 
-        ToolContext toolContext = AgentInterfaces.decorateToolContext(
-                ToolContext.empty(),
-                decoratedRequest,
-                parentRequest,
-                operationContext,
-                toolContextDecorators,
-                AI_TRANSFORMER_AGENT_NAME,
-                AI_TRANSFORMER_ACTION_NAME,
-                AI_TRANSFORMER_METHOD_NAME);
+        ToolContext toolContext = decorateRequestResults.decorateToolContext(
+                new DecorateRequestResults.DecorateToolArgs(
+                        ToolContext.empty(),
+                        decoratedRequest,
+                        parentRequest,
+                        operationContext,
+                        AI_TRANSFORMER_AGENT_NAME,
+                        AI_TRANSFORMER_ACTION_NAME,
+                        AI_TRANSFORMER_METHOD_NAME
+                ));
 
         AiTransformerContext aiContext = AiTransformerContext.builder()
                 .transformationContext(context)
@@ -277,14 +262,15 @@ public class TransformerExecutionService {
                 .build();
 
         AgentModels.AiTransformerResult result = aiTextTransformer.apply(decoratedRequest, aiContext);
-        result = AgentInterfaces.decorateResult(
-                result,
-                operationContext,
-                resultDecorators,
-                AI_TRANSFORMER_AGENT_NAME,
-                AI_TRANSFORMER_ACTION_NAME,
-                AI_TRANSFORMER_METHOD_NAME,
-                decoratedRequest);
+        result = decorateRequestResults.decorateResult(
+                new DecorateRequestResults.DecorateResultArgs<>(
+                        result,
+                        operationContext,
+                        AI_TRANSFORMER_AGENT_NAME,
+                        AI_TRANSFORMER_ACTION_NAME,
+                        AI_TRANSFORMER_METHOD_NAME,
+                        decoratedRequest
+                ));
         return result.transformedText() == null || result.transformedText().isBlank()
                 ? currentText
                 : result.transformedText();

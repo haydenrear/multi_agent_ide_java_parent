@@ -53,7 +53,6 @@ public class WorktreeContextResultDecorator implements DispatchedAgentResultDeco
         return withWorktreeContext(result, context);
     }
 
-    @SuppressWarnings("unchecked")
     private <T extends AgentModels.AgentResult> T withWorktreeContext(T result, DecoratorContext context) {
         if (result == null || result.worktreeContext() != null) {
             return result;
@@ -91,6 +90,7 @@ public class WorktreeContextResultDecorator implements DispatchedAgentResultDeco
         if (context == null) {
             return null;
         }
+
         if (context.agentRequest() instanceof AgentModels.AgentRequest request
                 && request.worktreeContext() != null) {
             return request.worktreeContext();

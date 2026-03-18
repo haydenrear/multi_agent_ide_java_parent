@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.*;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
@@ -69,23 +70,11 @@ public class FilterExecutionService {
     private final ExecutionScopeService executionScopeService;
     private final AgentPlatform agentPlatform;
     private final AiFilterSessionResolver aiFilterSessionResolver;
+    private final DecorateRequestResults decorateRequestResults;
 
     @Autowired @Lazy
     private EventBus eventBus;
 
-    @Autowired(required = false)
-    private List<PromptContextDecorator> promptContextDecorators = new ArrayList<>();
-
-    @Autowired(required = false)
-    private List<ToolContextDecorator> toolContextDecorators = new ArrayList<>();
-
-    @Autowired(required = false)
-    @Lazy
-    private List<RequestDecorator> requestDecorators = new ArrayList<>();
-
-    @Autowired(required = false)
-    @Lazy
-    private List<ResultDecorator> resultDecorators = new ArrayList<>();
 
     @Autowired
     private AiFilterToolHydration aiFilterToolHydration;
@@ -272,30 +261,31 @@ public class FilterExecutionService {
             return Optional.empty();
         }
 
-        AgentModels.AgentRequest decoratedContextRequest = AgentInterfaces.decorateRequest(
-                promptContext.currentRequest(),
-                operationContext,
-                requestDecorators,
-                AI_FILTER_AGENT_NAME,
-                AI_FILTER_ACTION_NAME,
-                AI_FILTER_METHOD_NAME,
-                promptContext.previousRequest()
-        );
+        // The parent workflow request is already decorated — do not re-run requestDecorators on it.
+        AgentModels.AgentRequest parentRequest = promptContext.currentRequest();
 
-        AgentModels.AiFilterRequest aiSessionRequest = AgentModels.AiFilterRequest.builder()
-                .contextId(aiFilterSessionResolver.resolveSessionKey(
-                        policy.getRegistrationId(),
-                        aiExecutor.sessionMode(),
-                        promptContext))
-                .input(payload)
-                .goal("AI filter execution for policy " + policy.getRegistrationId())
-                .build();
+        AgentModels.AiFilterRequest aiSessionRequest = decorateRequestResults.decorateRequest(
+                new DecorateRequestResults.DecorateRequestArgs<>(
+                        AgentModels.AiFilterRequest.builder()
+                                .contextId(aiFilterSessionResolver.resolveSessionKey(
+                                        policy.getRegistrationId(),
+                                        aiExecutor.sessionMode(),
+                                        promptContext))
+                                .input(payload)
+                                .goal("AI filter execution for policy " + policy.getRegistrationId())
+                                .build(),
+                        operationContext,
+                        AI_FILTER_AGENT_NAME,
+                        AI_FILTER_ACTION_NAME,
+                        AI_FILTER_METHOD_NAME,
+                        parentRequest
+                ));
 
         Map<String, Object> model = buildAiModel(
                 aiExecutor,
                 payload,
                 policy,
-                decoratedContextRequest
+                parentRequest
         );
 
         PromptContext aiPromptContext = promptContext
@@ -303,28 +293,28 @@ public class FilterExecutionService {
                 .templateName(AI_FILTER_TEMPLATE_NAME)
                 .modelName(AcpChatOptionsString.DEFAULT_MODEL_NAME)
                 .currentRequest(aiSessionRequest)
-                .previousRequest(decoratedContextRequest)
+                .previousRequest(parentRequest)
                 .model(model)
                 .build();
 
-        PromptContext decoratedPromptContext = AgentInterfaces.decoratePromptContext(
-                aiPromptContext,
-                promptContextDecorators,
-                new DecoratorContext(
-                        operationContext, AI_FILTER_AGENT_NAME, AI_FILTER_ACTION_NAME, AI_FILTER_METHOD_NAME, decoratedContextRequest, aiSessionRequest
-                )
-        );
 
-        ToolContext decoratedToolContext = AgentInterfaces.decorateToolContext(
-                ToolContext.empty(),
-                aiSessionRequest,
-                decoratedContextRequest,
-                operationContext,
-                toolContextDecorators,
-                AI_FILTER_AGENT_NAME,
-                AI_FILTER_ACTION_NAME,
-                AI_FILTER_METHOD_NAME
-        );
+        PromptContext decoratedPromptContext = decorateRequestResults.decoratePromptContext(
+                new DecorateRequestResults.DecoratePromptContextArgs(
+                        aiPromptContext,
+                        new DecoratorContext(
+                                operationContext, AI_FILTER_AGENT_NAME, AI_FILTER_ACTION_NAME, AI_FILTER_METHOD_NAME, parentRequest, aiSessionRequest
+                        )));
+
+        ToolContext decoratedToolContext = decorateRequestResults.decorateToolContext(
+                new DecorateRequestResults.DecorateToolArgs(
+                        ToolContext.empty(),
+                        aiSessionRequest,
+                        parentRequest,
+                        operationContext,
+                        AI_FILTER_AGENT_NAME,
+                        AI_FILTER_ACTION_NAME,
+                        AI_FILTER_METHOD_NAME
+                ));
 
         FilterContext.AiFilterContext aiFilterContext = FilterContext.AiFilterContext.builder()
                 .filterContext(filterContext)
@@ -341,14 +331,14 @@ public class FilterExecutionService {
         if (result.res() != null) {
             return Optional.of(
                     result.toBuilder()
-                            .res(AgentInterfaces.decorateResult(
-                                    result.res(),
-                                    operationContext,
-                                    resultDecorators,
-                                    AI_FILTER_AGENT_NAME,
-                                    AI_FILTER_ACTION_NAME,
-                                    AI_FILTER_METHOD_NAME,
-                                    aiSessionRequest))
+                            .res(decorateRequestResults.decorateResult(
+                                    new DecorateRequestResults.DecorateResultArgs<>(
+                                            result.res(),
+                                            operationContext,
+                                            AI_FILTER_AGENT_NAME,
+                                            AI_FILTER_ACTION_NAME,
+                                            AI_FILTER_METHOD_NAME,
+                                            aiSessionRequest)))
                             .build());
         }
 

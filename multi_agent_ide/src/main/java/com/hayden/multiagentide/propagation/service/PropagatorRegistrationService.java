@@ -157,7 +157,8 @@ public class PropagatorRegistrationService {
         }
 
         int changed = 0;
-        for (ReadPropagatorAttachableTargetsResponse.ActionTarget action : attachableCatalogService.readAttachableTargets().actions()) {
+        ReadPropagatorAttachableTargetsResponse readPropagatorAttachableTargetsResponse = attachableCatalogService.readAttachableTargets();
+        for (ReadPropagatorAttachableTargetsResponse.ActionTarget action : readPropagatorAttachableTargetsResponse.actions()) {
             for (String stage : action.stages()) {
                 String sourcePath = autoSourcePath(action.layerId(), stage);
                 PropagatorRegistrationRequest request = autoRegistrationRequest(action, stage, sourcePath);

@@ -2,6 +2,7 @@ package com.hayden.multiagentide.prompt.contributor;
 
 import com.google.common.collect.Lists;
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
@@ -37,6 +38,16 @@ public class WorktreeSandboxPromptContributorFactory implements PromptContributo
     @Override
     public List<PromptContributor> create(PromptContext context) {
         if (context == null) {
+            return List.of();
+        }
+
+        // Internal automation LLM calls (AI_PROPAGATOR, AI_FILTER, AI_TRANSFORMER) analyse
+        // or transform content — injecting worktree sandbox instructions into their prompts
+        // would cause confusion since they are not file-operation agents.
+        var agentType = context.agentType();
+        if (agentType == AgentType.AI_PROPAGATOR
+                || agentType == AgentType.AI_FILTER
+                || agentType == AgentType.AI_TRANSFORMER) {
             return List.of();
         }
 

@@ -53,13 +53,6 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             return request;
         }
 
-        // Internal automation requests build their own context — skip sandbox resolution.
-        if (request instanceof AgentModels.AiPropagatorRequest
-                || request instanceof AgentModels.AiFilterRequest
-                || request instanceof AgentModels.AiTransformerRequest) {
-            return request;
-        }
-
         if (request instanceof AgentModels.DispatchedRequest || request instanceof AgentModels.ResultsRequest) {
             String formatted = "Worktree context was not attached correctly to dispatched request %s.".formatted(request);
             log.error(formatted);
@@ -68,12 +61,19 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
 
         WorktreeSandboxContext sandboxContext = sandboxResolver.resolveSandboxContext(context);
 
-        if (sandboxContext == null) {
-            log.error("Sandbox context could not be resolved.");
-            String message = """
+        String message = """
                     No worktree was provided by orchestrator during it's request.
                     And therefore the worktree could not be provided for the downstream request.
                     """;
+
+        if (sandboxContext == null
+                && (request instanceof AgentModels.AiPropagatorRequest || request instanceof AgentModels.AiTransformerRequest || request instanceof AgentModels.AiFilterRequest)) {
+            eventBus.publish(Events.NodeErrorEvent.err(message, request.key()));
+            return request;
+        }
+
+        if (sandboxContext == null) {
+            log.error("Sandbox context could not be resolved.");
             eventBus.publish(Events.NodeErrorEvent.err(message, request.key()));
             throw new DegenerateLoopException(message, request.artifactType(), request.getClass(), 1);
         }

@@ -172,17 +172,17 @@ public class SandboxResolver {
             case AgentModels.TicketCollectorRequest ticketCollectorRequest -> {
                 return resolveFromOrchestratorNode(context.operationContext());
             }
-            case AgentModels.DiscoveryAgentRequest discoveryAgentRequest -> {
-            }
-            case AgentModels.TicketAgentRequest ticketAgentRequest -> {
-            }
-            case AgentModels.PlanningAgentRequest planningAgentRequest -> {
-            }
             case AgentModels.AiFilterRequest aiFilterRequest -> {
             }
             case AgentModels.AiPropagatorRequest aiPropagatorRequest -> {
             }
             case AgentModels.AiTransformerRequest aiTransformerRequest -> {
+            }
+            case AgentModels.DiscoveryAgentRequest discoveryAgentRequest -> {
+            }
+            case AgentModels.TicketAgentRequest ticketAgentRequest -> {
+            }
+            case AgentModels.PlanningAgentRequest planningAgentRequest -> {
             }
             case AgentModels.CommitAgentRequest commitAgentRequest -> {
             }

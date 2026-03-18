@@ -8,13 +8,18 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class PropagateActionRequestDecorator implements RequestDecorator, DispatchedAgentRequestDecorator {
+public class PropagateActionRequestDecorator implements RequestDecorator, DispatchedAgentRequestDecorator, ResultsRequestDecorator {
 
     private final ActionRequestPropagationIntegration integration;
 
     @Override
     public int order() {
         return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public <T extends AgentModels.ResultsRequest> T decorate(T resultsRequest, DecoratorContext context) {
+        return integration.propagate(resultsRequest, context.agentName(), context.actionName(), context.methodName(), context.operationContext());
     }
 
     @Override

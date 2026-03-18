@@ -32,6 +32,8 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
             return request;
         if (request instanceof AgentModels.MergeConflictRequest mcr)
             return request;
+        if (request instanceof AgentModels.AiPropagatorRequest mcr)
+            return request;
 
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context.operationContext());
         if (history == null) {

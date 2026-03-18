@@ -11,6 +11,7 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
+import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.filter.service.AiFilterSessionResolver;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
@@ -60,6 +61,7 @@ public class PropagationExecutionService {
     private final AgentPlatform agentPlatform;
     private final AiFilterSessionResolver aiFilterSessionResolver;
     private final FilterContextFactory filterContextFactory;
+    private final DecorateRequestResults decorateRequestResults;
 
     @Autowired
     @Lazy
@@ -67,8 +69,6 @@ public class PropagationExecutionService {
 
     @Autowired
     private AiPropagatorToolHydration aiPropagatorToolHydration;
-    @Autowired
-    private DecorateRequestResults decorateRequestResults;
 
     public void execute(String layerId,
                         PropagatorMatchOn stage,
@@ -78,7 +78,8 @@ public class PropagationExecutionService {
                         OperationContext operationContext) {
         String beforePayload = toJson(payload);
         ArtifactKey key = resolveKey(sourceNodeId);
-        for (var entity : discoveryService.getActivePropagatorsByLayer(layerId)) {
+        List<PropagatorRegistrationEntity> activePropagatorsByLayer = discoveryService.getActivePropagatorsByLayer(layerId);
+        for (var entity : activePropagatorsByLayer) {
             List<PropagatorLayerBinding> propagatorLayerBindings = discoveryService.applicableBindings(entity, layerId, stage);
             if (propagatorLayerBindings.isEmpty()) {
                 continue;

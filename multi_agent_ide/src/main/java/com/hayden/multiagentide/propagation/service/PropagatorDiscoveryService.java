@@ -25,7 +25,8 @@ public class PropagatorDiscoveryService {
 
     public List<PropagatorRegistrationEntity> getActivePropagatorsByLayer(String layerId) {
         return repository.findByStatus(FilterEnums.PolicyStatus.ACTIVE.name()).stream()
-                .filter(entity -> bindings(entity).stream().anyMatch(binding -> layerId.equals(binding.layerId()) && binding.enabled()))
+                .filter(entity -> bindings(entity).stream()
+                        .anyMatch(binding -> layerId.equals(binding.layerId()) && binding.enabled()))
                 .sorted(Comparator.comparingInt(this::priority))
                 .toList();
     }

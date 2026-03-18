@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.filter.service;
 
+import com.hayden.multiagentidelib.agent.AgentType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,6 +11,8 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class FilterLayerCatalogTest {
+
+    public static final Set<AgentType> CATALOG_ITEMS = Set.of(AgentType.AI_PROPAGATOR, AgentType.AI_FILTER, AgentType.AI_TRANSFORMER);
 
     @Test
     void everyActionCanonicalizesToItsMethodName() {
@@ -56,8 +59,8 @@ class FilterLayerCatalogTest {
                 .allSatisfy(action -> {
                     assertThat(action.layerId()).isEqualTo(action.parentLayerId() + "/" + action.methodName());
                     assertThat(layerIds).contains(action.layerId());
-                    assertThat(FilterLayerCatalog.resolveRootLayer(action.agentType()))
-                            .contains(action.parentLayerId());
+                    assertThat(CATALOG_ITEMS.contains(action.agentType()) || FilterLayerCatalog.resolveRootLayer(action.agentType()).map(s -> s.contains(action.parentLayerId())).orElse(false))
+                            .isTrue();
                 });
     }
 

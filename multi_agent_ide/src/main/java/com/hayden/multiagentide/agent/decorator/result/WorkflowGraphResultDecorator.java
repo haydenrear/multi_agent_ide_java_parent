@@ -1,11 +1,8 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
 import com.embabel.agent.api.common.OperationContext;
-import com.hayden.multiagentidelib.agent.DecoratorContext;
+import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
-import com.hayden.multiagentidelib.agent.AgentContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentPretty;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentidelib.model.nodes.*;
 import lombok.RequiredArgsConstructor;
@@ -100,7 +97,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
                 MergeNode running = requireNode(operationContext, routing,
                         () -> workflowGraphService.requireMergeNode(operationContext));
                 if (running != null) {
-                    AgentModels.MergerRequest lastRequest = operationContext.last(AgentModels.MergerRequest.class);
+                    AgentModels.MergerRequest lastRequest = BlackboardHistory.getLastFromHistory(context.operationContext(), AgentModels.MergerRequest.class);
                     String combinedSummary = resolveMergeSummary(lastRequest, routing);
                     workflowGraphService.completeMerge(running, routing, combinedSummary);
                 }

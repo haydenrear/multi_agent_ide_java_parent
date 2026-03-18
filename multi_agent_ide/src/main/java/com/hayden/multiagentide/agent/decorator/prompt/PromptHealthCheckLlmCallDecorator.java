@@ -75,17 +75,12 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
                     ? promptContext.agentType().name()
                     : "UNKNOWN";
 
-            // Extract the worktree context from the current workflow request so the
-            // propagator receives it (the decorator pipeline is bypassed for internally
-            // constructed requests).
-            com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext worktreeCtx = null;
-            if (promptContext.currentRequest() != null) {
-                worktreeCtx = promptContext.currentRequest().worktreeContext();
-            }
-
             // Wrap the assembled prompt so the health-check LLM knows it is analysing
             // a prompt, not executing a workflow task.  Using --- start / --- end
             // delimiters consistent with the rest of the prompt assembly format.
+            // worktreeContext is intentionally omitted here — PropagationExecutionService
+            // resolves the actual parent workflow request from the blackboard and the
+            // WorktreeContextRequestDecorator copies its worktreeContext onto this request.
             String framedInput = """
                     --- start [prompt-health-analysis] ---
                     You are a prompt-health analyser. The section below contains the full assembled
@@ -104,7 +99,6 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
                     .input(framedInput)
                     .sourceName(sourceName)
                     .sourceNodeId(sourceNodeId)
-                    .worktreeContext(worktreeCtx)
                     .build();
 
             propagationExecutionService.execute(

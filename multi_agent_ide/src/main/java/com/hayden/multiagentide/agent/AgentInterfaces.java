@@ -15,6 +15,7 @@ import com.embabel.agent.core.Operation;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
+import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
 import com.hayden.multiagentide.agent.decorator.request.DispatchedAgentRequestDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
 import com.hayden.multiagentide.agent.decorator.request.ResultsRequestDecorator;
@@ -43,6 +44,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
+
+import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults.*;
 
 /**
  * Embabel @Agent definition for multi-agent IDE.
@@ -397,7 +400,7 @@ public interface AgentInterfaces {
                 );
             }
 
-            request = AgentInterfaces.decorateRequest(
+            request = decorateRequest(
                     request,
                     context,
                     requestDecorators,
@@ -415,7 +418,7 @@ public interface AgentInterfaces {
                     .build()
                     .addRequest(lastRequest);
 
-            contextManagerRequest = AgentInterfaces.decorateRequest(
+            contextManagerRequest = decorateRequest(
                     contextManagerRequest,
                     context,
                     requestDecorators,
@@ -425,7 +428,7 @@ public interface AgentInterfaces {
                     lastRequest
             );
 
-            return AgentInterfaces.decorateRequestResult(
+            return DecorateRequestResults.decorateRequestResult(
                     contextManagerRequest,
                     context,
                     resultDecorators.stream().filter(r -> !(r instanceof RequestDecorator))
@@ -529,7 +532,7 @@ public interface AgentInterfaces {
             AgentModels.AgentRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.AgentRequest.class);
 
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -576,7 +579,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -617,7 +620,7 @@ public interface AgentInterfaces {
                     context,
                     decoratorContext
             );
-            return AgentInterfaces.decoratePromptContext(
+            return decoratePromptContext(
                     promptContext,
                     promptContextDecorators,
                     decoratorContext
@@ -635,7 +638,7 @@ public interface AgentInterfaces {
                 String templateName,
                 ToolContext toolContext
         ) {
-            return AgentInterfaces.decorateToolContext(
+            return DecorateRequestResults.decorateToolContext(
                     toolContext,
                     currentRequest,
                     previousRequest,
@@ -664,7 +667,7 @@ public interface AgentInterfaces {
                 );
             }
 
-            AgentModels.InterruptRequest decoratedRequest = AgentInterfaces.decorateRequest(
+            AgentModels.InterruptRequest decoratedRequest = decorateRequest(
                     request,
                     context,
                     requestDecorators,
@@ -697,7 +700,7 @@ public interface AgentInterfaces {
                     AgentModels.InterruptRouting.class
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -964,7 +967,7 @@ public interface AgentInterfaces {
                 );
             }
 
-            return AgentInterfaces.decorateFinalResult(
+            return DecorateRequestResults.decorateFinalResult(
                     input,
                     lastRequest,
                     lastRequest,
@@ -993,7 +996,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1040,7 +1043,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1066,7 +1069,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1111,7 +1114,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1137,7 +1140,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1182,7 +1185,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1208,7 +1211,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1253,7 +1256,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1280,7 +1283,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1323,7 +1326,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1349,7 +1352,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1396,7 +1399,7 @@ public interface AgentInterfaces {
                     .build();
 
             // Decorate with ResultsRequestDecorator chain (Phase 2: child→trunk merge)
-            d = AgentInterfaces.decorateResultsRequest(
+            d = DecorateRequestResults.decorateResultsRequest(
                     d,
                     context,
                     resultsRequestDecorators,
@@ -1444,7 +1447,7 @@ public interface AgentInterfaces {
                     AgentModels.DiscoveryAgentDispatchRouting.class,
                     context
             );
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1470,7 +1473,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1517,7 +1520,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1543,7 +1546,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1585,7 +1588,7 @@ public interface AgentInterfaces {
                     .build();
 
             // Decorate with ResultsRequestDecorator chain (Phase 2: child→trunk merge)
-            planningAgentResults = AgentInterfaces.decorateResultsRequest(
+            planningAgentResults = DecorateRequestResults.decorateResultsRequest(
                     planningAgentResults,
                     context,
                     resultsRequestDecorators,
@@ -1633,7 +1636,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1664,7 +1667,7 @@ public interface AgentInterfaces {
                     input.output(),
                     new AgentModels.CollectorDecision(Events.CollectorDecisionType.ADVANCE_PHASE, "", ""));
 
-            return AgentInterfaces.decorateFinalResult(
+            return DecorateRequestResults.decorateFinalResult(
                     result,
                     lastRequest,
                     lastRequest,
@@ -1691,7 +1694,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1733,7 +1736,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1759,7 +1762,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1803,7 +1806,7 @@ public interface AgentInterfaces {
                     .build();
 
             // Decorate with ResultsRequestDecorator chain (Phase 2: child→trunk merge)
-            ticketAgentResults = AgentInterfaces.decorateResultsRequest(
+            ticketAgentResults = DecorateRequestResults.decorateResultsRequest(
                     ticketAgentResults,
                     context,
                     resultsRequestDecorators,
@@ -1852,7 +1855,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1878,7 +1881,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -1929,7 +1932,7 @@ public interface AgentInterfaces {
                     AgentModels.MergerRouting.class,
                     context
             );
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -1955,7 +1958,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -2006,7 +2009,7 @@ public interface AgentInterfaces {
                     AgentModels.ReviewRouting.class,
                     context
             );
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     response,
                     context,
                     resultDecorators,
@@ -2084,7 +2087,7 @@ public interface AgentInterfaces {
                 }
             };
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -2145,7 +2148,7 @@ public interface AgentInterfaces {
                             .build();
                 }
             };
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -2200,7 +2203,7 @@ public interface AgentInterfaces {
                             .build();
                 }
             };
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -2271,7 +2274,7 @@ public interface AgentInterfaces {
                             .build();
                 }
             };
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -2391,7 +2394,7 @@ public interface AgentInterfaces {
                 String templateName,
                 ToolContext toolContext
         ) {
-            return AgentInterfaces.decorateToolContext(
+            return DecorateRequestResults.decorateToolContext(
                     toolContext,
                     currentRequest,
                     previousRequest,
@@ -2435,7 +2438,7 @@ public interface AgentInterfaces {
                     context,
                     decoratorContext
             );
-            return AgentInterfaces.decoratePromptContext(
+            return decoratePromptContext(
                     promptContext,
                     promptContextDecorators,
                     decoratorContext
@@ -2476,7 +2479,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            interruptRequest = AgentInterfaces.decorateRequest(
+            interruptRequest = decorateRequest(
                     interruptRequest,
                     context,
                     requestDecorators,
@@ -2512,7 +2515,7 @@ public interface AgentInterfaces {
                     model,
                     AgentModels.TicketAgentRouting.class
             );
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -2539,7 +2542,7 @@ public interface AgentInterfaces {
                 );
             }
 
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -2585,7 +2588,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -2635,7 +2638,7 @@ public interface AgentInterfaces {
                 String templateName,
                 ToolContext toolContext
         ) {
-            return AgentInterfaces.decorateToolContext(
+            return DecorateRequestResults.decorateToolContext(
                     toolContext,
                     currentRequest,
                     previousRequest,
@@ -2678,7 +2681,7 @@ public interface AgentInterfaces {
                     context,
                     decoratorContext
             );
-            return AgentInterfaces.decoratePromptContext(
+            return decoratePromptContext(
                     promptContext,
                     promptContextDecorators,
                     decoratorContext
@@ -2720,7 +2723,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            interruptRequest = AgentInterfaces.decorateRequest(
+            interruptRequest = decorateRequest(
                     interruptRequest,
                     context,
                     requestDecorators,
@@ -2753,7 +2756,7 @@ public interface AgentInterfaces {
                     model,
                     AgentModels.PlanningAgentRouting.class
             );
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -2779,7 +2782,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -2822,7 +2825,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -2871,7 +2874,7 @@ public interface AgentInterfaces {
                 String templateName,
                 ToolContext toolContext
         ) {
-            return AgentInterfaces.decorateToolContext(
+            return DecorateRequestResults.decorateToolContext(
                     toolContext,
                     currentRequest,
                     previousRequest,
@@ -2914,7 +2917,7 @@ public interface AgentInterfaces {
                     context,
                     decoratorContext
             );
-            return AgentInterfaces.decoratePromptContext(
+            return decoratePromptContext(
                     promptContext,
                     promptContextDecorators,
                     decoratorContext
@@ -2947,7 +2950,7 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            interruptRequest = AgentInterfaces.decorateRequest(
+            interruptRequest = decorateRequest(
                     interruptRequest,
                     context,
                     requestDecorators,
@@ -2983,7 +2986,7 @@ public interface AgentInterfaces {
                     model,
                     AgentModels.DiscoveryAgentRouting.class
             );
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -3010,7 +3013,7 @@ public interface AgentInterfaces {
                 );
             }
 
-            input = AgentInterfaces.decorateRequest(
+            input = decorateRequest(
                     input,
                     context,
                     requestDecorators,
@@ -3066,7 +3069,7 @@ public interface AgentInterfaces {
                     context
             );
 
-            return AgentInterfaces.decorateRouting(
+            return decorateRouting(
                     routing,
                     context,
                     resultDecorators,
@@ -3077,233 +3080,6 @@ public interface AgentInterfaces {
             );
         }
 
-    }
-
-    static PromptContext decoratePromptContext(
-            PromptContext promptContext,
-            List<? extends PromptContextDecorator> decorators,
-            DecoratorContext decoratorContext1
-    ) {
-        if (promptContext == null || decorators == null || decorators.isEmpty()) {
-            return promptContext;
-        }
-        DecoratorContext decoratorContext = decoratorContext1;
-        List<? extends PromptContextDecorator> sortedDecorators = decorators.stream()
-                .filter(d -> d != null)
-                .sorted(Comparator.comparingInt(PromptContextDecorator::order))
-                .toList();
-        PromptContext decorated = promptContext;
-        for (PromptContextDecorator decorator : sortedDecorators) {
-            decorated = decorator.decorate(decorated, decoratorContext);
-        }
-        return decorated;
-    }
-
-    static <T extends AgentModels.Routing> T decorateRouting(
-            T routing,
-            OperationContext context,
-            List<? extends ResultDecorator> decorators,
-            String agentName,
-            String actionName,
-            Artifact.AgentModel lastRequest
-    ) {
-        return decorateRouting(
-                routing,
-                context,
-                decorators,
-                agentName,
-                actionName,
-                "",
-                lastRequest
-        );
-    }
-
-    static <T extends AgentModels.Routing> T decorateRouting(
-            T routing,
-            OperationContext context,
-            List<? extends ResultDecorator> decorators,
-            String agentName,
-            String actionName,
-            String methodName,
-            Artifact.AgentModel lastRequest
-    ) {
-        if (routing == null || decorators == null || decorators.isEmpty()) {
-            return routing;
-        }
-        AgentModels.AgentRequest currentRequest = context != null
-                ? context.last(AgentModels.AgentRequest.class)
-                : null;
-        DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest, currentRequest
-        );
-        T decorated = routing;
-        // Sort decorators by order (lower values first)
-        List<? extends ResultDecorator> sortedDecorators = decorators.stream()
-                .filter(d -> d != null)
-                .sorted(Comparator.comparingInt(ResultDecorator::order))
-                .toList();
-        for (ResultDecorator decorator : sortedDecorators) {
-            decorated = decorator.decorate(decorated, decoratorContext);
-        }
-        return decorated;
-    }
-
-    static <T extends AgentModels.AgentResult> T decorateResult(
-            T result,
-            OperationContext context,
-            List<? extends ResultDecorator> decorators,
-            String agentName,
-            String actionName,
-            String methodName,
-            Artifact.AgentModel lastRequest
-    ) {
-        if (result == null || decorators == null || decorators.isEmpty()) {
-            return result;
-        }
-        DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest, result
-        );
-        List<? extends ResultDecorator> sortedDecorators = decorators.stream()
-                .filter(d -> d != null)
-                .sorted(Comparator.comparingInt(ResultDecorator::order))
-                .toList();
-        T decorated = result;
-        for (ResultDecorator decorator : sortedDecorators) {
-            decorated = decorator.decorate(decorated, decoratorContext);
-        }
-        return decorated;
-    }
-
-    static <T extends AgentModels.AgentRequest> T decorateRequestResult(
-            T result,
-            OperationContext context,
-            List<? extends ResultDecorator> decorators,
-            String agentName,
-            String actionName,
-            String methodName,
-            Artifact.AgentModel lastRequest
-    ) {
-        if (result == null || decorators == null || decorators.isEmpty()) {
-            return result;
-        }
-        DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest, result
-        );
-        List<? extends ResultDecorator> sortedDecorators = decorators.stream()
-                .filter(d -> d != null)
-                .sorted(Comparator.comparingInt(ResultDecorator::order))
-                .toList();
-        T decorated = result;
-        for (ResultDecorator decorator : sortedDecorators) {
-            decorated = decorator.decorateRequestResult(decorated, decoratorContext);
-        }
-        return decorated;
-    }
-
-    /**
-     * @deprecated Use {@link #decorateRouting(AgentModels.Routing, OperationContext, List, String, String, Artifact.AgentModel)} instead.
-     * This overload exists for backwards compatibility and does not emit action completed events.
-     */
-    @Deprecated
-    static <T extends AgentModels.Routing> T decorateRouting(
-            T routing,
-            OperationContext context,
-            List<ResultDecorator> decorators,
-            Artifact.AgentModel lastRequest
-    ) {
-        return decorateRouting(routing, context, decorators, AGENT_NAME_NONE, ACTION_NONE, METHOD_NONE, lastRequest);
-    }
-
-    static ToolContext decorateToolContext(ToolContext toolContext,
-                                           AgentModels.AgentRequest enrichedRequest,
-                                           AgentModels.AgentRequest lastRequest,
-                                           OperationContext context,
-                                           List<ToolContextDecorator> decorators,
-                                           String agentName,
-                                           String actionName,
-                                           String methodName) {
-
-        if (toolContext == null)
-            toolContext = ToolContext.of();
-        if (decorators == null || decorators.isEmpty()) {
-            return toolContext;
-        }
-        DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest, enrichedRequest);
-
-        for (var d : decorators) {
-            toolContext = d.decorate(toolContext, decoratorContext);
-        }
-
-        return toolContext;
-
-    }
-
-    static <T extends AgentModels.AgentResult> T decorateFinalResult(
-            T finalResult,
-            AgentModels.AgentRequest enrichedRequest,
-            AgentModels.AgentRequest lastRequest,
-            OperationContext context,
-            List<FinalResultDecorator> decorators,
-            String agentName,
-            String actionName,
-            String methodName
-    ) {
-        if (finalResult == null || decorators == null || decorators.isEmpty()) {
-            return finalResult;
-        }
-        DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest, enrichedRequest);
-        FinalResultDecorator.FinalResultDecoratorContext finalResultDecoratorContext
-                = new FinalResultDecorator.FinalResultDecoratorContext(enrichedRequest, decoratorContext);
-        // Sort decorators by order (lower values first)
-        List<FinalResultDecorator> sortedDecorators = decorators.stream()
-                .filter(d -> d != null)
-                .sorted(Comparator.comparingInt(FinalResultDecorator::order))
-                .toList();
-        T decorated = finalResult;
-        for (FinalResultDecorator decorator : sortedDecorators) {
-            try {
-                decorated = decorator.decorateFinalResult(decorated, finalResultDecoratorContext);
-            } catch (Exception e) {
-                log.error(
-                        "FinalResultDecorator {} failed for agent={} action={} method={}",
-                        decorator.getClass().getName(),
-                        agentName,
-                        actionName,
-                        methodName,
-                        e
-                );
-            }
-        }
-        return decorated;
-    }
-
-    static <T extends AgentModels.AgentRequest> T decorateRequest(
-            T request,
-            OperationContext context,
-            List<? extends RequestDecorator> decorators,
-            String agentName,
-            String actionName,
-            String methodName,
-            AgentModels.AgentRequest lastRequest
-    ) {
-        if (request == null || decorators == null || decorators.isEmpty()) {
-            return request;
-        }
-        DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest, request
-        );
-        // Sort decorators by order (lower values first)
-        List<? extends RequestDecorator> sortedDecorators = decorators.stream()
-                .filter(d -> d != null)
-                .sorted(Comparator.comparingInt(RequestDecorator::order))
-                .toList();
-        T decorated = request;
-        for (RequestDecorator decorator : sortedDecorators) {
-            decorated = decorator.decorate(decorated, decoratorContext);
-        }
-        return decorated;
     }
 
     /**
