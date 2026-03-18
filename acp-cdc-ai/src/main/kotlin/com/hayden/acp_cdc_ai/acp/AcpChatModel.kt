@@ -178,8 +178,17 @@ class AcpChatModel(
 
         try {
             doPerformPrompt(session, content, sessionContext, memoryId, generations)
+            // If the session emitted a compaction event ("Compacting..."), the stream ends and
+            // the session waits for the next user message.  Re-issue the same prompt after a
+            // brief pause so the LLM can complete its response with the compacted context.
+            if (isSessionCompacting(generations)) {
+                log.info("ACP session compaction detected — re-issuing prompt after brief pause")
+                Thread.sleep(2000)
+                generations.clear()
+                doPerformPrompt(session, content, sessionContext, memoryId, generations)
+            }
         } catch (e: JsonRpcException) {
-            if (e.message.contains("Prompt is too long")) {
+            if (e.message?.contains("Prompt is too long") == true) {
                 session.resetSession()
                 doPerformPrompt(session, content, sessionContext, memoryId, generations)
             }
@@ -214,6 +223,19 @@ class AcpChatModel(
         }
 
         toChatResponse(generations)
+    }
+
+    /**
+     * Returns true when the only non-blank output from a prompt call is a compaction notice
+     * ("Compacting..." or "...").  In this case the ACP session has compacted its context and
+     * the stream has ended — the caller must re-issue the same prompt to get a real response.
+     */
+    private fun isSessionCompacting(generations: List<Generation>): Boolean {
+        val texts = generations
+            .mapNotNull { runCatching { it.output.text }.getOrNull() }
+            .filter { it.isNotBlank() }
+        if (texts.isEmpty()) return false
+        return texts.all { it.trim() == "Compacting..." || it.trim() == "..." }
     }
 
     private suspend fun doPerformPrompt(
