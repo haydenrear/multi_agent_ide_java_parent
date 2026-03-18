@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults.*;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -178,7 +180,7 @@ public class WorktreeMergeConflictService {
                 decoratorContext.methodName()
         );
 
-        PromptContext decoratedPromptContext = AgentInterfaces.decoratePromptContext(
+        PromptContext decoratedPromptContext = decoratePromptContext(
                 promptContext,
                 promptContextDecorators,
                 new DecoratorContext(
@@ -186,7 +188,7 @@ public class WorktreeMergeConflictService {
                 )
         );
 
-        ToolContext toolContext = AgentInterfaces.decorateToolContext(
+        ToolContext toolContext = decorateToolContext(
                 ToolContext.empty(),
                 request,
                 sourceRequest,
@@ -220,7 +222,7 @@ public class WorktreeMergeConflictService {
                         .build();
             }
 
-            return AgentInterfaces.decorateResult(
+            return decorateResult(
                     conflictResult,
                     operationContext,
                     resultDecorators,
@@ -256,7 +258,7 @@ public class WorktreeMergeConflictService {
         }
 
         AgentModels.AgentRequest parentRequest = sourceRequest != null ? sourceRequest : lastRequest;
-        AgentModels.MergeConflictRequest decorated = AgentInterfaces.decorateRequest(
+        AgentModels.MergeConflictRequest decorated = decorateRequest(
                 request,
                 decoratorContext.operationContext(),
                 requestDecorators,

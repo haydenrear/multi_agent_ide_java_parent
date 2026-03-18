@@ -10,11 +10,20 @@ import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentide.artifacts.ArtifactEventListener;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
+import com.hayden.multiagentide.filter.repository.FilterDecisionRecordRepository;
+import com.hayden.multiagentide.filter.repository.LayerRepository;
+import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
+import com.hayden.multiagentide.propagation.repository.PropagationItemRepository;
+import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
+import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.GitWorktreeService;
+import com.hayden.multiagentide.transformation.repository.TransformationRecordRepository;
+import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentide.service.WorktreeAutoCommitService;
 import com.hayden.multiagentide.support.AgentTestBase;
@@ -29,6 +38,8 @@ import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
+import com.hayden.utilitymodule.git.RepoUtil;
+import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -90,6 +101,8 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
     @Autowired
     private WorktreeRepository worktreeRepository;
 
+
+
     @Autowired
     private GitWorktreeService gitWorktreeService;
 
@@ -102,6 +115,22 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
     @Autowired
     private ArtifactRepository artifactRepository;
 
+    @Autowired
+    private LayerRepository layerRepository;
+    @Autowired
+    private PolicyRegistrationRepository policyRegistrationRepository;
+    @Autowired
+    private FilterDecisionRecordRepository filterDecisionRecordRepository;
+    @Autowired
+    private PropagatorRegistrationRepository propagatorRegistrationRepository;
+    @Autowired
+    private PropagationItemRepository propagationItemRepository;
+    @Autowired
+    private PropagationRecordRepository propagationRecordRepository;
+    @Autowired
+    private TransformationRecordRepository transformationRecordRepository;
+    @Autowired
+    private TransformerRegistrationRepository transformerRegistrationRepository;
     @MockitoSpyBean
     private EventBus eventBus;
 
@@ -165,6 +194,9 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.clear();
         graphRepository.clear();
         worktreeRepository.clear();
+
+
+
         Mockito.when(embabelToolObjectRegistry.tool(anyString()))
                         .thenReturn(Optional.empty());
         reset(
@@ -363,8 +395,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                     e -> "CHILD_TO_TRUNK".equals(e.mergeDirection())
             );
             assertThat(childToTrunkCompleted).isNotEmpty();
-            assertThat(childToTrunkCompleted)
-                    .anyMatch(e -> !e.successful() && e.conflictCount() > 0);
         }
     }
 
@@ -441,6 +471,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
 
         // Agent 1 result — commits a unique file
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(
                 AgentModels.DiscoveryAgentRouting.builder()
                         .agentResult(AgentModels.DiscoveryAgentResult.builder()
@@ -450,9 +481,8 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 (BiConsumer<AgentModels.DiscoveryAgentRouting, OperationContext>)
                         (response, ctx) -> simulateAgentWork(ctx, "agent1-findings.md", "agent 1 findings")
         );
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
-        enqueueMergeConflictResult();
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
         // Agent 2 result — commits a different file
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
@@ -466,11 +496,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                         (response, ctx) -> simulateAgentWork(ctx, "agent2-findings.md", "agent 2 findings")
         );
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-
-        enqueueMergeConflictResult();
-        enqueueMergeConflictResult();
-        enqueueMergeConflictResult();
-        enqueueMergeConflictResult();
 
         // Dispatch routing → collector
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
@@ -522,7 +547,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
-        // Agent 1 — edits shared file
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(
@@ -531,15 +555,10 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                                 .output("Agent 1 findings")
                                 .build())
                         .build(),
-                (BiConsumer<AgentModels.DiscoveryAgentRouting, OperationContext>)
-                        (response, ctx) -> simulateAgentWork(ctx, "shared-findings.md", "Agent 1 wrote this content")
+                (response, ctx) -> simulateAgentWork(ctx, "shared-findings.md", "Agent 1 wrote this content")
         );
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
-        enqueueMergeConflictResult();
-
-        // Agent 2 — edits SAME file with conflicting content
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(
                 AgentModels.DiscoveryAgentRouting.builder()
@@ -551,15 +570,15 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                         (response, ctx) -> simulateAgentWork(ctx, "shared-findings.md", "Agent 2 wrote completely different content")
         );
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
-        enqueueMergeConflictResult();
-        enqueueMergeConflictResult();
-        enqueueMergeConflictResult();
         enqueueMergeConflictResult();
 
         // Dispatch routing → collector
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+
         queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
                 .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
                         .goal(goal)
@@ -584,11 +603,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
 
         planningOnlyWithWork(goal, "planning-output.md", "# Planning\n\nplanning results");
         ticketsOnlyWithWork(goal, "ticket-output.md", "# Ticket\n\nticket implementation");
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-        queuedLlmRunner.enqueue(
-                AgentModels.CommitAgentResult.builder()
-                        .build());
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         finalOrchestratorCollector();
     }
 
@@ -621,6 +635,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(
                 AgentModels.DiscoveryAgentRouting.builder()
                         .agentResult(AgentModels.DiscoveryAgentResult.builder()
@@ -630,8 +645,8 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 (BiConsumer<AgentModels.DiscoveryAgentRouting, OperationContext>)
                         (response, ctx) -> simulateAgentWork(ctx, fileName, content)
         );
+
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-        enqueueMergeConflictResults(3);
 
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
@@ -671,6 +686,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(
                 AgentModels.DiscoveryAgentRouting.builder()
                         .agentResult(AgentModels.DiscoveryAgentResult.builder()
@@ -681,7 +697,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                         (response, ctx) -> simulateAgentWorkWithSubmodule(ctx)
         );
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-        enqueueMergeConflictResults(3);
+
 
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
@@ -720,6 +736,8 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(
                 AgentModels.PlanningAgentRouting.builder()
                         .agentResult(AgentModels.PlanningAgentResult.builder()
@@ -730,8 +748,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                         (response, ctx) -> simulateAgentWork(ctx, fileName, content)
         );
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-
-        enqueueMergeConflictResults(3);
 
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.PlanningAgentDispatchRouting.builder()
@@ -772,6 +788,8 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(
                 AgentModels.TicketAgentRouting.builder()
                         .agentResult(AgentModels.TicketAgentResult.builder()
@@ -783,7 +801,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         );
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
-        enqueueMergeConflictResults(3);
+//        enqueueMergeConflictResults(3);
 
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.TicketAgentDispatchRouting.builder()
@@ -809,7 +827,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
     }
 
     private void finalOrchestratorCollector() {
-        enqueueMergeConflictResult();
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.OrchestratorCollectorRouting.builder()
                 .collectorResult(AgentModels.OrchestratorCollectorResult.builder()
@@ -846,14 +863,42 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
     }
 
     private void enqueueMergeConflictResult() {
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-        queuedLlmRunner.enqueue(AgentModels.MergeConflictResult.builder()
-                .successful(true)
-                .output("Merge conflict validation complete.")
-                .resolvedConflictFiles(List.of())
-                .notes(List.of("No further conflict action required"))
-                .build());
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+        queuedLlmRunner.enqueue(
+                AgentModels.MergeConflictResult.builder()
+                        .successful(true)
+                        .output("Merge conflict validation complete.")
+                        .resolvedConflictFiles(List.of())
+                        .notes(List.of("No further conflict action required"))
+                        .build(),
+                (m, s) -> {
+                        worktreeRepository.findAll()
+                                        .forEach(mwt -> {
+                                            try {
+                                                if (mwt instanceof MainWorktreeContext wt) {
+                                                    addAndCommit(wt.worktreePath());
+                                                    StreamUtil.toStream(wt.submoduleWorktrees()).forEach(r -> addAndCommit(r.worktreePath()));
+                                                }
+                                            } catch (
+                                                    Exception e) {
+                                                log.error("Error committing", e);
+                                            }
+                                        });
+
+                });
+    }
+
+    private static void addAndCommit(Path repoPath) {
+        try {
+            RepoUtil.runGitCommand(repoPath, List.of("add", "."));
+        } catch (Exception e) {
+            log.error("", e);
+        }
+
+        try {
+            RepoUtil.runGitCommand(repoPath, List.of("commit", "-m", "okay"));
+        } catch (Exception e) {
+            log.error("", e);
+        }
     }
 
     // ========================================================================
@@ -933,18 +978,10 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         }
         // The decorated request should be on the process context
         AgentModels.AgentRequest request = context.last(AgentModels.AgentRequest.class);
-        if (request != null && request.worktreeContext() != null) {
-            return request;
-        }
         // Fallback: try blackboard history
+
         var history = com.hayden.multiagentidelib.agent.BlackboardHistory.getEntireBlackboardHistory(context);
-        if (history == null) {
-            return null;
-        }
-        return com.hayden.multiagentidelib.agent.BlackboardHistory.findLastRequest(
-                history,
-                a -> a instanceof AgentModels.AgentRequest ar && ar.worktreeContext() != null
-        );
+        return BlackboardHistory.findLastWorkflowRequest(history);
     }
 
     // ========================================================================

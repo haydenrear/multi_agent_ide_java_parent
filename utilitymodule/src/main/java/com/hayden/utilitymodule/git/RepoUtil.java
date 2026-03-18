@@ -439,6 +439,13 @@ public interface RepoUtil {
 
     static Result<String, RepoUtilError> runGitCommand(Path repoPath, List<String> args) {
         List<String> command = new ArrayList<>();
+        if (args.isEmpty())
+            return Result.err(new RepoUtilError("Did not even have any args!"));
+
+        if (args.getFirst().equals("git")) {
+            args = new ArrayList<>(args);
+            args.removeFirst();
+        }
         command.add("git");
         command.addAll(args);
         ProcessBuilder pb = new ProcessBuilder(command)

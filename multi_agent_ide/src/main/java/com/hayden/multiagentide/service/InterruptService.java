@@ -30,6 +30,9 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
+import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults.decoratePromptContext;
+import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults.decorateToolContext;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -95,13 +98,13 @@ public class InterruptService {
                         context,
                         decoratorContext
                 );
-                promptContext = AgentInterfaces.decoratePromptContext(
+                promptContext = decoratePromptContext(
                         promptContext,
                         promptContextDecorators,
                         decoratorContext
                 );
 
-                toolContext = AgentInterfaces.decorateToolContext(
+                toolContext = decorateToolContext(
                         toolContext,
                         request,
                         promptContext.previousRequest(),
@@ -291,13 +294,13 @@ public class InterruptService {
                 decoratorContext
         );
 
-        promptContext = AgentInterfaces.decoratePromptContext(
+        promptContext = decoratePromptContext(
                 promptContext,
                 promptContextDecorators,
                 decoratorContext
         );
 
-        ToolContext toolContext = AgentInterfaces.decorateToolContext(
+        ToolContext toolContext = decorateToolContext(
                 ToolContext.empty(),
                 request,
                 callerPromptContext.previousRequest(),

@@ -1091,7 +1091,17 @@ public class GitWorktreeService implements WorktreeService {
             return true;
         }
         try (var git = openGit(wt.get().worktreePath())) {
-            return !git.status().setIgnoreSubmodules(SubmoduleWalk.IgnoreSubmoduleMode.ALL).call().isClean();
+            var hasUncommitedChanges = !git.status().setIgnoreSubmodules(SubmoduleWalk.IgnoreSubmoduleMode.ALL).call().isClean();
+
+            if (hasUncommitedChanges) {
+                return true;
+            }
+
+            if (wt.get() instanceof MainWorktreeContext m) {
+                return m.submoduleWorktrees().stream().anyMatch(s -> hasUncommittedChanges(s.worktreeId(), s.derivedBranch()));
+            }
+
+            return false;
         } catch (Exception e) {
             if (hasCause(e, MissingObjectException.class)) {
                 log.warn("MissingObjectException checking worktree status for {} - attempting to fix detached HEAD submodules", worktreeId);

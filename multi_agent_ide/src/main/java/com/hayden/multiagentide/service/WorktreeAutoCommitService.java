@@ -5,7 +5,6 @@ import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
@@ -31,6 +30,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults.*;
 
 /**
  * Executes commit actions in-agent before merge decorators run.
@@ -212,7 +213,7 @@ public class WorktreeAutoCommitService {
                     decoratorContext.methodName()
             );
 
-            PromptContext decoratedPromptContext = AgentInterfaces.decoratePromptContext(
+            PromptContext decoratedPromptContext = decoratePromptContext(
                     promptContext,
                     promptContextDecorators,
                     new DecoratorContext(
@@ -220,7 +221,7 @@ public class WorktreeAutoCommitService {
                     )
             );
 
-            ToolContext toolContext = AgentInterfaces.decorateToolContext(
+            ToolContext toolContext = decorateToolContext(
                     ToolContext.empty(),
                     sourceRequest != null ? sourceRequest : request,
                     previousRequest,
@@ -242,7 +243,7 @@ public class WorktreeAutoCommitService {
 
             AgentModels.CommitAgentResult normalized = normalizeCommitResult(raw, request, sourceResult);
 
-            return AgentInterfaces.decorateResult(
+            return decorateResult(
                     normalized,
                     operationContext,
                     resultDecorators,
@@ -268,7 +269,7 @@ public class WorktreeAutoCommitService {
         }
 
         AgentModels.AgentRequest parentRequest = sourceRequest != null ? sourceRequest : lastRequest;
-        AgentModels.CommitAgentRequest decorated = AgentInterfaces.decorateRequest(
+        AgentModels.CommitAgentRequest decorated = decorateRequest(
                 request,
                 decoratorContext.operationContext(),
                 requestDecorators,
