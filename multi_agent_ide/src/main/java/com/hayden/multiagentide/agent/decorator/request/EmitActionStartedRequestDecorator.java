@@ -8,6 +8,7 @@ import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.agent.WorkflowGraphState;
+import com.hayden.multiagentidelib.agent.history.CompositeHistoryInterpreter;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
@@ -39,6 +40,7 @@ public class EmitActionStartedRequestDecorator implements RequestDecorator, Disp
     }
 
     private final ExecutionScopeService scopeService;
+    private final CompositeHistoryInterpreter compositeHistoryInterpreter;
 
     @Override
     public int order() {
@@ -61,7 +63,8 @@ public class EmitActionStartedRequestDecorator implements RequestDecorator, Disp
 
         BlackboardHistory.ensureSubscribed(
                 eventBus, operationContext,
-                () -> WorkflowGraphState.initial(request.key().value()));
+                () -> WorkflowGraphState.initial(request.key().value()),
+                compositeHistoryInterpreter);
 
         String nodeId = request.key().value();
 

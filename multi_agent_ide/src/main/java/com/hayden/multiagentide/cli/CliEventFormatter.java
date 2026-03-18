@@ -129,7 +129,9 @@ public class CliEventFormatter {
                         + " controller=" + summarize(normalizedArgs, e.controllerId())
                         + " endpoint=" + summarize(normalizedArgs, e.endpointId()));
                 case Events.CompactionEvent e -> format(normalizedArgs, "COMPACTION", e, "message=" + summarize(normalizedArgs, e.message()));
-            };
+            case Events.AgentErrorEvent agentErrorEvent -> format(normalizedArgs, "AGENT_ERROR_EVENT", agentErrorEvent, "message=" + summarize(normalizedArgs, agentErrorEvent.errorMessage()));
+        };
+
     }
 
     private @NonNull CliEventArgs normArgs(CliEventArgs args, Events.GraphEvent event) {

@@ -66,6 +66,20 @@ public sealed interface PreviousContext extends AgentContext permits
                     AgentPretty.ACTIVE_SERIALIZATION_CTX.remove();
                 }
             }
+            case AgentSerializationCtx.CollectorSerialization collectorCtx -> {
+                AgentPretty.ACTIVE_SERIALIZATION_CTX.set(collectorCtx);
+                try {
+                    yield prettyPrint();
+                } finally {
+                    AgentPretty.ACTIVE_SERIALIZATION_CTX.remove();
+                }
+            }
+            case AgentSerializationCtx.AlgebraSummarySerialization ignored ->
+                    prettyPrint();
+            case AgentSerializationCtx.AlgebraDetailSerialization ignored ->
+                    prettyPrint();
+            case AgentSerializationCtx.AlgebraCommitMergeSerialization ignored ->
+                    prettyPrint();
         };
     }
 

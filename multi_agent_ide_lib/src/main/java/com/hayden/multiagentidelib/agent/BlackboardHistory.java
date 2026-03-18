@@ -5,6 +5,7 @@ import com.embabel.agent.core.Blackboard;
 import com.hayden.acp_cdc_ai.acp.events.*;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.commitdiffcontext.events.EventSubscriber;
+import com.hayden.multiagentidelib.agent.history.CompositeHistoryInterpreter;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 
@@ -45,6 +46,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
 
     private volatile WorkflowGraphState state;
     private volatile History history;
+    private final @Nullable CompositeHistoryInterpreter compositeInterpreter;
 
     public static AgentModels.AgentRequest findLastRequest(BlackboardHistory bh,
                                                        Predicate<AgentModels.AgentRequest> r) {
@@ -66,6 +68,8 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                             defaultEntry.input();
                     case MessageEntry ignored ->
                             null;
+                    case ContextAlgebra ignored ->
+                            null;
                 };
                 if (input instanceof AgentModels.AgentRequest agentRequest && r.test(agentRequest)) {
                     return agentRequest;
@@ -86,32 +90,27 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
     }
 
     public static AgentModels.@Nullable AgentRequest findLastNonContextRequest(BlackboardHistory history) {
-        AgentModels.AgentRequest lastRequest = findLastRequest(
-                history,
-                a -> !(a instanceof AgentModels.InterruptRequest)
-                        && !(a instanceof AgentModels.ContextManagerRequest)
-                        && !(a instanceof AgentModels.ContextManagerRoutingRequest)
-                        && !(a instanceof AgentModels.CommitAgentRequest)
-                        && !(a instanceof AgentModels.MergeConflictRequest)
-                        && !(a instanceof AgentModels.AiFilterRequest)
-                        && !(a instanceof AgentModels.AiPropagatorRequest)
-                        && !(a instanceof AgentModels.AiTransformerRequest)
-        );
-        return lastRequest;
+        return findLastRequest(history, a -> isNonUtilityWorkflowRequest(a));
     }
 
     public static AgentModels.@Nullable AgentRequest findLastWorkflowRequest(BlackboardHistory history) {
-        return findLastRequest(
-                history,
-                a -> !(a instanceof AgentModels.InterruptRequest)
-                        && !(a instanceof AgentModels.ContextManagerRequest)
-                        && !(a instanceof AgentModels.ContextManagerRoutingRequest)
-                        && !(a instanceof AgentModels.CommitAgentRequest)
-                        && !(a instanceof AgentModels.AiFilterRequest)
-                        && !(a instanceof AgentModels.AiPropagatorRequest)
-                        && !(a instanceof AgentModels.AiTransformerRequest)
-                        && !(a instanceof AgentModels.MergeConflictRequest)
-        );
+        return findLastRequest(history, a -> isNonUtilityWorkflowRequest(a));
+    }
+
+    /**
+     * Returns true if the given input is a non-utility workflow request — i.e. an AgentRequest
+     * that is NOT an interrupt, context manager, commit, merge, or AI filter/propagator/transformer.
+     */
+    public static boolean isNonUtilityWorkflowRequest(HasContextId input) {
+        return input instanceof AgentModels.AgentRequest
+                && !(input instanceof AgentModels.InterruptRequest)
+                && !(input instanceof AgentModels.ContextManagerRequest)
+                && !(input instanceof AgentModels.ContextManagerRoutingRequest)
+                && !(input instanceof AgentModels.CommitAgentRequest)
+                && !(input instanceof AgentModels.MergeConflictRequest)
+                && !(input instanceof AgentModels.AiFilterRequest)
+                && !(input instanceof AgentModels.AiPropagatorRequest)
+                && !(input instanceof AgentModels.AiTransformerRequest);
     }
 
     public static <T> boolean isAssignableType(Class<T> type, Entry entry) {
@@ -123,7 +122,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
      * Tracks a single historical blackboard state entry.
      * Each entry represents a previous action's input that has been archived.
      */
-    public sealed interface Entry extends HasContextId permits DefaultEntry, MessageEntry {
+    public sealed interface Entry extends HasContextId permits DefaultEntry, MessageEntry, ContextAlgebra {
 
         Instant timestamp();
 
@@ -136,10 +135,16 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
     }
 
     public BlackboardHistory(History history, String nodeId, WorkflowGraphState state) {
+        this(history, nodeId, state, null);
+    }
+
+    public BlackboardHistory(History history, String nodeId, WorkflowGraphState state,
+                             @Nullable CompositeHistoryInterpreter compositeInterpreter) {
         this.history = history == null ? new History() : history;
         this.nodeId = nodeId;
         this.listenerId = "BlackboardHistory-" + System.identityHashCode(this);
         this.state = state;
+        this.compositeInterpreter = compositeInterpreter;
     }
 
     public synchronized <T> T fromHistory(Function<History, T> t) {
@@ -166,6 +171,26 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
 
     synchronized void addEntry(String actionName, HasContextId enrichedInput) {
         this.history = this.history.withEntry(actionName, enrichedInput);
+        runInterpreters();
+    }
+
+    /**
+     * Add a {@link ContextAlgebra} entry directly (e.g. from AgentInterfaces for stuck/error).
+     */
+    public synchronized void addAlgebraEntry(ContextAlgebra algebraEntry) {
+        this.history.entries().add(algebraEntry);
+    }
+
+    private void runInterpreters() {
+        if (compositeInterpreter == null) {
+            return;
+        }
+        List<Entry> entries = this.history.entries();
+        int newIndex = entries.size() - 1;
+        List<ContextAlgebra> produced = compositeInterpreter.interpretNewEntry(entries, newIndex);
+        if (produced != null) {
+            entries.addAll(produced);
+        }
     }
 
     public synchronized <T> Optional<T> getValue(Function<Entry, Optional<T>> findValue) {
@@ -249,6 +274,12 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
     }
 
     public static BlackboardHistory ensureSubscribed(EventBus eventBus, OperationContext context, Supplier<WorkflowGraphState> factory) {
+        return ensureSubscribed(eventBus, context, factory, null);
+    }
+
+    public static BlackboardHistory ensureSubscribed(EventBus eventBus, OperationContext context,
+                                                     Supplier<WorkflowGraphState> factory,
+                                                     @Nullable CompositeHistoryInterpreter compositeInterpreter) {
         if (eventBus == null || context == null) {
             return null;
         }
@@ -257,7 +288,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             return existing;
         }
 
-        BlackboardHistory listener = new BlackboardHistory(new History(), resolveNodeId(context), factory.get());
+        BlackboardHistory listener = new BlackboardHistory(new History(), resolveNodeId(context), factory.get(), compositeInterpreter);
         context.getAgentProcess().addObject(listener);
         eventBus.subscribe(listener);
         return listener;
@@ -557,7 +588,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
     }
 
     @Override
-    public void onEvent(Events.GraphEvent event) {
+    public synchronized void onEvent(Events.GraphEvent event) {
         if (event == null) {
             return;
         }
@@ -576,6 +607,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             } else {
                 history.addEvent(event, actionName);
             }
+            runInterpreters();
         }
     }
 
@@ -647,6 +679,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     buildTargets(propagationEvent.sourceNodeId(), null);
             case Events.TransformationEvent ignored -> new ArrayList<>();
             case Events.CompactionEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.AgentErrorEvent ignored -> buildTargets(event.nodeId(), null);
         };
     }
 

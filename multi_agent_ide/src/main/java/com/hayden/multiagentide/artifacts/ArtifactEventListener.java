@@ -10,11 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -98,6 +94,7 @@ public class ArtifactEventListener implements EventListener {
             case Events.PropagationEvent propagationEvent -> handleEventArtifact(propagationEvent);
             case Events.TransformationEvent transformationEvent -> handleEventArtifact(transformationEvent);
             case Events.CompactionEvent compactionEvent -> handleEventArtifact(compactionEvent);
+            case Events.AgentErrorEvent agentErrorEvent -> handleEventArtifact(agentErrorEvent);
 
             case Events.AddChildNodeEvent ignored -> {
             }
@@ -161,6 +158,7 @@ public class ArtifactEventListener implements EventListener {
             case Events.PropagationEvent ignored -> true;
             case Events.TransformationEvent ignored -> true;
             case Events.CompactionEvent ignored -> true;
+            case Events.AgentErrorEvent ignored -> true;
             case Events.AddChildNodeEvent ignored -> false;
             case Events.NodeStatusChangedEvent ignored -> false;
             case Events.CurrentModeUpdateEvent ignored -> false;
@@ -338,7 +336,7 @@ public class ArtifactEventListener implements EventListener {
 
         if (!pending.isEmpty()) {
             pendingArtifactsByExecution
-                    .computeIfAbsent(executionKey, ignored -> java.util.Collections.synchronizedList(new ArrayList<>()))
+                    .computeIfAbsent(executionKey, ignored -> Collections.synchronizedList(new ArrayList<>()))
                     .addAll(pending);
             for (Artifact artifact : pending) {
                 log.debug("Re-queued artifact {} for execution {} because parent is still unavailable",
@@ -350,7 +348,7 @@ public class ArtifactEventListener implements EventListener {
 
     private void queueArtifact(String executionKey, Artifact artifact, String reason) {
         pendingArtifactsByExecution
-                .computeIfAbsent(executionKey, ignored -> java.util.Collections.synchronizedList(new ArrayList<>()))
+                .computeIfAbsent(executionKey, ignored -> Collections.synchronizedList(new ArrayList<>()))
                 .add(artifact);
         ArtifactKey artifactKey = artifact.artifactKey();
         ArtifactKey parentKey = artifactKey == null ? null : artifactKey.parent().orElse(null);

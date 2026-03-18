@@ -59,6 +59,27 @@ public interface AgentPretty {
         record HistoricalRequestSerializationCtx() implements AgentSerializationCtx {
         }
 
+        /**
+         * Compact one-line summary of ContextAlgebra entries, for use in
+         * WeAreHere execution history tables and similar overview contexts.
+         */
+        record AlgebraSummarySerialization() implements AgentSerializationCtx {
+        }
+
+        /**
+         * Full-detail rendering of ContextAlgebra entries, for use in
+         * CurationHistory and context manager prompts that need rich context.
+         */
+        record AlgebraDetailSerialization() implements AgentSerializationCtx {
+        }
+
+        /**
+         * Commit-and-merge focused rendering of ContextAlgebra entries, for use
+         * in MergeAggregation prompt contributors.
+         */
+        record AlgebraCommitMergeSerialization() implements AgentSerializationCtx {
+        }
+
     }
 
     default String prettyPrint(AgentSerializationCtx serializationCtx) {
@@ -97,6 +118,12 @@ public interface AgentPretty {
                     ACTIVE_SERIALIZATION_CTX.remove();
                 }
             }
+            case AgentSerializationCtx.AlgebraSummarySerialization ignored ->
+                    prettyPrint();
+            case AgentSerializationCtx.AlgebraDetailSerialization ignored ->
+                    prettyPrint();
+            case AgentSerializationCtx.AlgebraCommitMergeSerialization ignored ->
+                    prettyPrint();
         };
     }
 

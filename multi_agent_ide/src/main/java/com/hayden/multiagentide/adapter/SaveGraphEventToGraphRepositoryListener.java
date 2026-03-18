@@ -143,6 +143,8 @@ public class SaveGraphEventToGraphRepositoryListener implements EventListener {
             }
             case Events.CompactionEvent ignored -> {
             }
+            case Events.AgentErrorEvent agentErrorEvent -> {
+            }
         }
     }
 

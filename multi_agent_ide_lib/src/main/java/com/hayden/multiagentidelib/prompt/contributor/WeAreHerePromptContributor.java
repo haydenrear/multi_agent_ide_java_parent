@@ -496,6 +496,8 @@ public class WeAreHerePromptContributor implements PromptContributor {
                 }
                 case BlackboardHistory.MessageEntry ignored -> {
                 }
+                case com.hayden.multiagentidelib.agent.ContextAlgebra ignored -> {
+                }
             }
         }
 
@@ -513,33 +515,7 @@ public class WeAreHerePromptContributor implements PromptContributor {
             return sb.toString();
         }
 
-        List<BlackboardHistory.Entry> entries = context.blackboardHistory().copyOfEntries();
-
-        sb.append("| # | Action | Input Type |\n");
-        sb.append("|---|--------|------------|\n");
-
-        int index = 1;
-        for (BlackboardHistory.Entry entry : entries) {
-            String actionName;
-            String typeName;
-            switch (entry) {
-                case BlackboardHistory.DefaultEntry defaultEntry -> {
-                    actionName = defaultEntry.actionName();
-                    typeName = defaultEntry.inputType() != null
-                            ? WorkflowAgentGraphNode.getDisplayName(defaultEntry.inputType())
-                            : "unknown";
-                }
-                case BlackboardHistory.MessageEntry messageEntry -> {
-                    actionName = messageEntry.actionName();
-                    typeName = "MessageEvent";
-                }
-            }
-            sb.append("| ").append(index++).append(" | ")
-                    .append(actionName).append(" | ")
-                    .append(typeName).append(" |\n");
-        }
-
-        // Add loop detection warning
+        // Loop detection warnings
         Map<Class<?>, Class<? extends AgentModels.Routing>> requestToRouting = NodeMappings.REQUEST_TO_ROUTING;
         for (Class<?> requestType : requestToRouting.keySet()) {
             long count = context.blackboardHistory().countType(requestType);

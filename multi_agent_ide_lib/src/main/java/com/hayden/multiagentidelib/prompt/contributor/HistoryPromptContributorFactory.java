@@ -195,6 +195,7 @@ public class HistoryPromptContributorFactory implements PromptContributorFactory
         return switch (entry) {
             case BlackboardHistory.DefaultEntry defaultEntry -> defaultEntry.input();
             case BlackboardHistory.MessageEntry messageEntry -> null;
+            case com.hayden.multiagentidelib.agent.ContextAlgebra algebraEntry -> algebraEntry.input();
         };
     }
 

@@ -2300,8 +2300,11 @@ public interface AgentInterfaces {
                 context.hide(result);
                 return result;
             } catch (Exception e) {
+                ArtifactKey processKey = new ArtifactKey(context.getAgentProcess().getId());
                 eventBus.publish(Events.NodeErrorEvent.err("Error when running %s: %s"
-                        .formatted(outputClass, request), new ArtifactKey(context.getAgentProcess().getId())));
+                        .formatted(outputClass, request), processKey));
+                eventBus.publish(Events.AgentErrorEvent.of(
+                        e.getMessage(), outputClass, request, processKey));
                 return null;
             }
         }

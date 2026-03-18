@@ -180,6 +180,8 @@ public class AgentEventListener implements EventListener {
             case Events.CompactionEvent compactionEvent -> {
                 log.info("Compaction event: {} node={}", compactionEvent.eventId(), compactionEvent.nodeId());
             }
+            case Events.AgentErrorEvent agentErrorEvent -> {
+            }
         }
     }
 

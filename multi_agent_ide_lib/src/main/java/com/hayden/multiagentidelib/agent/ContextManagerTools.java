@@ -607,6 +607,10 @@ public class ContextManagerTools implements ToolCarrier {
         return switch (entry) {
             case BlackboardHistory.MessageEntry messageEntry -> createMessageEntryView(messageEntry, index);
             case BlackboardHistory.DefaultEntry defaultEntry -> createDefaultEntryView(defaultEntry, index);
+            case com.hayden.multiagentidelib.agent.ContextAlgebra algebraEntry ->
+                    new HistoryEntryView(index, algebraEntry.timestamp(), algebraEntry.actionName(),
+                            algebraEntry.getClass().getSimpleName(), algebraEntry.prettyPrint(),
+                            getNotesForEntry(index));
         };
     }
 
@@ -699,6 +703,7 @@ public class ContextManagerTools implements ToolCarrier {
         return switch (entry) {
             case BlackboardHistory.MessageEntry messageEntry -> messageEntry;
             case BlackboardHistory.DefaultEntry ignored -> null;
+            case com.hayden.multiagentidelib.agent.ContextAlgebra ignored -> null;
         };
     }
 
@@ -722,6 +727,12 @@ public class ContextManagerTools implements ToolCarrier {
                     yield true;
                 }
                 yield false;
+            }
+            case com.hayden.multiagentidelib.agent.ContextAlgebra algebraEntry -> {
+                if (algebraEntry.actionName() != null && algebraEntry.actionName().toLowerCase().contains(query)) {
+                    yield true;
+                }
+                yield algebraEntry.prettyPrint().toLowerCase().contains(query);
             }
         };
     }

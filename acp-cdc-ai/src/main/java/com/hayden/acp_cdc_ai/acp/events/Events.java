@@ -545,6 +545,13 @@ public interface Events {
                         line("timestamp", e.timestamp()),
                         line("nodeId", e.nodeId()),
                         block("message", e.message()));
+                case AgentErrorEvent e -> formatEvent("Agent Error Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        block("errorMessage", e.errorMessage()),
+                        line("failedOutputType", e.failedOutputTypeName()),
+                        line("failedInputType", e.failedInputTypeName()));
             };
         }
 
@@ -1688,6 +1695,39 @@ public interface Events {
         @Override
         public String eventType() {
             return "TRANSFORMATION";
+        }
+    }
+
+    /**
+     * Event emitted when an agent subprocess fails with an exception.
+     * Carries all information needed for the error interpreter to create
+     * a {@code ContextAlgebra.ErrorOccurred} entry.
+     */
+    record AgentErrorEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String errorMessage,
+            String failedOutputTypeName,
+            String failedInputTypeName,
+            ArtifactKey failedInputContextId
+    ) implements GraphEvent {
+
+        public static AgentErrorEvent of(String errorMessage, Class<?> outputType, Object request, ArtifactKey contextId) {
+            return new AgentErrorEvent(
+                    UUID.randomUUID().toString(),
+                    Instant.now(),
+                    contextId != null ? contextId.value() : null,
+                    errorMessage,
+                    outputType != null ? outputType.getName() : null,
+                    request != null ? request.getClass().getName() : null,
+                    contextId
+            );
+        }
+
+        @Override
+        public String eventType() {
+            return "AGENT_ERROR";
         }
     }
 }
