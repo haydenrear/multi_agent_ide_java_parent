@@ -292,8 +292,12 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
 
         String id = context.getAgentProcess().getId();
 
-        if (!Objects.equals(contextIdString, id)) {
-           log.error("Context ID string {} did not match ID {}", contextIdString, id);
+        // getId() may be class-qualified (e.g. "WorkflowAgent >> ak:…"); extract only the ArtifactKey portion for comparison.
+        String idArtifactKey = (id != null && id.contains(" >> "))
+                ? id.substring(id.lastIndexOf(" >> ") + 4)
+                : id;
+        if (!Objects.equals(contextIdString, idArtifactKey)) {
+            log.warn("Context ID string {} did not match ArtifactKey portion of ID {}", contextIdString, id);
         }
         return id;
     }

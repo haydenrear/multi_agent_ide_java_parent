@@ -69,7 +69,10 @@ public class ComputationGraphOrchestrator {
     ) {
         Optional<GraphNode> parentOpt = graphRepository.findById(parentNodeId);
         if (parentOpt.isEmpty()) {
-            log.error("Parent node not found: " + parentNodeId);
+            // Parent may not be persisted yet due to dispatch fan-out ordering; child node is still
+            // registered via emitNodeAddedEvent below. Log as warn, not error, to avoid false NODE_ERRORs.
+            log.warn("Parent node not found for child registration: {} — child {} will still be registered via NODE_ADDED",
+                    parentNodeId, childNode.nodeId());
         }
 
         parentOpt.ifPresent(parent -> {
