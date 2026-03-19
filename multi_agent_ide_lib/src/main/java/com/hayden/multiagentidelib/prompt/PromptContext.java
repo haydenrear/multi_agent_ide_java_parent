@@ -23,8 +23,6 @@ import java.util.Map;
 public record PromptContext(
         AgentType agentType,
         ArtifactKey currentContextId,
-        List<UpstreamContext> upstreamContexts,
-        PreviousContext previousContext,
         BlackboardHistory blackboardHistory,
         AgentModels.AgentRequest previousRequest,
         AgentModels.AgentRequest currentRequest,
@@ -40,17 +38,17 @@ public record PromptContext(
         String methodName
 ) {
 
-    public PromptContext(AgentType agentType, ArtifactKey currentContextId, List<UpstreamContext> upstreamContexts, PreviousContext previousContext, BlackboardHistory blackboardHistory, AgentModels.AgentRequest previousRequest, AgentModels.AgentRequest currentRequest,
+    public PromptContext(AgentType agentType, ArtifactKey currentContextId, BlackboardHistory blackboardHistory, AgentModels.AgentRequest previousRequest, AgentModels.AgentRequest currentRequest,
                          Map<String, Object> metadata, String templateName, Map<String, Object> modelWithFeedback, String modelName, OperationContext operationContext,
                          DecoratorContext decoratorContext) {
-        this(agentType, currentContextId, upstreamContexts, previousContext, blackboardHistory, previousRequest, currentRequest, metadata, new ArrayList<>(), templateName, Artifact.HashContext.defaultHashContext(), modelWithFeedback, modelName, operationContext,
+        this(agentType, currentContextId, blackboardHistory, previousRequest, currentRequest, metadata, new ArrayList<>(), templateName, Artifact.HashContext.defaultHashContext(), modelWithFeedback, modelName, operationContext,
                 decoratorContext.agentName(), decoratorContext.actionName(), decoratorContext.methodName());
     }
 
-    public PromptContext(AgentType agentType, ArtifactKey currentContextId, List<UpstreamContext> upstreamContexts, PreviousContext previousContext, BlackboardHistory blackboardHistory, AgentModels.AgentRequest previousRequest, AgentModels.AgentRequest currentRequest,
+    public PromptContext(AgentType agentType, ArtifactKey currentContextId, BlackboardHistory blackboardHistory, AgentModels.AgentRequest previousRequest, AgentModels.AgentRequest currentRequest,
                          Map<String, Object> metadata, String templateName, Map<String, Object> modelWithFeedback, String modelName, OperationContext operationContext,
                          String agentName, String actionName, String methodName) {
-        this(agentType, currentContextId, upstreamContexts, previousContext, blackboardHistory, previousRequest, currentRequest, metadata, new ArrayList<>(), templateName, Artifact.HashContext.defaultHashContext(), modelWithFeedback, modelName, operationContext,
+        this(agentType, currentContextId, blackboardHistory, previousRequest, currentRequest, metadata, new ArrayList<>(), templateName, Artifact.HashContext.defaultHashContext(), modelWithFeedback, modelName, operationContext,
                 agentName, actionName, methodName);
     }
 
@@ -72,9 +70,6 @@ public record PromptContext(
      * Constructor that normalizes null upstream prev and metadata.
      */
     public PromptContext {
-        if (upstreamContexts == null) {
-            upstreamContexts = List.of();
-        }
         if (metadata == null) {
             metadata = Map.of();
         }

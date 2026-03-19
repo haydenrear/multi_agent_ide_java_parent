@@ -31,6 +31,10 @@ public class BlackboardHistoryService {
     ) {
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
 
+        if (history == null) {
+            return null;
+        }
+
         history.addEntry(actionName, input);
 
         if (degenerateLoopPolicies != null && !degenerateLoopPolicies.isEmpty()) {

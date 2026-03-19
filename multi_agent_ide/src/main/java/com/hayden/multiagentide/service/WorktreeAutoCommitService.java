@@ -198,8 +198,6 @@ public class WorktreeAutoCommitService {
             PromptContext promptContext = new PromptContext(
                     sourceAgentType,
                     request.contextId(),
-                    List.of(),
-                    null,
                     BlackboardHistory.getEntireBlackboardHistory(operationContext),
                     previousRequest,
                     request,

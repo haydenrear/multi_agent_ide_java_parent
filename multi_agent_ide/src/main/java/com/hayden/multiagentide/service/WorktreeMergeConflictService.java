@@ -165,8 +165,6 @@ public class WorktreeMergeConflictService {
         PromptContext promptContext = new PromptContext(
                 request.sourceAgentType() != null ? request.sourceAgentType() : AgentType.MERGE_CONFLICT_AGENT,
                 request.contextId(),
-                List.of(),
-                null,
                 null,
                 sourceRequest,
                 request,

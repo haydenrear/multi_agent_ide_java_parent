@@ -6,7 +6,6 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.agent.PreviousContext;
 import com.hayden.multiagentidelib.prompt.ContextIdService;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
@@ -14,15 +13,14 @@ import jakarta.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Service for enriching request objects with ArtifactKey and PreviousContext.
- * Centralizes the logic for setting these fields consistently across all agent types.
+ * Service for enriching request objects with ArtifactKey.
+ * Centralizes the logic for setting contextId fields consistently across all agent types.
  */
 @Slf4j
 @Service
@@ -30,11 +28,8 @@ public class RequestEnrichment {
 
     private final ContextIdService contextIdService;
 
-    private final PreviousContextFactory previousContextFactory;
-
     public RequestEnrichment(ContextIdService contextIdService) {
         this.contextIdService = contextIdService;
-        this.previousContextFactory = new PreviousContextFactory();
     }
 
     public <T extends Artifact.AgentModel> T enrich(T input, OperationContext context) {
@@ -576,165 +571,105 @@ public class RequestEnrichment {
             reqBuilder = reqBuilder.contextId(resolveContextId(context, req, parent));
         }
 
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildOrchestratorPreviousContext(context));
-        }
-
         return withEnrichedChildren(reqBuilder.build(), req.children(), context);
     }
 
     private AgentModels.OrchestratorCollectorRequest enrichOrchestratorCollectorRequest(
             AgentModels.OrchestratorCollectorRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildOrchestratorCollectorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.DiscoveryOrchestratorRequest enrichDiscoveryOrchestratorRequest(
             AgentModels.DiscoveryOrchestratorRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildDiscoveryOrchestratorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.DiscoveryAgentRequest enrichDiscoveryAgentRequest(
             AgentModels.DiscoveryAgentRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildDiscoveryAgentPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.DiscoveryCollectorRequest enrichDiscoveryCollectorRequest(
             AgentModels.DiscoveryCollectorRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildDiscoveryCollectorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.PlanningOrchestratorRequest enrichPlanningOrchestratorRequest(
             AgentModels.PlanningOrchestratorRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildPlanningOrchestratorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.PlanningAgentRequest enrichPlanningAgentRequest(
             AgentModels.PlanningAgentRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildPlanningAgentPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.PlanningCollectorRequest enrichPlanningCollectorRequest(
             AgentModels.PlanningCollectorRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildPlanningCollectorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.TicketOrchestratorRequest enrichTicketOrchestratorRequest(
             AgentModels.TicketOrchestratorRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildTicketOrchestratorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.TicketAgentRequest enrichTicketAgentRequest(
             AgentModels.TicketAgentRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildTicketAgentPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.TicketCollectorRequest enrichTicketCollectorRequest(
             AgentModels.TicketCollectorRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildTicketCollectorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.ReviewRequest enrichReviewRequest(
             AgentModels.ReviewRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildReviewPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.MergerRequest enrichMergerRequest(
             AgentModels.MergerRequest req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildMergerPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.DiscoveryAgentResults enrichDiscoveryAgentResults(
             AgentModels.DiscoveryAgentResults req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildDiscoveryCollectorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.PlanningAgentResults enrichPlanningAgentResults(
             AgentModels.PlanningAgentResults req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildPlanningCollectorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
 
@@ -782,13 +717,9 @@ public class RequestEnrichment {
 
     private AgentModels.TicketAgentResults enrichTicketAgentResults(
             AgentModels.TicketAgentResults req, OperationContext context, Artifact.AgentModel parent) {
-        var reqBuilder = req.toBuilder()
-                .contextId(resolveContextId(context, req, parent));
-        if (req.previousContext() == null) {
-            reqBuilder = reqBuilder.previousContext(previousContextFactory.buildTicketCollectorPreviousContext(context));
-        }
-
-        return withEnrichedChildren(reqBuilder.build(), req.children(), context);
+        return withEnrichedChildren(req.toBuilder()
+                .contextId(resolveContextId(context, req, parent))
+                .build(), req.children(), context);
     }
 
     private AgentModels.ContextManagerRequest enrichContextManagerRequest(
@@ -904,294 +835,5 @@ public class RequestEnrichment {
         return BlackboardHistory.resolveNodeId(context);
     }
 
-    /**
-     * Factory for building typed PreviousContext objects from operation context.
-     */
-    public static class PreviousContextFactory {
 
-        public PreviousContext.OrchestratorPreviousContext buildOrchestratorPreviousContext(OperationContext context) {
-            AgentModels.OrchestratorRouting lastRouting = context != null
-                    ? context.last(AgentModels.OrchestratorRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            AgentModels.OrchestratorRequest lastRequest = context.last(AgentModels.OrchestratorRequest.class);
-            var builder = PreviousContext.OrchestratorPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(lastRequest != null ? lastRequest.contextId() : null))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.OrchestratorRouting.class))
-                    .previousAttemptAt(Instant.now());
-
-            if (lastRequest != null) {
-                builder = builder.previousContextId(lastRequest.contextId())
-                        .previousDiscoveryCuration(lastRequest.discoveryCuration())
-                        .previousPlanningCuration(lastRequest.planningCuration())
-                        .previousTicketCuration(lastRequest.ticketCuration());
-            }
-
-            return builder.build();
-        }
-
-        public PreviousContext.OrchestratorCollectorPreviousContext buildOrchestratorCollectorPreviousContext(OperationContext context) {
-            AgentModels.OrchestratorCollectorRouting lastRouting = context != null
-                    ? context.last(AgentModels.OrchestratorCollectorRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            AgentModels.OrchestratorCollectorRequest lastRequest = context.last(AgentModels.OrchestratorCollectorRequest.class);
-            var builder = PreviousContext.OrchestratorCollectorPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(lastRequest != null ? lastRequest.contextId() : null))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.OrchestratorCollectorRouting.class))
-                    .previousAttemptAt(Instant.now());
-
-            if (lastRequest != null) {
-                builder = builder.previousContextId(lastRequest.contextId())
-                        .previousDiscoveryCuration(lastRequest.discoveryCuration())
-                        .previousPlanningCuration(lastRequest.planningCuration())
-                        .previousTicketCuration(lastRequest.ticketCuration());
-            }
-
-            return builder.build();
-        }
-
-        public PreviousContext.DiscoveryOrchestratorPreviousContext buildDiscoveryOrchestratorPreviousContext(OperationContext context) {
-            AgentModels.DiscoveryOrchestratorRouting lastRouting = context != null
-                    ? context.last(AgentModels.DiscoveryOrchestratorRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            AgentModels.DiscoveryOrchestratorRequest lastRequest = context.last(AgentModels.DiscoveryOrchestratorRequest.class);
-            var builder = PreviousContext.DiscoveryOrchestratorPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(lastRequest != null ? lastRequest.contextId() : null))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.DiscoveryOrchestratorRouting.class))
-                    .previousAttemptAt(Instant.now());
-
-            if (lastRequest != null) {
-                builder = builder.previousContextId(lastRequest.contextId());
-            }
-
-            return builder.build();
-        }
-
-        public PreviousContext.PlanningOrchestratorPreviousContext buildPlanningOrchestratorPreviousContext(OperationContext context) {
-            AgentModels.PlanningOrchestratorRouting lastRouting = context != null
-                    ? context.last(AgentModels.PlanningOrchestratorRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            AgentModels.PlanningOrchestratorRequest lastRequest = context.last(AgentModels.PlanningOrchestratorRequest.class);
-            var builder = PreviousContext.PlanningOrchestratorPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(lastRequest != null ? lastRequest.contextId() : null))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.PlanningOrchestratorRouting.class))
-                    .previousAttemptAt(Instant.now());
-
-            if (lastRequest != null) {
-                builder = builder.previousContextId(lastRequest.contextId())
-                        .previousDiscoveryCuration(lastRequest.discoveryCuration());
-            }
-
-            return builder.build();
-        }
-
-        public PreviousContext.TicketOrchestratorPreviousContext buildTicketOrchestratorPreviousContext(OperationContext context) {
-            AgentModels.TicketOrchestratorRouting lastRouting = context != null
-                    ? context.last(AgentModels.TicketOrchestratorRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            AgentModels.TicketOrchestratorRequest lastRequest = context.last(AgentModels.TicketOrchestratorRequest.class);
-            var builder = PreviousContext.TicketOrchestratorPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(lastRequest != null ? lastRequest.contextId() : null))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.TicketOrchestratorRouting.class))
-                    .previousAttemptAt(Instant.now());
-
-            if (lastRequest != null) {
-                builder = builder.previousContextId(lastRequest.contextId())
-                        .previousDiscoveryCuration(lastRequest.discoveryCuration())
-                        .previousPlanningCuration(lastRequest.planningCuration());
-            }
-
-            return builder.build();
-        }
-
-        public PreviousContext.DiscoveryAgentPreviousContext buildDiscoveryAgentPreviousContext(OperationContext context) {
-            AgentModels.DiscoveryAgentRouting lastRouting = context != null
-                    ? context.last(AgentModels.DiscoveryAgentRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            AgentModels.DiscoveryAgentResult lastResult = lastRouting.agentResult();
-            var builder = PreviousContext.DiscoveryAgentPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(lastResult != null ? lastResult.contextId() : null))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.DiscoveryAgentRouting.class))
-                    .previousAttemptAt(Instant.now());
-
-            if (lastResult != null) {
-                builder = builder.previousDiscoveryResult(lastResult.report());
-            }
-
-            return builder.build();
-        }
-
-        public PreviousContext.PlanningAgentPreviousContext buildPlanningAgentPreviousContext(OperationContext context) {
-            AgentModels.PlanningAgentRouting lastRouting = context != null
-                    ? context.last(AgentModels.PlanningAgentRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            ArtifactKey parentKey = lastRouting.agentResult() != null ? lastRouting.agentResult().contextId() : null;
-            return PreviousContext.PlanningAgentPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(parentKey))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.PlanningAgentRouting.class))
-                    .previousAttemptAt(Instant.now())
-                    .previousPlanningResult(lastRouting.agentResult())
-                    .build();
-        }
-
-        public PreviousContext.TicketAgentPreviousContext buildTicketAgentPreviousContext(OperationContext context) {
-            AgentModels.TicketAgentRouting lastRouting = context != null
-                    ? context.last(AgentModels.TicketAgentRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            ArtifactKey parentKey = lastRouting.agentResult() != null ? lastRouting.agentResult().contextId() : null;
-            return PreviousContext.TicketAgentPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(parentKey))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.TicketAgentRouting.class))
-                    .previousAttemptAt(Instant.now())
-                    .previousTicketResult(lastRouting.agentResult())
-                    .build();
-        }
-
-        public PreviousContext.DiscoveryCollectorPreviousContext buildDiscoveryCollectorPreviousContext(OperationContext context) {
-            AgentModels.DiscoveryCollectorRouting lastRouting = context != null
-                    ? context.last(AgentModels.DiscoveryCollectorRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            var builder = PreviousContext.DiscoveryCollectorPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(lastRouting.collectorResult() != null
-                            ? lastRouting.collectorResult().contextId()
-                            : null))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.DiscoveryCollectorRouting.class))
-                    .previousAttemptAt(Instant.now());
-
-            if (lastRouting.collectorResult() != null) {
-                builder = builder.previousDiscoveryResult(lastRouting.collectorResult())
-                        .previousDiscoveryCuration(lastRouting.collectorResult().discoveryCollectorContext());
-            }
-
-            return builder.build();
-        }
-
-        public PreviousContext.PlanningCollectorPreviousContext buildPlanningCollectorPreviousContext(OperationContext context) {
-            AgentModels.PlanningCollectorRouting lastRouting = context != null
-                    ? context.last(AgentModels.PlanningCollectorRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            var builder = PreviousContext.PlanningCollectorPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(lastRouting.collectorResult() != null
-                            ? lastRouting.collectorResult().contextId()
-                            : null))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.PlanningCollectorRouting.class))
-                    .previousAttemptAt(Instant.now());
-
-            if (lastRouting.collectorResult() != null) {
-                builder = builder.previousPlanningResult(lastRouting.collectorResult())
-                        .previousPlanningCuration(lastRouting.collectorResult().planningCuration());
-            }
-
-            return builder.build();
-        }
-
-        public PreviousContext.TicketCollectorPreviousContext buildTicketCollectorPreviousContext(OperationContext context) {
-            AgentModels.TicketCollectorRouting lastRouting = context != null
-                    ? context.last(AgentModels.TicketCollectorRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            var builder = PreviousContext.TicketCollectorPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(lastRouting.collectorResult() != null
-                            ? lastRouting.collectorResult().contextId()
-                            : null))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.TicketCollectorRouting.class))
-                    .previousAttemptAt(Instant.now());
-
-            if (lastRouting.collectorResult() != null) {
-                builder = builder.previousTicketResult(lastRouting.collectorResult())
-                        .previousTicketCuration(lastRouting.collectorResult().ticketCuration());
-            }
-
-            return builder.build();
-        }
-
-        public PreviousContext.ReviewPreviousContext buildReviewPreviousContext(OperationContext context) {
-            AgentModels.ReviewRouting lastRouting = context != null
-                    ? context.last(AgentModels.ReviewRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            ArtifactKey parentKey = lastRouting.reviewResult() != null ? lastRouting.reviewResult().contextId() : null;
-            return PreviousContext.ReviewPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(parentKey))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.ReviewRouting.class))
-                    .previousAttemptAt(Instant.now())
-                    .previousReviewEvaluation(lastRouting.reviewResult())
-                    .build();
-        }
-
-        public PreviousContext.MergerPreviousContext buildMergerPreviousContext(OperationContext context) {
-            AgentModels.MergerRouting lastRouting = context != null
-                    ? context.last(AgentModels.MergerRouting.class)
-                    : null;
-            if (lastRouting == null) {
-                return null;
-            }
-            ArtifactKey parentKey = lastRouting.mergerResult() != null ? lastRouting.mergerResult().contextId() : null;
-            return PreviousContext.MergerPreviousContext.builder()
-                    .contextId(resolvePreviousContextKey(parentKey))
-                    .serializedOutput(lastRouting.toString())
-                    .attemptNumber(countAttempts(context, AgentModels.MergerRouting.class))
-                    .previousAttemptAt(Instant.now())
-                    .previousMergerValidation(lastRouting.mergerResult())
-                    .build();
-        }
-
-        private ArtifactKey resolvePreviousContextKey(ArtifactKey parentKey) {
-            return parentKey != null ? parentKey.createChild() : ArtifactKey.createRoot();
-        }
-
-        private int countAttempts(OperationContext context, Class<?> routingClass) {
-            if (context == null) {
-                return 1;
-            }
-            // Count how many times this routing type appears in the context
-            // For now, return 1 as a placeholder - the actual implementation would count from blackboard
-            return 1;
-        }
-    }
 }

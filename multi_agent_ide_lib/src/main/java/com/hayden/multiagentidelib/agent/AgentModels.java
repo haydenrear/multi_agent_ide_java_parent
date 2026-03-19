@@ -2762,10 +2762,7 @@ public interface AgentModels {
             UpstreamContext.PlanningCollectorContext planningCuration,
             @JsonPropertyDescription("Curated ticket context from ticket collector.")
             @SkipPropertyFilter
-            UpstreamContext.TicketCollectorContext ticketCuration,
-            @JsonPropertyDescription("Previous orchestrator context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.OrchestratorPreviousContext previousContext
+            UpstreamContext.TicketCollectorContext ticketCuration
     ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -2779,9 +2776,6 @@ public interface AgentModels {
             if (ticketCuration != null) {
                 children.add(ticketCuration);
             }
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
@@ -2793,22 +2787,19 @@ public interface AgentModels {
                     firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, planningCuration);
             UpstreamContext.TicketCollectorContext updatedTicket =
                     firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, ticketCuration);
-            PreviousContext.OrchestratorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.OrchestratorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .discoveryCuration(updatedDiscovery)
                     .planningCuration(updatedPlanning)
                     .ticketCuration(updatedTicket)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public OrchestratorRequest(ArtifactKey contextId, String goal, String phase) {
-            this(contextId, null, goal, phase, null,null, null, null, null);
+            this(contextId, null, goal, phase, null, null, null, null);
         }
 
         public OrchestratorRequest(String goal, String phase) {
-            this(null, null, goal, phase, null,null, null, null, null);
+            this(null, null, goal, phase, null, null, null, null);
         }
 
         @Override
@@ -2840,7 +2831,6 @@ public interface AgentModels {
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
             appendPrettyContext(builder, "Planning Curation", planningCuration);
             appendPrettyContext(builder, "Ticket Curation", ticketCuration);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
     }
@@ -2869,9 +2859,6 @@ public interface AgentModels {
             @JsonPropertyDescription("Curated ticket context from ticket collector.")
             @SkipPropertyFilter
             UpstreamContext.TicketCollectorContext ticketCuration,
-            @JsonPropertyDescription("Previous orchestrator collector context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.OrchestratorCollectorPreviousContext previousContext,
             @JsonPropertyDescription("Merge descriptor from final merge to source repository.")
             MergeDescriptor mergeDescriptor
     ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack, HasMergeDescriptor {
@@ -2887,9 +2874,6 @@ public interface AgentModels {
             if (ticketCuration != null) {
                 children.add(ticketCuration);
             }
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
@@ -2901,18 +2885,15 @@ public interface AgentModels {
                     firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, planningCuration);
             UpstreamContext.TicketCollectorContext updatedTicket =
                     firstChildOfType(children, UpstreamContext.TicketCollectorContext.class, ticketCuration);
-            PreviousContext.OrchestratorCollectorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.OrchestratorCollectorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .discoveryCuration(updatedDiscovery)
                     .planningCuration(updatedPlanning)
                     .ticketCuration(updatedTicket)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public OrchestratorCollectorRequest(String goal, String phase) {
-            this(null, null, goal, phase, null, null, null, null, null);
+            this(null, null, goal, phase, null, null, null, null);
         }
 
         @Override
@@ -2940,7 +2921,6 @@ public interface AgentModels {
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
             appendPrettyContext(builder, "Planning Curation", planningCuration);
             appendPrettyContext(builder, "Ticket Curation", ticketCuration);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             appendPrettyLine(builder, "Merge Descriptor", mergeDescriptor);
             return builder.toString().trim();
         }
@@ -3085,31 +3065,22 @@ public interface AgentModels {
             @JsonPropertyDescription("Workflow goal statement.")
             String goal,
             @JsonPropertyDescription("Provide any feedback from interrupt requests.")
-            String feedback,
-            @JsonPropertyDescription("Previous discovery orchestrator context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.DiscoveryOrchestratorPreviousContext previousContext
+            String feedback
     ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
         @Override
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
-            PreviousContext.DiscoveryOrchestratorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.DiscoveryOrchestratorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public DiscoveryOrchestratorRequest(String goal) {
-            this(null, null, goal, null, null);
+            this(null, null, goal, null);
         }
 
         public DiscoveryOrchestratorRequested to() {
@@ -3133,7 +3104,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyLine(builder, "Goal", goal);
             appendPrettyLine(builder, "Interrupt Feedback Resolutions", feedback);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
 
@@ -3156,31 +3126,22 @@ public interface AgentModels {
             @JsonPropertyDescription("Workflow goal statement.")
             String goal,
             @JsonPropertyDescription("Subdomain focus for this discovery task.")
-            String subdomainFocus,
-            @JsonPropertyDescription("Previous discovery agent context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.DiscoveryAgentPreviousContext previousContext
+            String subdomainFocus
     ) implements AgentRequest, DispatchedRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
         @Override
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
-            PreviousContext.DiscoveryAgentPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.DiscoveryAgentPreviousContext.class, previousContext);
             return (T) this.toBuilder()
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public DiscoveryAgentRequest(String goal, String subdomainFocus) {
-            this(null, null, goal, subdomainFocus, null);
+            this(null, null, goal, subdomainFocus);
         }
 
         @Override
@@ -3205,7 +3166,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyLine(builder, "Goal", goal);
             appendPrettyLine(builder, "Subdomain Focus", subdomainFocus);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
     }
@@ -3357,31 +3317,22 @@ public interface AgentModels {
             @JsonPropertyDescription("Workflow goal statement.")
             String goal,
             @JsonPropertyDescription("Serialized discovery results to consolidate.")
-            String discoveryResults,
-            @JsonPropertyDescription("Previous discovery collector context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.DiscoveryCollectorPreviousContext previousContext
+            String discoveryResults
     ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
         @Override
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
-            PreviousContext.DiscoveryCollectorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.DiscoveryCollectorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public DiscoveryCollectorRequest(String goal, String discoveryResults) {
-            this(null, null, goal, discoveryResults, null);
+            this(null, null, goal, discoveryResults);
         }
 
         @Override
@@ -3406,7 +3357,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyLine(builder, "Goal", goal);
             appendPrettyText(builder, "Discovery Results", discoveryResults);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
     }
@@ -3500,19 +3450,13 @@ public interface AgentModels {
             String feedback,
             @JsonPropertyDescription("Curated discovery context from discovery collector.")
             @SkipPropertyFilter
-            UpstreamContext.DiscoveryCollectorContext discoveryCuration,
-            @JsonPropertyDescription("Previous planning orchestrator context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.PlanningOrchestratorPreviousContext previousContext
+            UpstreamContext.DiscoveryCollectorContext discoveryCuration
     ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
             if (discoveryCuration != null) {
                 children.add(discoveryCuration);
-            }
-            if (previousContext != null) {
-                children.add(previousContext);
             }
             return List.copyOf(children);
         }
@@ -3521,16 +3465,13 @@ public interface AgentModels {
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
             UpstreamContext.DiscoveryCollectorContext updatedDiscovery =
                     firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, discoveryCuration);
-            PreviousContext.PlanningOrchestratorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.PlanningOrchestratorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .discoveryCuration(updatedDiscovery)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public PlanningOrchestratorRequest(String goal) {
-            this(null, null, goal, null, null, null);
+            this(null, null, goal, null, null);
         }
 
         @Override
@@ -3551,7 +3492,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Goal", goal);
             appendPrettyLine(builder, "Interrupt Feedback Resolutions", feedback);
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
     }
@@ -3574,19 +3514,13 @@ public interface AgentModels {
             String goal,
             @JsonPropertyDescription("Curated discovery context from discovery collector.")
             @SkipPropertyFilter
-            UpstreamContext.DiscoveryCollectorContext discoveryCuration,
-            @JsonPropertyDescription("Previous planning agent context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.PlanningAgentPreviousContext previousContext
+            UpstreamContext.DiscoveryCollectorContext discoveryCuration
     ) implements AgentRequest, DispatchedRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
             if (discoveryCuration != null) {
                 children.add(discoveryCuration);
-            }
-            if (previousContext != null) {
-                children.add(previousContext);
             }
             return List.copyOf(children);
         }
@@ -3595,16 +3529,13 @@ public interface AgentModels {
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
             UpstreamContext.DiscoveryCollectorContext updatedDiscovery =
                     firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, discoveryCuration);
-            PreviousContext.PlanningAgentPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.PlanningAgentPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .discoveryCuration(updatedDiscovery)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public PlanningAgentRequest(String goal) {
-            this(null, null, goal, null, null);
+            this(null, null, goal, null);
         }
 
         @Override
@@ -3621,7 +3552,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyLine(builder, "Goal", goal);
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
     }
@@ -3770,19 +3700,13 @@ public interface AgentModels {
             String planningResults,
             @JsonPropertyDescription("Curated discovery context from discovery collector.")
             @SkipPropertyFilter
-            UpstreamContext.DiscoveryCollectorContext discoveryCuration,
-            @JsonPropertyDescription("Previous planning collector context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.PlanningCollectorPreviousContext previousContext
+            UpstreamContext.DiscoveryCollectorContext discoveryCuration
     ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
             if (discoveryCuration != null) {
                 children.add(discoveryCuration);
-            }
-            if (previousContext != null) {
-                children.add(previousContext);
             }
             return List.copyOf(children);
         }
@@ -3791,16 +3715,13 @@ public interface AgentModels {
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
             UpstreamContext.DiscoveryCollectorContext updatedDiscovery =
                     firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, discoveryCuration);
-            PreviousContext.PlanningCollectorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.PlanningCollectorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .discoveryCuration(updatedDiscovery)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public PlanningCollectorRequest(String goal, String planningResults) {
-            this(null, null, goal, planningResults, null, null);
+            this(null, null, goal, planningResults, null);
         }
 
         @Override
@@ -3826,7 +3747,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Goal", goal);
             appendPrettyText(builder, "Planning Results", planningResults);
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
     }
@@ -3934,10 +3854,7 @@ public interface AgentModels {
             UpstreamContext.DiscoveryCollectorContext discoveryCuration,
             @JsonPropertyDescription("Curated planning context from planning collector.")
             @SkipPropertyFilter
-            UpstreamContext.PlanningCollectorContext planningCuration,
-            @JsonPropertyDescription("Previous ticket orchestrator context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.TicketOrchestratorPreviousContext previousContext
+            UpstreamContext.PlanningCollectorContext planningCuration
     ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -3948,9 +3865,6 @@ public interface AgentModels {
             if (planningCuration != null) {
                 children.add(planningCuration);
             }
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
@@ -3960,17 +3874,14 @@ public interface AgentModels {
                     firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, discoveryCuration);
             UpstreamContext.PlanningCollectorContext updatedPlanning =
                     firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, planningCuration);
-            PreviousContext.TicketOrchestratorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.TicketOrchestratorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .discoveryCuration(updatedDiscovery)
                     .planningCuration(updatedPlanning)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public TicketOrchestratorRequest(String goal) {
-            this(null, null, goal, null, null, null, null);
+            this(null, null, goal, null, null, null);
         }
 
         @Override
@@ -3991,7 +3902,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Interrupt Feedback Resolutions", feedback);
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
             appendPrettyContext(builder, "Planning Curation", planningCuration);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
     }
@@ -4018,10 +3928,7 @@ public interface AgentModels {
             UpstreamContext.DiscoveryCollectorContext discoveryCuration,
             @JsonPropertyDescription("Curated planning context from planning collector.")
             @SkipPropertyFilter
-            UpstreamContext.PlanningCollectorContext planningCuration,
-            @JsonPropertyDescription("Previous ticket agent context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.TicketAgentPreviousContext previousContext
+            UpstreamContext.PlanningCollectorContext planningCuration
     ) implements AgentRequest, DispatchedRequest {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -4032,9 +3939,6 @@ public interface AgentModels {
             if (planningCuration != null) {
                 children.add(planningCuration);
             }
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
@@ -4044,17 +3948,14 @@ public interface AgentModels {
                     firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, discoveryCuration);
             UpstreamContext.PlanningCollectorContext updatedPlanning =
                     firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, planningCuration);
-            PreviousContext.TicketAgentPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.TicketAgentPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .discoveryCuration(updatedDiscovery)
                     .planningCuration(updatedPlanning)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public TicketAgentRequest(String ticketDetails, String ticketDetailsFilePath) {
-            this(null, null, ticketDetails, ticketDetailsFilePath, null, null, null);
+            this(null, null, ticketDetails, ticketDetailsFilePath, null, null);
         }
 
         @Override
@@ -4086,7 +3987,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Ticket Details File Path", ticketDetailsFilePath);
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
             appendPrettyContext(builder, "Planning Curation", planningCuration);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
     }
@@ -4385,10 +4285,7 @@ public interface AgentModels {
             UpstreamContext.DiscoveryCollectorContext discoveryCuration,
             @JsonPropertyDescription("Curated planning context from planning collector.")
             @SkipPropertyFilter
-            UpstreamContext.PlanningCollectorContext planningCuration,
-            @JsonPropertyDescription("Previous ticket collector context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.TicketCollectorPreviousContext previousContext
+            UpstreamContext.PlanningCollectorContext planningCuration
     ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -4399,9 +4296,6 @@ public interface AgentModels {
             if (planningCuration != null) {
                 children.add(planningCuration);
             }
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
@@ -4411,17 +4305,14 @@ public interface AgentModels {
                     firstChildOfType(children, UpstreamContext.DiscoveryCollectorContext.class, discoveryCuration);
             UpstreamContext.PlanningCollectorContext updatedPlanning =
                     firstChildOfType(children, UpstreamContext.PlanningCollectorContext.class, planningCuration);
-            PreviousContext.TicketCollectorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.TicketCollectorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .discoveryCuration(updatedDiscovery)
                     .planningCuration(updatedPlanning)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
         public TicketCollectorRequest(String goal, String ticketResults) {
-            this(null, null, goal, ticketResults, null, null, null);
+            this(null, null, goal, ticketResults, null, null);
         }
 
         @Override
@@ -4448,7 +4339,6 @@ public interface AgentModels {
             appendPrettyText(builder, "Ticket Results", ticketResults);
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
             appendPrettyContext(builder, "Planning Curation", planningCuration);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
     }
@@ -4538,9 +4428,6 @@ public interface AgentModels {
             String content,
             @JsonPropertyDescription("Review criteria or rubric.")
             String criteria,
-            @JsonPropertyDescription("Previous review context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.ReviewPreviousContext previousContext,
             @JsonPropertyDescription("Return route to orchestrator collector.")
             OrchestratorCollectorRequest returnToOrchestratorCollector,
             @JsonPropertyDescription("Return route to discovery collector.")
@@ -4559,9 +4446,6 @@ public interface AgentModels {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             if (returnToOrchestratorCollector != null) {
                 children.add(returnToOrchestratorCollector);
             }
@@ -4579,8 +4463,6 @@ public interface AgentModels {
 
         @Override
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
-            PreviousContext.ReviewPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.ReviewPreviousContext.class, previousContext);
             OrchestratorCollectorRequest updatedOrchestratorCollector =
                     firstChildOfType(children, OrchestratorCollectorRequest.class, returnToOrchestratorCollector);
             DiscoveryCollectorRequest updatedDiscoveryCollector =
@@ -4590,7 +4472,6 @@ public interface AgentModels {
             TicketCollectorRequest updatedTicketCollector =
                     firstChildOfType(children, TicketCollectorRequest.class, returnToTicketCollector);
             return (T) this.toBuilder()
-                    .previousContext(updatedPrevious)
                     .returnToOrchestratorCollector(updatedOrchestratorCollector)
                     .returnToDiscoveryCollector(updatedDiscoveryCollector)
                     .returnToPlanningCollector(updatedPlanningCollector)
@@ -4599,7 +4480,7 @@ public interface AgentModels {
         }
 
         public ReviewRequest(String content, String criteria, OrchestratorCollectorRequest returnToOrchestratorCollector, DiscoveryCollectorRequest returnToDiscoveryCollector, PlanningCollectorRequest returnToPlanningCollector, TicketCollectorRequest returnToTicketCollector) {
-            this(null, null, content, criteria, null, returnToOrchestratorCollector, returnToDiscoveryCollector, returnToPlanningCollector, returnToTicketCollector);
+            this(null, null, content, criteria, returnToOrchestratorCollector, returnToDiscoveryCollector, returnToPlanningCollector, returnToTicketCollector);
         }
 
         @Override
@@ -4624,7 +4505,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyText(builder, "Criteria", criteria);
             appendPrettyText(builder, "Content", content);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             appendPrettyContext(builder, "Return To Orchestrator Collector", returnToOrchestratorCollector);
             appendPrettyContext(builder, "Return To Discovery Collector", returnToDiscoveryCollector);
             appendPrettyContext(builder, "Return To Planning Collector", returnToPlanningCollector);
@@ -4678,9 +4558,6 @@ public interface AgentModels {
             String mergeSummary,
             @JsonPropertyDescription("Conflicting files or paths.")
             String conflictFiles,
-            @JsonPropertyDescription("Previous merger context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.MergerPreviousContext previousContext,
             @JsonPropertyDescription("Return route to orchestrator collector.")
             OrchestratorCollectorRequest returnToOrchestratorCollector,
             @JsonPropertyDescription("Return route to discovery collector.")
@@ -4697,9 +4574,6 @@ public interface AgentModels {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             if (returnToOrchestratorCollector != null) {
                 children.add(returnToOrchestratorCollector);
             }
@@ -4717,8 +4591,6 @@ public interface AgentModels {
 
         @Override
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
-            PreviousContext.MergerPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.MergerPreviousContext.class, previousContext);
             OrchestratorCollectorRequest updatedOrchestratorCollector =
                     firstChildOfType(children, OrchestratorCollectorRequest.class, returnToOrchestratorCollector);
             DiscoveryCollectorRequest updatedDiscoveryCollector =
@@ -4728,7 +4600,6 @@ public interface AgentModels {
             TicketCollectorRequest updatedTicketCollector =
                     firstChildOfType(children, TicketCollectorRequest.class, returnToTicketCollector);
             return (T) this.toBuilder()
-                    .previousContext(updatedPrevious)
                     .returnToOrchestratorCollector(updatedOrchestratorCollector)
                     .returnToDiscoveryCollector(updatedDiscoveryCollector)
                     .returnToPlanningCollector(updatedPlanningCollector)
@@ -4737,7 +4608,7 @@ public interface AgentModels {
         }
 
         public MergerRequest(String mergeContext, String mergeSummary, String conflictFiles, OrchestratorCollectorRequest returnToOrchestratorCollector, DiscoveryCollectorRequest returnToDiscoveryCollector, PlanningCollectorRequest returnToPlanningCollector, TicketCollectorRequest returnToTicketCollector) {
-            this(null, null, mergeContext, mergeSummary, conflictFiles, null, returnToOrchestratorCollector, returnToDiscoveryCollector, returnToPlanningCollector, returnToTicketCollector);
+            this(null, null, mergeContext, mergeSummary, conflictFiles, returnToOrchestratorCollector, returnToDiscoveryCollector, returnToPlanningCollector, returnToTicketCollector);
         }
 
         @Override
@@ -4778,7 +4649,6 @@ public interface AgentModels {
             appendPrettyText(builder, "Merge Summary", mergeSummary);
             appendPrettyText(builder, "Conflict Files", conflictFiles);
             appendPrettyText(builder, "Merge Context", mergeContext);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             appendPrettyContext(builder, "Return To Orchestrator Collector", returnToOrchestratorCollector);
             appendPrettyContext(builder, "Return To Discovery Collector", returnToDiscoveryCollector);
             appendPrettyContext(builder, "Return To Planning Collector", returnToPlanningCollector);
@@ -4925,10 +4795,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Route back to discovery agent results.")
             DiscoveryAgentResults returnToDiscoveryAgentResults,
             @JsonPropertyDescription("Route back to context orchestrator.")
-            ContextManagerRequest returnToContextOrchestrator,
-            @JsonPropertyDescription("Previous context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext previousContext
+            ContextManagerRequest returnToContextOrchestrator
     ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
@@ -4993,9 +4860,6 @@ public interface AgentModels {
             if (returnToContextOrchestrator != null) {
                 children.add(returnToContextOrchestrator);
             }
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
@@ -5039,8 +4903,6 @@ public interface AgentModels {
                     firstChildOfType(children, DiscoveryAgentRequests.class, returnToDiscoveryAgentRequests);
             DiscoveryAgentResults updatedDiscoveryAgentResults =
                     firstChildOfType(children, DiscoveryAgentResults.class, returnToDiscoveryAgentResults);
-            PreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .returnToOrchestrator(updatedOrchestrator)
                     .returnToOrchestratorCollector(updatedOrchestratorCollector)
@@ -5061,7 +4923,6 @@ public interface AgentModels {
                     .returnToDiscoveryAgent(updatedDiscoveryAgent)
                     .returnToDiscoveryAgentRequests(updatedDiscoveryAgentRequests)
                     .returnToDiscoveryAgentResults(updatedDiscoveryAgentResults)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
@@ -5121,7 +4982,6 @@ public interface AgentModels {
             appendPrettyContext(builder, "Return To Discovery Agent Requests", returnToDiscoveryAgentRequests);
             appendPrettyContext(builder, "Return To Discovery Agent Results", returnToDiscoveryAgentResults);
             appendPrettyContext(builder, "Return To Context Orchestrator", returnToContextOrchestrator);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             return builder.toString().trim();
         }
 
@@ -5251,9 +5111,6 @@ public interface AgentModels {
             WorktreeSandboxContext worktreeContext,
             @JsonPropertyDescription("Planning agent results to consolidate.")
             List<PlanningAgentResult> planningAgentResults,
-            @JsonPropertyDescription("Previous planning collector context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.PlanningCollectorPreviousContext previousContext,
             @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
             MergeAggregation mergeAggregation
     ) implements ResultsRequest {
@@ -5273,9 +5130,6 @@ public interface AgentModels {
                     }
                 }
             }
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
@@ -5283,11 +5137,8 @@ public interface AgentModels {
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
             List<PlanningAgentResult> updatedResults =
                     childrenOfType(children, PlanningAgentResult.class, planningAgentResults);
-            PreviousContext.PlanningCollectorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.PlanningCollectorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .planningAgentResults(updatedResults)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
@@ -5311,7 +5162,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Context Id", contextId);
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyMergeAggregation(builder, "Merge Aggregation", mergeAggregation);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             appendPrettyText(builder, "Planning Agent Results", AgentModels.serializeResults(planningAgentResults));
             return builder.toString().trim();
         }
@@ -5339,9 +5189,6 @@ public interface AgentModels {
             WorktreeSandboxContext worktreeContext,
             @JsonPropertyDescription("Ticket agent results to consolidate.")
             List<TicketAgentResult> ticketAgentResults,
-            @JsonPropertyDescription("Previous ticket collector context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.TicketCollectorPreviousContext previousContext,
             @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
             MergeAggregation mergeAggregation
     ) implements ResultsRequest {
@@ -5361,9 +5208,6 @@ public interface AgentModels {
                     }
                 }
             }
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
@@ -5371,11 +5215,8 @@ public interface AgentModels {
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
             List<TicketAgentResult> updatedResults =
                     childrenOfType(children, TicketAgentResult.class, ticketAgentResults);
-            PreviousContext.TicketCollectorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.TicketCollectorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .ticketAgentResults(updatedResults)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
@@ -5399,7 +5240,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Context Id", contextId);
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyMergeAggregation(builder, "Merge Aggregation", mergeAggregation);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             appendPrettyText(builder, "Ticket Agent Results", AgentModels.serializeResults(ticketAgentResults));
             return builder.toString().trim();
         }
@@ -5427,9 +5267,6 @@ public interface AgentModels {
             WorktreeSandboxContext worktreeContext,
             @JsonPropertyDescription("Discovery agent results to consolidate.")
             List<DiscoveryAgentResult> result,
-            @JsonPropertyDescription("Previous discovery collector context for reruns.")
-            @SkipPropertyFilter
-            PreviousContext.DiscoveryCollectorPreviousContext previousContext,
             @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
             MergeAggregation mergeAggregation
     ) implements ResultsRequest {
@@ -5449,9 +5286,6 @@ public interface AgentModels {
                     }
                 }
             }
-            if (previousContext != null) {
-                children.add(previousContext);
-            }
             return List.copyOf(children);
         }
 
@@ -5459,11 +5293,8 @@ public interface AgentModels {
         public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
             List<DiscoveryAgentResult> updatedResults =
                     childrenOfType(children, DiscoveryAgentResult.class, result);
-            PreviousContext.DiscoveryCollectorPreviousContext updatedPrevious =
-                    firstChildOfType(children, PreviousContext.DiscoveryCollectorPreviousContext.class, previousContext);
             return (T) this.toBuilder()
                     .result(updatedResults)
-                    .previousContext(updatedPrevious)
                     .build();
         }
 
@@ -5487,7 +5318,6 @@ public interface AgentModels {
             appendPrettyLine(builder, "Context Id", contextId);
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
             appendPrettyMergeAggregation(builder, "Merge Aggregation", mergeAggregation);
-            appendPrettyContext(builder, "Previous Context", previousContext);
             appendPrettyText(builder, "Discovery Agent Results", AgentModels.serializeResults(result));
             return builder.toString().trim();
         }

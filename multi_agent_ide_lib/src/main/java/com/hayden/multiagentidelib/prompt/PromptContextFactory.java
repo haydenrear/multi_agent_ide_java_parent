@@ -7,8 +7,6 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -90,59 +88,32 @@ public class PromptContextFactory {
             OperationContext operationContext,
             DecoratorContext decoratorContext
     ) {
-        List<UpstreamContext> upstreamContexts = new ArrayList<>();
-        PreviousContext previousContext = null;
-
         switch (contextRequest) {
             case AgentModels.OrchestratorRequest req -> {
-                collectNonNull(upstreamContexts, req.discoveryCuration());
-                collectNonNull(upstreamContexts, req.planningCuration());
-                collectNonNull(upstreamContexts, req.ticketCuration());
-                previousContext = req.previousContext();
             }
             case AgentModels.OrchestratorCollectorRequest req -> {
-                collectNonNull(upstreamContexts, req.discoveryCuration());
-                collectNonNull(upstreamContexts, req.planningCuration());
-                collectNonNull(upstreamContexts, req.ticketCuration());
-                previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryOrchestratorRequest req -> {
                 // Discovery orchestrator is at the start - no upstream prev
-                previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryAgentResults req -> {
                 // Discovery agent has no upstream curation
-                previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryAgentRequest req -> {
                 // Discovery agent has no upstream curation
-                previousContext = req.previousContext();
             }
             case AgentModels.DiscoveryCollectorRequest req -> {
                 // Discovery collector has no upstream curation
-                previousContext = req.previousContext();
             }
             case AgentModels.PlanningOrchestratorRequest req -> {
-                collectNonNull(upstreamContexts, req.discoveryCuration());
-                previousContext = req.previousContext();
             }
             case AgentModels.PlanningAgentRequest req -> {
-                collectNonNull(upstreamContexts, req.discoveryCuration());
-                previousContext = req.previousContext();
             }
             case AgentModels.PlanningCollectorRequest req -> {
-                collectNonNull(upstreamContexts, req.discoveryCuration());
-                previousContext = req.previousContext();
             }
             case AgentModels.TicketOrchestratorRequest req -> {
-                collectNonNull(upstreamContexts, req.discoveryCuration());
-                collectNonNull(upstreamContexts, req.planningCuration());
-                previousContext = req.previousContext();
             }
             case AgentModels.TicketAgentRequest req -> {
-                collectNonNull(upstreamContexts, req.discoveryCuration());
-                collectNonNull(upstreamContexts, req.planningCuration());
-                previousContext = req.previousContext();
             }
             case AgentModels.CommitAgentRequest req -> {
             }
@@ -155,24 +126,16 @@ public class PromptContextFactory {
             case AgentModels.AiTransformerRequest aiTransformerRequest -> {
             }
             case AgentModels.TicketCollectorRequest req -> {
-                collectNonNull(upstreamContexts, req.discoveryCuration());
-                collectNonNull(upstreamContexts, req.planningCuration());
-                previousContext = req.previousContext();
             }
             case AgentModels.ReviewRequest req -> {
-                previousContext = req.previousContext();
             }
             case AgentModels.MergerRequest req -> {
-                previousContext = req.previousContext();
             }
             case AgentModels.ContextManagerRequest contextManagerRequest -> {
-                previousContext = contextManagerRequest.previousContext();
             }
             case AgentModels.PlanningAgentResults planningAgentResults -> {
-                previousContext = planningAgentResults.previousContext();
             }
             case AgentModels.TicketAgentResults ticketAgentResults -> {
-                previousContext = ticketAgentResults.previousContext();
             }
             case AgentModels.ContextManagerRoutingRequest contextManagerRoutingRequest -> {
             }
@@ -227,8 +190,6 @@ public class PromptContextFactory {
         var pc = new PromptContext(
                 agentType,
                 resolve(contextRequest != null ? contextRequest.contextId() : null),
-                upstreamContexts,
-                previousContext,
                 blackboardHistory,
                 previousRequest,
                 currentRequest,
@@ -245,125 +206,10 @@ public class PromptContextFactory {
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
     }
 
-    public PromptContext build(
-            AgentType agentType,
-            ArtifactKey contextId,
-            List<UpstreamContext> upstreamContexts,
-            PreviousContext previousContext,
-            BlackboardHistory blackboardHistory,
-            String templateName,
-            Map<String, Object> model,
-            OperationContext operationContext,
-            DecoratorContext decoratorContext
-    ) {
-        return build(agentType, contextId, upstreamContexts, previousContext, blackboardHistory, templateName, model, AcpChatOptionsString.DEFAULT_MODEL_NAME, operationContext,
-                        decoratorContext);
-    }
 
-    /**
-     * Build a PromptContext with explicit upstream prev (for cases where
-     * upstream prev are already extracted or need to be manually specified).
-     */
-    public PromptContext build(
-            AgentType agentType,
-            ArtifactKey contextId,
-            List<UpstreamContext> upstreamContexts,
-            PreviousContext previousContext,
-            BlackboardHistory blackboardHistory,
-            String templateName,
-            Map<String, Object> model,
-            String modelName,
-            OperationContext operationContext,
-            DecoratorContext decoratorContext
-    ) {
-        var pc = new PromptContext(
-                agentType,
-                resolve(contextId),
-                upstreamContexts != null ? upstreamContexts : List.of(),
-                previousContext,
-                blackboardHistory,
-                null,
-                null,
-                Map.of(),
-                templateName,
-                model,
-                modelName,
-                operationContext,
-                decoratorContext
-        );
-
-        return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
-    }
-    public PromptContext build(
-            AgentType agentType,
-            ArtifactKey contextId,
-            UpstreamContext upstreamContext,
-            PreviousContext previousContext,
-            BlackboardHistory blackboardHistory,
-            String templateName,
-            Map<String, Object> model,
-            OperationContext operationContext,
-            DecoratorContext decoratorContext
-    ) {
-        return build(
-                agentType,
-                contextId,
-                upstreamContext,
-                previousContext,
-                blackboardHistory,
-                templateName,
-                model,
-                AcpChatOptionsString.DEFAULT_MODEL_NAME,
-                operationContext,
-                decoratorContext
-        );
-    }
-
-    /**
-     * Build a PromptContext with a single upstream context (convenience method
-     * for backward compatibility).
-     */
-    public PromptContext build(
-            AgentType agentType,
-            ArtifactKey contextId,
-            UpstreamContext upstreamContext,
-            PreviousContext previousContext,
-            BlackboardHistory blackboardHistory,
-            String templateName,
-            Map<String, Object> model,
-            String modelName,
-            OperationContext operationContext,
-            DecoratorContext decoratorContext
-    ) {
-        List<UpstreamContext> contexts = upstreamContext != null 
-                ? List.of(upstreamContext) 
-                : List.of();
-        var pc = new PromptContext(
-                agentType,
-                resolve(contextId),
-                contexts,
-                previousContext,
-                blackboardHistory,
-                null,
-                null,
-                Map.of(),
-                templateName,
-                model,
-                modelName,
-                operationContext,
-                decoratorContext
-        );
-
-        return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
-    }
 
     private ArtifactKey resolve(ArtifactKey contextId) {
         return contextId;
     }
 
-    private void collectNonNull(List<UpstreamContext> list, UpstreamContext context) {
-        if (context != null) {
-            list.add(context);
-        }
-    }
 }

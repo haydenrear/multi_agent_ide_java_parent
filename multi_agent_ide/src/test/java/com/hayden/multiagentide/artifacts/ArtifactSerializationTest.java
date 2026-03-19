@@ -5,7 +5,6 @@ import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.multiagentidelib.agent.AgentContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.PreviousContext;
 import com.hayden.multiagentidelib.agent.UpstreamContext;
 import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
@@ -815,65 +814,6 @@ class ArtifactSerializationTest {
             assertThat(resultInterrupt.choices().get(0).options()).containsKey("jwt");
         }
         
-        @Test
-        @DisplayName("UpstreamContext serializes correctly")
-        void upstreamContextRoundTrip() {
-            ArtifactKey contextKey = rootKey.createChild();
-            
-            UpstreamContext.OrchestratorUpstreamContext upstreamContext = 
-                    new UpstreamContext.OrchestratorUpstreamContext(
-                            contextKey,
-                            "Workflow goal",
-                            "planning"
-                    );
-            
-            Artifact.AgentModelArtifact artifact = (Artifact.AgentModelArtifact) upstreamContext.toArtifact(Artifact.HashContext.defaultHashContext());
-            
-            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
-            artifactTreeBuilder.addArtifact(executionKey, artifact);
-            artifactTreeBuilder.persistExecution(executionKey);
-            
-            Optional<ArtifactEntity> entity = artifactRepository.findByArtifactKey(contextKey.value());
-            Optional<Artifact> deserialized = artifactService.deserializeArtifact(entity.get());
-            
-            Artifact.AgentModelArtifact result = (Artifact.AgentModelArtifact) deserialized.get();
-            UpstreamContext.OrchestratorUpstreamContext resultContext = 
-                    (UpstreamContext.OrchestratorUpstreamContext) result.agentModel();
-            
-            assertThat(resultContext.workflowGoal()).isEqualTo("Workflow goal");
-            assertThat(resultContext.phase()).isEqualTo("planning");
-        }
-        
-        @Test
-        @DisplayName("PreviousContext serializes correctly")
-        void previousContextRoundTrip() {
-            ArtifactKey contextKey = rootKey.createChild();
-            
-            PreviousContext.DiscoveryAgentPreviousContext previousContext = 
-                    PreviousContext.DiscoveryAgentPreviousContext.builder()
-                            .contextId(contextKey)
-                            .previousContextId(contextKey)
-                            .serializedOutput("Previous output")
-                            .attemptNumber(1)
-                            .previousAttemptAt(Instant.now())
-                            .build();
-            
-            Artifact.AgentModelArtifact artifact = (Artifact.AgentModelArtifact) previousContext.toArtifact(Artifact.HashContext.defaultHashContext());
-            
-            artifactTreeBuilder.addArtifact(executionKey, createExecutionArtifact(rootKey));
-            artifactTreeBuilder.addArtifact(executionKey, artifact);
-            artifactTreeBuilder.persistExecution(executionKey);
-            
-            Optional<ArtifactEntity> entity = artifactRepository.findByArtifactKey(contextKey.value());
-            Optional<Artifact> deserialized = artifactService.deserializeArtifact(entity.get());
-            
-            Artifact.AgentModelArtifact result = (Artifact.AgentModelArtifact) deserialized.get();
-            PreviousContext.DiscoveryAgentPreviousContext resultContext = 
-                    (PreviousContext.DiscoveryAgentPreviousContext) result.agentModel();
-            
-            assertThat(resultContext.serializedOutput()).isEqualTo("Previous output");
-            assertThat(resultContext.attemptNumber()).isEqualTo(1);
-        }
         
         @Test
         @DisplayName("Curation types serialize correctly")

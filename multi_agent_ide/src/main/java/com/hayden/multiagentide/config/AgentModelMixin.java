@@ -3,7 +3,6 @@ package com.hayden.multiagentide.config;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.PreviousContext;
 import com.hayden.multiagentidelib.agent.UpstreamContext;
 
 /**
@@ -116,35 +115,10 @@ public interface AgentModelMixin {
         @JsonSubTypes.Type(value = AgentModels.TicketDependency.class),
         @JsonSubTypes.Type(value = AgentModels.DiscoveryOrchestratorRequested.class),
         
-        // Upstream Contexts
-        @JsonSubTypes.Type(value = UpstreamContext.OrchestratorUpstreamContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.OrchestratorCollectorUpstreamContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.DiscoveryOrchestratorUpstreamContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.DiscoveryAgentUpstreamContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.PlanningOrchestratorUpstreamContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.PlanningAgentUpstreamContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.TicketOrchestratorUpstreamContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.TicketAgentUpstreamContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.ReviewUpstreamContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.MergerUpstreamContext.class),
+        // Upstream Contexts (collector subtypes only)
         @JsonSubTypes.Type(value = UpstreamContext.DiscoveryCollectorContext.class),
         @JsonSubTypes.Type(value = UpstreamContext.PlanningCollectorContext.class),
-        @JsonSubTypes.Type(value = UpstreamContext.TicketCollectorContext.class),
-        
-        // Previous Contexts
-        @JsonSubTypes.Type(value = PreviousContext.OrchestratorPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.OrchestratorCollectorPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.DiscoveryOrchestratorPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.PlanningOrchestratorPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.TicketOrchestratorPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.DiscoveryAgentPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.PlanningAgentPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.TicketAgentPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.DiscoveryCollectorPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.PlanningCollectorPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.TicketCollectorPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.ReviewPreviousContext.class),
-        @JsonSubTypes.Type(value = PreviousContext.MergerPreviousContext.class)
+        @JsonSubTypes.Type(value = UpstreamContext.TicketCollectorContext.class)
     })
     interface WithTypeInfo {}
 }

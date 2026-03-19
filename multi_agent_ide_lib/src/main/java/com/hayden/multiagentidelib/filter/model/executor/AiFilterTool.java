@@ -1,6 +1,9 @@
 package com.hayden.multiagentidelib.filter.model.executor;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -10,7 +13,6 @@ import com.hayden.multiagentidelib.filter.model.layer.FilterContext;
 import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
 import com.hayden.multiagentidelib.llm.LlmRunner;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
@@ -24,7 +26,6 @@ import java.util.Map;
  * Executor that delegates to an AI model for filtering decisions.
  */
 @Slf4j
-@RequiredArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class AiFilterTool<I, O>
         implements ExecutableTool<AgentModels.AiFilterRequest, AgentModels.AiFilterResult, FilterContext.AiFilterContext> {
@@ -36,7 +37,18 @@ public final class AiFilterTool<I, O>
     private final String configVersion;
 
     @Autowired
+    @JsonIgnore
     private LlmRunner llmRunner;
+
+    @JsonCreator
+    public AiFilterTool(
+            @JsonProperty("registrarPrompt") String registrarPrompt,
+            @JsonProperty("sessionMode") SessionMode sessionMode,
+            @JsonProperty("configVersion") String configVersion) {
+        this.registrarPrompt = registrarPrompt;
+        this.sessionMode = sessionMode;
+        this.configVersion = configVersion;
+    }
 
     public enum SessionMode {
         PER_INVOCATION,

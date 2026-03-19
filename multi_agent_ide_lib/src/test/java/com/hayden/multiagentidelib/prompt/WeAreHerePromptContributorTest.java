@@ -526,7 +526,6 @@ class WeAreHerePromptContributorTest {
                 .currentContextId(ArtifactKey.createRoot())
                 .currentRequest(request)
                 .blackboardHistory(history)
-                .upstreamContexts(List.of())
                 .metadata(Map.of())
                 .build();
     }

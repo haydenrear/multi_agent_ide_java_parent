@@ -1,6 +1,9 @@
 package com.hayden.multiagentidelib.transformation.model.executor;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
@@ -9,7 +12,6 @@ import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.transformation.model.layer.AiTransformerContext;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -17,7 +19,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
-@RequiredArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class AiTransformerTool implements ExecutableTool<AgentModels.AiTransformerRequest, AgentModels.AiTransformerResult, AiTransformerContext> {
 
@@ -28,7 +29,18 @@ public final class AiTransformerTool implements ExecutableTool<AgentModels.AiTra
     private final String configVersion;
 
     @Autowired
+    @JsonIgnore
     private LlmRunner llmRunner;
+
+    @JsonCreator
+    public AiTransformerTool(
+            @JsonProperty("registrarPrompt") String registrarPrompt,
+            @JsonProperty("sessionMode") AiFilterTool.SessionMode sessionMode,
+            @JsonProperty("configVersion") String configVersion) {
+        this.registrarPrompt = registrarPrompt;
+        this.sessionMode = sessionMode;
+        this.configVersion = configVersion;
+    }
 
     @Override
     public FilterEnums.ExecutorType executorType() {
