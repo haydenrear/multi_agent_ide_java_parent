@@ -26,6 +26,7 @@ import com.hayden.acp_cdc_ai.repository.RequestContext;
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository;
 import com.hayden.acp_cdc_ai.sandbox.SandboxContext;
 import com.hayden.multiagentide.agent.AgentLifecycleHandler;
+import com.hayden.multiagentide.agent.decorator.prompt.RemoveIntellij;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.entity.QArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
@@ -69,7 +70,7 @@ import java.util.stream.Stream;
 
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles({"claudeopenrouter", "testdocker"})
+@ActiveProfiles({"claude", "testdocker"})
 @ExtendWith(SpringExtension.class)
 @TestPropertySource(properties = {"spring.ai.mcp.server.stdio=false"})
 class AcpChatModelCodexIntegrationTest {
@@ -100,6 +101,8 @@ class AcpChatModelCodexIntegrationTest {
 
     @Autowired
     private RequestContextRepository requestContextRepository;
+    @Autowired
+    private RemoveIntellij removeIntellij;
     @Autowired
     private PermissionGateAdapter permissionGateAdapter;
     @Autowired
@@ -176,8 +179,8 @@ class AcpChatModelCodexIntegrationTest {
                             "acp-chat-model",
                             AcpChatOptionsString.create(
                                     context.getAgentProcess().getId(),
-                                    "openrouter/free",
-                                    "claudeopenrouter",
+                                    "claude-haiku-4-5",
+                                    "claude",
                                     Map.of("source", "integration-test")
                             ).encodeModel(new ObjectMapper()))
                     .withId("hello!")
@@ -302,10 +305,12 @@ class AcpChatModelCodexIntegrationTest {
 
             Path testWorkDir = envConfigProps.getProjectDir().resolve("test_work").resolve("hello");
 
+
             FileUtils.writeToFile("wow!", testWorkDir);
 
             // Register RequestContext so sandbox translation can set working directory
             Path workingDir = testWork.toAbsolutePath();
+            removeIntellij.ensureDenyRuleWritten(workingDir);
             RequestContext requestContext = RequestContext.builder()
                     .sessionId(nodeId)
                     .sandboxContext(SandboxContext.builder()
@@ -323,7 +328,7 @@ class AcpChatModelCodexIntegrationTest {
                     .filter(agent -> agent.getName().equals(agentName))
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException("Agent not found: " + agentName));
-            RequestValue v1 = new RequestValue("What model are you?");
+            RequestValue v1 = new RequestValue("Do you have access to any Intellij tools? If so, can you list their exact names?");
             AgentProcess process = agentPlatform.runAgentFrom(
                     thisAgent,
                     processOptions,
