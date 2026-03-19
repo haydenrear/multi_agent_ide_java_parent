@@ -5,7 +5,6 @@ import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.transformation.controller.dto.*;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationEntity;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
-import com.hayden.multiagentide.transformation.validation.TransformerSemanticValidator;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
 import com.hayden.multiagentidelib.transformation.model.*;
@@ -26,31 +25,26 @@ import java.util.UUID;
 public class TransformerRegistrationService {
 
     private final TransformerRegistrationRepository repository;
-    private final TransformerSemanticValidator semanticValidator;
     private final ObjectMapper objectMapper;
 
     @Transactional
     public TransformerRegistrationResponse register(TransformerRegistrationRequest request) {
-        List<String> semanticErrors = semanticValidator.validate(request);
-        if (!semanticErrors.isEmpty()) {
-            return TransformerRegistrationResponse.builder().ok(false).message(String.join("; ", semanticErrors)).build();
-        }
         Instant now = Instant.now();
         String registrationId = "transformer-" + UUID.randomUUID();
         try {
-            ExecutableTool<?, ?, ?> executor = objectMapper.convertValue(request.executor(), ExecutableTool.class);
+            ExecutableTool<?, ?, ?> executor = objectMapper.convertValue(request.getExecutor(), ExecutableTool.class);
             Transformer<?, ?, ?> transformer = buildTransformer(registrationId, request, executor, now);
-            List<TransformerLayerBinding> bindings = request.layerBindings().stream()
+            List<TransformerLayerBinding> bindings = request.getLayerBindings().stream()
                     .map(binding -> TransformerLayerBinding.builder()
-                            .layerId(binding.layerId())
-                            .enabled(binding.enabled())
-                            .includeDescendants(binding.includeDescendants())
+                            .layerId(binding.getLayerId())
+                            .enabled(binding.isEnabled())
+                            .includeDescendants(binding.isIncludeDescendants())
                             .isInheritable(binding.isInheritable())
                             .isPropagatedToParent(binding.isPropagatedToParent())
-                            .matcherKey(FilterEnums.MatcherKey.valueOf(binding.matcherKey()))
-                            .matcherType(FilterEnums.MatcherType.valueOf(binding.matcherType()))
-                            .matcherText(binding.matcherText())
-                            .matchOn(TransformerMatchOn.valueOf(binding.matchOn()))
+                            .matcherKey(FilterEnums.MatcherKey.valueOf(binding.getMatcherKey()))
+                            .matcherType(FilterEnums.MatcherType.valueOf(binding.getMatcherType()))
+                            .matcherText(binding.getMatcherText())
+                            .matchOn(TransformerMatchOn.valueOf(binding.getMatchOn()))
                             .updatedBy("system")
                             .updatedAt(now)
                             .build())
@@ -59,16 +53,16 @@ public class TransformerRegistrationService {
             repository.save(TransformerRegistrationEntity.builder()
                     .registrationId(registrationId)
                     .registeredBy("system")
-                    .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name())
-                    .transformerKind(request.transformerKind())
+                    .status(request.isActivate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name())
+                    .transformerKind(request.getTransformerKind())
                     .isInheritable(request.isInheritable())
                     .isPropagatedToParent(request.isPropagatedToParent())
                     .transformerJson(objectMapper.writeValueAsString(transformer))
                     .layerBindingsJson(objectMapper.writeValueAsString(bindings))
-                    .activatedAt(request.activate() ? now : null)
+                    .activatedAt(request.isActivate() ? now : null)
                     .build());
             return TransformerRegistrationResponse.builder().ok(true).registrationId(registrationId)
-                    .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name())
+                    .status(request.isActivate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name())
                     .message("Transformer registered")
                     .build();
         } catch (Exception e) {
@@ -95,34 +89,20 @@ public class TransformerRegistrationService {
         if (entityOpt.isEmpty()) {
             return PutTransformerLayerResponse.builder().ok(false).registrationId(registrationId).message("Transformer not found").build();
         }
-        List<String> semanticErrors = semanticValidator.validate(TransformerRegistrationRequest.builder()
-                .name("layer-update")
-                .description("layer-update")
-                .sourcePath("layer-update")
-                .priority(0)
-                .layerBindings(List.of(request.layerBinding()))
-                .build());
-        if (!semanticErrors.isEmpty()) {
-            return PutTransformerLayerResponse.builder()
-                    .ok(false)
-                    .registrationId(registrationId)
-                    .message(String.join("; ", semanticErrors))
-                    .build();
-        }
         try {
             Instant now = Instant.now();
             List<TransformerLayerBinding> bindings = objectMapper.readValue(entityOpt.get().getLayerBindingsJson(), objectMapper.getTypeFactory().constructCollectionType(List.class, TransformerLayerBinding.class));
             var lb = request.layerBinding();
             TransformerLayerBinding replacement = TransformerLayerBinding.builder()
-                    .layerId(lb.layerId())
-                    .enabled(lb.enabled())
-                    .includeDescendants(lb.includeDescendants())
+                    .layerId(lb.getLayerId())
+                    .enabled(lb.isEnabled())
+                    .includeDescendants(lb.isIncludeDescendants())
                     .isInheritable(lb.isInheritable())
                     .isPropagatedToParent(lb.isPropagatedToParent())
-                    .matcherKey(FilterEnums.MatcherKey.valueOf(lb.matcherKey()))
-                    .matcherType(FilterEnums.MatcherType.valueOf(lb.matcherType()))
-                    .matcherText(lb.matcherText())
-                    .matchOn(TransformerMatchOn.valueOf(lb.matchOn()))
+                    .matcherKey(FilterEnums.MatcherKey.valueOf(lb.getMatcherKey()))
+                    .matcherType(FilterEnums.MatcherType.valueOf(lb.getMatcherType()))
+                    .matcherText(lb.getMatcherText())
+                    .matchOn(TransformerMatchOn.valueOf(lb.getMatchOn()))
                     .updatedBy("system")
                     .updatedAt(now)
                     .build();
@@ -146,29 +126,29 @@ public class TransformerRegistrationService {
     }
 
     private Transformer<?, ?, ?> buildTransformer(String registrationId, TransformerRegistrationRequest request, ExecutableTool<?, ?, ?> executor, Instant now) {
-        if ("AI_TEXT".equalsIgnoreCase(request.transformerKind())) {
+        if ("AI_TEXT".equalsIgnoreCase(request.getTransformerKind())) {
             return AiTextTransformer.builder()
                     .id(registrationId)
-                    .name(request.name())
-                    .description(request.description())
-                    .sourcePath(request.sourcePath())
+                    .name(request.getName())
+                    .description(request.getDescription())
+                    .sourcePath(request.getSourcePath())
                     .executor((ExecutableTool<AgentModels.AiTransformerRequest, AgentModels.AiTransformerResult, AiTransformerContext>) executor)
-                    .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
-                    .priority(request.priority())
-                    .replaceEndpointResponse(request.replaceEndpointResponse())
+                    .status(request.isActivate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
+                    .priority(request.getPriority())
+                    .replaceEndpointResponse(request.isReplaceEndpointResponse())
                     .createdAt(now)
                     .updatedAt(now)
                     .build();
         }
         return TextTransformer.builder()
                 .id(registrationId)
-                .name(request.name())
-                .description(request.description())
-                .sourcePath(request.sourcePath())
+                .name(request.getName())
+                .description(request.getDescription())
+                .sourcePath(request.getSourcePath())
                 .executor((ExecutableTool<String, Object, ControllerEndpointTransformationContext>) executor)
-                .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
-                .priority(request.priority())
-                .replaceEndpointResponse(request.replaceEndpointResponse())
+                .status(request.isActivate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
+                .priority(request.getPriority())
+                .replaceEndpointResponse(request.isReplaceEndpointResponse())
                 .createdAt(now)
                 .updatedAt(now)
                 .build();

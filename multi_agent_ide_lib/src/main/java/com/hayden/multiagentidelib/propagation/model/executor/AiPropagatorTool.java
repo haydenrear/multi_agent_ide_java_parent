@@ -14,6 +14,7 @@ import com.hayden.multiagentidelib.filter.service.FilterResult;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.propagation.model.layer.AiPropagatorContext;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -21,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
+@Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
 public final class AiPropagatorTool
@@ -29,13 +31,13 @@ public final class AiPropagatorTool
     public static final String TEMPLATE_NAME = "propagation/ai_propagator";
 
     @Schema(description = "Specific guidance for this propagator — what it should look for and flag. Distinct from the default OOD coverage already applied to every action.", requiredMode = Schema.RequiredMode.REQUIRED)
-    private final String registrarPrompt;
+    private String registrarPrompt;
 
     @Schema(description = "Session reuse strategy. PER_INVOCATION=fresh session each time; SAME_SESSION_FOR_ACTION=reuse within one action pair; SAME_SESSION_FOR_ALL=single shared session.", allowableValues = {"PER_INVOCATION", "SAME_SESSION_FOR_ACTION", "SAME_SESSION_FOR_ALL", "SAME_SESSION_FOR_AGENT"})
-    private final AiFilterTool.SessionMode sessionMode;
+    private AiFilterTool.SessionMode sessionMode;
 
     @Schema(description = "Optional config version for cache-busting propagator state.")
-    private final String configVersion;
+    private String configVersion;
 
     @Autowired
     @JsonIgnore
@@ -123,6 +125,7 @@ public final class AiPropagatorTool
         return sessionMode;
     }
 
+    @JsonIgnore
     public String templateName() {
         return TEMPLATE_NAME;
     }

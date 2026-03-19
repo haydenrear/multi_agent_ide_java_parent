@@ -42,7 +42,7 @@ public class PolicyLifecycleArtifactService {
                 .registeredBy(entity.getRegisteredBy())
                 .filterJson(entity.getFilterJson())
                 .layerBindingsJson(entity.getLayerBindingsJson())
-                .activateOnCreate(request.activate())
+                .activateOnCreate(request.isActivate())
                 .hash(hashPayload(Map.of(
                         "policyId", entity.getRegistrationId(),
                         "filterKind", filterKind.name(),
@@ -116,20 +116,20 @@ public class PolicyLifecycleArtifactService {
         recordStandaloneArtifact(Artifact.PolicyLayerBindingUpdateArtifact.builder()
                 .artifactKey(ArtifactKey.createRoot(updatedAt))
                 .policyId(entity.getRegistrationId())
-                .layerId(binding.layerId())
+                .layerId(binding.getLayerId())
                 .layerBindingJson(layerBindingJson)
                 .layerBindingsJson(entity.getLayerBindingsJson())
                 .updatedAt(updatedAt)
                 .hash(hashPayload(Map.of(
                         "policyId", entity.getRegistrationId(),
-                        "layerId", binding.layerId(),
+                        "layerId", binding.getLayerId(),
                         "layerBindingJson", layerBindingJson,
                         "layerBindingsJson", entity.getLayerBindingsJson()
                 )))
                 .metadata(new LinkedHashMap<>(Map.of(
                         "operation", "update-layer-binding",
                         "policyId", entity.getRegistrationId(),
-                        "layerId", binding.layerId()
+                        "layerId", binding.getLayerId()
                 )))
                 .children(new ArrayList<>())
                 .build());

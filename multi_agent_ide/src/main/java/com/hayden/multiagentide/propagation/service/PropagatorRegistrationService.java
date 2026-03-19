@@ -5,7 +5,6 @@ import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.propagation.controller.dto.*;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
-import com.hayden.multiagentide.propagation.validation.PropagatorSemanticValidator;
 import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
 import com.hayden.multiagentidelib.propagation.model.*;
 import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
@@ -28,32 +27,27 @@ import java.util.UUID;
 public class PropagatorRegistrationService {
 
     private final PropagatorRegistrationRepository repository;
-    private final PropagatorSemanticValidator semanticValidator;
     private final ObjectMapper objectMapper;
     private final PropagatorAttachableCatalogService attachableCatalogService;
 
     @Transactional
     public PropagatorRegistrationResponse register(PropagatorRegistrationRequest request) {
-        List<String> semanticErrors = semanticValidator.validate(request);
-        if (!semanticErrors.isEmpty()) {
-            return PropagatorRegistrationResponse.builder().ok(false).message(String.join("; ", semanticErrors)).build();
-        }
         Instant now = Instant.now();
         String registrationId = "propagator-" + UUID.randomUUID();
         try {
-            AiPropagatorTool executor = request.executor();
+            AiPropagatorTool executor = request.getExecutor();
             Propagator<?, ?, ?> propagator = buildPropagator(registrationId, request, executor, now);
-            List<PropagatorLayerBinding> bindings = request.layerBindings().stream()
+            List<PropagatorLayerBinding> bindings = request.getLayerBindings().stream()
                     .map(binding -> PropagatorLayerBinding.builder()
-                            .layerId(binding.layerId())
-                            .enabled(binding.enabled())
-                            .includeDescendants(binding.includeDescendants())
+                            .layerId(binding.getLayerId())
+                            .enabled(binding.isEnabled())
+                            .includeDescendants(binding.isIncludeDescendants())
                             .isInheritable(binding.isInheritable())
                             .isPropagatedToParent(binding.isPropagatedToParent())
-                            .matcherKey(FilterEnums.MatcherKey.valueOf(binding.matcherKey()))
-                            .matcherType(FilterEnums.MatcherType.valueOf(binding.matcherType()))
-                            .matcherText(binding.matcherText())
-                            .matchOn(PropagatorMatchOn.valueOf(binding.matchOn()))
+                            .matcherKey(FilterEnums.MatcherKey.valueOf(binding.getMatcherKey()))
+                            .matcherType(FilterEnums.MatcherType.valueOf(binding.getMatcherType()))
+                            .matcherText(binding.getMatcherText())
+                            .matchOn(PropagatorMatchOn.valueOf(binding.getMatchOn()))
                             .updatedBy("system")
                             .updatedAt(now)
                             .build())
@@ -62,16 +56,16 @@ public class PropagatorRegistrationService {
             repository.save(PropagatorRegistrationEntity.builder()
                     .registrationId(registrationId)
                     .registeredBy("system")
-                    .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name())
-                    .propagatorKind(request.propagatorKind())
+                    .status(request.isActivate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name())
+                    .propagatorKind(request.getPropagatorKind())
                     .isInheritable(request.isInheritable())
                     .isPropagatedToParent(request.isPropagatedToParent())
                     .propagatorJson(objectMapper.writeValueAsString(propagator))
                     .layerBindingsJson(objectMapper.writeValueAsString(bindings))
-                    .activatedAt(request.activate() ? now : null)
+                    .activatedAt(request.isActivate() ? now : null)
                     .build());
             return PropagatorRegistrationResponse.builder().ok(true).registrationId(registrationId)
-                    .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name())
+                    .status(request.isActivate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name())
                     .message("Propagator registered")
                     .build();
         } catch (Exception e) {
@@ -98,34 +92,20 @@ public class PropagatorRegistrationService {
         if (entityOpt.isEmpty()) {
             return PutPropagatorLayerResponse.builder().ok(false).registrationId(registrationId).message("Propagator not found").build();
         }
-        List<String> semanticErrors = semanticValidator.validate(PropagatorRegistrationRequest.builder()
-                .name("layer-update")
-                .description("layer-update")
-                .sourcePath("layer-update")
-                .priority(0)
-                .layerBindings(List.of(request.layerBinding()))
-                .build());
-        if (!semanticErrors.isEmpty()) {
-            return PutPropagatorLayerResponse.builder()
-                    .ok(false)
-                    .registrationId(registrationId)
-                    .message(String.join("; ", semanticErrors))
-                    .build();
-        }
         try {
             Instant now = Instant.now();
             List<PropagatorLayerBinding> bindings = objectMapper.readValue(entityOpt.get().getLayerBindingsJson(), objectMapper.getTypeFactory().constructCollectionType(List.class, PropagatorLayerBinding.class));
             var lb = request.layerBinding();
             PropagatorLayerBinding replacement = PropagatorLayerBinding.builder()
-                    .layerId(lb.layerId())
-                    .enabled(lb.enabled())
-                    .includeDescendants(lb.includeDescendants())
+                    .layerId(lb.getLayerId())
+                    .enabled(lb.isEnabled())
+                    .includeDescendants(lb.isIncludeDescendants())
                     .isInheritable(lb.isInheritable())
                     .isPropagatedToParent(lb.isPropagatedToParent())
-                    .matcherKey(FilterEnums.MatcherKey.valueOf(lb.matcherKey()))
-                    .matcherType(FilterEnums.MatcherType.valueOf(lb.matcherType()))
-                    .matcherText(lb.matcherText())
-                    .matchOn(PropagatorMatchOn.valueOf(lb.matchOn()))
+                    .matcherKey(FilterEnums.MatcherKey.valueOf(lb.getMatcherKey()))
+                    .matcherType(FilterEnums.MatcherType.valueOf(lb.getMatcherType()))
+                    .matcherText(lb.getMatcherText())
+                    .matchOn(PropagatorMatchOn.valueOf(lb.getMatchOn()))
                     .updatedBy("system")
                     .updatedAt(now)
                     .build();
@@ -178,12 +158,12 @@ public class PropagatorRegistrationService {
     private Propagator<?, ?, ?> buildPropagator(String registrationId, PropagatorRegistrationRequest request, AiPropagatorTool executor, Instant now) {
         return AiTextPropagator.builder()
                 .id(registrationId)
-                .name(request.name())
-                .description(request.description())
-                .sourcePath(request.sourcePath())
+                .name(request.getName())
+                .description(request.getDescription())
+                .sourcePath(request.getSourcePath())
                 .executor(executor)
-                .status(request.activate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
-                .priority(request.priority())
+                .status(request.isActivate() ? FilterEnums.PolicyStatus.ACTIVE : FilterEnums.PolicyStatus.INACTIVE)
+                .priority(request.getPriority())
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -194,19 +174,19 @@ public class PropagatorRegistrationService {
                                   Instant now,
                                   PropagatorRegistrationEntity existing) {
         try {
-            AiPropagatorTool executor = request.executor();
+            AiPropagatorTool executor = request.getExecutor();
             Propagator<?, ?, ?> propagator = buildPropagator(registrationId, request, executor, now);
-            List<PropagatorLayerBinding> bindings = request.layerBindings().stream()
+            List<PropagatorLayerBinding> bindings = request.getLayerBindings().stream()
                     .map(binding -> PropagatorLayerBinding.builder()
-                            .layerId(binding.layerId())
-                            .enabled(binding.enabled())
-                            .includeDescendants(binding.includeDescendants())
+                            .layerId(binding.getLayerId())
+                            .enabled(binding.isEnabled())
+                            .includeDescendants(binding.isIncludeDescendants())
                             .isInheritable(binding.isInheritable())
                             .isPropagatedToParent(binding.isPropagatedToParent())
-                            .matcherKey(FilterEnums.MatcherKey.valueOf(binding.matcherKey()))
-                            .matcherType(FilterEnums.MatcherType.valueOf(binding.matcherType()))
-                            .matcherText(binding.matcherText())
-                            .matchOn(PropagatorMatchOn.valueOf(binding.matchOn()))
+                            .matcherKey(FilterEnums.MatcherKey.valueOf(binding.getMatcherKey()))
+                            .matcherType(FilterEnums.MatcherType.valueOf(binding.getMatcherType()))
+                            .matcherText(binding.getMatcherText())
+                            .matchOn(PropagatorMatchOn.valueOf(binding.getMatchOn()))
                             .updatedBy("system")
                             .updatedAt(now)
                             .build())
@@ -215,14 +195,14 @@ public class PropagatorRegistrationService {
             PropagatorRegistrationEntity entity = existing == null ? new PropagatorRegistrationEntity() : existing;
             entity.setRegistrationId(registrationId);
             entity.setRegisteredBy("system");
-            entity.setStatus(request.activate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name());
-            entity.setPropagatorKind(request.propagatorKind());
+            entity.setStatus(request.isActivate() ? FilterEnums.PolicyStatus.ACTIVE.name() : FilterEnums.PolicyStatus.INACTIVE.name());
+            entity.setPropagatorKind(request.getPropagatorKind());
             entity.setInheritable(request.isInheritable());
             entity.setPropagatedToParent(request.isPropagatedToParent());
             entity.setPropagatorJson(objectMapper.writeValueAsString(propagator));
             entity.setLayerBindingsJson(objectMapper.writeValueAsString(bindings));
-            entity.setActivatedAt(request.activate() ? now : entity.getActivatedAt());
-            entity.setDeactivatedAt(request.activate() ? null : now);
+            entity.setActivatedAt(request.isActivate() ? now : entity.getActivatedAt());
+            entity.setDeactivatedAt(request.isActivate() ? null : now);
             repository.save(entity);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to save auto AI propagator registration", e);

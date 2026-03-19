@@ -5,7 +5,6 @@ import com.hayden.multiagentide.filter.controller.dto.*;
 import com.hayden.multiagentide.artifacts.PolicyLifecycleArtifactService;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
-import com.hayden.multiagentide.filter.validation.PolicySemanticValidator;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentidelib.filter.model.policy.PolicyLayerBinding;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +25,6 @@ import java.util.stream.Collectors;
 public class PolicyRegistrationService {
 
     private final PolicyRegistrationRepository policyRegistrationRepository;
-    private final PolicySemanticValidator semanticValidator;
     private final LayerService layerService;
     private final ObjectMapper objectMapper;
     private final PolicyLifecycleArtifactService policyLifecycleArtifactService;
@@ -34,15 +32,6 @@ public class PolicyRegistrationService {
     @Transactional
     public PolicyRegistrationResponse registerPolicy(FilterEnums.FilterKind filterKind,
                                                      PolicyRegistrationRequest request) {
-        // Semantic validation
-        List<String> semanticErrors = semanticValidator.validate(filterKind, request);
-        if (!semanticErrors.isEmpty()) {
-            return PolicyRegistrationResponse.builder()
-                    .ok(false)
-                    .message("Validation failed: " + String.join("; ", semanticErrors))
-                    .build();
-        }
-
         String registrationId = "policy-" + UUID.randomUUID();
         Instant now = Instant.now();
 
@@ -50,27 +39,27 @@ public class PolicyRegistrationService {
         Map<String, Object> filterMap = new LinkedHashMap<>();
         filterMap.put("filterType", filterKind.type());
         filterMap.put("id", registrationId);
-        filterMap.put("name", request.name());
-        filterMap.put("description", request.description());
-        filterMap.put("sourcePath", request.sourcePath());
-        filterMap.put("priority", request.priority());
-        filterMap.put("status", request.activate() ? "ACTIVE" : "INACTIVE");
-        filterMap.put("executor", request.executor());
+        filterMap.put("name", request.getName());
+        filterMap.put("description", request.getDescription());
+        filterMap.put("sourcePath", request.getSourcePath());
+        filterMap.put("priority", request.getPriority());
+        filterMap.put("status", request.isActivate() ? "ACTIVE" : "INACTIVE");
+        filterMap.put("executor", request.getExecutor());
         filterMap.put("createdAt", now.toString());
         filterMap.put("updatedAt", now.toString());
 
         // Build layer bindings
-        List<PolicyLayerBinding> bindings = request.layerBindings().stream()
+        List<PolicyLayerBinding> bindings = request.getLayerBindings().stream()
                 .map(b -> PolicyLayerBinding.builder()
-                        .layerId(b.layerId())
-                        .enabled(b.enabled())
-                        .includeDescendants(b.includeDescendants())
+                        .layerId(b.getLayerId())
+                        .enabled(b.isEnabled())
+                        .includeDescendants(b.isIncludeDescendants())
                         .isInheritable(b.isInheritable())
                         .isPropagatedToParent(b.isPropagatedToParent())
-                        .matcherKey(FilterEnums.MatcherKey.valueOf(b.matcherKey()))
-                        .matcherType(FilterEnums.MatcherType.valueOf(b.matcherType()))
-                        .matcherText(b.matcherText())
-                        .matchOn(FilterEnums.MatchOn.valueOf(b.matchOn()))
+                        .matcherKey(FilterEnums.MatcherKey.valueOf(b.getMatcherKey()))
+                        .matcherType(FilterEnums.MatcherType.valueOf(b.getMatcherType()))
+                        .matcherText(b.getMatcherText())
+                        .matchOn(FilterEnums.MatchOn.valueOf(b.getMatchOn()))
                         .updatedBy("system")
                         .updatedAt(now)
                         .build())
@@ -84,7 +73,7 @@ public class PolicyRegistrationService {
             PolicyRegistrationEntity entity = PolicyRegistrationEntity.builder()
                     .registrationId(registrationId)
                     .registeredBy("system")
-                    .status(request.activate()
+                    .status(request.isActivate()
                             ? FilterEnums.PolicyStatus.ACTIVE.name()
                             : FilterEnums.PolicyStatus.INACTIVE.name())
                     .filterKind(filterKind.name())
@@ -92,7 +81,7 @@ public class PolicyRegistrationService {
                     .isPropagatedToParent(request.isPropagatedToParent())
                     .filterJson(objectMapper.writeValueAsString(filterMap))
                     .layerBindingsJson(objectMapper.writeValueAsString(bindings))
-                    .activatedAt(request.activate() ? now : null)
+                    .activatedAt(request.isActivate() ? now : null)
                     .build();
             policyRegistrationRepository.save(entity);
             policyLifecycleArtifactService.recordRegistration(filterKind, request, entity, now);
@@ -213,7 +202,7 @@ public class PolicyRegistrationService {
 
     @Transactional
     public PutPolicyLayerResponse updatePolicyLayerBinding(String policyId, PutPolicyLayerRequest request) {
-        String layerId = request.layerBinding() == null ? null : request.layerBinding().layerId();
+        String layerId = request.layerBinding() == null ? null : request.layerBinding().getLayerId();
         if (FilterLayerCatalog.isInternalAutomationLayer(layerId)) {
             return PutPolicyLayerResponse.builder()
                     .ok(false)
@@ -240,15 +229,15 @@ public class PolicyRegistrationService {
 
             PolicyRegistrationRequest.LayerBindingRequest lb = request.layerBinding();
             PolicyLayerBinding newBinding = PolicyLayerBinding.builder()
-                    .layerId(lb.layerId())
-                    .enabled(lb.enabled())
-                    .includeDescendants(lb.includeDescendants())
+                    .layerId(lb.getLayerId())
+                    .enabled(lb.isEnabled())
+                    .includeDescendants(lb.isIncludeDescendants())
                     .isInheritable(lb.isInheritable())
                     .isPropagatedToParent(lb.isPropagatedToParent())
-                    .matcherKey(FilterEnums.MatcherKey.valueOf(lb.matcherKey()))
-                    .matcherType(FilterEnums.MatcherType.valueOf(lb.matcherType()))
-                    .matcherText(lb.matcherText())
-                    .matchOn(FilterEnums.MatchOn.valueOf(lb.matchOn()))
+                    .matcherKey(FilterEnums.MatcherKey.valueOf(lb.getMatcherKey()))
+                    .matcherType(FilterEnums.MatcherType.valueOf(lb.getMatcherType()))
+                    .matcherText(lb.getMatcherText())
+                    .matchOn(FilterEnums.MatchOn.valueOf(lb.getMatchOn()))
                     .updatedBy("system")
                     .updatedAt(now)
                     .build();
@@ -256,7 +245,7 @@ public class PolicyRegistrationService {
             // Upsert: replace existing binding for layerId or add new
             boolean replaced = false;
             for (int i = 0; i < bindings.size(); i++) {
-                if (bindings.get(i).layerId().equals(lb.layerId())) {
+                if (bindings.get(i).layerId().equals(lb.getLayerId())) {
                     bindings.set(i, newBinding);
                     replaced = true;
                     break;
@@ -277,7 +266,7 @@ public class PolicyRegistrationService {
             return PutPolicyLayerResponse.builder()
                     .ok(true)
                     .policyId(policyId)
-                    .layerId(lb.layerId())
+                    .layerId(lb.getLayerId())
                     .message("Layer binding updated successfully")
                     .build();
         } catch (Exception e) {

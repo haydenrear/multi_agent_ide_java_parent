@@ -13,6 +13,8 @@ import com.hayden.multiagentidelib.filter.model.layer.FilterContext;
 import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
 import com.hayden.multiagentidelib.llm.LlmRunner;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
@@ -26,15 +28,21 @@ import java.util.Map;
  * Executor that delegates to an AI model for filtering decisions.
  */
 @Slf4j
+@Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class AiFilterTool<I, O>
         implements ExecutableTool<AgentModels.AiFilterRequest, AgentModels.AiFilterResult, FilterContext.AiFilterContext> {
 
     public static final String TEMPLATE_NAME = "filter/ai_filter";
 
-    private final String registrarPrompt;
-    private final SessionMode sessionMode;
-    private final String configVersion;
+    @Schema(description = "Specific guidance for this filter — what it should look for and how to decide. This is the AI instruction prompt.", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String registrarPrompt;
+
+    @Schema(description = "Session reuse strategy. PER_INVOCATION=fresh session each time; SAME_SESSION_FOR_ACTION=reuse within one action pair; SAME_SESSION_FOR_ALL=single shared session.", allowableValues = {"PER_INVOCATION", "SAME_SESSION_FOR_ACTION", "SAME_SESSION_FOR_ALL", "SAME_SESSION_FOR_AGENT"})
+    private SessionMode sessionMode;
+
+    @Schema(description = "Optional config version for cache-busting filter state.")
+    private String configVersion;
 
     @Autowired
     @JsonIgnore
@@ -136,6 +144,11 @@ public final class AiFilterTool<I, O>
         target.put(key, value);
     }
 
+    @Override
+    public String configVersion() {
+        return configVersion;
+    }
+
     public String registrarPrompt() {
         return registrarPrompt;
     }
@@ -144,12 +157,8 @@ public final class AiFilterTool<I, O>
         return sessionMode;
     }
 
+    @JsonIgnore
     public String templateName() {
         return TEMPLATE_NAME;
-    }
-
-    @Override
-    public String configVersion() {
-        return configVersion;
     }
 }

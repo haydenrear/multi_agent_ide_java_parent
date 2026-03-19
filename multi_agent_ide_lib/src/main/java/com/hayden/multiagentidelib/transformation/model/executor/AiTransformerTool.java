@@ -12,6 +12,8 @@ import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.transformation.model.layer.AiTransformerContext;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -19,14 +21,20 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
+@Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class AiTransformerTool implements ExecutableTool<AgentModels.AiTransformerRequest, AgentModels.AiTransformerResult, AiTransformerContext> {
 
     public static final String TEMPLATE_NAME = "transformation/ai_transformer";
 
-    private final String registrarPrompt;
-    private final AiFilterTool.SessionMode sessionMode;
-    private final String configVersion;
+    @Schema(description = "Specific guidance for this transformer — what it should transform and how.", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String registrarPrompt;
+
+    @Schema(description = "Session reuse strategy. PER_INVOCATION=fresh session each time; SAME_SESSION_FOR_ACTION=reuse within one action pair; SAME_SESSION_FOR_ALL=single shared session.", allowableValues = {"PER_INVOCATION", "SAME_SESSION_FOR_ACTION", "SAME_SESSION_FOR_ALL", "SAME_SESSION_FOR_AGENT"})
+    private AiFilterTool.SessionMode sessionMode;
+
+    @Schema(description = "Optional config version for cache-busting transformer state.")
+    private String configVersion;
 
     @Autowired
     @JsonIgnore
@@ -113,6 +121,7 @@ public final class AiTransformerTool implements ExecutableTool<AgentModels.AiTra
         return sessionMode;
     }
 
+    @JsonIgnore
     public String templateName() {
         return TEMPLATE_NAME;
     }
