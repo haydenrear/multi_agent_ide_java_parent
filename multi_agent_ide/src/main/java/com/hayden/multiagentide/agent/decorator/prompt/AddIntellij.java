@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.mcp.SyncMcpToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -28,6 +29,7 @@ import java.util.stream.Stream;
 
 @Slf4j
 @Component
+@Profile("intellij")
 @RequiredArgsConstructor
 public class AddIntellij implements LlmCallDecorator {
 

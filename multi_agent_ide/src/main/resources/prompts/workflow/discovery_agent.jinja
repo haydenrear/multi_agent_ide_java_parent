@@ -7,7 +7,14 @@ Scope guardrails:
 - Keep discovery scoped to what is necessary to satisfy the goal.
 - Build a comprehensive code map only for goal-relevant areas.
 - Avoid deep exploration of unrelated modules.
-- **RESEARCH phase: do not create, edit, or delete any files. Instead gather discovery information as it relates to the goal and return it in the structured response. The planning and ticket agents are counting on you to provide the necessary information in your JSON response.**
+- {% include "workflow/_discovery_research_disclaimer.jinja" %}
+
+{% if priorAgentSummary and priorAgentSummary != '' %}
+Prior discovery context:
+{{ priorAgentSummary }}
+
+Key instruction: The above summary documents what earlier discovery agents already found. Reference their findings rather than re-discovering the same information. Focus your discovery on areas not yet covered by prior agents. If you need to build on prior findings, explicitly reference them (e.g., "Agent 1 documented X, which means for our focus area Y, we need to explore Z").
+{% endif %}
 
 Use your tools to:
 1. Search for relevant files and modules

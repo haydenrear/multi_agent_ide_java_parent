@@ -8,6 +8,7 @@ import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import java.util.Optional;
 import java.util.Set;
 
 @Component
+@Profile("intellij")
 @RequiredArgsConstructor
 public class IntellijPromptContributorFactory implements PromptContributorFactory {
 
