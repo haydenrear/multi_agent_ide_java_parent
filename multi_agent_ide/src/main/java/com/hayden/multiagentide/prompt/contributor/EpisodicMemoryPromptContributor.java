@@ -6,7 +6,7 @@ import com.hayden.multiagentidelib.prompt.PromptContributor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-@Component
+// @Component
 @RequiredArgsConstructor
 public class EpisodicMemoryPromptContributor implements PromptContributor {
 
