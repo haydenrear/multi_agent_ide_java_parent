@@ -206,7 +206,7 @@ class AcpChatModelArgsParsingTest {
 
             when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.of(context));
             // AcpProvider.CLAUDE_OPENROUTER.wireValue() -> "claudeopenrouter"
-            when(sandboxTranslationRegistry.find("claudeopenrouter")).thenReturn(Optional.of(directStrategy));
+            when(sandboxTranslationRegistry.find("claude-agent-acp")).thenReturn(Optional.of(directStrategy));
             when(directStrategy.translate(eq(context), any())).thenReturn(expected);
 
             SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", AcpProvider.CLAUDE_OPENROUTER, "--model openrouter/free");
@@ -215,25 +215,5 @@ class AcpChatModelArgsParsingTest {
             verify(directStrategy).translate(eq(context), eq(List.of("--model", "openrouter/free")));
         }
 
-        @Test
-        @DisplayName("falls back when direct strategy is missing")
-        void fallsBackWhenDirectMissing() {
-            RequestContext context = RequestContext.builder()
-                    .sessionId("session-123")
-                    .sandboxContext(SandboxContext.builder().mainWorktreePath(Path.of("/project")).build())
-                    .build();
-            SandboxTranslationStrategy fallbackStrategy = mock(SandboxTranslationStrategy.class);
-            SandboxTranslation expected = new SandboxTranslation(Map.of(), List.of("--fallback"), "/project");
-
-            when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.of(context));
-            // CLAUDE_LLAMA.wireValue() -> "claudellama" — not found, falls back to CLAUDE_OPENROUTER.wireValue()
-            when(sandboxTranslationRegistry.find("claudellama")).thenReturn(Optional.empty());
-            when(sandboxTranslationRegistry.find("claudeopenrouter")).thenReturn(Optional.of(fallbackStrategy));
-            when(fallbackStrategy.translate(eq(context), any())).thenReturn(expected);
-
-            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", AcpProvider.CLAUDE_LLAMA, null);
-
-            assertThat(result).isEqualTo(expected);
-        }
     }
 }

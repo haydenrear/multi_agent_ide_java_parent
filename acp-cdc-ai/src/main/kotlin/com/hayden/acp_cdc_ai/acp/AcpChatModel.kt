@@ -528,7 +528,11 @@ class AcpChatModel(
         sessionId ?: return SandboxTranslation.empty()
         val context =
             requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
-        val direct = sandboxTranslationRegistry.find(providerName.providerKey()).orElse(null)
+        var direct = sandboxTranslationRegistry.find(providerName.providerKey()).orElse(null)
+        if (direct != null) {
+            return direct.translate(context, parseArgs(args))
+        }
+        direct = sandboxTranslationRegistry.find(providerName.wireValue()).orElse(null)
         if (direct != null) {
             return direct.translate(context, parseArgs(args))
         }
