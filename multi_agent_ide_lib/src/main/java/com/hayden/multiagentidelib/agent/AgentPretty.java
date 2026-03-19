@@ -16,6 +16,16 @@ public interface AgentPretty {
 
     sealed interface AgentSerializationCtx {
 
+        /**
+         * Marker for serialization contexts that compact worktree context to parent-only
+         * (no submodule details) and strip duplicated nested worktreeContext fields.
+         * Used by {@code appendPrettyWorktreeContext} to decide compaction with a single
+         * {@code instanceof} check instead of listing each concrete type.
+         */
+        sealed interface CompactifyingRequestSerializer extends AgentSerializationCtx
+                permits CollectorSerialization, PropagatorSerialization {
+        }
+
         record StdReceiverSerialization() implements AgentSerializationCtx {
         }
 
@@ -37,7 +47,17 @@ public interface AgentPretty {
          * entries and replaces them with a count note, e.g. "(with 25 submodules)".
          * This prevents prompt bloat when multiple agents' results are consolidated.
          */
-        record CollectorSerialization() implements AgentSerializationCtx {
+        record CollectorSerialization() implements CompactifyingRequestSerializer {
+        }
+
+        /**
+         * Used when serializing requests/results for propagator input payloads.
+         * Same compaction as {@link CollectorSerialization}: parent-only worktree,
+         * no submodule details, strips duplicated worktreeContext from nested children.
+         * This prevents the propagator from receiving 100-500KB bloated payloads
+         * with 5-7 redundant copies of worktreeContext.
+         */
+        record PropagatorSerialization() implements CompactifyingRequestSerializer {
         }
 
         /**
@@ -73,8 +93,8 @@ public interface AgentPretty {
                     prettyPrint();
             case AgentSerializationCtx.ResultsSerialization resultsSerialization ->
                     prettyPrint();
-            case AgentSerializationCtx.CollectorSerialization collectorCtx -> {
-                ACTIVE_SERIALIZATION_CTX.set(collectorCtx);
+            case AgentSerializationCtx.CompactifyingRequestSerializer compactCtx -> {
+                ACTIVE_SERIALIZATION_CTX.set(compactCtx);
                 try {
                     yield prettyPrint();
                 } finally {

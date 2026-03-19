@@ -7,6 +7,7 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.propagation.service.PropagationExecutionService;
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.AgentPretty;
 import com.hayden.multiagentidelib.propagation.model.PropagationAction;
 import com.hayden.multiagentidelib.propagation.model.PropagatorMatchOn;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,12 +67,18 @@ public class ActionResponsePropagationIntegration {
         String canonicalActionName = FilterLayerCatalog.canonicalActionName(agentName, actionName, methodName);
         String sourceNodeId = resolveNodeId(operationContext);
 
+        // Pre-serialize with PropagatorSerialization to compact worktree context
+        // and strip duplicated nested fields from response payloads.
+        Object compactPayload = payload instanceof AgentPretty ap
+                ? ap.prettyPrint(new AgentPretty.AgentSerializationCtx.PropagatorSerialization())
+                : payload;
+
         FilterLayerCatalog.resolveActionLayer(agentName, actionName, methodName)
                 .ifPresentOrElse(
                         layerId -> propagationExecutionService.execute(
                                 layerId,
                                 PropagatorMatchOn.ACTION_RESPONSE,
-                                payload,
+                                compactPayload,
                                 sourceNodeId,
                                 canonicalActionName,
                                 operationContext

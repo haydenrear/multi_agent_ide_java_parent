@@ -2257,7 +2257,7 @@ public interface AgentModels {
                 || serCtx instanceof AgentPretty.AgentSerializationCtx.HistoricalRequestSerializationCtx) {
             return;
         }
-        if (serCtx instanceof AgentPretty.AgentSerializationCtx.CollectorSerialization) {
+        if (serCtx instanceof AgentPretty.AgentSerializationCtx.CompactifyingRequestSerializer) {
             // Compact: only the parent worktree path
             String path = context != null && context.mainWorktree() != null
                     ? String.valueOf(context.mainWorktree().worktreePath())

@@ -19,6 +19,7 @@ import com.hayden.multiagentide.propagation.model.Propagation;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordEntity;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.AgentPretty;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.filter.config.FilterContextFactory;
@@ -306,7 +307,8 @@ public class PropagationExecutionService {
             model.put("stage", context.actionStage().name());
         }
         if (parentRequest != null) {
-            model.put("contextRequest", parentRequest.prettyPrint());
+            model.put("contextRequest", parentRequest.prettyPrint(
+                    new AgentPretty.AgentSerializationCtx.PropagatorSerialization()));
         }
         return model;
     }
