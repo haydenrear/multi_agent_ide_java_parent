@@ -88,10 +88,11 @@ public class OrchestrationController {
             @NotBlank @Schema(description = "Git repository URL the agent will operate on") String repositoryUrl,
             @Schema(description = "Base branch for the goal (optional; defaults to main/master)") String baseBranch,
             @Schema(description = "Human-readable title for this goal run") String title,
-            @Schema(description = "Optional tags for filtering/grouping runs") List<String> tags
+            @Schema(description = "Optional tags for filtering/grouping runs") List<String> tags,
+            @Schema(description = "Custom tmp directory for this goal's repo clone (optional; enables parallel goal isolation)") String goalRepoTmpDir
     ) {
         public StartGoalRequest(String goal, String repositoryUrl, String baseBranch, String title) {
-            this(goal, repositoryUrl, baseBranch, title, List.of());
+            this(goal, repositoryUrl, baseBranch, title, List.of(), null);
         }
 
         public StartGoalRequest {

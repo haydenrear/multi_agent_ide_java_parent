@@ -97,10 +97,12 @@ public class AgentLifecycleHandler {
     /**
      * Initialize an orchestrator node with a goal.
      * Creates main worktree, submodule worktrees, and base spec.
+     *
+     * @param goalRepoTmpDir optional custom tmp directory for this goal's repo clone (enables parallel goal isolation)
      */
     public void initializeOrchestrator(String repositoryUrl, String baseBranch,
-                                       String goal, String title, String nodeId) {
-        log.info("Initializing {}:{}.", repositoryUrl, baseBranch);
+                                       String goal, String title, String nodeId, String goalRepoTmpDir) {
+        log.info("Initializing {}:{} with goalRepoTmpDir={}", repositoryUrl, baseBranch, goalRepoTmpDir);
 
         String resolvedNodeId = nodeId != null ? nodeId : ArtifactKey.createRoot().value();
 
@@ -110,9 +112,9 @@ public class AgentLifecycleHandler {
         }
 
         String derivedBranch = baseBranch + "-" + UUID.randomUUID();
-        // Create main worktree
+        // Create main worktree with optional custom tmp directory
         MainWorktreeContext mainWorktree = worktreeService.createMainWorktree(
-                repositoryUrl, baseBranch, derivedBranch, resolvedNodeId);
+                repositoryUrl, baseBranch, derivedBranch, resolvedNodeId, goalRepoTmpDir);
         List<SubmoduleWorktreeContext> submoduleContexts = mainWorktree.submoduleWorktrees();
 
         // Create orchestrator node

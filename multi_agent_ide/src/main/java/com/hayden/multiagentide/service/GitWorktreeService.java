@@ -78,8 +78,21 @@ public class GitWorktreeService implements WorktreeService {
 
     @Override
     public MainWorktreeContext createMainWorktree(String repositoryUrl, String baseBranch, String derivedBranch, String nodeId) {
+        return createMainWorktree(repositoryUrl, baseBranch, derivedBranch, nodeId, null);
+    }
+
+    /**
+     * Create main worktree with optional custom tmp directory.
+     * @param goalRepoTmpDir optional custom tmp directory for this goal's repo clone (enables parallel goal isolation)
+     */
+    public MainWorktreeContext createMainWorktree(String repositoryUrl, String baseBranch, String derivedBranch, String nodeId, String goalRepoTmpDir) {
         String worktreeId = UUID.randomUUID().toString();
-        Path worktreePath = Paths.get(baseWorktreesPath, worktreeId);
+        Path worktreePath;
+        if (goalRepoTmpDir != null && !goalRepoTmpDir.isBlank()) {
+            worktreePath = Paths.get(goalRepoTmpDir, worktreeId);
+        } else {
+            worktreePath = Paths.get(baseWorktreesPath, worktreeId);
+        }
 
         try {
             validateCloneSource(repositoryUrl, baseBranch, nodeId);
