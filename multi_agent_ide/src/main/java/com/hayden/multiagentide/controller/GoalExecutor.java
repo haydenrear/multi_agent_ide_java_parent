@@ -59,7 +59,8 @@ public class GoalExecutor {
                     baseBranch,
                     request.goal(),
                     request.title(),
-                    nodeId
+                    nodeId,
+                    request.goalRepoTmpDir()
             );
         } catch (Exception e) {
             String message = "Error when attempting to start orchestrator - %s.".formatted(e.getMessage());
