@@ -53,6 +53,10 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
             return null;
         }
 
+        if (context.agentRequest() instanceof AgentModels.InterruptRequest) {
+            return routing;
+        }
+
         return switch (routing) {
             case AgentModels.DiscoveryAgentRouting r ->
                     (T) r.toBuilder().agentResult(decorate(r.agentResult(), context)).build();

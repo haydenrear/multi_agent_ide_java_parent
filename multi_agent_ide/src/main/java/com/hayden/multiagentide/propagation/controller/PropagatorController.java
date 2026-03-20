@@ -73,6 +73,26 @@ public class PropagatorController {
         return ResponseEntity.ok(registrationService.updateLayerBinding(registrationId, request));
     }
 
+    @PutMapping("/registrations/{registrationId}/session-mode")
+    @Operation(summary = "Update a propagator's session mode",
+            description = "Updates the session reuse strategy for the propagator's AI executor. "
+                    + "PER_INVOCATION=fresh session each call; SAME_SESSION_FOR_ACTION=reuse within one action pair; "
+                    + "SAME_SESSION_FOR_ALL=single shared session; SAME_SESSION_FOR_AGENT=reuse per agent.")
+    public ResponseEntity<PropagatorRegistrationResponse> updateSessionMode(
+            @PathVariable String registrationId,
+            @RequestBody @Valid UpdateSessionModeRequest request) {
+        return ResponseEntity.ok(registrationService.updateSessionMode(registrationId, request.sessionMode()));
+    }
+
+    @PutMapping("/registrations/session-mode/all")
+    @Operation(summary = "Update session mode for all propagators",
+            description = "Bulk-updates the session mode for every registered propagator. "
+                    + "Useful for switching all propagators to PER_INVOCATION to prevent session bloat.")
+    public ResponseEntity<UpdateAllSessionModeResponse> updateAllSessionModes(
+            @RequestBody @Valid UpdateSessionModeRequest request) {
+        return ResponseEntity.ok(registrationService.updateAllSessionModes(request.sessionMode()));
+    }
+
     private ReadPropagatorsByLayerResponse.PropagatorSummary toSummary(PropagatorRegistrationEntity entity) {
         try {
             var node = objectMapper.readTree(entity.getPropagatorJson());

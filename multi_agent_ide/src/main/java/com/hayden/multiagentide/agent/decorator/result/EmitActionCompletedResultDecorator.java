@@ -48,6 +48,12 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
             return t;
         }
 
+        // Interrupt resolution returns agent routing types with agentResult populated,
+        // but the agent is not actually complete — skip unsubscription during interrupt.
+        if (context.agentRequest() instanceof AgentModels.InterruptRequest) {
+            return t;
+        }
+
         OperationContext operationContext = context.operationContext();
 
         // Handle unsubscription based on result type

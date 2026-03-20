@@ -209,6 +209,56 @@ public class PropagatorRegistrationService {
         }
     }
 
+    @Transactional
+    public PropagatorRegistrationResponse updateSessionMode(String registrationId, AiFilterTool.SessionMode sessionMode) {
+        return repository.findByRegistrationId(registrationId)
+                .map(entity -> {
+                    try {
+                        var node = objectMapper.readTree(entity.getPropagatorJson());
+                        if (!node.has("executor")) {
+                            return PropagatorRegistrationResponse.builder().ok(false).registrationId(registrationId)
+                                    .message("Propagator has no executor field").build();
+                        }
+                        var mutable = (com.fasterxml.jackson.databind.node.ObjectNode) node;
+                        var executorNode = (com.fasterxml.jackson.databind.node.ObjectNode) mutable.get("executor");
+                        executorNode.put("sessionMode", sessionMode.name());
+                        entity.setPropagatorJson(objectMapper.writeValueAsString(mutable));
+                        repository.save(entity);
+                        return PropagatorRegistrationResponse.builder().ok(true).registrationId(registrationId)
+                                .status(entity.getStatus())
+                                .message("Session mode updated to " + sessionMode.name()).build();
+                    } catch (Exception e) {
+                        log.error("Failed to update session mode for {}", registrationId, e);
+                        return PropagatorRegistrationResponse.builder().ok(false).registrationId(registrationId)
+                                .message(e.getMessage()).build();
+                    }
+                })
+                .orElseGet(() -> PropagatorRegistrationResponse.builder().ok(false).registrationId(registrationId)
+                        .message("Propagator not found").build());
+    }
+
+    @Transactional
+    public UpdateAllSessionModeResponse updateAllSessionModes(AiFilterTool.SessionMode sessionMode) {
+        int updated = 0;
+        int failed = 0;
+        for (PropagatorRegistrationEntity entity : repository.findAll()) {
+            try {
+                var node = objectMapper.readTree(entity.getPropagatorJson());
+                if (!node.has("executor")) continue;
+                var mutable = (com.fasterxml.jackson.databind.node.ObjectNode) node;
+                var executorNode = (com.fasterxml.jackson.databind.node.ObjectNode) mutable.get("executor");
+                executorNode.put("sessionMode", sessionMode.name());
+                entity.setPropagatorJson(objectMapper.writeValueAsString(mutable));
+                repository.save(entity);
+                updated++;
+            } catch (Exception e) {
+                log.error("Failed to update session mode for {}", entity.getRegistrationId(), e);
+                failed++;
+            }
+        }
+        return new UpdateAllSessionModeResponse(true, updated, failed, sessionMode);
+    }
+
     private Optional<String> extractSourcePath(PropagatorRegistrationEntity entity) {
         try {
             return Optional.ofNullable(objectMapper.readTree(entity.getPropagatorJson()).path("sourcePath").asText(null));
@@ -244,7 +294,7 @@ public class PropagatorRegistrationService {
                         .build()))
                 .executor(new AiPropagatorTool(
                         "Escalate out-of-domain, out-of-distribution, or otherwise controller-relevant request and result payloads.",
-                        AiFilterTool.SessionMode.SAME_SESSION_FOR_ACTION,
+                        AiFilterTool.SessionMode.PER_INVOCATION,
                         null
                 ))
                 .activate(true)
