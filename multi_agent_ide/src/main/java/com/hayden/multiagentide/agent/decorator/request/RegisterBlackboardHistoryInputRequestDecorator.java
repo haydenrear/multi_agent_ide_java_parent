@@ -2,19 +2,36 @@ package com.hayden.multiagentide.agent.decorator.request;
 
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.agent.BlackboardHistoryService;
+import com.hayden.multiagentidelib.agent.WorkflowGraphState;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
- * Request decorator that registers the input in blackboard history and hides it.
- * Uses order 0 (default) to run after emitActionStarted but before other decorators.
+ * Request decorator that registers the input in blackboard history.
+ * Runs at order 9,000 — after all request mutations but before decorators
+ * that read the blackboard (propagators at 10,000).
+ *
+ * Must ensure the BlackboardHistory exists before registering, since
+ * EmitActionStartedRequestDecorator (which also creates it) runs at 10,000.
  */
 @Component
 @RequiredArgsConstructor
 public class RegisterBlackboardHistoryInputRequestDecorator implements DispatchedAgentRequestDecorator, RequestDecorator {
 
     private final BlackboardHistoryService blackboardHistoryService;
+
+    private EventBus eventBus;
+
+    @Autowired
+    @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     /**
     * This one had to happen after all the changes to the request
@@ -30,6 +47,14 @@ public class RegisterBlackboardHistoryInputRequestDecorator implements Dispatche
         if (request == null) {
             return null;
         }
+
+        // Ensure BlackboardHistory exists before registering — on the first action
+        // of a run, no history exists yet and register() would silently drop the entry.
+        BlackboardHistory.ensureSubscribed(
+                eventBus,
+                context.operationContext(),
+                () -> WorkflowGraphState.initial(request.key().value())
+        );
 
         blackboardHistoryService.register(
                 context.operationContext(),
