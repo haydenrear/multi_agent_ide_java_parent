@@ -581,7 +581,8 @@ public class GitWorktreeService implements WorktreeService {
         NormalizedMergeResult mergeResult = mergeFromChildRepoWithFallback(
                 step.parentPath(),
                 step.childPath(),
-                planBranch
+                planBranch,
+                step.parentBranch()
         );
 
         log.debug("Merge result sub={}: successful={}", step.submodulePath(), mergeResult.successful());
@@ -1805,6 +1806,7 @@ public class GitWorktreeService implements WorktreeService {
 
     private String resolveBranchForBranching(MainWorktreeContext sourceContext) {
         if (sourceContext == null || sourceContext.worktreePath() == null) {
+            log.warn("resolveBranchForBranching: sourceContext is null or has no worktreePath; falling back to 'main'.");
             return "main";
         }
 
@@ -1822,6 +1824,12 @@ public class GitWorktreeService implements WorktreeService {
         if (sourceContext.baseBranch() != null && !sourceContext.baseBranch().isBlank()) {
             return sourceContext.baseBranch();
         }
+        String actualBranch = getBranchSafe(sourceContext.worktreePath());
+        if (actualBranch != null && !actualBranch.isBlank() && !actualBranch.startsWith("error:")) {
+            log.warn("resolveBranchForBranching: no baseBranch/derivedBranch available; resolved actual branch '{}' from worktree path.", actualBranch);
+            return actualBranch;
+        }
+        log.warn("resolveBranchForBranching: all resolution attempts failed; falling back to 'main'.");
         return "main";
     }
 
@@ -1898,20 +1906,20 @@ public class GitWorktreeService implements WorktreeService {
         }
     }
 
-    private NormalizedMergeResult mergeFromChildRepoJgitFallback(Path parentPath, Path childPath, String childBranch) {
+    private NormalizedMergeResult mergeFromChildRepoJgitFallback(Path parentPath, Path childPath, String childBranch, String baseBranch) {
         try {
-            var result = mergeFromChildRepo(parentPath, childPath, childBranch);
+            var result = mergeFromChildRepo(parentPath, childPath, childBranch, baseBranch);
             List<String> conflicts = result.getConflicts() == null
                     ? List.of()
                     : new ArrayList<>(result.getConflicts().keySet());
             return new NormalizedMergeResult(result.getMergeStatus().isSuccessful(), conflicts, null);
         } catch (Exception e) {
             log.warn("JGit merge failed for parent {} child {}. Falling back to CLI merge.", parentPath, childPath, e);
-            return mergeFromChildRepoCli(parentPath, childPath, childBranch, e.getMessage());
+            return mergeFromChildRepoCli(parentPath, childPath, childBranch, baseBranch, e.getMessage());
         }
     }
 
-    private org.eclipse.jgit.api.MergeResult mergeFromChildRepo(Path parentPath, Path childPath, String childBranch) throws IOException, GitAPIException, URISyntaxException {
+    private org.eclipse.jgit.api.MergeResult mergeFromChildRepo(Path parentPath, Path childPath, String childBranch, String baseBranch) throws IOException, GitAPIException, URISyntaxException {
         String remoteNamespace = "child-" + shortId(childPath.getFileName().toString());
         String remoteRefBase = "refs/remotes/" + remoteNamespace + "/";
         String headRef = remoteRefBase + "HEAD";
@@ -1942,9 +1950,14 @@ public class GitWorktreeService implements WorktreeService {
             Repository repo = parentGit.getRepository();
             ObjectId mergeHead = repo.resolve(headRef);
             if (mergeHead == null) {
-                String branchRef = remoteRefBase + (childBranch == null || childBranch.isBlank()
-                        ? "main"
-                        : childBranch);
+                String fallbackBranch = childBranch;
+                if (fallbackBranch == null || fallbackBranch.isBlank()) {
+                    fallbackBranch = (baseBranch != null && !baseBranch.isBlank()) ? baseBranch : "main";
+                    if ("main".equals(fallbackBranch)) {
+                        log.warn("mergeFromChildRepo: childBranch and baseBranch are both null/blank; falling back to 'main' for child at {}", childPath);
+                    }
+                }
+                String branchRef = remoteRefBase + fallbackBranch;
                 mergeHead = repo.resolve(branchRef);
             }
             if (mergeHead == null) {
@@ -1959,14 +1972,15 @@ public class GitWorktreeService implements WorktreeService {
         }
     }
 
-    private NormalizedMergeResult mergeFromChildRepoWithFallback(Path parentPath, Path childPath, String childBranch) {
-        return mergeFromChildRepoJgitFallback(parentPath, childPath, childBranch);
+    private NormalizedMergeResult mergeFromChildRepoWithFallback(Path parentPath, Path childPath, String childBranch, String baseBranch) {
+        return mergeFromChildRepoJgitFallback(parentPath, childPath, childBranch, baseBranch);
     }
 
     private NormalizedMergeResult mergeFromChildRepoCli(
             Path parentPath,
             Path childPath,
             String childBranch,
+            String baseBranch,
             String jgitError
     ) {
         String remoteNamespace = "child-" + shortId(childPath.getFileName().toString());
@@ -1993,7 +2007,14 @@ public class GitWorktreeService implements WorktreeService {
             String mergeRef = headRef;
             var headExists = RepoUtil.runGitCommand(parentPath, List.of("rev-parse", "--verify", "--quiet", headRef));
             if (headExists.isErr() || headExists.r().get() == null || headExists.r().get().isBlank()) {
-                mergeRef = remoteRefBase + (childBranch == null || childBranch.isBlank() ? "main" : childBranch);
+                String fallbackBranch = childBranch;
+                if (fallbackBranch == null || fallbackBranch.isBlank()) {
+                    fallbackBranch = (baseBranch != null && !baseBranch.isBlank()) ? baseBranch : "main";
+                    if ("main".equals(fallbackBranch)) {
+                        log.warn("mergeFromChildRepoCli: childBranch and baseBranch are both null/blank; falling back to 'main' for child at {}", childPath);
+                    }
+                }
+                mergeRef = remoteRefBase + fallbackBranch;
             }
 
             var merge = RepoUtil.runGitCommand(parentPath, List.of("merge", "--no-ff", "--no-edit", mergeRef));
@@ -2126,7 +2147,7 @@ public class GitWorktreeService implements WorktreeService {
             // root repo appears up-to-date. Parent commit equality does not guarantee
             // submodule repos (or pointer commits) were propagated in source.
             List<MergeResult.MergeConflict> reconciliationConflicts =
-                    reconcileFinalMergeSubmoduleRepos(worktreePath, sourcePath, "");
+                    reconcileFinalMergeSubmoduleRepos(worktreePath, sourcePath, "", baseBranch);
             if (!reconciliationConflicts.isEmpty()) {
                 return buildConflictResult(mainWorktreeId, "source", reconciliationConflicts);
             }
@@ -2164,7 +2185,8 @@ public class GitWorktreeService implements WorktreeService {
     private List<MergeResult.MergeConflict> reconcileFinalMergeSubmoduleRepos(
             Path worktreeRepoPath,
             Path sourceRepoPath,
-            String parentRelPath
+            String parentRelPath,
+            String baseBranch
     ) {
         List<MergeResult.MergeConflict> conflicts = new ArrayList<>();
         List<String> submoduleNames;
@@ -2187,7 +2209,7 @@ public class GitWorktreeService implements WorktreeService {
                 continue;
             }
 
-            conflicts.addAll(reconcileFinalMergeSubmoduleRepos(worktreeSubmodulePath, sourceSubmodulePath, relPath));
+            conflicts.addAll(reconcileFinalMergeSubmoduleRepos(worktreeSubmodulePath, sourceSubmodulePath, relPath, baseBranch));
 
             String childHead = getCurrentCommitHashInternal(worktreeSubmodulePath);
             String parentHead = getCurrentCommitHashInternal(sourceSubmodulePath);
@@ -2200,7 +2222,8 @@ public class GitWorktreeService implements WorktreeService {
                 NormalizedMergeResult mergeResult = mergeFromChildRepoWithFallback(
                         sourceSubmodulePath,
                         worktreeSubmodulePath,
-                        childBranch
+                        childBranch,
+                        baseBranch
                 );
                 if (!mergeResult.successful()) {
                     if (mergeResult.hasConflicts()) {
