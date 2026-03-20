@@ -74,6 +74,10 @@ public class WorktreeMergeResultDecorator implements DispatchedAgentResultDecora
             return null;
         }
 
+        if (context.agentRequest() instanceof AgentModels.InterruptRequest) {
+            return result;
+        }
+
         T withContext = withWorktreeContext(result, context);
         if (!isDispatchResult(withContext)) {
             return withContext;

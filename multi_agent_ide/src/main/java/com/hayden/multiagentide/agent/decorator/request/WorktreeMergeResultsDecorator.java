@@ -46,6 +46,11 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
         if (resultsRequest == null) {
             return resultsRequest;
         }
+
+        if (context.agentRequest() instanceof AgentModels.InterruptRequest) {
+            return resultsRequest;
+        }
+
         String nodeId = resolveNodeId(resultsRequest);
 
         WorktreeSandboxContext trunkContext = resolveTrunkWorktreeContext(context);
