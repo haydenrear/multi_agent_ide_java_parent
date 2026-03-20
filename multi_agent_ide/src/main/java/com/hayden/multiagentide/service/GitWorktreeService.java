@@ -367,6 +367,120 @@ public class GitWorktreeService implements WorktreeService {
         }
     }
 
+    /**
+     * For each submodule in the given repository, merges the derived branch into baseBranch
+     * and pushes baseBranch to the submodule's remote. This ensures that after a final merge
+     * to source, each submodule's baseBranch on the remote contains all commits from the
+     * derived branch.
+     *
+     * Submodules with no derived branch or no divergence are gracefully skipped.
+     * Merge failures in individual submodules are logged but do not prevent processing
+     * of other submodules.
+     *
+     * @param sourceRepoPath the source repository containing submodules
+     * @param baseBranch     the target branch to merge into (e.g. "main")
+     * @param derivedBranch  the source branch to merge from (e.g. "main-<uuid>")
+     */
+    private void mergeSubmodulesToBaseBranchAndPush(Path sourceRepoPath, String baseBranch, String derivedBranch) {
+        List<String> submoduleNames;
+        try {
+            submoduleNames = getSubmoduleNames(sourceRepoPath);
+        } catch (Exception e) {
+            log.warn("Could not enumerate submodules for merge-to-baseBranch at {}: {}", sourceRepoPath, e.getMessage());
+            return;
+        }
+
+        for (String submoduleName : submoduleNames) {
+            try {
+                Path submodulePath;
+                try {
+                    submodulePath = getSubmodulePath(sourceRepoPath, submoduleName);
+                } catch (Exception e) {
+                    log.warn("Could not resolve path for submodule '{}', skipping merge-to-baseBranch: {}", submoduleName, e.getMessage());
+                    continue;
+                }
+
+                if (!Files.isDirectory(submodulePath)) {
+                    continue;
+                }
+
+                // Recurse into nested submodules first (leaves-first).
+                if (hasSubmodulesInternal(submodulePath)) {
+                    mergeSubmodulesToBaseBranchAndPush(submodulePath, baseBranch, derivedBranch);
+                }
+
+                // Check if the derived branch exists in this submodule.
+                var branchCheck = RepoUtil.runGitCommand(submodulePath,
+                        List.of("rev-parse", "--verify", "refs/heads/" + derivedBranch));
+                if (!branchCheck.isOk()) {
+                    log.debug("Derived branch '{}' does not exist in submodule '{}', skipping.", derivedBranch, submoduleName);
+                    continue;
+                }
+
+                // Check if derived branch has diverged from baseBranch.
+                var mergeBase = RepoUtil.runGitCommand(submodulePath,
+                        List.of("merge-base", baseBranch, derivedBranch));
+                var derivedHead = RepoUtil.runGitCommand(submodulePath,
+                        List.of("rev-parse", derivedBranch));
+                if (mergeBase.isOk() && derivedHead.isOk()) {
+                    String mergeBaseHash = mergeBase.r().orElse("").trim();
+                    String derivedHash = derivedHead.r().orElse("").trim();
+                    if (mergeBaseHash.equals(derivedHash)) {
+                        log.debug("Derived branch '{}' has no new commits relative to '{}' in submodule '{}', skipping.",
+                                derivedBranch, baseBranch, submoduleName);
+                        continue;
+                    }
+                }
+
+                // Step 1: Checkout baseBranch.
+                var checkoutResult = RepoUtil.runGitCommand(submodulePath,
+                        List.of("checkout", baseBranch));
+                if (!checkoutResult.isOk()) {
+                    // baseBranch may not exist locally yet — try creating it from remote.
+                    var createResult = RepoUtil.runGitCommand(submodulePath,
+                            List.of("checkout", "-b", baseBranch, "origin/" + baseBranch));
+                    if (!createResult.isOk()) {
+                        log.warn("Could not checkout baseBranch '{}' in submodule '{}': {}",
+                                baseBranch, submoduleName, checkoutResult.errorMessage());
+                        continue;
+                    }
+                }
+
+                // Step 2: Merge derived branch into baseBranch.
+                var mergeResult = RepoUtil.runGitCommand(submodulePath,
+                        List.of("merge", derivedBranch, "--no-edit",
+                                "-m", "Merge " + derivedBranch + " into " + baseBranch));
+                if (!mergeResult.isOk()) {
+                    log.error("Merge of '{}' into '{}' failed in submodule '{}': {}. Aborting merge and continuing.",
+                            derivedBranch, baseBranch, submoduleName, mergeResult.errorMessage());
+                    // Abort the failed merge to leave the submodule in a clean state.
+                    RepoUtil.runGitCommand(submodulePath, List.of("merge", "--abort"));
+                    continue;
+                }
+
+                log.info("Merged '{}' into '{}' in submodule '{}'", derivedBranch, baseBranch, submoduleName);
+
+                // Step 3: Push baseBranch to the submodule's remote.
+                String url = getSubmoduleUrl(sourceRepoPath, submoduleName);
+                if (url != null && isRemoteUrl(url)) {
+                    var pushResult = RepoUtil.runGitCommand(submodulePath,
+                            List.of("push", url, baseBranch + ":" + baseBranch));
+                    if (pushResult.isOk()) {
+                        log.info("Pushed baseBranch '{}' for submodule '{}' to remote", baseBranch, submoduleName);
+                    } else {
+                        log.error("Failed to push baseBranch '{}' for submodule '{}' to remote: {}",
+                                baseBranch, submoduleName, pushResult.errorMessage());
+                    }
+                } else {
+                    log.debug("Skipping push for submodule '{}': URL '{}' is not a remote.", submoduleName, url);
+                }
+            } catch (Exception e) {
+                log.error("Unexpected error merging submodule '{}' to baseBranch '{}': {}",
+                        submoduleName, baseBranch, e.getMessage(), e);
+            }
+        }
+    }
+
     // ======== MERGE ACTION MODEL ========
 
     /**
@@ -2130,6 +2244,10 @@ public class GitWorktreeService implements WorktreeService {
             if (!reconciliationConflicts.isEmpty()) {
                 return buildConflictResult(mainWorktreeId, "source", reconciliationConflicts);
             }
+
+
+            // Phase 4: Merge each submodule's derived branch into baseBranch and push.
+            mergeSubmodulesToBaseBranchAndPush(sourcePath, baseBranch, derivedBranch);
 
             // Commit submodule pointers, ensure source is on baseBranch.
             commitDirtySubmodulePointers(sourcePath);
