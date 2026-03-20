@@ -7,17 +7,17 @@ multi-agent-embabel:
 llm:
   model-selection:
     default-model:
-      model: claude-haiku-4-5
+      model: claude-opus-4-6
       provider: claude
     by-agent-type:
       commit-agent:
-        model: claude-haiku-4-5
+        model: claude-opus-4-6
         provider: claude
       merge-conflict-agent:
-        model: claude-haiku-4-5
+        model: claude-opus-4-6
         provider: claude
       ai-filter:
-        model: claude-haiku-4-5
+        model: claude-opus-4-6
         provider: claude
     by-template: {}
 
