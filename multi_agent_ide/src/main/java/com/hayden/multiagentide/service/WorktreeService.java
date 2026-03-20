@@ -23,6 +23,17 @@ public interface WorktreeService {
      */
     MainWorktreeContext createMainWorktree(String repositoryUrl, String baseBranch, String derivedBranch, String nodeId);
 
+    /**
+     * Create a worktree for the main repository with optional custom tmp directory.
+     * @param repositoryUrl the repository URL
+     * @param baseBranch the base branch (e.g., "main", "develop")
+     * @param derivedBranch the derived branch for this worktree
+     * @param nodeId the associated node ID
+     * @param goalRepoTmpDir optional custom tmp directory for this goal's repo clone (enables parallel goal isolation)
+     * @return the created main worktree context
+     */
+    MainWorktreeContext createMainWorktree(String repositoryUrl, String baseBranch, String derivedBranch, String nodeId, String goalRepoTmpDir);
+
     AgentModels.DiscoveryAgentRequests attachWorktreesToDiscoveryRequests(
             AgentModels.DiscoveryAgentRequests input,
             String nodeId

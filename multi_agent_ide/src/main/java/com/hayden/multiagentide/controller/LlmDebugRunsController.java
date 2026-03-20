@@ -37,7 +37,8 @@ public class LlmDebugRunsController {
                 request.repositoryUrl(),
                 request.baseBranch(),
                 request.title(),
-                request.tags()
+                request.tags(),
+                null
         ));
         return new StartRunResponse(run.runId(), run.runId(), run.status().name());
     }

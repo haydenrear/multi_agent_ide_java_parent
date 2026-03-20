@@ -177,6 +177,47 @@ class GitWorktreeServiceTest extends AgentTestBase {
         ));
     }
 
+    @Test
+    void createMainWorktreeWithCustomTmpDirUsesCustomPath() throws Exception {
+        Path customTmpDir = Files.createTempDirectory("custom-tmp-goal");
+        Path repoDir = Files.createTempDirectory("custom-tmp-repo");
+        initRepo(repoDir);
+        commitFile(repoDir, "README.md", "hello", "init");
+
+        MainWorktreeContext worktree = gitWorktreeService.createMainWorktree(
+            repoDir.toString(),
+            "main",
+            "main-custom",
+            "node-custom",
+            customTmpDir.toString()
+        );
+
+        assertThat(Files.exists(worktree.worktreePath())).isTrue();
+        assertThat(worktree.worktreePath().startsWith(customTmpDir)).isTrue();
+        assertThat(worktreeRepository.findById(worktree.worktreeId())).isPresent();
+
+        String head = gitOutput(worktree.worktreePath(), "git", "rev-parse", "HEAD").trim();
+        assertThat(worktree.lastCommitHash()).isEqualTo(head);
+    }
+
+    @Test
+    void createMainWorktreeWithoutCustomTmpDirUsesDefaultPath() throws Exception {
+        Path repoDir = Files.createTempDirectory("default-tmp-repo");
+        initRepo(repoDir);
+        commitFile(repoDir, "README.md", "hello", "init");
+
+        MainWorktreeContext worktree = gitWorktreeService.createMainWorktree(
+            repoDir.toString(),
+            "main",
+            "main-default",
+            "node-default"
+        );
+
+        assertThat(Files.exists(worktree.worktreePath())).isTrue();
+        assertThat(worktree.worktreePath().startsWith(WORKTREE_BASE)).isTrue();
+        assertThat(worktreeRepository.findById(worktree.worktreeId())).isPresent();
+    }
+
     private void initRepo(Path repoDir) throws Exception {
         runGit(repoDir, "git", "init", "-b", "main");
         runGit(repoDir, "git", "config", "user.email", "test@example.com");

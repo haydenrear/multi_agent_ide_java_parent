@@ -138,7 +138,8 @@ public class LlmDebugUiController {
                                 request.repositoryUrl(),
                                 request.baseBranch(),
                                 request.title(),
-                                request.tags()
+                                request.tags(),
+                                null
                         )
                 );
                 yield new QuickActionResponse(started.nodeId(), "started", started.nodeId(), null);
