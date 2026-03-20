@@ -15,7 +15,7 @@ public class WorkflowGraphServiceFinalResultDecorator implements FinalResultDeco
 
     @Override
     public int order() {
-        return 10_000;
+        return 10_003;
     }
 
     @Override

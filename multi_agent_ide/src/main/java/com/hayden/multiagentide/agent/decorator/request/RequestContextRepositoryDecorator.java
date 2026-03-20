@@ -16,7 +16,7 @@ public class RequestContextRepositoryDecorator implements RequestDecorator {
 
     @Override
     public int order() {
-        return 30_000;
+        return 3_000;
     }
 
     @Override

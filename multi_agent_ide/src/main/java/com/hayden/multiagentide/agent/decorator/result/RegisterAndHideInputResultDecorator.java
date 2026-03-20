@@ -20,6 +20,11 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
 
     private final BlackboardHistoryService blackboardHistoryService;
 
+    /**
+     * This one had to happen after every other decorator, because if any of
+     * of the other decorators failed or threw an exception, then it wouldn't be able to
+     * retry.
+     */
     @Override
     public int order() {
         return 10_005;

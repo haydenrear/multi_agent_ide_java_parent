@@ -16,9 +16,13 @@ public class RegisterBlackboardHistoryInputRequestDecorator implements Dispatche
 
     private final BlackboardHistoryService blackboardHistoryService;
 
+    /**
+    * This one had to happen after all the changes to the request
+    * were made, but before the decorators that may look through the blackboard.
+    */
     @Override
     public int order() {
-        return 10_000;
+        return 9_000;
     }
 
     @Override
@@ -32,7 +36,7 @@ public class RegisterBlackboardHistoryInputRequestDecorator implements Dispatche
                 context.methodName(),
                 request
         );
-        
+
         return request;
     }
 }

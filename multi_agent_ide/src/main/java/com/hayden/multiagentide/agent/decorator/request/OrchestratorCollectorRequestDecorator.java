@@ -34,10 +34,9 @@ public class OrchestratorCollectorRequestDecorator implements RequestDecorator {
 
     @Override
     public int order() {
-        return 9_999;
+        return 8_000;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public <T extends AgentModels.AgentRequest> T decorate(T request, DecoratorContext context) {
         if (request == null || context == null) {

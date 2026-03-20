@@ -14,7 +14,7 @@ public class PropagateActionResultDecorator implements ResultDecorator, Dispatch
 
     @Override
     public int order() {
-        return 10_000;
+        return 10_002;
     }
 
     @Override

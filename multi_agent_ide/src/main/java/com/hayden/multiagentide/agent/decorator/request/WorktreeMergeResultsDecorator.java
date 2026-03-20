@@ -18,13 +18,13 @@ import java.util.UUID;
 
 /**
  * Decorator that performs child → trunk merge when aggregating dispatch agent results.
- * 
+ *
  * Phase 2 of the worktree merge flow:
  * - After collecting child agent results (Ticket/Planning/Discovery)
  * - Iterate through each child's worktree
  * - Merge child → trunk using centralized service method
  * - Stop on first conflict, populate MergeAggregation
- * 
+ *
  * The routing LLM will receive the MergeAggregation via a PromptContributor
  * and decide how to handle any conflicts.
  */
@@ -38,7 +38,7 @@ public class WorktreeMergeResultsDecorator implements ResultsRequestDecorator {
 
     @Override
     public int order() {
-        return 1000;
+        return 1_000;
     }
 
     @Override
