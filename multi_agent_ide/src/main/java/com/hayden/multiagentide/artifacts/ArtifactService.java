@@ -154,42 +154,27 @@ public class ArtifactService {
                     .flatMap(this::deserializeArtifact)
                     .flatMap(a -> switch (a) {
                         case Templated t -> {
-                            if (!a.artifactKey().equals(artifact)) {
-                                yield Optional.of(new Artifact.TemplateDbRef(
-                                        artifact,
-                                        t.templateStaticId(),
-                                        UUID.randomUUID().toString(),
-                                        t,
-                                        new ArrayList<>(StreamUtil.toStream(t.children()).toList()),
-                                        safeMetadata(t.metadata()),
-                                        t.artifactType()));
-                            }
-
+                            ArtifactKey refKey = a.artifactKey().equals(artifact)
+                                    ? artifact.createChild()
+                                    : artifact;
                             yield Optional.of(new Artifact.TemplateDbRef(
-                                    artifact.createChild(),
+                                    refKey,
                                     t.templateStaticId(),
                                     UUID.randomUUID().toString(),
                                     t,
-                                    new ArrayList<>(StreamUtil.toStream(t.children()).toList()),
+                                    remapChildren(t, refKey),
                                     safeMetadata(t.metadata()),
                                     t.artifactType()));
                         }
                         case Artifact t -> {
-                            if (!t.artifactKey().equals(artifact)) {
-                                yield Optional.of(new Artifact.ArtifactDbRef(
-                                        artifact,
-                                        UUID.randomUUID().toString(),
-                                        t,
-                                        new ArrayList<>(StreamUtil.toStream(t.children()).toList()),
-                                        safeMetadata(t.metadata()),
-                                        t.artifactType()));
-                            }
-
+                            ArtifactKey refKey = t.artifactKey().equals(artifact)
+                                    ? artifact.createChild()
+                                    : artifact;
                             yield Optional.of(new Artifact.ArtifactDbRef(
-                                    artifact.createChild(),
+                                    refKey,
                                     UUID.randomUUID().toString(),
                                     t,
-                                    new ArrayList<>(StreamUtil.toStream(t.children()).toList()),
+                                    remapChildren(t, refKey),
                                     safeMetadata(t.metadata()),
                                     t.artifactType()));
                         }
@@ -198,6 +183,46 @@ public class ArtifactService {
             publishPersistenceError("Failed to decorate duplicate artifact for key " + artifact.value(), artifact, e);
             return Optional.empty();
         }
+    }
+
+    /**
+     * Recursively remaps children's artifact keys under {@code newParentKey},
+     * wrapping each child as a DbRef that points back to the original artifact
+     * (preserving dedup history and reference chain). Works entirely from the
+     * already-deserialized in-memory tree — no additional DB lookups — to avoid
+     * infinite recursion through decorateDuplicate → remapChildren → decorateDuplicate.
+     */
+    private List<Artifact> remapChildren(Artifact source, ArtifactKey newParentKey) {
+        List<Artifact> children = StreamUtil.toStream(source.children()).toList();
+        if (children.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<Artifact> remapped = new ArrayList<>(children.size());
+        for (Artifact child : children) {
+            ArtifactKey childKey = newParentKey.createChild();
+            List<Artifact> remappedGrandchildren = remapChildren(child, childKey);
+
+            // Wrap as a DbRef pointing to the original child, with remapped grandchildren
+            Artifact ref = switch (child) {
+                case Templated t -> new Artifact.TemplateDbRef(
+                        childKey,
+                        t.templateStaticId(),
+                        UUID.randomUUID().toString(),
+                        t,
+                        remappedGrandchildren,
+                        safeMetadata(t.metadata()),
+                        t.artifactType());
+                case Artifact t -> new Artifact.ArtifactDbRef(
+                        childKey,
+                        UUID.randomUUID().toString(),
+                        t,
+                        remappedGrandchildren,
+                        safeMetadata(t.metadata()),
+                        t.artifactType());
+            };
+            remapped.add(ref);
+        }
+        return remapped;
     }
 
     @Transactional(readOnly = true)
