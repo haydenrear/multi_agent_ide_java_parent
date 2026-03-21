@@ -47,12 +47,6 @@ class PermissionGate(
 
     private val pendingInterrupts = ConcurrentHashMap<String, IPermissionGate.PendingInterruptRequest>()
 
-    // Maps requestId -> tool name for ALLOW_ALWAYS lookup
-    private val requestIdToToolName = ConcurrentHashMap<String, String>()
-
-    // Tool names granted ALLOW_ALWAYS — auto-resolved on future publishRequest
-    private val alwaysAllowedToolNames = ConcurrentHashMap.newKeySet<String>()
-
     override fun getInterruptPending(requestId: Predicate<IPermissionGate.PendingInterruptRequest>): IPermissionGate.PendingInterruptRequest? {
         return pendingInterrupts.entries
             .filter { requestId.test(it.value) }
@@ -73,21 +67,6 @@ class PermissionGate(
         return pendingInterrupts.values.toList()
     }
 
-    /**
-     * Normalizes a tool title to a stable key for ALLOW_ALWAYS matching.
-     * MCP tool names (mcp__*) are used as-is since they're already stable identifiers.
-     * For other tools (bash commands, file writes, etc.), extracts the first command token
-     * so that e.g. all "git ..." commands share the key "git" and "gradlew test ..." → "./gradlew".
-     */
-    private fun normalizeToolName(title: String?, fallback: String): String {
-        val t = title?.trim()?.takeIf { it.isNotBlank() } ?: return fallback
-        // MCP tool names are already stable; use as-is
-        if (t.startsWith("mcp__")) return t
-        // Extract first whitespace-delimited token as the command base
-        val firstToken = t.split(Regex("\\s+")).first().takeIf { it.isNotBlank() }
-        return firstToken ?: fallback
-    }
-
     override fun publishRequest(
         requestId: String,
         originNodeId: String,
@@ -98,32 +77,6 @@ class PermissionGate(
         val existing = pendingRequests[requestId]
         if (existing != null) {
             return existing
-        }
-
-        val toolName = normalizeToolName(toolCall.title, toolCall.toolCallId.value)
-        requestIdToToolName[requestId] = toolName
-
-        // Auto-resolve if this tool was previously granted ALLOW_ALWAYS
-        if (alwaysAllowedToolNames.contains(toolName)) {
-            log.info("Auto-resolving permission for always-allowed tool '{}' requestId={}", toolName, requestId)
-            val deferred = CompletableDeferred<IPermissionGate.PermissionResolvedResponse>()
-            val autoResolved = IPermissionGate.PendingPermissionRequest(
-                requestId = requestId,
-                originNodeId = originNodeId,
-                toolCallId = toolCall.toolCallId.value,
-                permissions = permissions,
-                deferred = deferred,
-                meta = meta,
-                nodeId = null
-            )
-            val allowAlwaysOption = IPermissionGate.allowAlways()
-            val response = RequestPermissionResponse(
-                com.agentclientprotocol.model.RequestPermissionOutcome.Selected(allowAlwaysOption.optionId),
-                meta
-            )
-            deferred.complete(IPermissionGate.PermissionResolvedResponse(response))
-            requestIdToToolName.remove(requestId)
-            return autoResolved
         }
 
         val now = Instant.now()
@@ -225,16 +178,6 @@ class PermissionGate(
             RequestPermissionOutcome.Cancelled
         } else {
             RequestPermissionOutcome.Selected(selected.optionId)
-        }
-        // Persist ALLOW_ALWAYS grant by tool name so future requests are auto-resolved
-        if (selected?.kind == com.agentclientprotocol.model.PermissionOptionKind.ALLOW_ALWAYS) {
-            val toolName = requestIdToToolName.remove(requestId)
-            if (toolName != null) {
-                log.info("Registering ALLOW_ALWAYS for tool '{}' — future requests will auto-resolve", toolName)
-                alwaysAllowedToolNames.add(toolName)
-            }
-        } else {
-            requestIdToToolName.remove(requestId)
         }
         completePending(pending, outcome, selected?.optionId?.toString(), note)
         return true
