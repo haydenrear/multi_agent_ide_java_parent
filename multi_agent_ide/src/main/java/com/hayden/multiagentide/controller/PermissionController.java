@@ -38,8 +38,14 @@ public class PermissionController {
     public record PermissionResolutionRequest(
             @Schema(description = "Permission requestId or ArtifactKey (scope-based lookup for descendants)") String id,
             @Schema(description = "Resolution option: ALLOW_ONCE, ALLOW_ALWAYS, REJECT_ONCE, REJECT_ALWAYS. "
-                    + "Null cancels the request. ALLOW_ALWAYS/REJECT_ALWAYS persist for the session.") PermissionOptionKind optionType
+                    + "Null cancels the request. ALLOW_ALWAYS/REJECT_ALWAYS persist for the session.") PermissionOptionKind optionType,
+            @Schema(description = "Optional note sent to the AI agent when denying a request (REJECT_ONCE / REJECT_ALWAYS). "
+                    + "Use this to explain why the tool call was rejected so the agent can adjust its approach. "
+                    + "Ignored for ALLOW_* resolutions.", defaultValue = "") String note
     ) {
+        public PermissionResolutionRequest {
+            if (note == null) note = "";
+        }
     }
 
     public record PermissionResolutionResponse(
@@ -115,9 +121,9 @@ public class PermissionController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Permission request not found");
 
         String resolvedRequestId = id;
-        boolean resolved = permissionGateService.performPermissionResolution(id, request.optionType);
+        boolean resolved = permissionGateService.performPermissionResolution(id, request.optionType, request.note);
         if (!resolved && permissionGateService.isArtifactKey(id)) {
-            resolvedRequestId = permissionGateService.resolvePermissionFromScope(id, request.optionType);
+            resolvedRequestId = permissionGateService.resolvePermissionFromScope(id, request.optionType, request.note);
             resolved = resolvedRequestId != null;
         }
 

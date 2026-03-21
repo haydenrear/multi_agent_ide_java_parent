@@ -468,8 +468,15 @@ class AcpChatModel(
             // This allows requestPermissions to flush buffered ToolCallEvents before blocking.
             val streamWindows = AcpStreamWindowBuffer(sessionManager.eventBus)
 
+            var acp: AcpSessionManager.AcpSessionContext? = null
+
+            val addMessage = object : AddMessage {
+                override suspend fun addToSession(message: String) {
+                    acp?.session?.prompt(listOf(ContentBlock.Text(message)))
+                }
+            }
             val session = client.newSession(sessionParams)
-            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value, streamWindows) }
+            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value, streamWindows, addMessage) }
 
             val modelToSet = sandboxTranslation.model ?: resolvedCall.effectiveModel()
             modelToSet?.takeIf { it.isNotBlank() }?.let {
@@ -477,7 +484,7 @@ class AcpChatModel(
                 session.setModel(ModelId(it))
             }
 
-            sessionManager.AcpSessionContext(
+            val s = sessionManager.AcpSessionContext(
                 scope, transport, protocol, client, session,
                 streamWindows = streamWindows,
                 messageParent = messageParent,
@@ -489,6 +496,8 @@ class AcpChatModel(
                 sandbox = sandboxTranslation,
                 resolvedCall = resolvedCall,
             )
+
+            s
 
         } catch (ex: Exception) {
             eventBus.publish(
@@ -693,10 +702,15 @@ class AcpChatModel(
         else -> "user"
     }
 
+    interface AddMessage {
+        suspend fun addToSession(message: String)
+    }
+
     class AcpSessionOperations(
         private val permissionGate: IPermissionGate,
         private val originNodeId: String,
-        private val streamWindows: AcpStreamWindowBuffer
+        private val streamWindows: AcpStreamWindowBuffer,
+        private val addMessage: AddMessage? = null
     ) : ClientSessionOperations {
 
         private val activeTerminals = ConcurrentHashMap<String, Process>()
@@ -712,7 +726,7 @@ class AcpChatModel(
             streamWindows.flushAll()
             val requestId = toolCall.toolCallId.value
             permissionGate.publishRequest(requestId, originNodeId, toolCall, permissions, _meta)
-            return permissionGate.awaitResponse(requestId)
+            return permissionGate.awaitResponse(requestId, addMessage).requestPermissionResponse
         }
 
         override suspend fun fsReadTextFile(

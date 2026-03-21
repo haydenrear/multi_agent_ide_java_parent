@@ -87,6 +87,7 @@ public class CliEventFormatter {
                 case Events.NodeDeletedEvent e -> format(normalizedArgs, "NODE", e, "reason=" + summarize(normalizedArgs, e.reason()));
                 case Events.ChatSessionCreatedEvent e -> format(normalizedArgs, "CHAT", e, "nodeId=" + summarize(normalizedArgs, e.nodeId()));
                 case Events.ChatSessionClosedEvent e -> format(normalizedArgs, "CHAT", e, "sessionId=" + summarize(normalizedArgs, e.sessionId()));
+                case Events.ChatSessionResetEvent e -> format(normalizedArgs, "CHAT", e, "sessionId=" + summarize(normalizedArgs, e.sessionId()));
                 case Events.AiFilterSessionEvent e -> format(normalizedArgs, "AI_FILTER", e,
                         "policyId=" + summarize(normalizedArgs, e.policyId())
                                 + " mode=" + summarize(normalizedArgs, e.sessionMode())

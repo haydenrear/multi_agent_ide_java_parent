@@ -65,6 +65,8 @@ public class SaveGraphEventToGraphRepositoryListener implements EventListener {
             }
             case Events.ChatSessionClosedEvent chatSessionClosedEvent -> {
             }
+            case Events.ChatSessionResetEvent chatSessionResetEvent -> {
+            }
             case Events.ChatSessionCreatedEvent chatSessionCreatedEvent -> {
             }
             case Events.AiFilterSessionEvent aiFilterSessionEvent -> {

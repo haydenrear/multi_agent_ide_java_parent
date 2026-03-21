@@ -131,6 +131,7 @@ public interface Events {
             @JsonSubTypes.Type(value = NodeDeletedEvent.class, name = "NODE_DELETED"),
             @JsonSubTypes.Type(value = ChatSessionCreatedEvent.class, name = "CHAT_SESSION_CREATED"),
             @JsonSubTypes.Type(value = ChatSessionClosedEvent.class, name = "CHAT_SESSION_CLOSED"),
+            @JsonSubTypes.Type(value = ChatSessionResetEvent.class, name = "CHAT_SESSION_RESET"),
             @JsonSubTypes.Type(value = AiFilterSessionEvent.class, name = "AI_FILTER_SESSION"),
             @JsonSubTypes.Type(value = NodeStreamDeltaEvent.class, name = "NODE_STREAM_DELTA"),
             @JsonSubTypes.Type(value = NodeThoughtDeltaEvent.class, name = "NODE_THOUGHT_DELTA"),
@@ -362,6 +363,10 @@ public interface Events {
                         line("timestamp", e.timestamp()),
                         line("nodeId", e.nodeId()));
                 case ChatSessionClosedEvent e -> formatEvent("Chat Session Closed Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("sessionId", e.sessionId()));
+                case ChatSessionResetEvent e -> formatEvent("Chat Session Reset Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
                         line("sessionId", e.sessionId()));
@@ -1170,6 +1175,22 @@ public interface Events {
         @Override
         public String eventType() {
             return "CHAT_SESSION_CLOSED";
+        }
+    }
+
+    record ChatSessionResetEvent(
+            String eventId,
+            Instant timestamp,
+            String sessionId
+    ) implements Events.GraphEvent {
+        @Override
+        public String nodeId() {
+            return sessionId;
+        }
+
+        @Override
+        public String eventType() {
+            return "CHAT_SESSION_RESET";
         }
     }
 

@@ -13,6 +13,7 @@ import com.agentclientprotocol.model.ModelId
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.Transport
 import com.hayden.acp_cdc_ai.acp.AcpChatModel.AcpSessionOperations
+import com.hayden.acp_cdc_ai.acp.AcpChatModel.AddMessage
 import com.hayden.acp_cdc_ai.acp.config.AcpResolvedCall
 import com.hayden.acp_cdc_ai.acp.events.Artifact
 import com.hayden.acp_cdc_ai.acp.events.ArtifactHashing
@@ -64,8 +65,20 @@ class AcpSessionManager {
 
         @OptIn(UnstableApi::class)
         suspend fun resetSession() {
+            eventBus.publish(
+                Events.ChatSessionResetEvent(
+                    UUID.randomUUID().toString(),
+                    Instant.now(),
+                    chatKey.value
+                )
+            )
+            val freshAddMessage = object : AddMessage {
+                override suspend fun addToSession(message: String) {
+                    session.prompt(listOf(ContentBlock.Text(message)))
+                }
+            }
             session = client.newSession(sessionCreationParameters)
-            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value, streamWindows) }
+            { _, _ -> AcpSessionOperations(permissionGate, chatKey.value, streamWindows, freshAddMessage) }
             val modelToSet = sandbox.model ?: resolvedCall.effectiveModel()
             modelToSet?.takeIf { it.isNotBlank() }?.let {
                 log.info("Setting ACP session model to {}", it)

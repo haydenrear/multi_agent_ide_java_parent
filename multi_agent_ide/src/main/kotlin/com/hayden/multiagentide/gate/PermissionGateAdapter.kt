@@ -69,15 +69,15 @@ class PermissionGateAdapter(val permissionGate: PermissionGate) : IPermissionGat
 
         return runBlocking {
                 permissionGate.awaitResponse(requestId)
-            }
+            }.requestPermissionResponse
     }
 
-    fun awaitResponseSync(requestId: String): RequestPermissionResponse =
+    fun awaitResponseSync(requestId: String): IPermissionGate.PermissionResolvedResponse =
         runBlocking {
             awaitResponse(requestId)
         }
 
-    fun awaitResponseToFuture(requestId: String): CompletableFuture<RequestPermissionResponse> =
+    fun awaitResponseToFuture(requestId: String): CompletableFuture<IPermissionGate.PermissionResolvedResponse> =
         CoroutineScope(Dispatchers.Default).future {
             awaitResponse(requestId)
         }

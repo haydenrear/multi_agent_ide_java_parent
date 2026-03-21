@@ -109,7 +109,7 @@ public class PermissionGateService {
      *
      * @return the resolved requestId, or {@code null} if nothing matched.
      */
-    public String resolvePermissionFromScope(String scopeNodeId, PermissionOptionKind optionType) {
+    public String resolvePermissionFromScope(String scopeNodeId, PermissionOptionKind optionType, String note) {
         List<Events.PermissionRequestedEvent> candidates = eventStreamRepository.list().stream()
                 .filter(Events.PermissionRequestedEvent.class::isInstance)
                 .map(Events.PermissionRequestedEvent.class::cast)
@@ -118,14 +118,14 @@ public class PermissionGateService {
                 .toList();
 
         for (Events.PermissionRequestedEvent candidate : candidates) {
-            if (performPermissionResolution(candidate.requestId(), optionType)) {
+            if (performPermissionResolution(candidate.requestId(), optionType, note)) {
                 return candidate.requestId();
             }
         }
         return null;
     }
 
-    public boolean performPermissionResolution(String requestId, PermissionOptionKind optionType) {
+    public boolean performPermissionResolution(String requestId, PermissionOptionKind optionType, String note) {
         if (optionType == null) {
             return permissionGate.resolveCancelled(requestId);
         }
@@ -135,7 +135,7 @@ public class PermissionGateService {
             case REJECT_ONCE -> IPermissionGate.Companion.rejectOnce();
             case REJECT_ALWAYS -> IPermissionGate.Companion.rejectAlways();
         };
-        return permissionGate.resolveSelected(requestId, option);
+        return permissionGate.resolveSelected(requestId, option, note != null ? note : "");
     }
 
     public List<ToolCallInfo> findToolCallsForPermission(Events.PermissionRequestedEvent permissionEvent) {

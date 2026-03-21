@@ -4,6 +4,7 @@ import com.agentclientprotocol.model.PermissionOption
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.RequestPermissionResponse
 import com.agentclientprotocol.model.SessionUpdate
+import com.hayden.acp_cdc_ai.acp.AcpChatModel.AddMessage
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator
 import com.hayden.multiagentide.repository.GraphRepository
 import com.hayden.multiagentidelib.agent.AgentModels
@@ -105,7 +106,7 @@ class PermissionGate(
         // Auto-resolve if this tool was previously granted ALLOW_ALWAYS
         if (alwaysAllowedToolNames.contains(toolName)) {
             log.info("Auto-resolving permission for always-allowed tool '{}' requestId={}", toolName, requestId)
-            val deferred = CompletableDeferred<RequestPermissionResponse>()
+            val deferred = CompletableDeferred<IPermissionGate.PermissionResolvedResponse>()
             val autoResolved = IPermissionGate.PendingPermissionRequest(
                 requestId = requestId,
                 originNodeId = originNodeId,
@@ -120,7 +121,7 @@ class PermissionGate(
                 com.agentclientprotocol.model.RequestPermissionOutcome.Selected(allowAlwaysOption.optionId),
                 meta
             )
-            deferred.complete(response)
+            deferred.complete(IPermissionGate.PermissionResolvedResponse(response))
             requestIdToToolName.remove(requestId)
             return autoResolved
         }
@@ -174,7 +175,7 @@ class PermissionGate(
                 }
             }
 
-            val deferred = CompletableDeferred<RequestPermissionResponse>()
+            val deferred = CompletableDeferred<IPermissionGate.PermissionResolvedResponse>()
             val pending = IPermissionGate.PendingPermissionRequest(
                 requestId = requestId,
                 originNodeId = originNodeId,
@@ -201,15 +202,23 @@ class PermissionGate(
 
     }
 
-    override suspend fun awaitResponse(requestId: String): RequestPermissionResponse {
-        val pending = pendingRequests[requestId] ?: return RequestPermissionResponse(
+    override suspend fun awaitResponse(requestId: String, addMessage: AddMessage?): IPermissionGate.PermissionResolvedResponse {
+        val awaited = awaitResponse(requestId);
+        if (awaited.note.isNotBlank())
+            addMessage?.addToSession(awaited.note);
+
+        return awaited
+    }
+
+    override suspend fun awaitResponse(requestId: String): IPermissionGate.PermissionResolvedResponse {
+        val pending = pendingRequests[requestId] ?: return IPermissionGate.PermissionResolvedResponse(RequestPermissionResponse(
             RequestPermissionOutcome.Cancelled,
             null
-        )
+        ))
         return pending.deferred.await()
     }
 
-    override fun resolveSelected(requestId: String, optionId: String?): Boolean {
+    override fun resolveSelected(requestId: String, optionId: String?, note: String): Boolean {
         val pending = pendingRequests.remove(requestId) ?: return false
         val selected = resolveSelectedOption(pending.permissions, optionId)
         val outcome = if (selected == null) {
@@ -227,7 +236,7 @@ class PermissionGate(
         } else {
             requestIdToToolName.remove(requestId)
         }
-        completePending(pending, outcome, selected?.optionId?.toString())
+        completePending(pending, outcome, selected?.optionId?.toString(), note)
         return true
     }
 
@@ -254,10 +263,11 @@ class PermissionGate(
     override fun completePending(
         pending: IPermissionGate.PendingPermissionRequest,
         outcome: RequestPermissionOutcome,
-        selectedOptionId: String?
+        selectedOptionId: String?,
+        note: String
     ) {
         val response = RequestPermissionResponse(outcome, pending.meta)
-        pending.deferred.complete(response)
+        pending.deferred.complete(IPermissionGate.PermissionResolvedResponse(response, note))
 
         val nodeId = pending.nodeId
         if (nodeId != null) {

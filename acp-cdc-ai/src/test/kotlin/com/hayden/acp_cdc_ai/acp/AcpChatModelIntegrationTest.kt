@@ -543,7 +543,7 @@ class AcpChatModelIntegrationTest {
             permissions: List<PermissionOption>,
             meta: JsonElement?
         ): IPermissionGate.PendingPermissionRequest {
-            val deferred = CompletableDeferred<RequestPermissionResponse>()
+            val deferred = CompletableDeferred<IPermissionGate.PermissionResolvedResponse>()
             val request = IPermissionGate.PendingPermissionRequest(
                 requestId = requestId,
                 originNodeId = originNodeId,
@@ -564,17 +564,17 @@ class AcpChatModelIntegrationTest {
             return request
         }
 
-        override suspend fun awaitResponse(requestId: String): RequestPermissionResponse {
+        override suspend fun awaitResponse(requestId: String): IPermissionGate.PermissionResolvedResponse {
             val request = pending[requestId]
             return if (request != null && request.permissions.isNotEmpty()) {
                 val selected = request.permissions[0]
-                RequestPermissionResponse(RequestPermissionOutcome.Selected(selected.optionId))
+                IPermissionGate.PermissionResolvedResponse(RequestPermissionResponse(RequestPermissionOutcome.Selected(selected.optionId)))
             } else {
-                RequestPermissionResponse(RequestPermissionOutcome.Cancelled, null)
+                IPermissionGate.PermissionResolvedResponse(RequestPermissionResponse(RequestPermissionOutcome.Cancelled, null))
             }
         }
 
-        override fun resolveSelected(requestId: String, optionId: String?): Boolean = true
+        override fun resolveSelected(requestId: String, optionId: String?, note: String): Boolean = true
 
         override fun resolveCancelled(requestId: String): Boolean = true
 
@@ -587,9 +587,10 @@ class AcpChatModelIntegrationTest {
         override fun completePending(
             pending: IPermissionGate.PendingPermissionRequest,
             outcome: RequestPermissionOutcome,
-            selectedOptionId: String?
+            selectedOptionId: String?,
+            note: String
         ) {
-            pending.deferred.complete(RequestPermissionResponse(outcome))
+            pending.deferred.complete(IPermissionGate.PermissionResolvedResponse(RequestPermissionResponse(outcome), note))
         }
     }
 }

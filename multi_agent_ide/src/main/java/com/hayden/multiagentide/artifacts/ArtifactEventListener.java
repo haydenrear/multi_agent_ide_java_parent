@@ -82,6 +82,7 @@ public class ArtifactEventListener implements EventListener {
             case Events.NodeDeletedEvent nodeDeletedEvent -> handleEventArtifact(nodeDeletedEvent);
             case Events.ChatSessionCreatedEvent chatSessionCreatedEvent -> handleEventArtifact(chatSessionCreatedEvent);
             case Events.ChatSessionClosedEvent chatSessionClosedEvent -> handleEventArtifact(chatSessionClosedEvent);
+            case Events.ChatSessionResetEvent chatSessionResetEvent -> handleEventArtifact(chatSessionResetEvent);
             case Events.AiFilterSessionEvent aiFilterSessionEvent -> handleEventArtifact(aiFilterSessionEvent);
             case Events.ToolCallEvent toolCallEvent -> handleEventArtifact(toolCallEvent);
             case Events.GuiRenderEvent guiRenderEvent -> handleEventArtifact(guiRenderEvent);
@@ -145,6 +146,7 @@ public class ArtifactEventListener implements EventListener {
             case Events.NodeDeletedEvent ignored -> true;
             case Events.ChatSessionCreatedEvent ignored -> true;
             case Events.ChatSessionClosedEvent ignored -> true;
+            case Events.ChatSessionResetEvent ignored -> true;
             case Events.AiFilterSessionEvent ignored -> true;
             case Events.ToolCallEvent ignored -> true;
             case Events.GuiRenderEvent ignored -> true;

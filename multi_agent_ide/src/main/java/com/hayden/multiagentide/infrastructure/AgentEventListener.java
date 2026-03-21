@@ -153,6 +153,8 @@ public class AgentEventListener implements EventListener {
             }
             case Events.ChatSessionClosedEvent chatSessionClosedEvent -> {
             }
+            case Events.ChatSessionResetEvent chatSessionResetEvent -> {
+            }
             case Events.AiFilterSessionEvent aiFilterSessionEvent -> {
                 log.debug("AI filter session created: policy={} mode={} session={}",
                         aiFilterSessionEvent.policyId(),

@@ -6,6 +6,7 @@ import com.agentclientprotocol.model.PermissionOptionKind
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.RequestPermissionResponse
 import com.agentclientprotocol.model.SessionUpdate
+import com.hayden.acp_cdc_ai.acp.AcpChatModel.AddMessage
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.Events
 import kotlinx.coroutines.CompletableDeferred
@@ -24,12 +25,17 @@ interface IPermissionGate {
         fun approved(): Boolean = this == APPROVED
     }
 
+    data class PermissionResolvedResponse(
+        val requestPermissionResponse: RequestPermissionResponse,
+        val note: String = ""
+    )
+
     data class PendingPermissionRequest(
         val requestId: String,
         val originNodeId: String,
         val toolCallId: String,
         val permissions: List<PermissionOption>,
-        val deferred: CompletableDeferred<RequestPermissionResponse>,
+        val deferred: CompletableDeferred<PermissionResolvedResponse>,
         val meta: JsonElement?,
         val nodeId: String?
     )
@@ -92,7 +98,11 @@ interface IPermissionGate {
         meta: JsonElement?
     ): PendingPermissionRequest
 
-    suspend fun awaitResponse(requestId: String): RequestPermissionResponse
+    suspend fun awaitResponse(requestId: String): PermissionResolvedResponse
+
+    suspend fun awaitResponse(requestId: String, addMessage: AddMessage?): PermissionResolvedResponse {
+        return awaitResponse(requestId)
+    }
 
     companion object {
 
@@ -132,10 +142,18 @@ interface IPermissionGate {
     }
 
     fun resolveSelected(requestId: String, optionId: PermissionOption?): Boolean {
-        return resolveSelected(requestId, optionId?.optionId?.value)
+        return resolveSelected(requestId, optionId?.optionId?.value, "")
     }
 
-    fun resolveSelected(requestId: String, optionId: String?): Boolean
+    fun resolveSelected(requestId: String, optionId: PermissionOption?, note: String): Boolean {
+        return resolveSelected(requestId, optionId?.optionId?.value, note)
+    }
+
+    fun resolveSelected(requestId: String, optionId: String?): Boolean {
+        return resolveSelected(requestId, optionId, "")
+    }
+
+    fun resolveSelected(requestId: String, optionId: String?, note: String): Boolean
 
     fun resolveCancelled(requestId: String): Boolean
 
@@ -148,5 +166,14 @@ interface IPermissionGate {
         pending: PendingPermissionRequest,
         outcome: RequestPermissionOutcome,
         selectedOptionId: String?
+    ) {
+        completePending(pending, outcome, selectedOptionId, "")
+    }
+
+    fun completePending(
+        pending: PendingPermissionRequest,
+        outcome: RequestPermissionOutcome,
+        selectedOptionId: String?,
+        note: String
     )
 }
