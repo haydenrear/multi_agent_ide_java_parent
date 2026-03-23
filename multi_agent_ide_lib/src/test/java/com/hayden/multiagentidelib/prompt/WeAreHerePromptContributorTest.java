@@ -333,51 +333,6 @@ class WeAreHerePromptContributorTest {
     }
 
     @Nested
-    @DisplayName("Review Request")
-    class ReviewRequestTests {
-        
-        @Test
-        @DisplayName("should show review agent position")
-        void shouldShowReviewPosition() {
-            var request = new AgentModels.ReviewRequest(
-                    "Content to review",
-                    "Review criteria",
-                    null, null, null, null
-            );
-            var history = buildTestBlackboardHistory(new BlackboardHistory.History());
-            var context = buildContext(AgentType.REVIEW_AGENT, request, history);
-            
-            String output = contributor.contribute(context);
-            
-            assertThat(output).contains("Available Routing Options");
-            assertThat(output).contains("reviewResult");
-        }
-    }
-
-    @Nested
-    @DisplayName("Merger Request")
-    class MergerRequestTests {
-        
-        @Test
-        @DisplayName("should show merger agent position")
-        void shouldShowMergerPosition() {
-            var request = new AgentModels.MergerRequest(
-                    "Merge context",
-                    "Merge summary",
-                    "Conflict files",
-                    null, null, null, null
-            );
-            var history = buildTestBlackboardHistory(new BlackboardHistory.History());
-            var context = buildContext(AgentType.MERGER_AGENT, request, history);
-            
-            String output = contributor.contribute(context);
-            
-            assertThat(output).contains("Available Routing Options");
-            assertThat(output).contains("mergerResult");
-        }
-    }
-
-    @Nested
     @DisplayName("Loop Detection")
     class LoopDetectionTests {
         

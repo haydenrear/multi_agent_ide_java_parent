@@ -40,10 +40,6 @@ public class WorktreeContextResultDecorator implements DispatchedAgentResultDeco
                     (T) r.toBuilder().collectorResult(withWorktreeContext(r.collectorResult(), context)).build();
             case AgentModels.OrchestratorCollectorRouting r ->
                     (T) r.toBuilder().collectorResult(withWorktreeContext(r.collectorResult(), context)).build();
-            case AgentModels.ReviewRouting r ->
-                    (T) r.toBuilder().reviewResult(withWorktreeContext(r.reviewResult(), context)).build();
-            case AgentModels.MergerRouting r ->
-                    (T) r.toBuilder().mergerResult(withWorktreeContext(r.mergerResult(), context)).build();
             default -> routing;
         };
     }

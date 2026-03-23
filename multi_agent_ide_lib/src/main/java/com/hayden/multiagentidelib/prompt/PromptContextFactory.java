@@ -127,10 +127,6 @@ public class PromptContextFactory {
             }
             case AgentModels.TicketCollectorRequest req -> {
             }
-            case AgentModels.ReviewRequest req -> {
-            }
-            case AgentModels.MergerRequest req -> {
-            }
             case AgentModels.ContextManagerRequest contextManagerRequest -> {
             }
             case AgentModels.PlanningAgentResults planningAgentResults -> {
@@ -157,8 +153,6 @@ public class PromptContextFactory {
                     }
                     case AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest discoveryOrchestratorInterruptRequest -> {
                     }
-                    case AgentModels.InterruptRequest.MergerInterruptRequest mergerInterruptRequest -> {
-                    }
                     case AgentModels.InterruptRequest.OrchestratorCollectorInterruptRequest orchestratorCollectorInterruptRequest -> {
                     }
                     case AgentModels.InterruptRequest.OrchestratorInterruptRequest orchestratorInterruptRequest -> {
@@ -172,8 +166,6 @@ public class PromptContextFactory {
                     case AgentModels.InterruptRequest.PlanningOrchestratorInterruptRequest planningOrchestratorInterruptRequest -> {
                     }
                     case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest questionAnswerInterruptRequest -> {
-                    }
-                    case AgentModels.InterruptRequest.ReviewInterruptRequest reviewInterruptRequest -> {
                     }
                     case AgentModels.InterruptRequest.TicketAgentDispatchInterruptRequest ticketAgentDispatchInterruptRequest -> {
                     }

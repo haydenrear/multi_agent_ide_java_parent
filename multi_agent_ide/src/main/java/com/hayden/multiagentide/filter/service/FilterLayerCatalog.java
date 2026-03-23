@@ -124,8 +124,6 @@ public final class FilterLayerCatalog {
                 AgentModels.InterruptRequest.TicketOrchestratorInterruptRequest.class,
                 AgentModels.InterruptRequest.TicketAgentDispatchInterruptRequest.class,
                 AgentModels.InterruptRequest.TicketCollectorInterruptRequest.class,
-                AgentModels.InterruptRequest.ReviewInterruptRequest.class,
-                AgentModels.InterruptRequest.MergerInterruptRequest.class,
                 AgentModels.InterruptRequest.ContextManagerInterruptRequest.class,
                 AgentModels.InterruptRequest.QuestionAnswerInterruptRequest.class
         ));
@@ -222,22 +220,6 @@ public final class FilterLayerCatalog {
                 AgentType.TICKET_AGENT_DISPATCH,
                 WORKFLOW_AGENT,
                 AgentModels.TicketAgentRequests.class
-        ));
-        registerAction(action(
-                AgentInterfaces.WORKFLOW_AGENT_NAME,
-                AgentInterfaces.ACTION_MERGER_AGENT,
-                AgentInterfaces.METHOD_PERFORM_MERGE,
-                AgentType.MERGER_AGENT,
-                WORKFLOW_AGENT,
-                AgentModels.MergerRequest.class
-        ));
-        registerAction(action(
-                AgentInterfaces.WORKFLOW_AGENT_NAME,
-                AgentInterfaces.ACTION_REVIEW_AGENT,
-                AgentInterfaces.METHOD_PERFORM_REVIEW,
-                AgentType.REVIEW_AGENT,
-                WORKFLOW_AGENT,
-                AgentModels.ReviewRequest.class
         ));
         registerAction(action(
                 AgentInterfaces.WORKFLOW_AGENT_NAME,

@@ -73,9 +73,6 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                                         case AgentModels.InterruptRequest ctx -> {
                                             return new GoalState(ctx, "");
                                         }
-                                        case AgentModels.MergerRequest ctx -> {
-                                            return new GoalState(ctx, "");
-                                        }
                                         case AgentModels.OrchestratorCollectorRequest ctx -> {
                                             return new GoalState(ctx, ctx.goal());
                                         }
@@ -95,9 +92,6 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                                             return new GoalState(ctx, ctx.goal());
                                         }
                                         case AgentModels.ResultsRequest ctx -> {
-                                            return new GoalState(ctx, "");
-                                        }
-                                        case AgentModels.ReviewRequest ctx -> {
                                             return new GoalState(ctx, "");
                                         }
                                         case AgentModels.TicketAgentRequest ctx -> {

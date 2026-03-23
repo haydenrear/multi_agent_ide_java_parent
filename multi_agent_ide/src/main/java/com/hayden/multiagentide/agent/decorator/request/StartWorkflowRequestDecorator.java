@@ -44,8 +44,6 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
             case AgentModels.PlanningCollectorRequest req -> storeRunning(operationContext, workflowGraphService.startPlanningCollector(operationContext, req));
             case AgentModels.TicketOrchestratorRequest req -> storeRunning(operationContext, workflowGraphService.startTicketOrchestrator(operationContext, req));
             case AgentModels.TicketCollectorRequest req -> storeRunning(operationContext, workflowGraphService.startTicketCollector(operationContext, req));
-            case AgentModels.ReviewRequest req -> storeRunning(operationContext, workflowGraphService.startReview(operationContext, req));
-            case AgentModels.MergerRequest req -> storeRunning(operationContext, workflowGraphService.startMerge(operationContext, req));
             case AgentModels.DiscoveryAgentRequest req -> {
                 DiscoveryDispatchAgentNode parent = requireNode(operationContext, req,
                         () -> workflowGraphService.requireDiscoveryDispatch(operationContext));
@@ -107,8 +105,6 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
             case AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest req -> workflowGraphService.handleDiscoveryInterrupt(operationContext, req);
             case AgentModels.InterruptRequest.PlanningOrchestratorInterruptRequest req -> workflowGraphService.handlePlanningInterrupt(operationContext, req);
             case AgentModels.InterruptRequest.TicketOrchestratorInterruptRequest req -> workflowGraphService.handleTicketInterrupt(operationContext, req);
-            case AgentModels.InterruptRequest.ReviewInterruptRequest req -> workflowGraphService.handleReviewInterrupt(operationContext, req);
-            case AgentModels.InterruptRequest.MergerInterruptRequest req -> workflowGraphService.handleMergerInterrupt(operationContext, req);
             case AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest req ->
                     handleInterrupt(operationContext, req,
                             () -> workflowGraphService.requireDiscoveryDispatch(operationContext));

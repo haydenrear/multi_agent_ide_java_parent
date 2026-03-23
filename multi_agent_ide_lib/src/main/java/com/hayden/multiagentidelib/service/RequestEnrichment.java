@@ -87,7 +87,7 @@ public class RequestEnrichment {
             case AgentModels.MergeConflictResult ignored ->
                     findLastFromHistory(history, AgentModels.MergeConflictRequest.class);
             case AgentModels.MergerAgentResult ignored ->
-                    findLastFromHistory(history, AgentModels.MergerRequest.class);
+                    findLastFromHistory(history, AgentModels.AgentRequest.class);
             case AgentModels.DiscoveryAgentResult ignored ->
                     findLastFromHistory(history, AgentModels.DiscoveryAgentRequest.class);
             case AgentModels.DiscoveryCollectorResult ignored ->
@@ -105,7 +105,7 @@ public class RequestEnrichment {
             case AgentModels.PlanningOrchestratorResult ignored ->
                     findLastFromHistory(history, AgentModels.PlanningOrchestratorRequest.class);
             case AgentModels.ReviewAgentResult ignored ->
-                    findLastFromHistory(history, AgentModels.ReviewRequest.class);
+                    findLastFromHistory(history, AgentModels.AgentRequest.class);
             case AgentModels.TicketAgentResult ignored ->
                     findLastFromHistory(history, AgentModels.TicketAgentRequest.class);
             case AgentModels.TicketCollectorResult ignored ->
@@ -148,10 +148,6 @@ public class RequestEnrichment {
                             AgentModels.OrchestratorRequest.class);
             case AgentModels.InterruptRequest interruptRequest ->
                     findParentForInterruptTypes(history, interruptRequest);
-            case AgentModels.MergerRequest ignored ->
-                    findLastFromHistory(history,
-                            AgentModels.AgentRequest.class,
-                            AgentModels.AgentResult.class);
             case AgentModels.OrchestratorCollectorRequest ignored ->
                     findLastFromHistory(history,
                             AgentModels.OrchestratorRequest.class);
@@ -173,10 +169,6 @@ public class RequestEnrichment {
             case AgentModels.PlanningOrchestratorRequest ignored ->
                     findLastFromHistory(history,
                             AgentModels.OrchestratorRequest.class);
-            case AgentModels.ReviewRequest ignored ->
-                    findLastFromHistory(history,
-                            AgentModels.AgentRequest.class,
-                            AgentModels.AgentResult.class);
             case AgentModels.TicketAgentRequest ignored ->
                     findLastFromHistory(history,
                             AgentModels.TicketOrchestratorRequest.class);
@@ -220,8 +212,6 @@ public class RequestEnrichment {
                     findLastFromHistory(history, AgentModels.DiscoveryCollectorRequest.class);
             case AgentModels.InterruptRequest.DiscoveryOrchestratorInterruptRequest ignored ->
                     findLastFromHistory(history, AgentModels.DiscoveryOrchestratorRequest.class);
-            case AgentModels.InterruptRequest.MergerInterruptRequest ignored ->
-                    findLastFromHistory(history, AgentModels.MergerRequest.class);
             case AgentModels.InterruptRequest.OrchestratorCollectorInterruptRequest ignored ->
                     findLastFromHistory(history, AgentModels.OrchestratorCollectorRequest.class);
             case AgentModels.InterruptRequest.OrchestratorInterruptRequest ignored ->
@@ -236,8 +226,6 @@ public class RequestEnrichment {
                     findLastFromHistory(history, AgentModels.PlanningOrchestratorRequest.class);
             case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest ignored ->
                     findLastFromHistory(history, AgentModels.ContextManagerRequest.class);
-            case AgentModels.InterruptRequest.ReviewInterruptRequest ignored ->
-                    findLastFromHistory(history, AgentModels.ReviewRequest.class);
             case AgentModels.InterruptRequest.TicketAgentDispatchInterruptRequest ignored ->
                     findLastFromHistory(history, AgentModels.TicketAgentRequests.class);
             case AgentModels.InterruptRequest.TicketAgentInterruptRequest ignored ->
@@ -322,10 +310,6 @@ public class RequestEnrichment {
             }
             case AgentModels.TicketCollectorRequest req ->
                     (T) enrichTicketCollectorRequest(req, context, parent);
-            case AgentModels.ReviewRequest req ->
-                    (T) enrichReviewRequest(req, context, parent);
-            case AgentModels.MergerRequest req ->
-                    (T) enrichMergerRequest(req, context, parent);
             case AgentModels.DiscoveryAgentRequests req ->
                     (T) enrichDiscoveryAgentRequests(req, context, parent);
             case AgentModels.DiscoveryAgentResults req ->
@@ -544,10 +528,6 @@ public class RequestEnrichment {
                     r.toBuilder().contextId(resolveContextId(context, r, parent)).build();
             case AgentModels.InterruptRequest.TicketAgentDispatchInterruptRequest r ->
                     r.toBuilder().contextId(resolveContextId(context, r, parent)).build();
-            case AgentModels.InterruptRequest.ReviewInterruptRequest r ->
-                    r.toBuilder().contextId(resolveContextId(context, r, parent)).build();
-            case AgentModels.InterruptRequest.MergerInterruptRequest r ->
-                    r.toBuilder().contextId(resolveContextId(context, r, parent)).build();
             case AgentModels.InterruptRequest.ContextManagerInterruptRequest r ->
                     r.toBuilder().contextId(resolveContextId(context, r, parent)).build();
             case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest r ->
@@ -639,20 +619,6 @@ public class RequestEnrichment {
 
     private AgentModels.TicketCollectorRequest enrichTicketCollectorRequest(
             AgentModels.TicketCollectorRequest req, OperationContext context, Artifact.AgentModel parent) {
-        return withEnrichedChildren(req.toBuilder()
-                .contextId(resolveContextId(context, req, parent))
-                .build(), req.children(), context);
-    }
-
-    private AgentModels.ReviewRequest enrichReviewRequest(
-            AgentModels.ReviewRequest req, OperationContext context, Artifact.AgentModel parent) {
-        return withEnrichedChildren(req.toBuilder()
-                .contextId(resolveContextId(context, req, parent))
-                .build(), req.children(), context);
-    }
-
-    private AgentModels.MergerRequest enrichMergerRequest(
-            AgentModels.MergerRequest req, OperationContext context, Artifact.AgentModel parent) {
         return withEnrichedChildren(req.toBuilder()
                 .contextId(resolveContextId(context, req, parent))
                 .build(), req.children(), context);

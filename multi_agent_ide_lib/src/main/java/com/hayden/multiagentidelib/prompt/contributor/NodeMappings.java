@@ -48,10 +48,6 @@ public interface NodeMappings {
         map.put(AgentModels.TicketAgentRequests.class, AgentModels.TicketAgentDispatchRouting.class);
         map.put(AgentModels.TicketCollectorRequest.class, AgentModels.TicketCollectorRouting.class);
 
-        // Review and Merger
-        map.put(AgentModels.ReviewRequest.class, AgentModels.ReviewRouting.class);
-        map.put(AgentModels.MergerRequest.class, AgentModels.MergerRouting.class);
-
         // Context manager
         map.put(AgentModels.ContextManagerRequest.class, AgentModels.ContextManagerResultRouting.class);
 
@@ -149,9 +145,7 @@ public interface NodeMappings {
         m.add(new NodeMapping(AgentModels.TicketCollectorRequest.class, "Ticket Collector", "ticketCollectorRequest"));
         m.add(new NodeMapping(AgentModels.TicketAgentResults.class, "Ticket Agent Results Dispatch", "ticketAgentResults"));
 
-        // Review, Merger, Context Manager
-        m.add(new NodeMapping(AgentModels.ReviewRequest.class, "Review Agent", "reviewRequest"));
-        m.add(new NodeMapping(AgentModels.MergerRequest.class, "Merger Agent", "mergerRequest"));
+        // Context Manager
         m.add(new NodeMapping(AgentModels.ContextManagerRequest.class, "Context Manager", null));
         m.add(new NodeMapping(AgentModels.ContextManagerRoutingRequest.class, "Context Manager Routing Request", "contextOrchestratorRequest"));
         m.add(new NodeMapping(AgentModels.ResultsRequest.class, "Results Request", null));
@@ -172,8 +166,6 @@ public interface NodeMappings {
         m.add(new NodeMapping(InterruptRequest.TicketAgentInterruptRequest.class, "Ticket Agent Interrupt", null));
         m.add(new NodeMapping(InterruptRequest.TicketCollectorInterruptRequest.class, "Ticket Collector Interrupt", null));
         m.add(new NodeMapping(InterruptRequest.TicketAgentDispatchInterruptRequest.class, "Ticket Agent Dispatch Interrupt", null));
-        m.add(new NodeMapping(InterruptRequest.ReviewInterruptRequest.class, "Review Interrupt", null));
-        m.add(new NodeMapping(InterruptRequest.MergerInterruptRequest.class, "Merger Interrupt", null));
         m.add(new NodeMapping(InterruptRequest.ContextManagerInterruptRequest.class, "Context Manager Interrupt", null));
         m.add(new NodeMapping(InterruptRequest.QuestionAnswerInterruptRequest.class, "Question Answer Interrupt", null));
 

@@ -95,13 +95,6 @@ public interface WorkflowAgentGraphNode {
             return "Route to " + phase + " phase";
         }
 
-        // Handle review/merger
-        if (fieldType.getSimpleName().contains("ReviewRequest")) {
-            return "Request code review";
-        }
-        if (fieldType.getSimpleName().contains("MergerRequest")) {
-            return "Request merge resolution";
-        }
         if (fieldType.getSimpleName().contains("ContextManagerRoutingRequest")) {
             return "Request context reconstruction";
         }

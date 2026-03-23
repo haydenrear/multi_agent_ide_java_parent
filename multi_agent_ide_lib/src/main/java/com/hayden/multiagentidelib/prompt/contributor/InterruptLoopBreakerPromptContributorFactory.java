@@ -175,20 +175,6 @@ public class InterruptLoopBreakerPromptContributorFactory implements PromptContr
                     "ticketCollectorRequest"
             );
 
-            // Review and Merger
-            case AgentModels.ReviewRequest ignored -> new InterruptLoopMapping(
-                    InterruptRequest.ReviewInterruptRequest.class,
-                    AgentModels.ReviewRequest.class,
-                    "ReviewAgentResult with review findings",
-                    "reviewResult"
-            );
-            case AgentModels.MergerRequest ignored -> new InterruptLoopMapping(
-                    InterruptRequest.MergerInterruptRequest.class,
-                    AgentModels.MergerRequest.class,
-                    "MergerAgentResult with merge validation",
-                    "mergerResult"
-            );
-
             // Context Manager - dynamically resolved from blackboard history
             case AgentModels.ContextManagerRequest ignored -> resolveContextManagerMapping(context);
             case AgentModels.ContextManagerRoutingRequest ignored -> resolveContextManagerMapping(context);

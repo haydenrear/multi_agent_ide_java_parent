@@ -32,8 +32,6 @@ public interface AgentModelMixin {
         @JsonSubTypes.Type(value = AgentModels.InterruptRequest.TicketAgentInterruptRequest.class),
         @JsonSubTypes.Type(value = AgentModels.InterruptRequest.TicketCollectorInterruptRequest.class),
         @JsonSubTypes.Type(value = AgentModels.InterruptRequest.TicketAgentDispatchInterruptRequest.class),
-        @JsonSubTypes.Type(value = AgentModels.InterruptRequest.ReviewInterruptRequest.class),
-        @JsonSubTypes.Type(value = AgentModels.InterruptRequest.MergerInterruptRequest.class),
         @JsonSubTypes.Type(value = AgentModels.InterruptRequest.ContextManagerInterruptRequest.class),
         @JsonSubTypes.Type(value = AgentModels.InterruptRequest.QuestionAnswerInterruptRequest.class),
         
@@ -53,8 +51,6 @@ public interface AgentModelMixin {
         @JsonSubTypes.Type(value = AgentModels.TicketAgentRequests.class),
         @JsonSubTypes.Type(value = AgentModels.CommitAgentRequest.class),
         @JsonSubTypes.Type(value = AgentModels.TicketCollectorRequest.class),
-        @JsonSubTypes.Type(value = AgentModels.ReviewRequest.class),
-        @JsonSubTypes.Type(value = AgentModels.MergerRequest.class),
         @JsonSubTypes.Type(value = AgentModels.ContextManagerRequest.class),
         
         // Agent Results
@@ -91,8 +87,6 @@ public interface AgentModelMixin {
         @JsonSubTypes.Type(value = AgentModels.TicketAgentRouting.class),
         @JsonSubTypes.Type(value = AgentModels.TicketCollectorRouting.class),
         @JsonSubTypes.Type(value = AgentModels.TicketAgentDispatchRouting.class),
-        @JsonSubTypes.Type(value = AgentModels.ReviewRouting.class),
-        @JsonSubTypes.Type(value = AgentModels.MergerRouting.class),
         @JsonSubTypes.Type(value = AgentModels.ContextManagerRoutingRequest.class),
         @JsonSubTypes.Type(value = AgentModels.ContextManagerResultRouting.class),
         

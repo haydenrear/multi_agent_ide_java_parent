@@ -86,22 +86,6 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
                     workflowGraphService.pendingTicketCollector(operationContext, running, routing);
                 }
             }
-            case AgentModels.ReviewRouting routing -> {
-                ReviewNode running = requireNode(operationContext, routing,
-                        () -> workflowGraphService.requireReviewNode(operationContext));
-                if (running != null) {
-                    workflowGraphService.completeReview(running, routing);
-                }
-            }
-            case AgentModels.MergerRouting routing -> {
-                MergeNode running = requireNode(operationContext, routing,
-                        () -> workflowGraphService.requireMergeNode(operationContext));
-                if (running != null) {
-                    AgentModels.MergerRequest lastRequest = BlackboardHistory.getLastFromHistory(context.operationContext(), AgentModels.MergerRequest.class);
-                    String combinedSummary = resolveMergeSummary(lastRequest, routing);
-                    workflowGraphService.completeMerge(running, routing, combinedSummary);
-                }
-            }
             case AgentModels.DiscoveryAgentRouting routing -> {
                 if (routing.interruptRequest() != null) {
                     GraphNode originNode = requireNode(operationContext, routing,
@@ -315,12 +299,6 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
                     ? requireNode(context, routing, () -> workflowGraphService.requireTicketDispatch(context))
                     : requireNode(context, routing, () -> workflowGraphService.requireTicketOrchestrator(context));
         }
-        if (routing.reviewRequest() != null) {
-            return requireNode(context, routing, () -> workflowGraphService.requireReviewNode(context));
-        }
-        if (routing.mergerRequest() != null) {
-            return requireNode(context, routing, () -> workflowGraphService.requireMergeNode(context));
-        }
         return null;
     }
 
@@ -382,12 +360,6 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
             }
             return requireNode(context, routing, () -> workflowGraphService.requireTicketOrchestrator(context));
         }
-        if (routing.reviewRequest() != null) {
-            return requireNode(context, routing, () -> workflowGraphService.requireReviewNode(context));
-        }
-        if (routing.mergerRequest() != null) {
-            return requireNode(context, routing, () -> workflowGraphService.requireMergeNode(context));
-        }
         return requireNode(context, routing, () -> workflowGraphService.requireOrchestrator(context));
     }
 
@@ -402,18 +374,6 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
 
     private static String routingType(AgentModels.AgentRouting routing) {
         return routing != null ? routing.getClass().getSimpleName() : "UnknownRouting";
-    }
-
-    private static String resolveMergeSummary(
-            AgentModels.MergerRequest request,
-            AgentModels.MergerRouting routing
-    ) {
-        String requestSummary = request != null ? request.prettyPrint(new AgentPretty.AgentSerializationCtx.MergeSummarySerialization()) : "";
-        AgentModels.MergerAgentResult result = routing != null ? routing.mergerResult() : null;
-        String resultSummary = result != null
-                ? result.prettyPrint(new AgentPretty.AgentSerializationCtx.MergeSummarySerialization())
-                : "";
-        return firstNonBlank(requestSummary, resultSummary);
     }
 
     private static String firstNonBlank(String... values) {

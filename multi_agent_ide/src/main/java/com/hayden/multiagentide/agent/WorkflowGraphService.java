@@ -100,14 +100,6 @@ public class WorkflowGraphService {
         return resolveState(context, state -> requireNode(state.orchestratorCollectorNodeId(), CollectorNode.class, "orchestrator collector"));
     }
 
-    public ReviewNode requireReviewNode(OperationContext context) {
-        return resolveState(context, state -> requireNode(state.reviewNodeId(), ReviewNode.class, "review"));
-    }
-
-    public MergeNode requireMergeNode(OperationContext context) {
-        return resolveState(context, state -> requireNode(state.mergeNodeId(), MergeNode.class, "merge"));
-    }
-
     public void emitErrorEvent(GraphNode node, String message) {
         if (node == null) {
             return;
@@ -833,115 +825,6 @@ public class WorkflowGraphService {
         markNodePending(updatedParent);
     }
 
-    public ReviewNode startReview(OperationContext context, AgentModels.ReviewRequest input) {
-        return resolveState(context, state -> {
-            String parentId = resolveReviewParentId(input, state);
-            ReviewNode reviewNode = nodeFactory.reviewNode(
-                    parentId,
-                    Objects.toString(input.content(), ""),
-                    Objects.toString(input.content(), ""),
-                    "agent-review",
-                    input.contextId()
-            );
-            computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, reviewNode);
-            updateState(context, s -> s.withReviewNodeId(reviewNode.nodeId()));
-            return markNodeRunning(reviewNode);
-        });
-    }
-
-    public void completeReview(ReviewNode running, AgentModels.ReviewRouting response) {
-        AgentModels.ReviewAgentResult reviewResult = response != null ? response.reviewResult() : null;
-        String reviewOutput = reviewResult != null ? reviewResult.output() : "";
-        boolean approved = reviewOutput.toLowerCase().contains("approved");
-        boolean humanNeeded = reviewOutput.toLowerCase().contains("human");
-        ReviewNode withResult = running
-                .withResult(reviewResult)
-                .withReviewDecision(approved, reviewOutput);
-        persistNode(withResult);
-        if (handleRoutingInterrupt(withResult, response != null ? response.interruptRequest() : null, reviewOutput)) {
-            return;
-        }
-        if (humanNeeded && !approved) {
-            ReviewNode waiting = updateNodeStatus(
-                    withResult,
-                    Events.NodeStatus.WAITING_INPUT
-            );
-            persistNode(waiting);
-            computationGraphOrchestrator.emitStatusChangeEvent(
-                    waiting.nodeId(),
-                    Events.NodeStatus.RUNNING,
-                    Events.NodeStatus.WAITING_INPUT,
-                    "Human feedback requested"
-            );
-            computationGraphOrchestrator.emitReviewRequestedEvent(
-                    waiting.nodeId(),
-                    waiting.nodeId(),
-                    Events.ReviewType.HUMAN,
-                    waiting.reviewContent()
-            );
-        } else {
-            markNodeCompleted(withResult);
-        }
-    }
-
-    public void handleReviewInterrupt(
-            OperationContext context,
-            AgentModels.InterruptRequest.ReviewInterruptRequest request
-    ) {
-        resolveState(context, state -> {
-            if (state.reviewNodeId() == null) {
-                return null;
-            }
-            findNode(state.reviewNodeId(), ReviewNode.class)
-                    .ifPresent(node -> handleRoutingInterrupt(node, request, request != null ? request.reason() : ""));
-            return null;
-        });
-    }
-
-    public MergeNode startMerge(OperationContext context, AgentModels.MergerRequest input) {
-        return resolveState(context, state -> {
-            String parentId = resolveMergeParentId(input, state);
-            MergeNode mergeNode = nodeFactory.mergeNode(
-                    parentId,
-                    Objects.toString(input.mergeSummary(), ""),
-                    Objects.toString(input.mergeSummary(), ""),
-                    Map.of(),
-                    input.contextId()
-            );
-            computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, mergeNode);
-            updateState(context, s -> s.withMergeNodeId(mergeNode.nodeId()));
-            return markNodeRunning(mergeNode);
-        });
-    }
-
-    public void completeMerge(
-            MergeNode running,
-            AgentModels.MergerRouting response,
-            String combinedSummary
-    ) {
-        AgentModels.MergerAgentResult mergeResult = response != null ? response.mergerResult() : null;
-        MergeNode withResult = running.withResult(mergeResult).withContent(combinedSummary);
-        persistNode(withResult);
-        if (handleRoutingInterrupt(withResult, response != null ? response.interruptRequest() : null, combinedSummary)) {
-            return;
-        }
-        markNodeCompleted(withResult);
-    }
-
-    public void handleMergerInterrupt(
-            OperationContext context,
-            AgentModels.InterruptRequest.MergerInterruptRequest request
-    ) {
-        resolveState(context, state -> {
-            if (state.mergeNodeId() == null) {
-                return null;
-            }
-            findNode(state.mergeNodeId(), MergeNode.class)
-                    .ifPresent(node -> handleRoutingInterrupt(node, request, request != null ? request.reason() : ""));
-            return null;
-        });
-    }
-
     private <T extends GraphNode> T startChildNode(String parentId, T node) {
         computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, node);
         return markNodeRunning(node);
@@ -1277,51 +1160,6 @@ public class WorkflowGraphService {
         List<GraphNode> children = computationGraphOrchestrator.getChildNodes(parentNodeId);
         long count = children.stream().filter(type::isInstance).count();
         return (int) count + 1;
-    }
-
-    private String resolveReviewParentId(AgentModels.ReviewRequest input, com.hayden.multiagentidelib.agent.WorkflowGraphState state) {
-        if (input.returnToTicketCollector() != null) {
-            return firstNonBlank(state.ticketOrchestratorNodeId(), state.ticketCollectorNodeId(), state.orchestratorNodeId());
-        }
-        if (input.returnToPlanningCollector() != null) {
-            return firstNonBlank(state.planningOrchestratorNodeId(), state.planningCollectorNodeId(), state.orchestratorNodeId());
-        }
-        if (input.returnToDiscoveryCollector() != null) {
-            return firstNonBlank(state.discoveryOrchestratorNodeId(), state.discoveryCollectorNodeId(), state.orchestratorNodeId());
-        }
-        if (input.returnToOrchestratorCollector() != null) {
-            return firstNonBlank(state.orchestratorCollectorNodeId(), state.orchestratorNodeId());
-        }
-        return firstNonBlank(
-                state.ticketOrchestratorNodeId(),
-                state.planningOrchestratorNodeId(),
-                state.discoveryOrchestratorNodeId(),
-                state.orchestratorNodeId()
-        );
-    }
-
-    private String resolveMergeParentId(AgentModels.MergerRequest input, com.hayden.multiagentidelib.agent.WorkflowGraphState state) {
-        if (state.reviewNodeId() != null && !state.reviewNodeId().isBlank()) {
-            return state.reviewNodeId();
-        }
-        if (input.returnToTicketCollector() != null) {
-            return firstNonBlank(state.ticketOrchestratorNodeId(), state.ticketCollectorNodeId(), state.orchestratorNodeId());
-        }
-        if (input.returnToPlanningCollector() != null) {
-            return firstNonBlank(state.planningOrchestratorNodeId(), state.planningCollectorNodeId(), state.orchestratorNodeId());
-        }
-        if (input.returnToDiscoveryCollector() != null) {
-            return firstNonBlank(state.discoveryOrchestratorNodeId(), state.discoveryCollectorNodeId(), state.orchestratorNodeId());
-        }
-        if (input.returnToOrchestratorCollector() != null) {
-            return firstNonBlank(state.orchestratorCollectorNodeId(), state.orchestratorNodeId());
-        }
-        return firstNonBlank(
-                state.ticketOrchestratorNodeId(),
-                state.planningOrchestratorNodeId(),
-                state.discoveryOrchestratorNodeId(),
-                state.orchestratorNodeId()
-        );
     }
 
     private String resolveNodeId(OperationContext context) {

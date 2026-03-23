@@ -303,20 +303,6 @@ public class WeAreHerePromptContributor implements PromptContributor {
         templates.put(AgentModels.TicketAgentResults.class, """
             **Happy path:** Set `ticketCollectorRequest` to consolidate ticket results.""");
 
-        templates.put(AgentModels.ReviewRequest.class, """
-            **Return routes:** The request includes `returnTo*` fields indicating which collector
-            invoked you. Route back to the appropriate collector after completing your review.
-
-            **Happy path:** Set `reviewResult` with your review findings, then route back to
-            the originating collector using the corresponding `*CollectorRequest` field.""");
-
-        templates.put(AgentModels.MergerRequest.class, """
-            **Return routes:** The request includes `returnTo*` fields indicating which collector
-            invoked you. Route back to the appropriate collector after completing your merge validation.
-
-            **Happy path:** Set `mergerResult` with your merge findings, then route back to
-            the originating collector using the corresponding `*CollectorRequest` field.""");
-
         templates.put(AgentModels.ContextManagerRoutingRequest.class, """
             **Happy path:** Provide a concise `reason` and pick the most appropriate `type`
             (INTROSPECT_AGENT_CONTEXT or PROCEED).""");
@@ -417,8 +403,6 @@ public class WeAreHerePromptContributor implements PromptContributor {
         args.put("node_orchestrator_collector", nodeDisplayFor(AgentModels.OrchestratorCollectorRequest.class, currentRequestType, visitedTypes));
 
         // Side nodes (can be reached from collectors)
-        args.put("node_review", nodeDisplayFor(AgentModels.ReviewRequest.class, currentRequestType, visitedTypes));
-        args.put("node_merger", nodeDisplayFor(AgentModels.MergerRequest.class, currentRequestType, visitedTypes));
         args.put("node_context_manager", nodeDisplayFor(AgentModels.ContextManagerRequest.class, currentRequestType, visitedTypes));
 
         // Execution history

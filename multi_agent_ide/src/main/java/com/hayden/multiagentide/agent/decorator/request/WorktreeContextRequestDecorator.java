@@ -109,8 +109,6 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             case AgentModels.MergeConflictRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.TicketCollectorRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.TicketAgentResults r -> r.toBuilder().worktreeContext(worktreeContext).build();
-            case AgentModels.ReviewRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
-            case AgentModels.MergerRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.ContextManagerRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.ContextManagerRoutingRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.InterruptRequest.OrchestratorInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
@@ -127,8 +125,6 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             case AgentModels.InterruptRequest.TicketAgentInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.InterruptRequest.TicketCollectorInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.InterruptRequest.TicketAgentDispatchInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
-            case AgentModels.InterruptRequest.ReviewInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
-            case AgentModels.InterruptRequest.MergerInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.InterruptRequest.ContextManagerInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();
             case AgentModels.AiFilterRequest r -> r.toBuilder().worktreeContext(worktreeContext).build();

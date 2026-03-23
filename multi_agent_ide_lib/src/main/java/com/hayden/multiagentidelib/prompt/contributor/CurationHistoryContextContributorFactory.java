@@ -480,8 +480,6 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                             b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.DiscoveryOrchestratorRequest discoveryOrchestratorRequest ->
                             b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
-                    case AgentModels.MergerRequest mergerRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest ->
                             b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.OrchestratorRequest orchestratorRequest ->
@@ -495,8 +493,6 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     case AgentModels.PlanningOrchestratorRequest planningOrchestratorRequest ->
                             b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.ResultsRequest resultsRequest ->
-                            b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
-                    case AgentModels.ReviewRequest reviewRequest ->
                             b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.TicketAgentRequest ticketAgentRequest ->
                             b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
@@ -651,10 +647,6 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             case AgentModels.ContextManagerRequest ignored ->
                     addAllTypes(allowed);
             case AgentModels.ContextManagerRoutingRequest ignored ->
-                    addAllTypes(allowed);
-            case AgentModels.ReviewRequest ignored ->
-                    addAllTypes(allowed);
-            case AgentModels.MergerRequest ignored ->
                     addAllTypes(allowed);
             case AgentModels.InterruptRequest ignored ->
                     addAllTypes(allowed);

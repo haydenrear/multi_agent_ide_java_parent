@@ -147,20 +147,6 @@ public interface AgentInterfaces {
                     TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR,
                     AgentModels.TicketOrchestratorRequest.class, AgentModels.TicketOrchestratorRouting.class, AgentModels.TicketOrchestratorResult.class);
 
-            AgentActionMetadata<AgentModels.MergerRequest, AgentModels.MergerRouting, AgentModels.MergerAgentResult>
-                    PERFORM_MERGE = new AgentActionMetadata<>(
-                    AgentType.MERGER_AGENT, WORKFLOW_AGENT_NAME,
-                    ACTION_MERGER_AGENT, METHOD_PERFORM_MERGE,
-                    TEMPLATE_WORKFLOW_MERGER,
-                    AgentModels.MergerRequest.class, AgentModels.MergerRouting.class, AgentModels.MergerAgentResult.class);
-
-            AgentActionMetadata<AgentModels.ReviewRequest, AgentModels.ReviewRouting, AgentModels.ReviewAgentResult>
-                    PERFORM_REVIEW = new AgentActionMetadata<>(
-                    AgentType.REVIEW_AGENT, WORKFLOW_AGENT_NAME,
-                    ACTION_REVIEW_AGENT, METHOD_PERFORM_REVIEW,
-                    TEMPLATE_WORKFLOW_REVIEW,
-                    AgentModels.ReviewRequest.class, AgentModels.ReviewRouting.class, AgentModels.ReviewAgentResult.class);
-
             // ── Dispatch LLM calls (post-subprocess routing) ──
 
             AgentActionMetadata<AgentModels.DiscoveryAgentResults, AgentModels.DiscoveryAgentDispatchRouting, AgentModels.AgentResult>
@@ -329,10 +315,7 @@ public interface AgentInterfaces {
     String ACTION_TICKET_ORCHESTRATOR = "ticket-orchestrator";
     String ACTION_TICKET_DISPATCH = "ticket-dispatch";
     String ACTION_TICKET_INTERRUPT = "ticket-interrupt";
-    String ACTION_MERGER_AGENT = "merger-agent";
-    String ACTION_MERGER_INTERRUPT = "merger-interrupt";
     String ACTION_REVIEW_AGENT = "review-agent";
-    String ACTION_REVIEW_INTERRUPT = "review-interrupt";
     String ACTION_TICKET_COLLECTOR_ROUTING_BRANCH = "ticket-collector-routing-branch";
     String ACTION_TICKET_AGENT_INTERRUPT = "ticket-agent-interrupt";
     String ACTION_TICKET_AGENT = "ticket-agent";
@@ -364,14 +347,10 @@ public interface AgentInterfaces {
     String METHOD_ORCHESTRATE_TICKET_EXECUTION = "orchestrateTicketExecution";
     String METHOD_DISPATCH_TICKET_AGENT_REQUESTS = "dispatchTicketAgentRequests";
     String METHOD_HANDLE_TICKET_INTERRUPT = "handleTicketInterrupt";
-    String METHOD_PERFORM_MERGE = "performMerge";
-    String METHOD_PERFORM_REVIEW = "performReview";
-    String METHOD_HANDLE_REVIEW_INTERRUPT = "handleReviewInterrupt";
     String METHOD_HANDLE_TICKET_COLLECTOR_BRANCH = "handleTicketCollectorBranch";
     String METHOD_HANDLE_DISCOVERY_COLLECTOR_BRANCH = "handleDiscoveryCollectorBranch";
     String METHOD_HANDLE_ORCHESTRATOR_COLLECTOR_BRANCH = "handleOrchestratorCollectorBranch";
     String METHOD_HANDLE_PLANNING_COLLECTOR_BRANCH = "handlePlanningCollectorBranch";
-    String METHOD_HANDLE_MERGER_INTERRUPT = "handleMergerInterrupt";
     String METHOD_TRANSITION_TO_INTERRUPT_STATE = "transitionToInterruptState";
     String METHOD_RUN_TICKET_AGENT = "runTicketAgent";
     String METHOD_RUN_PLANNING_AGENT = "runPlanningAgent";
@@ -394,7 +373,6 @@ public interface AgentInterfaces {
     String TEMPLATE_WORKFLOW_PLANNING_DISPATCH = "workflow/planning_dispatch";
     String TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR = "workflow/ticket_orchestrator";
     String TEMPLATE_WORKFLOW_TICKET_DISPATCH = "workflow/ticket_dispatch";
-    String TEMPLATE_WORKFLOW_MERGER = "workflow/merger";
     String TEMPLATE_WORKFLOW_REVIEW = "workflow/review";
     String TEMPLATE_WORKFLOW_TICKET_AGENT = "workflow/ticket_agent";
     String TEMPLATE_WORKFLOW_PLANNING_AGENT = "workflow/planning_agent";
@@ -1101,30 +1079,6 @@ public interface AgentInterfaces {
                             ToolContext.empty()
                     );
                 }
-                case AgentModels.InterruptRequest.ReviewInterruptRequest ignored -> {
-                    AgentModels.ReviewRequest lastRequest =
-                            BlackboardHistory.getLastFromHistory(context, AgentModels.ReviewRequest.class);
-                    yield new InterruptRouteConfig(
-                            AgentType.REVIEW_AGENT,
-                            lastRequest,
-                            workflowGraphService.requireReviewNode(context),
-                            TEMPLATE_WORKFLOW_REVIEW,
-                            mapReview(lastRequest),
-                            ToolContext.empty()
-                    );
-                }
-                case AgentModels.InterruptRequest.MergerInterruptRequest ignored -> {
-                    AgentModels.MergerRequest lastRequest =
-                            BlackboardHistory.getLastFromHistory(context, AgentModels.MergerRequest.class);
-                    yield new InterruptRouteConfig(
-                            AgentType.MERGER_AGENT,
-                            lastRequest,
-                            workflowGraphService.requireMergeNode(context),
-                            TEMPLATE_WORKFLOW_MERGER,
-                            mapMerge(lastRequest),
-                            ToolContext.empty()
-                    );
-                }
                 case AgentModels.InterruptRequest.ContextManagerInterruptRequest cmRequest -> {
                     AgentModels.ContextManagerRequest lastRequest =
                             BlackboardHistory.getLastFromHistory(context, AgentModels.ContextManagerRequest.class);
@@ -1195,39 +1149,6 @@ public interface AgentInterfaces {
             Map<String, Object> model = new HashMap<>();
             Optional.ofNullable(goal).ifPresent(g -> model.put("goal", g));
             return model;
-        }
-
-        private static Map<String, Object> mapReview(AgentModels.ReviewRequest request) {
-            if (request == null) {
-                return Map.of();
-            }
-            return Map.of(
-                    "content", request.content(),
-                    "criteria", request.criteria(),
-                    "returnRoute", renderReturnRoute(
-                            request.returnToOrchestratorCollector(),
-                            request.returnToDiscoveryCollector(),
-                            request.returnToPlanningCollector(),
-                            request.returnToTicketCollector()
-                    )
-            );
-        }
-
-        private static Map<String, Object> mapMerge(AgentModels.MergerRequest request) {
-            if (request == null) {
-                return Map.of();
-            }
-            return Map.of(
-                    "mergeContext", request.mergeContext(),
-                    "mergeSummary", request.mergeSummary(),
-                    "conflictFiles", request.conflictFiles(),
-                    "returnRoute", renderReturnRoute(
-                            request.returnToOrchestratorCollector(),
-                            request.returnToDiscoveryCollector(),
-                            request.returnToPlanningCollector(),
-                            request.returnToTicketCollector()
-                    )
-            );
         }
 
         @Action
@@ -2159,160 +2080,6 @@ public interface AgentInterfaces {
                     multiAgentAgentName(),
                     ACTION_TICKET_DISPATCH,
                     METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
-                    lastRequest
-            );
-        }
-
-        @Action(canRerun = true)
-        public AgentModels.MergerRouting performMerge(
-                AgentModels.MergerRequest input,
-                OperationContext context
-        ) {
-            AgentModels.AgentRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.AgentRequest.class);
-            if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Merger request not found - cannot perform merge.",
-                        METHOD_PERFORM_MERGE,
-                        AgentModels.MergerRequest.class,
-                        1
-                );
-            }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_MERGER_AGENT,
-                    METHOD_PERFORM_MERGE,
-                    lastRequest
-            );
-            String returnRoute = renderReturnRoute(
-                    input.returnToOrchestratorCollector(),
-                    input.returnToDiscoveryCollector(),
-                    input.returnToPlanningCollector(),
-                    input.returnToTicketCollector()
-            );
-            Map<String, Object> mergeContext = Map.of(
-                    "mergeContext", input.mergeContext(),
-                    "mergeSummary", input.mergeSummary(),
-                    "conflictFiles", input.conflictFiles(),
-                    "returnRoute", returnRoute
-            );
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.MERGER_AGENT,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_MERGER_AGENT,
-                    METHOD_PERFORM_MERGE,
-                    TEMPLATE_WORKFLOW_MERGER,
-                    mergeContext
-            );
-
-            AgentModels.MergerRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_MERGER,
-                    promptContext,
-                    mergeContext,
-                    buildToolContext(
-                            AgentType.MERGER_AGENT,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_MERGER_AGENT,
-                            METHOD_PERFORM_MERGE,
-                            TEMPLATE_WORKFLOW_MERGER,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.MergerRouting.class,
-                    context
-            );
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_MERGER_AGENT,
-                    METHOD_PERFORM_MERGE,
-                    lastRequest
-            );
-        }
-
-        @Action(canRerun = true)
-        public AgentModels.ReviewRouting performReview(
-                AgentModels.ReviewRequest input,
-                OperationContext context
-        ) {
-            AgentModels.AgentRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.AgentRequest.class);
-            if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Review request not found - cannot perform review.",
-                        METHOD_PERFORM_REVIEW,
-                        AgentModels.ReviewRequest.class,
-                        1
-                );
-            }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_REVIEW_AGENT,
-                    METHOD_PERFORM_REVIEW,
-                    lastRequest
-            );
-            String returnRoute = renderReturnRoute(
-                    input.returnToOrchestratorCollector(),
-                    input.returnToDiscoveryCollector(),
-                    input.returnToPlanningCollector(),
-                    input.returnToTicketCollector()
-            );
-            Map<String, Object> model = Map.of(
-                    "content", input.content(),
-                    "criteria", input.criteria(),
-                    "returnRoute", returnRoute
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.REVIEW_AGENT,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_REVIEW_AGENT,
-                    METHOD_PERFORM_REVIEW,
-                    TEMPLATE_WORKFLOW_REVIEW,
-                    model
-            );
-
-            AgentModels.ReviewRouting response = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_REVIEW,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.REVIEW_AGENT,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_REVIEW_AGENT,
-                            METHOD_PERFORM_REVIEW,
-                            TEMPLATE_WORKFLOW_REVIEW,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.ReviewRouting.class,
-                    context
-            );
-            return decorateRouting(
-                    response,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_REVIEW_AGENT,
-                    METHOD_PERFORM_REVIEW,
                     lastRequest
             );
         }

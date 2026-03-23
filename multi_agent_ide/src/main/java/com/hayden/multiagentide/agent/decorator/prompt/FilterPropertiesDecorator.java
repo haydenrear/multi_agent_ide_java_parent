@@ -21,8 +21,6 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             DiscoveryRoute.class,
             PlanningRoute.class,
             TicketRoute.class,
-            ReviewRoute.class,
-            MergerRoute.class,
             ContextManagerRoute.class,
             OrchestratorCollectorRoute.class,
             DiscoveryCollectorRoute.class,
@@ -32,14 +30,6 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             PlanningDispatchRoute.class,
             TicketDispatchRoute.class
     );
-    private static final Set<Class<? extends Annotation>> REVIEW_MERGER_RETURN_ROUTE_ANNOTATIONS = Set.of(
-            OrchestratorCollectorRoute.class,
-            DiscoveryCollectorRoute.class,
-            PlanningCollectorRoute.class,
-            TicketCollectorRoute.class,
-            ContextManagerRoute.class
-    );
-
     private final ConcurrentMap<String, Events.InterruptRequestEvent> interruptEvents = new ConcurrentHashMap<>();
 
     public void storeEvent(Events.InterruptRequestEvent event) {
@@ -60,22 +50,6 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
         if (ctx == null || ctx.templateOperations() == null)
             return ctx;
         if (ctx.promptContext() == null) {
-            return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
-        }
-        if (ctx.promptContext().currentRequest() instanceof AgentModels.ReviewRequest
-                || ctx.promptContext().currentRequest() instanceof AgentModels.MergerRequest) {
-            Class<? extends Annotation> targetRoute = resolveReviewMergerTargetRoute(ctx.promptContext().currentRequest());
-            if (targetRoute == null) {
-                return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
-            }
-
-            Set<Class<? extends Annotation>> toFilter = new LinkedHashSet<>(REVIEW_MERGER_RETURN_ROUTE_ANNOTATIONS);
-            toFilter.remove(targetRoute);
-            toFilter.remove(ContextManagerRoute.class);
-            for (Class<? extends Annotation> annotation : toFilter) {
-                operations = operations.withAnnotationFilter(annotation);
-            }
-
             return ctx.withTemplateOperations(operations.withAnnotationFilter(SkipPropertyFilter.class));
         }
         if (!(ctx.promptContext().currentRequest() instanceof AgentModels.InterruptRequest)) {
@@ -130,8 +104,6 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case AgentModels.DiscoveryOrchestratorRequest ignored -> DiscoveryRoute.class;
             case AgentModels.PlanningOrchestratorRequest ignored -> PlanningRoute.class;
             case AgentModels.TicketOrchestratorRequest ignored -> TicketRoute.class;
-            case AgentModels.ReviewRequest ignored -> ReviewRoute.class;
-            case AgentModels.MergerRequest ignored -> MergerRoute.class;
             case AgentModels.ContextManagerRequest ignored -> ContextManagerRoute.class;
             case AgentModels.ContextManagerRoutingRequest ignored -> ContextManagerRoute.class;
             case AgentModels.OrchestratorCollectorRequest ignored -> OrchestratorCollectorRoute.class;
@@ -167,8 +139,8 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case DISCOVERY_ORCHESTRATOR -> DiscoveryRoute.class;
             case PLANNING_ORCHESTRATOR -> PlanningRoute.class;
             case TICKET_ORCHESTRATOR -> TicketRoute.class;
-            case REVIEW_AGENT, REVIEW_RESOLUTION_AGENT -> ReviewRoute.class;
-            case MERGER_AGENT -> MergerRoute.class;
+            case REVIEW_AGENT, REVIEW_RESOLUTION_AGENT -> null;
+            case MERGER_AGENT -> null;
             case CONTEXT_MANAGER -> ContextManagerRoute.class;
             case ORCHESTRATOR_COLLECTOR -> OrchestratorCollectorRoute.class;
             case DISCOVERY_COLLECTOR -> DiscoveryCollectorRoute.class;
@@ -178,22 +150,6 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case PLANNING_AGENT_DISPATCH -> PlanningDispatchRoute.class;
             case TICKET_AGENT_DISPATCH -> TicketDispatchRoute.class;
             case ALL, DISCOVERY_AGENT, PLANNING_AGENT, TICKET_AGENT, COMMIT_AGENT, MERGE_CONFLICT_AGENT, AI_FILTER, AI_PROPAGATOR, AI_TRANSFORMER -> null;
-        };
-    }
-
-    private static Class<? extends Annotation> resolveReviewMergerTargetRoute(AgentModels.AgentRequest request) {
-        return switch (request) {
-            case AgentModels.ReviewRequest reviewRequest -> routeFromCollectorRequest(
-                    reviewRequest.returnToOrchestratorCollector(),
-                    reviewRequest.returnToDiscoveryCollector(),
-                    reviewRequest.returnToPlanningCollector(),
-                    reviewRequest.returnToTicketCollector());
-            case AgentModels.MergerRequest mergerRequest -> routeFromCollectorRequest(
-                    mergerRequest.returnToOrchestratorCollector(),
-                    mergerRequest.returnToDiscoveryCollector(),
-                    mergerRequest.returnToPlanningCollector(),
-                    mergerRequest.returnToTicketCollector());
-            default -> null;
         };
     }
 

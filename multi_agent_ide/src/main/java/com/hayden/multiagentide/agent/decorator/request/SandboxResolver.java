@@ -194,10 +194,6 @@ public class SandboxResolver {
             }
             case AgentModels.MergeConflictRequest mergeConflictRequest -> {
             }
-            case AgentModels.MergerRequest mergerRequest -> {
-            }
-            case AgentModels.ReviewRequest reviewRequest -> {
-            }
         }
 
         return null;

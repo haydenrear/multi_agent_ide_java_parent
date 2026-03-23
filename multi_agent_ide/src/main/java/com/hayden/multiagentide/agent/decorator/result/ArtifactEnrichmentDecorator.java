@@ -39,8 +39,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .planningCollectorRequest(enrichRequest(routing.planningCollectorRequest(), operationContext))
                             .ticketOrchestratorRequest(enrichRequest(routing.ticketOrchestratorRequest(), operationContext))
                             .ticketCollectorRequest(enrichRequest(routing.ticketCollectorRequest(), operationContext))
-                            .reviewRequest(enrichRequest(routing.reviewRequest(), operationContext))
-                            .mergerRequest(enrichRequest(routing.mergerRequest(), operationContext))
                             .planningAgentRequest(enrichRequest(routing.planningAgentRequest(), operationContext))
                             .planningAgentRequests(enrichRequest(routing.planningAgentRequests(), operationContext))
                             .planningAgentResults(enrichRequest(routing.planningAgentResults(), operationContext))
@@ -69,8 +67,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .orchestratorRequest(enrichRequest(routing.orchestratorRequest(), operationContext))
                             .discoveryRequest(enrichRequest(routing.discoveryRequest(), operationContext))
                             .planningRequest(enrichRequest(routing.planningRequest(), operationContext))
-                            .reviewRequest(enrichRequest(routing.reviewRequest(), operationContext))
-                            .mergerRequest(enrichRequest(routing.mergerRequest(), operationContext))
                             .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
             case AgentModels.DiscoveryOrchestratorRouting routing ->
@@ -80,23 +76,11 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .collectorRequest(enrichRequest(routing.collectorRequest(), operationContext))
                             .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
-            case AgentModels.MergerRouting routing ->
-                    (T) routing.toBuilder()
-                            .interruptRequest(enrichRequest(routing.interruptRequest(), operationContext))
-                            .mergerResult(enrichResult(routing.mergerResult(), operationContext))
-                            .orchestratorCollectorRequest(enrichRequest(routing.orchestratorCollectorRequest(), operationContext))
-                            .discoveryCollectorRequest(enrichRequest(routing.discoveryCollectorRequest(), operationContext))
-                            .planningCollectorRequest(enrichRequest(routing.planningCollectorRequest(), operationContext))
-                            .ticketCollectorRequest(enrichRequest(routing.ticketCollectorRequest(), operationContext))
-                            .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
-                            .build();
             case AgentModels.OrchestratorCollectorRouting routing ->
                     (T) routing.toBuilder()
                             .interruptRequest(enrichRequest(routing.interruptRequest(), operationContext))
                             .collectorResult(enrichResult(routing.collectorResult(), operationContext))
                             .orchestratorRequest(enrichRequest(routing.orchestratorRequest(), operationContext))
-                            .reviewRequest(enrichRequest(routing.reviewRequest(), operationContext))
-                            .mergerRequest(enrichRequest(routing.mergerRequest(), operationContext))
                             .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
             case AgentModels.OrchestratorRouting routing ->
@@ -123,8 +107,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .interruptRequest(enrichRequest(routing.interruptRequest(), operationContext))
                             .collectorResult(enrichResult(routing.collectorResult(), operationContext))
                             .planningRequest(enrichRequest(routing.planningRequest(), operationContext))
-                            .reviewRequest(enrichRequest(routing.reviewRequest(), operationContext))
-                            .mergerRequest(enrichRequest(routing.mergerRequest(), operationContext))
                             .ticketOrchestratorRequest(enrichRequest(routing.ticketOrchestratorRequest(), operationContext))
                             .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
@@ -133,16 +115,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .interruptRequest(enrichRequest(routing.interruptRequest(), operationContext))
                             .agentRequests(enrichRequest(routing.agentRequests(), operationContext))
                             .collectorRequest(enrichRequest(routing.collectorRequest(), operationContext))
-                            .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
-                            .build();
-            case AgentModels.ReviewRouting routing ->
-                    (T) routing.toBuilder()
-                            .interruptRequest(enrichRequest(routing.interruptRequest(), operationContext))
-                            .reviewResult(enrichResult(routing.reviewResult(), operationContext))
-                            .orchestratorCollectorRequest(enrichRequest(routing.orchestratorCollectorRequest(), operationContext))
-                            .discoveryCollectorRequest(enrichRequest(routing.discoveryCollectorRequest(), operationContext))
-                            .planningCollectorRequest(enrichRequest(routing.planningCollectorRequest(), operationContext))
-                            .ticketCollectorRequest(enrichRequest(routing.ticketCollectorRequest(), operationContext))
                             .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
             case AgentModels.TicketAgentDispatchRouting routing ->
@@ -163,8 +135,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .ticketRequest(enrichRequest(routing.ticketRequest(), operationContext))
                             .orchestratorCollectorRequest(enrichRequest(routing.orchestratorCollectorRequest(), operationContext))
                             .orchestratorRequest(enrichRequest(routing.orchestratorRequest(), operationContext))
-                            .reviewRequest(enrichRequest(routing.reviewRequest(), operationContext))
-                            .mergerRequest(enrichRequest(routing.mergerRequest(), operationContext))
                             .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
             case AgentModels.TicketOrchestratorRouting routing ->
@@ -180,8 +150,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .discoveryOrchestratorRequest(enrichRequest(routing.discoveryOrchestratorRequest(), operationContext))
                             .planningOrchestratorRequest(enrichRequest(routing.planningOrchestratorRequest(), operationContext))
                             .ticketOrchestratorRequest(enrichRequest(routing.ticketOrchestratorRequest(), operationContext))
-                            .reviewRequest(enrichRequest(routing.reviewRequest(), operationContext))
-                            .mergerRequest(enrichRequest(routing.mergerRequest(), operationContext))
                             .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .orchestratorCollectorRequest(enrichRequest(routing.orchestratorCollectorRequest(), operationContext))
                             .discoveryCollectorRequest(enrichRequest(routing.discoveryCollectorRequest(), operationContext))

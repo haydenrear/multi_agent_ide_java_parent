@@ -365,14 +365,6 @@ public class CliEventFormatter {
                             + " reason=" + summarize(args, r.reason())
                             + " goal=" + summarize(args, r.goal())
                             + " summary=" + summary;
-            case AgentModels.MergerRequest r ->
-                    "MergerRequest summary=" + summarize(args, r.mergeSummary())
-                            + " conflicts=" + summarize(args, r.conflictFiles())
-                            + " summary=" + summary;
-            case AgentModels.ReviewRequest r ->
-                    "ReviewRequest criteria=" + summarize(args, r.criteria())
-                            + " content=" + summarize(args, r.content())
-                            + " summary=" + summary;
             case AgentModels.ResultsRequest r ->
                     "ResultsRequest mergeAggregation=" + summarize(args, r.mergeAggregation())
                             + " results=" + countOf(r.childResults())
@@ -519,14 +511,6 @@ public class CliEventFormatter {
                     "TicketAgentDispatchInterruptRequest " + base
                             + " assignments=" + countOf(r.agentAssignments())
                             + " routing=" + summarize(args, r.routingRationale());
-            case AgentModels.InterruptRequest.ReviewInterruptRequest r ->
-                    "ReviewInterruptRequest " + base
-                            + " criteria=" + summarize(args, r.reviewCriteria())
-                            + " recommendation=" + summarize(args, r.approvalRecommendation());
-            case AgentModels.InterruptRequest.MergerInterruptRequest r ->
-                    "MergerInterruptRequest " + base
-                            + " conflictFiles=" + countOf(r.conflictFiles())
-                            + " mergeApproach=" + summarize(args, r.mergeApproach());
             case AgentModels.InterruptRequest.ContextManagerInterruptRequest r ->
                     "ContextManagerInterruptRequest " + base
                             + " findings=" + summarize(args, r.contextFindings())

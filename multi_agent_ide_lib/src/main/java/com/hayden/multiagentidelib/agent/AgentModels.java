@@ -102,8 +102,6 @@ public interface AgentModels {
 //            of above agents associated with the requests, can reroute,
 //            then get rerouted back
             InterruptRequest,
-            MergerRequest,
-            ReviewRequest,
             AiFilterRequest,
             AiPropagatorRequest,
             AiTransformerRequest,
@@ -145,12 +143,8 @@ public interface AgentModels {
                 case InterruptRequest.TicketAgentInterruptRequest r -> r.reason();
                 case InterruptRequest.TicketCollectorInterruptRequest r -> r.reason();
                 case InterruptRequest.TicketAgentDispatchInterruptRequest r -> r.reason();
-                case InterruptRequest.ReviewInterruptRequest r -> r.reason();
-                case InterruptRequest.MergerInterruptRequest r -> r.reason();
                 case InterruptRequest.ContextManagerInterruptRequest r -> r.reason();
                 case InterruptRequest.QuestionAnswerInterruptRequest r -> r.reason();
-                case MergerRequest r -> r.mergeContext();
-                case ReviewRequest r -> r.content();
                 case DiscoveryAgentResults ignored -> null;
                 case PlanningAgentResults ignored -> null;
                 case TicketAgentResults ignored -> null;
@@ -195,12 +189,8 @@ public interface AgentModels {
                 case InterruptRequest.TicketAgentInterruptRequest ignored -> "TICKET_AGENT_INTERRUPT";
                 case InterruptRequest.TicketCollectorInterruptRequest ignored -> "TICKET_COLLECTOR_INTERRUPT";
                 case InterruptRequest.TicketAgentDispatchInterruptRequest ignored -> "TICKET_DISPATCH_INTERRUPT";
-                case InterruptRequest.ReviewInterruptRequest ignored -> "REVIEW_INTERRUPT";
-                case InterruptRequest.MergerInterruptRequest ignored -> "MERGER_INTERRUPT";
                 case InterruptRequest.ContextManagerInterruptRequest ignored -> "CONTEXT_MANAGER_INTERRUPT";
                 case InterruptRequest.QuestionAnswerInterruptRequest ignored -> "QUESTION_ANSWER_INTERRUPT";
-                case MergerRequest ignored -> "MERGER";
-                case ReviewRequest ignored -> "REVIEW";
                 case DiscoveryAgentResults ignored -> "DISCOVERY_RESULTS";
                 case PlanningAgentResults ignored -> "PLANNING_RESULTS";
                 case TicketAgentResults ignored -> "TICKET_RESULTS";
@@ -235,16 +225,6 @@ public interface AgentModels {
                 case OrchestratorCollectorRequest ignored -> CurationPhase.OTHER;
                 case ContextManagerRequest ignored -> CurationPhase.OTHER;
                 case ContextManagerRoutingRequest ignored -> CurationPhase.OTHER;
-                case MergerRequest r -> curationPhaseFromReturnTo(
-                        r.returnToTicketCollector(),
-                        r.returnToPlanningCollector(),
-                        r.returnToDiscoveryCollector(),
-                        r.returnToOrchestratorCollector());
-                case ReviewRequest r -> curationPhaseFromReturnTo(
-                        r.returnToTicketCollector(),
-                        r.returnToPlanningCollector(),
-                        r.returnToDiscoveryCollector(),
-                        r.returnToOrchestratorCollector());
                 case AiFilterRequest aiFilterRequest ->
                         CurationPhase.OTHER;
                 case AiPropagatorRequest aiPropagatorRequest ->
@@ -260,7 +240,7 @@ public interface AgentModels {
                 case DiscoveryCollectorRequest ignored -> "CollectorDecision: use ADVANCE_PHASE or ROUTE_BACK for normal flow; STOP stops execution. Prefer collectorResult. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required.";
                 case PlanningCollectorRequest ignored -> "CollectorDecision: use ADVANCE_PHASE or ROUTE_BACK for normal flow; STOP stops execution. Prefer collectorResult. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required.";
                 case TicketCollectorRequest ignored -> "CollectorDecision: use ADVANCE_PHASE or ROUTE_BACK for normal flow; STOP stops execution. Prefer collectorResult. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required.";
-                case OrchestratorCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE completes workflow, ROUTE_BACK returns to an Orchestrator request. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required. Use reviewRequest/mergerRequest when needed; use contextManagerRequest only for missing cross-agent context.";
+                case OrchestratorCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE completes workflow, ROUTE_BACK returns to an Orchestrator request. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required. Use contextManagerRequest only for missing cross-agent context.";
                 case ContextManagerRequest ignored -> "Return exactly one non-null returnTo* route based on recovered context.";
                 case ContextManagerRoutingRequest ignored -> "Set context manager reason/type and route to context manager request.";
                 default -> "Set exactly one non-null route field that matches the next intended node.";
@@ -389,8 +369,6 @@ public interface AgentModels {
             InterruptRequest.TicketAgentInterruptRequest,
             InterruptRequest.TicketCollectorInterruptRequest,
             InterruptRequest.TicketAgentDispatchInterruptRequest,
-            InterruptRequest.ReviewInterruptRequest,
-            InterruptRequest.MergerInterruptRequest,
             InterruptRequest.ContextManagerInterruptRequest,
             InterruptRequest.QuestionAnswerInterruptRequest {
 
@@ -853,67 +831,6 @@ public interface AgentModels {
                 @JsonPropertyDescription("Rationale for the routing decision.")
                 String routingRationale
         ) implements InterruptRequest {
-        }
-
-        @Builder(toBuilder=true)
-        @JsonClassDescription("Interrupt request for review agent assessment decisions.")
-        @With
-        record ReviewInterruptRequest(
-                @JsonInclude(JsonInclude.Include.NON_NULL)
-                @SkipPropertyFilter
-                ArtifactKey contextId,
-                @JsonPropertyDescription("Worktree sandbox context for this request.")
-                @SkipPropertyFilter
-                WorktreeSandboxContext worktreeContext,
-                @JsonPropertyDescription("Interrupt type (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP).")
-                Events.InterruptType type,
-                @JsonPropertyDescription("Natural language explanation of the uncertainty.")
-                String reason,
-                @JsonPropertyDescription("Structured decision choices for the controller.")
-                List<StructuredChoice> choices,
-                @JsonPropertyDescription("Yes/no confirmations required for continuation.")
-                List<ConfirmationItem> confirmationItems,
-                @JsonPropertyDescription("Concise context needed to make the decision.")
-                String contextForDecision,
-                @JsonPropertyDescription("Review criteria under consideration.")
-                String reviewCriteria,
-                @JsonPropertyDescription("Assessment findings or concerns.")
-                List<String> assessmentFindings,
-                @JsonPropertyDescription("Approval recommendation or stance.")
-                String approvalRecommendation
-        ) implements InterruptRequest {
-        }
-
-        @JsonClassDescription("Interrupt request for merger conflict resolution decisions.")
-        @Builder(toBuilder = true)
-        @With
-        record MergerInterruptRequest(
-                @JsonInclude(JsonInclude.Include.NON_NULL)
-                @SkipPropertyFilter
-                ArtifactKey contextId,
-                @JsonPropertyDescription("Worktree sandbox context for this request.")
-                @SkipPropertyFilter
-                WorktreeSandboxContext worktreeContext,
-                @JsonPropertyDescription("Interrupt type (HUMAN_REVIEW, AGENT_REVIEW, PAUSE, STOP).")
-                Events.InterruptType type,
-                @JsonPropertyDescription("Natural language explanation of the uncertainty.")
-                String reason,
-                @JsonPropertyDescription("Structured decision choices for the controller.")
-                List<StructuredChoice> choices,
-                @JsonPropertyDescription("Yes/no confirmations required for continuation.")
-                List<ConfirmationItem> confirmationItems,
-                @JsonPropertyDescription("Concise context needed to make the decision.")
-                String contextForDecision,
-                @JsonPropertyDescription("Conflicting file paths or identifiers.")
-                List<String> conflictFiles,
-                @JsonPropertyDescription("Resolution strategies being considered.")
-                List<String> resolutionStrategies,
-                @JsonPropertyDescription("Preferred merge approach.")
-                String mergeApproach
-        ) implements InterruptRequest {
-            public MergerInterruptRequest(ArtifactKey key, Events.InterruptType type, String reason) {
-                this(key, null, type, reason, List.of(), List.of(), "", List.of(), List.of(), "");
-            }
         }
 
         @Builder(toBuilder=true)
@@ -2950,8 +2867,6 @@ public interface AgentModels {
             TicketOrchestratorRouting,
             TicketCollectorRouting,
             TicketAgentDispatchRouting,
-            ReviewRouting,
-            MergerRouting,
             ContextManagerResultRouting,
             InterruptRouting {}
 
@@ -2970,12 +2885,6 @@ public interface AgentModels {
             @TicketRoute
             @JsonPropertyDescription("Return to ticket orchestrator.")
             TicketOrchestratorRequest ticketOrchestratorRequest,
-            @ReviewRoute
-            @JsonPropertyDescription("Return to review agent.")
-            ReviewRequest reviewRequest,
-            @MergerRoute
-            @JsonPropertyDescription("Return to merger agent.")
-            MergerRequest mergerRequest,
             @ContextManagerRoute
             @JsonPropertyDescription("Return to context manager.")
             ContextManagerRoutingRequest contextManagerRequest,
@@ -3034,15 +2943,10 @@ public interface AgentModels {
             @SkipPropertyFilter
             OrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest,
-            @JsonPropertyDescription("Route to review agent to review the merged changes (if there are any).")
-            @SkipPropertyFilter
-            ReviewRequest reviewRequest,
-            @JsonPropertyDescription("Route to merger agent (to deal with merge conflicts for the merged code - if there are any).")
-            MergerRequest mergerRequest
+            ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
         public OrchestratorCollectorRouting(OrchestratorCollectorResult collectorResult) {
-            this(null, collectorResult, null, null, null, null);
+            this(null, collectorResult, null, null);
         }
     }
 
@@ -3407,11 +3311,6 @@ public interface AgentModels {
             @JsonPropertyDescription("Route to planning orchestrator.")
             @SkipPropertyFilter
             PlanningOrchestratorRequest planningRequest,
-            @JsonPropertyDescription("Route to review agent for quality/correctness validation when needed.")
-            @SkipPropertyFilter
-            ReviewRequest reviewRequest,
-            @JsonPropertyDescription("Route to merger agent for merge/conflict handling when needed.")
-            MergerRequest mergerRequest,
             @JsonPropertyDescription("Route to context manager only when specific context from another agent chat/history is required.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
@@ -3797,11 +3696,6 @@ public interface AgentModels {
             OrchestratorCollectorRequest orchestratorCollectorRequest,
             @JsonPropertyDescription("Route to orchestrator for non-standard workflow coordination.")
             OrchestratorRequest orchestratorRequest,
-            @JsonPropertyDescription("Route to review agent for quality/correctness validation when needed.")
-            @SkipPropertyFilter
-            ReviewRequest reviewRequest,
-            @JsonPropertyDescription("Route to merger agent for merge/conflict handling when needed.")
-            MergerRequest mergerRequest,
             @JsonPropertyDescription("Route to context manager only when specific context from another agent chat/history is required.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
@@ -3809,11 +3703,9 @@ public interface AgentModels {
                                         PlanningCollectorResult collectorResult,
                                         PlanningOrchestratorRequest planningRequest,
                                         TicketOrchestratorRequest ticketOrchestratorRequest,
-                                        OrchestratorRequest orchestratorRequest,
-                                        ReviewRequest reviewRequest,
-                                        MergerRequest mergerRequest) {
+                                        OrchestratorRequest orchestratorRequest) {
             this(interruptRequest, collectorResult, planningRequest, ticketOrchestratorRequest,
-                    null, orchestratorRequest, reviewRequest, mergerRequest, null);
+                    null, orchestratorRequest, null);
         }
     }
 
@@ -4386,11 +4278,6 @@ public interface AgentModels {
             OrchestratorCollectorRequest orchestratorCollectorRequest,
             @JsonPropertyDescription("Route to orchestrator for non-standard workflow coordination.")
             OrchestratorRequest orchestratorRequest,
-            @JsonPropertyDescription("Route to review agent for quality/correctness validation when needed.")
-            @SkipPropertyFilter
-            ReviewRequest reviewRequest,
-            @JsonPropertyDescription("Route to merger agent for merge/conflict handling when needed.")
-            MergerRequest mergerRequest,
             @JsonPropertyDescription("Route to context manager only when specific context from another agent chat/history is required.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
@@ -4405,278 +4292,6 @@ public interface AgentModels {
             InterruptRequest.TicketAgentInterruptRequest agentInterruptRequest,
             @JsonPropertyDescription("Route to ticket collector with aggregated results.")
             TicketCollectorRequest ticketCollectorRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
-    ) implements Routing {
-    }
-
-    /**
-     * Request for review agent. No upstream context - review content is passed directly.
-     */
-    @Builder(toBuilder=true)
-    @JsonClassDescription("Request for the review agent to assess content.")
-    @With
-    record ReviewRequest(
-            @JsonInclude(JsonInclude.Include.NON_NULL)
-            @JsonPropertyDescription("Unique context id for this request.")
-            @SkipPropertyFilter
-            ArtifactKey contextId,
-            @JsonPropertyDescription("Worktree sandbox context for this request.")
-            @SkipPropertyFilter
-            WorktreeSandboxContext worktreeContext,
-            @JsonPropertyDescription("Content to review.")
-            String content,
-            @JsonPropertyDescription("Review criteria or rubric.")
-            String criteria,
-            @JsonPropertyDescription("Return route to orchestrator collector.")
-            OrchestratorCollectorRequest returnToOrchestratorCollector,
-            @JsonPropertyDescription("Return route to discovery collector.")
-            DiscoveryCollectorRequest returnToDiscoveryCollector,
-            @JsonPropertyDescription("Return route to planning collector.")
-            PlanningCollectorRequest returnToPlanningCollector,
-            @JsonPropertyDescription("Return route to ticket collector.")
-            TicketCollectorRequest returnToTicketCollector
-    ) implements AgentRequest {
-
-        @Override
-        public AgentRequest withGoal(String goal) {
-            return this;
-        }
-
-        @Override
-        public List<Artifact.AgentModel> children() {
-            List<Artifact.AgentModel> children = new ArrayList<>();
-            if (returnToOrchestratorCollector != null) {
-                children.add(returnToOrchestratorCollector);
-            }
-            if (returnToDiscoveryCollector != null) {
-                children.add(returnToDiscoveryCollector);
-            }
-            if (returnToPlanningCollector != null) {
-                children.add(returnToPlanningCollector);
-            }
-            if (returnToTicketCollector != null) {
-                children.add(returnToTicketCollector);
-            }
-            return List.copyOf(children);
-        }
-
-        @Override
-        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
-            OrchestratorCollectorRequest updatedOrchestratorCollector =
-                    firstChildOfType(children, OrchestratorCollectorRequest.class, returnToOrchestratorCollector);
-            DiscoveryCollectorRequest updatedDiscoveryCollector =
-                    firstChildOfType(children, DiscoveryCollectorRequest.class, returnToDiscoveryCollector);
-            PlanningCollectorRequest updatedPlanningCollector =
-                    firstChildOfType(children, PlanningCollectorRequest.class, returnToPlanningCollector);
-            TicketCollectorRequest updatedTicketCollector =
-                    firstChildOfType(children, TicketCollectorRequest.class, returnToTicketCollector);
-            return (T) this.toBuilder()
-                    .returnToOrchestratorCollector(updatedOrchestratorCollector)
-                    .returnToDiscoveryCollector(updatedDiscoveryCollector)
-                    .returnToPlanningCollector(updatedPlanningCollector)
-                    .returnToTicketCollector(updatedTicketCollector)
-                    .build();
-        }
-
-        public ReviewRequest(String content, String criteria, OrchestratorCollectorRequest returnToOrchestratorCollector, DiscoveryCollectorRequest returnToDiscoveryCollector, PlanningCollectorRequest returnToPlanningCollector, TicketCollectorRequest returnToTicketCollector) {
-            this(null, null, content, criteria, returnToOrchestratorCollector, returnToDiscoveryCollector, returnToPlanningCollector, returnToTicketCollector);
-        }
-
-        @Override
-        public String prettyPrintInterruptContinuation() {
-            StringBuilder builder = new StringBuilder();
-            if (criteria != null && !criteria.isBlank()) {
-                builder.append("Criteria: ").append(criteria.trim());
-            }
-            if (content != null && !content.isBlank()) {
-                if (!builder.isEmpty()) {
-                    builder.append("\n");
-                }
-                builder.append("Content:\n").append(content.trim());
-            }
-            return builder.isEmpty() ? "Review Request: (none)" : builder.toString();
-        }
-
-        @Override
-        public String prettyPrint() {
-            StringBuilder builder = new StringBuilder("Review Request\n");
-            appendPrettyLine(builder, "Context Id", contextId);
-            appendPrettyLine(builder, "Worktree Context", worktreeContext);
-            appendPrettyText(builder, "Criteria", criteria);
-            appendPrettyText(builder, "Content", content);
-            appendPrettyContext(builder, "Return To Orchestrator Collector", returnToOrchestratorCollector);
-            appendPrettyContext(builder, "Return To Discovery Collector", returnToDiscoveryCollector);
-            appendPrettyContext(builder, "Return To Planning Collector", returnToPlanningCollector);
-            appendPrettyContext(builder, "Return To Ticket Collector", returnToTicketCollector);
-            return builder.toString().trim();
-        }
-    }
-
-    @Builder(toBuilder=true)
-    @JsonClassDescription("Routing result for the review agent.")
-    record ReviewRouting(
-            @JsonPropertyDescription("Interrupt request for review decisions.")
-            InterruptRequest.ReviewInterruptRequest interruptRequest,
-            @JsonPropertyDescription("Review agent result payload.")
-            ReviewAgentResult reviewResult,
-            @OrchestratorCollectorRoute
-            @JsonPropertyDescription("Route to orchestrator collector.")
-            OrchestratorCollectorRequest orchestratorCollectorRequest,
-            @DiscoveryCollectorRoute
-            @JsonPropertyDescription("Route to discovery collector.")
-            DiscoveryCollectorRequest discoveryCollectorRequest,
-            @PlanningCollectorRoute
-            @JsonPropertyDescription("Route to planning collector.")
-            PlanningCollectorRequest planningCollectorRequest,
-            @TicketCollectorRoute
-            @JsonPropertyDescription("Route to ticket collector.")
-            TicketCollectorRequest ticketCollectorRequest,
-            @ContextManagerRoute
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
-    ) implements Routing {
-    }
-
-    /**
-     * Request for merger agent. No upstream context - merge content is passed directly.
-     */
-    @Builder(toBuilder=true)
-    @JsonClassDescription("Request for the merger agent to validate a merge.")
-    @With
-    record MergerRequest(
-            @JsonInclude(JsonInclude.Include.NON_NULL)
-            @JsonPropertyDescription("Unique context id for this request.")
-            @SkipPropertyFilter
-            ArtifactKey contextId,
-            @JsonPropertyDescription("Worktree sandbox context for this request.")
-            @SkipPropertyFilter
-            WorktreeSandboxContext worktreeContext,
-            @JsonPropertyDescription("Merge context or details.")
-            String mergeContext,
-            @JsonPropertyDescription("Summary of merge changes.")
-            String mergeSummary,
-            @JsonPropertyDescription("Conflicting files or paths.")
-            String conflictFiles,
-            @JsonPropertyDescription("Return route to orchestrator collector.")
-            OrchestratorCollectorRequest returnToOrchestratorCollector,
-            @JsonPropertyDescription("Return route to discovery collector.")
-            DiscoveryCollectorRequest returnToDiscoveryCollector,
-            @JsonPropertyDescription("Return route to planning collector.")
-            PlanningCollectorRequest returnToPlanningCollector,
-            @JsonPropertyDescription("Return route to ticket collector.")
-            TicketCollectorRequest returnToTicketCollector
-    ) implements AgentRequest {
-        @Override
-        public AgentRequest withGoal(String goal) {
-            return this;
-        }
-        @Override
-        public List<Artifact.AgentModel> children() {
-            List<Artifact.AgentModel> children = new ArrayList<>();
-            if (returnToOrchestratorCollector != null) {
-                children.add(returnToOrchestratorCollector);
-            }
-            if (returnToDiscoveryCollector != null) {
-                children.add(returnToDiscoveryCollector);
-            }
-            if (returnToPlanningCollector != null) {
-                children.add(returnToPlanningCollector);
-            }
-            if (returnToTicketCollector != null) {
-                children.add(returnToTicketCollector);
-            }
-            return List.copyOf(children);
-        }
-
-        @Override
-        public <T extends Artifact.AgentModel> T withChildren(List<Artifact.AgentModel> children) {
-            OrchestratorCollectorRequest updatedOrchestratorCollector =
-                    firstChildOfType(children, OrchestratorCollectorRequest.class, returnToOrchestratorCollector);
-            DiscoveryCollectorRequest updatedDiscoveryCollector =
-                    firstChildOfType(children, DiscoveryCollectorRequest.class, returnToDiscoveryCollector);
-            PlanningCollectorRequest updatedPlanningCollector =
-                    firstChildOfType(children, PlanningCollectorRequest.class, returnToPlanningCollector);
-            TicketCollectorRequest updatedTicketCollector =
-                    firstChildOfType(children, TicketCollectorRequest.class, returnToTicketCollector);
-            return (T) this.toBuilder()
-                    .returnToOrchestratorCollector(updatedOrchestratorCollector)
-                    .returnToDiscoveryCollector(updatedDiscoveryCollector)
-                    .returnToPlanningCollector(updatedPlanningCollector)
-                    .returnToTicketCollector(updatedTicketCollector)
-                    .build();
-        }
-
-        public MergerRequest(String mergeContext, String mergeSummary, String conflictFiles, OrchestratorCollectorRequest returnToOrchestratorCollector, DiscoveryCollectorRequest returnToDiscoveryCollector, PlanningCollectorRequest returnToPlanningCollector, TicketCollectorRequest returnToTicketCollector) {
-            this(null, null, mergeContext, mergeSummary, conflictFiles, returnToOrchestratorCollector, returnToDiscoveryCollector, returnToPlanningCollector, returnToTicketCollector);
-        }
-
-        @Override
-        public String prettyPrint(AgentSerializationCtx serializationCtx) {
-            return switch (serializationCtx) {
-                case AgentSerializationCtx.MergeSummarySerialization mergeSummarySerialization ->
-                        mergeSummary == null ? "" : mergeSummary.trim();
-                default -> AgentRequest.super.prettyPrint(serializationCtx);
-            };
-        }
-
-        @Override
-        public String prettyPrintInterruptContinuation() {
-            StringBuilder builder = new StringBuilder();
-            if (mergeSummary != null && !mergeSummary.isBlank()) {
-                builder.append("Merge Summary: ").append(mergeSummary.trim());
-            }
-            if (conflictFiles != null && !conflictFiles.isBlank()) {
-                if (!builder.isEmpty()) {
-                    builder.append("\n");
-                }
-                builder.append("Conflicting Files:\n").append(conflictFiles.trim());
-            }
-            if (mergeContext != null && !mergeContext.isBlank()) {
-                if (!builder.isEmpty()) {
-                    builder.append("\n");
-                }
-                builder.append("Merge Context:\n").append(mergeContext.trim());
-            }
-            return builder.isEmpty() ? "Merge Request: (none)" : builder.toString();
-        }
-
-        @Override
-        public String prettyPrint() {
-            StringBuilder builder = new StringBuilder("Merger Request\n");
-            appendPrettyLine(builder, "Context Id", contextId);
-            appendPrettyLine(builder, "Worktree Context", worktreeContext);
-            appendPrettyText(builder, "Merge Summary", mergeSummary);
-            appendPrettyText(builder, "Conflict Files", conflictFiles);
-            appendPrettyText(builder, "Merge Context", mergeContext);
-            appendPrettyContext(builder, "Return To Orchestrator Collector", returnToOrchestratorCollector);
-            appendPrettyContext(builder, "Return To Discovery Collector", returnToDiscoveryCollector);
-            appendPrettyContext(builder, "Return To Planning Collector", returnToPlanningCollector);
-            appendPrettyContext(builder, "Return To Ticket Collector", returnToTicketCollector);
-            return builder.toString().trim();
-        }
-    }
-
-    @Builder(toBuilder=true)
-    @JsonClassDescription("Routing result for the merger agent.")
-    record MergerRouting(
-            @JsonPropertyDescription("Interrupt request for merger decisions.")
-            InterruptRequest.MergerInterruptRequest interruptRequest,
-            @JsonPropertyDescription("Merger agent result payload.")
-            MergerAgentResult mergerResult,
-            @OrchestratorCollectorRoute
-            @JsonPropertyDescription("Route to orchestrator collector.")
-            OrchestratorCollectorRequest orchestratorCollectorRequest,
-            @DiscoveryCollectorRoute
-            @JsonPropertyDescription("Route to discovery collector.")
-            DiscoveryCollectorRequest discoveryCollectorRequest,
-            @PlanningCollectorRoute
-            @JsonPropertyDescription("Route to planning collector.")
-            PlanningCollectorRequest planningCollectorRequest,
-            @TicketCollectorRoute
-            @JsonPropertyDescription("Route to ticket collector.")
-            TicketCollectorRequest ticketCollectorRequest,
-            @ContextManagerRoute
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
             ContextManagerRoutingRequest contextManagerRequest
     ) implements Routing {
@@ -4772,10 +4387,6 @@ public interface AgentModels {
             TicketOrchestratorRequest returnToTicketOrchestrator,
             @JsonPropertyDescription("Route back to ticket collector.")
             TicketCollectorRequest returnToTicketCollector,
-            @JsonPropertyDescription("Route back to review agent.")
-            ReviewRequest returnToReview,
-            @JsonPropertyDescription("Route back to merger agent.")
-            MergerRequest returnToMerger,
             @JsonPropertyDescription("Route back to planning agent.")
             PlanningAgentRequest returnToPlanningAgent,
             @JsonPropertyDescription("Route back to planning agent requests.")
@@ -4823,12 +4434,6 @@ public interface AgentModels {
             }
             if (returnToTicketCollector != null) {
                 children.add(returnToTicketCollector);
-            }
-            if (returnToReview != null) {
-                children.add(returnToReview);
-            }
-            if (returnToMerger != null) {
-                children.add(returnToMerger);
             }
             if (returnToPlanningAgent != null) {
                 children.add(returnToPlanningAgent);
@@ -4881,10 +4486,6 @@ public interface AgentModels {
                     firstChildOfType(children, TicketOrchestratorRequest.class, returnToTicketOrchestrator);
             TicketCollectorRequest updatedTicketCollector =
                     firstChildOfType(children, TicketCollectorRequest.class, returnToTicketCollector);
-            ReviewRequest updatedReview =
-                    firstChildOfType(children, ReviewRequest.class, returnToReview);
-            MergerRequest updatedMerger =
-                    firstChildOfType(children, MergerRequest.class, returnToMerger);
             PlanningAgentRequest updatedPlanningAgent =
                     firstChildOfType(children, PlanningAgentRequest.class, returnToPlanningAgent);
             PlanningAgentRequests updatedPlanningAgentRequests =
@@ -4912,8 +4513,6 @@ public interface AgentModels {
                     .returnToPlanningCollector(updatedPlanningCollector)
                     .returnToTicketOrchestrator(updatedTicketOrchestrator)
                     .returnToTicketCollector(updatedTicketCollector)
-                    .returnToReview(updatedReview)
-                    .returnToMerger(updatedMerger)
                     .returnToPlanningAgent(updatedPlanningAgent)
                     .returnToPlanningAgentRequests(updatedPlanningAgentRequests)
                     .returnToPlanningAgentResults(updatedPlanningAgentResults)
@@ -4970,8 +4569,6 @@ public interface AgentModels {
             appendPrettyContext(builder, "Return To Planning Collector", returnToPlanningCollector);
             appendPrettyContext(builder, "Return To Ticket Orchestrator", returnToTicketOrchestrator);
             appendPrettyContext(builder, "Return To Ticket Collector", returnToTicketCollector);
-            appendPrettyContext(builder, "Return To Review", returnToReview);
-            appendPrettyContext(builder, "Return To Merger", returnToMerger);
             appendPrettyContext(builder, "Return To Planning Agent", returnToPlanningAgent);
             appendPrettyContext(builder, "Return To Planning Agent Requests", returnToPlanningAgentRequests);
             appendPrettyContext(builder, "Return To Planning Agent Results", returnToPlanningAgentResults);
@@ -5006,8 +4603,6 @@ public interface AgentModels {
                         builder = builder.returnToDiscoveryOrchestrator(discoveryOrchestratorRequest);
                 case InterruptRequest interruptRequest -> {
                 }
-                case MergerRequest mergerRequest ->
-                        builder = builder.returnToMerger(mergerRequest);
                 case OrchestratorCollectorRequest orchestratorCollectorRequest ->
                         builder = builder.returnToOrchestratorCollector(orchestratorCollectorRequest);
                 case OrchestratorRequest orchestratorRequest ->
@@ -5022,8 +4617,6 @@ public interface AgentModels {
                         builder = builder.returnToPlanningCollector(planningCollectorRequest);
                 case PlanningOrchestratorRequest planningOrchestratorRequest ->
                         builder = builder.returnToPlanningOrchestrator(planningOrchestratorRequest);
-                case ReviewRequest reviewRequest ->
-                        builder = builder.returnToReview(reviewRequest);
                 case TicketAgentRequest ticketAgentRequest ->
                         builder = builder.returnToTicketAgent(ticketAgentRequest);
                 case TicketAgentRequests ticketAgentRequests ->
@@ -5074,10 +4667,6 @@ public interface AgentModels {
             TicketOrchestratorRequest ticketOrchestratorRequest,
             @JsonPropertyDescription("Route to ticket collector.")
             TicketCollectorRequest ticketCollectorRequest,
-            @JsonPropertyDescription("Route to review agent.")
-            ReviewRequest reviewRequest,
-            @JsonPropertyDescription("Route to merger agent.")
-            MergerRequest mergerRequest,
             @JsonPropertyDescription("Route to planning agent.")
             PlanningAgentRequest planningAgentRequest,
             @JsonPropertyDescription("Route to planning agent requests.")
