@@ -40,11 +40,12 @@ public class InterruptService {
 
     private static final String REVIEW_CRITERIA =
             "Review for correctness and completeness. Reply with approved if correct, otherwise explain issues.";
-    private static final String TEMPLATE_WORKFLOW_REVIEW = "workflow/review";
-    private static final String TEMPLATE_REVIEW_RESOLUTION = "workflow/review_resolution";
-    private static final String AGENT_NAME = "interrupt-service";
-    private static final String ACTION_AGENT_REVIEW = "agent-review";
-    private static final String METHOD_RUN_INTERRUPT_AGENT_REVIEW = "runInterruptAgentReview";
+    public static final String TEMPLATE_WORKFLOW_REVIEW = "workflow/review";
+    public static final String TEMPLATE_REVIEW_RESOLUTION = "workflow/review_resolution";
+    public static final String AGENT_NAME = "interrupt-service";
+    public static final String ACTION_AGENT_REVIEW = "agent-review";
+    public static final String METHOD_RUN_INTERRUPT_AGENT_REVIEW = "runInterruptAgentReview";
+    public static final String METHOD_HANDLE_INTERRUPT = "handleInterrupt";
     public static final String INTERRUPT_ID_NOT_FOUND = "interrupt_id_not_found";
 
     private final PermissionGate permissionGate;

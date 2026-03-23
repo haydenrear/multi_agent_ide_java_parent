@@ -28,12 +28,12 @@ public class EmitAgentModelArtifactDecorator implements
     }
 
     @Override
-    public <T extends AgentModels.Routing> T decorateFinalResult(T t, FinalResultDecoratorContext context) {
+    public <T extends AgentModels.AgentRouting> T decorateFinalResult(T t, FinalResultDecoratorContext context) {
         return t;
     }
 
     @Override
-    public <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
+    public <T extends AgentModels.AgentRouting> T decorate(T t, DecoratorContext context) {
         return t;
     }
 

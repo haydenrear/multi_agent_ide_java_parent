@@ -41,10 +41,10 @@ import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestRe
 @RequiredArgsConstructor
 public class WorktreeAutoCommitService {
 
-    private static final String TEMPLATE_WORKTREE_COMMIT_AGENT = "workflow/worktree_commit_agent";
-    private static final String AGENT_NAME = "worktree-auto-commit";
-    private static final String ACTION_NAME = "commit-agent";
-    private static final String METHOD_NAME = "runCommitAgent";
+    public static final String TEMPLATE_WORKTREE_COMMIT_AGENT = "workflow/worktree_commit_agent";
+    public static final String AGENT_NAME = "worktree-auto-commit";
+    public static final String ACTION_NAME = "commit-agent";
+    public static final String METHOD_NAME = "runCommitAgent";
     private static final String CLEAN_REQUIREMENT = "Before returning, git status must be clean for the target worktree (no staged, unstaged, untracked, or conflicted files).";
 
     private final GitWorktreeService gitWorktreeService;

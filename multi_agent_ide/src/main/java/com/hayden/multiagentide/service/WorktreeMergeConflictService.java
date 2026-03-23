@@ -38,10 +38,10 @@ import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestRe
 @RequiredArgsConstructor
 public class WorktreeMergeConflictService {
 
-    private static final String TEMPLATE = "workflow/worktree_merge_conflict_agent";
-    private static final String AGENT_NAME = "worktree-merge-conflict";
-    private static final String ACTION_NAME = "merge-conflict-agent";
-    private static final String METHOD_NAME = "runMergeConflictAgent";
+    public static final String TEMPLATE = "workflow/worktree_merge_conflict_agent";
+    public static final String AGENT_NAME = "worktree-merge-conflict";
+    public static final String ACTION_NAME = "merge-conflict-agent";
+    public static final String METHOD_NAME = "runMergeConflictAgent";
 
     private final LlmRunner llmRunner;
     @Autowired

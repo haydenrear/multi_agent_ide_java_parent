@@ -16,7 +16,7 @@ public interface ResultDecorator {
         return 0;
     }
 
-    default <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
+    default <T extends AgentModels.AgentRouting> T decorate(T t, DecoratorContext context) {
         return t;
     }
 

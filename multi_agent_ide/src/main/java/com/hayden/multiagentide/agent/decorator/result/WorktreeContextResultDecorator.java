@@ -20,7 +20,7 @@ public class WorktreeContextResultDecorator implements DispatchedAgentResultDeco
     }
 
     @Override
-    public <T extends AgentModels.Routing> T decorate(T routing, DecoratorContext context) {
+    public <T extends AgentModels.AgentRouting> T decorate(T routing, DecoratorContext context) {
         if (routing == null) {
             return null;
         }

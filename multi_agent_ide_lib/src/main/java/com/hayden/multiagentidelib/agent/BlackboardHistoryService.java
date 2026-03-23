@@ -2,6 +2,7 @@ package com.hayden.multiagentidelib.agent;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
+import com.hayden.acp_cdc_ai.acp.events.HasContextId;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,6 +14,20 @@ public class BlackboardHistoryService {
 
     public BlackboardHistoryService(List<DegenerateLoopPolicy> degenerateLoopPolicies) {
         this.degenerateLoopPolicies = degenerateLoopPolicies;
+    }
+
+    public void registerResult(
+            OperationContext context,
+            String actionName,
+            HasContextId input
+    ) {
+        BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+
+        if (history == null) {
+            return;
+        }
+
+        history.addEntry(actionName, input);
     }
 
     /**

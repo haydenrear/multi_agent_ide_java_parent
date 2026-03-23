@@ -71,6 +71,10 @@ public class BlackboardRoutingPlanner extends AbstractConditionPlanner {
                     routed.getClass().getSimpleName(), lastResult.getClass().getSimpleName());
             lastResult = routed;
         }
+        // assuming that this is achieves goal for the dispatched agents.
+        if (lastResult instanceof AgentModels.AgentRouting) {
+            return new ConditionPlan(List.of(), goal, currentState);
+        }
 
         if (lastResult instanceof AgentModels.OrchestratorCollectorResult res
                 && (res.collectorDecision().decisionType() == Events.CollectorDecisionType.ADVANCE_PHASE

@@ -22,7 +22,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
     }
 
     @Override
-    public <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
+    public <T extends AgentModels.AgentRouting> T decorate(T t, DecoratorContext context) {
         if (t == null || workflowGraphService == null || context == null) {
             return t;
         }
@@ -190,7 +190,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
 
     private <T extends GraphNode> T resolveRunning(
             DecoratorContext decoratorContext,
-            AgentModels.Routing routing,
+            AgentModels.AgentRouting routing,
             Class<T> type
     ) {
         String nodeId = resolveRequestNodeId(decoratorContext, routing);
@@ -200,7 +200,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
         return workflowGraphService.findNodeById(nodeId, type).orElse(null);
     }
 
-    private String resolveRequestNodeId(DecoratorContext decoratorContext, AgentModels.Routing routing) {
+    private String resolveRequestNodeId(DecoratorContext decoratorContext, AgentModels.AgentRouting routing) {
         if (decoratorContext == null) {
             return null;
         }
@@ -234,7 +234,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
             OperationContext context,
             AgentModels.InterruptRequest interruptRequest,
             GraphNode originNode,
-            AgentModels.Routing routing
+            AgentModels.AgentRouting routing
     ) {
         if (context == null || interruptRequest == null) {
             return false;
@@ -249,7 +249,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
 
     private void handleRoutingResult(
             OperationContext context,
-            AgentModels.Routing routing,
+            AgentModels.AgentRouting routing,
             GraphNode node
     ) {
         if (context == null || routing == null) {
@@ -264,7 +264,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
 
     private <T extends GraphNode> T requireNode(
             OperationContext context,
-            AgentModels.Routing routing,
+            AgentModels.AgentRouting routing,
             java.util.function.Supplier<T> requiredNode
     ) {
         if (requiredNode == null) {
@@ -391,7 +391,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
         return requireNode(context, routing, () -> workflowGraphService.requireOrchestrator(context));
     }
 
-    private void reportMissingNode(OperationContext context, AgentModels.Routing routing, RuntimeException e) {
+    private void reportMissingNode(OperationContext context, AgentModels.AgentRouting routing, RuntimeException e) {
         String message = "Failed to resolve graph node for " + routingType(routing);
         if (e != null && e.getMessage() != null && !e.getMessage().isBlank()) {
             message = message + ": " + e.getMessage();
@@ -400,7 +400,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
         workflowGraphService.emitDecoratorError(context, message);
     }
 
-    private static String routingType(AgentModels.Routing routing) {
+    private static String routingType(AgentModels.AgentRouting routing) {
         return routing != null ? routing.getClass().getSimpleName() : "UnknownRouting";
     }
 

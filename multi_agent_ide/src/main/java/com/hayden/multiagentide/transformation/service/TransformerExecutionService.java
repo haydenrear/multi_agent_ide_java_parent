@@ -46,10 +46,10 @@ import java.util.UUID;
 @Slf4j
 public class TransformerExecutionService {
 
-    private static final String AI_TRANSFORMER_AGENT_NAME = FilterLayerCatalog.AI_TRANSFORMER;
-    private static final String AI_TRANSFORMER_ACTION_NAME = "transform-controller-response";
-    private static final String AI_TRANSFORMER_METHOD_NAME = "runAiTransformer";
-    private static final String AI_TRANSFORMER_TEMPLATE_NAME = AiTransformerTool.TEMPLATE_NAME;
+    public static final String AI_TRANSFORMER_AGENT_NAME = FilterLayerCatalog.AI_TRANSFORMER;
+    public static final String AI_TRANSFORMER_ACTION_NAME = "transform-controller-response";
+    public static final String AI_TRANSFORMER_METHOD_NAME = "runAiTransformer";
+    public static final String AI_TRANSFORMER_TEMPLATE_NAME = AiTransformerTool.TEMPLATE_NAME;
 
     private final TransformerDiscoveryService discoveryService;
     private final TransformationRecordRepository recordRepository;

@@ -28,7 +28,7 @@ public class ActionResponsePropagationIntegration {
     @Lazy
     private EventBus eventBus;
 
-    public <T extends AgentModels.Routing> T propagate(T routing,
+    public <T extends AgentModels.AgentRouting> T propagate(T routing,
                                                        String agentName,
                                                        String actionName,
                                                        String methodName,

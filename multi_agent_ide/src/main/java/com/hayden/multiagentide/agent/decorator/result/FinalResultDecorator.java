@@ -8,7 +8,7 @@ public interface FinalResultDecorator extends ResultDecorator {
     record FinalResultDecoratorContext(AgentModels.AgentRequest originalRequest, DecoratorContext decoratorContext) {
     }
 
-    default <T extends AgentModels.Routing> T decorateFinalResult(T t, FinalResultDecoratorContext context) {
+    default <T extends AgentModels.AgentRouting> T decorateFinalResult(T t, FinalResultDecoratorContext context) {
         return this.decorate(t, context.decoratorContext);
     }
 

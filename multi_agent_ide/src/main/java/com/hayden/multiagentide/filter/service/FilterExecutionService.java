@@ -59,10 +59,10 @@ import java.util.regex.Pattern;
 @Slf4j
 public class FilterExecutionService {
 
-    private static final String AI_FILTER_AGENT_NAME = "ai-filter";
-    private static final String AI_FILTER_ACTION_NAME = "path-filter";
-    private static final String AI_FILTER_METHOD_NAME = "runAiFilter";
-    private static final String AI_FILTER_TEMPLATE_NAME = AiFilterTool.TEMPLATE_NAME;
+    public static final String AI_FILTER_AGENT_NAME = "ai-filter";
+    public static final String AI_FILTER_ACTION_NAME = "path-filter";
+    public static final String AI_FILTER_METHOD_NAME = "runAiFilter";
+    public static final String AI_FILTER_TEMPLATE_NAME = AiFilterTool.TEMPLATE_NAME;
 
     private final PolicyDiscoveryService policyDiscoveryService;
     private final FilterDecisionRecordRepository decisionRecordRepository;

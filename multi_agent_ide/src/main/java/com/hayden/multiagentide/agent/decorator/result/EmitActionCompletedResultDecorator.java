@@ -43,7 +43,7 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
     }
 
     @Override
-    public <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
+    public <T extends AgentModels.AgentRouting> T decorate(T t, DecoratorContext context) {
         if (t == null || eventBus == null) {
             return t;
         }

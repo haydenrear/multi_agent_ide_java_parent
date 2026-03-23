@@ -94,7 +94,7 @@ public class DecorateRequestResults {
             Artifact.AgentModel lastRequest
     ) {}
 
-    public record DecorateRoutingArgs<T extends AgentModels.Routing>(
+    public record DecorateRoutingArgs<T extends AgentModels.AgentRouting>(
             T routing,
             OperationContext context,
             String agentName,
@@ -167,7 +167,7 @@ public class DecorateRequestResults {
                 args.lastRequest);
     }
 
-    public <T extends AgentModels.Routing> T decorateRouting(DecorateRoutingArgs<T> args) {
+    public <T extends AgentModels.AgentRouting> T decorateRouting(DecorateRoutingArgs<T> args) {
         return decorateRouting(
                 args.routing,
                 args.context,
@@ -225,7 +225,7 @@ public class DecorateRequestResults {
         return decorated;
     }
 
-    public static <T extends AgentModels.Routing> T decorateRouting(
+    public static <T extends AgentModels.AgentRouting> T decorateRouting(
             T routing,
             OperationContext context,
             List<? extends ResultDecorator> decorators,
@@ -236,7 +236,7 @@ public class DecorateRequestResults {
         return decorateRouting(routing, context, decorators, agentName, actionName, "", lastRequest);
     }
 
-    public static <T extends AgentModels.Routing> T decorateRouting(
+    public static <T extends AgentModels.AgentRouting> T decorateRouting(
             T routing,
             OperationContext context,
             List<? extends ResultDecorator> decorators,
@@ -320,7 +320,7 @@ public class DecorateRequestResults {
      * @deprecated Use {@link #decorateRouting(AgentModels.Routing, OperationContext, List, String, String, Artifact.AgentModel)} instead.
      */
     @Deprecated
-    public static <T extends AgentModels.Routing> T decorateRouting(
+    public static <T extends AgentModels.AgentRouting> T decorateRouting(
             T routing,
             OperationContext context,
             List<ResultDecorator> decorators,

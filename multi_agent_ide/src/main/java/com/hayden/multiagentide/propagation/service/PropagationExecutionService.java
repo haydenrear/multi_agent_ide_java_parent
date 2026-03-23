@@ -50,10 +50,10 @@ import java.util.UUID;
 @Slf4j
 public class PropagationExecutionService {
 
-    private static final String AI_PROPAGATOR_AGENT_NAME = FilterLayerCatalog.AI_PROPAGATOR;
-    private static final String AI_PROPAGATOR_ACTION_NAME = "propagate-action";
-    private static final String AI_PROPAGATOR_METHOD_NAME = "runAiPropagator";
-    private static final String AI_PROPAGATOR_TEMPLATE_NAME = AiPropagatorTool.TEMPLATE_NAME;
+    public static final String AI_PROPAGATOR_AGENT_NAME = FilterLayerCatalog.AI_PROPAGATOR;
+    public static final String AI_PROPAGATOR_ACTION_NAME = "propagate-action";
+    public static final String AI_PROPAGATOR_METHOD_NAME = "runAiPropagator";
+    public static final String AI_PROPAGATOR_TEMPLATE_NAME = AiPropagatorTool.TEMPLATE_NAME;
 
     private final PropagatorDiscoveryService discoveryService;
     private final PropagationItemService propagationItemService;

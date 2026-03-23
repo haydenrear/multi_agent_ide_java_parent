@@ -2926,24 +2926,28 @@ public interface AgentModels {
         }
     }
 
+    sealed interface AgentRouting permits DispatchedAgentRouting, Routing {}
+
+    sealed interface DispatchedAgentRouting extends AgentRouting permits
+            DiscoveryAgentRouting,
+            PlanningAgentRouting,
+            TicketAgentRouting { }
+
     /**
      * Embabel uses SomeOf to determine which fields are requests to be added to the blackboard.
      * SomeOf contains in it's fields the requests that are added to the blackboard.
      * I've had quite a few issues with inability to interpolate Embabel for this.
      */
-    sealed interface Routing extends SomeOf permits
+    sealed interface Routing extends AgentRouting, SomeOf permits
             OrchestratorRouting,
             OrchestratorCollectorRouting,
             DiscoveryOrchestratorRouting,
-            DiscoveryAgentRouting,
             DiscoveryCollectorRouting,
             DiscoveryAgentDispatchRouting,
             PlanningOrchestratorRouting,
-            PlanningAgentRouting,
             PlanningCollectorRouting,
             PlanningAgentDispatchRouting,
             TicketOrchestratorRouting,
-            TicketAgentRouting,
             TicketCollectorRouting,
             TicketAgentDispatchRouting,
             ReviewRouting,
@@ -3385,14 +3389,8 @@ public interface AgentModels {
             @JsonPropertyDescription("Interrupt request for discovery agent decisions.")
             InterruptRequest.DiscoveryAgentInterruptRequest interruptRequest,
             @JsonPropertyDescription("Discovery agent result payload.")
-            DiscoveryAgentResult agentResult,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
-    ) implements Routing {
-        public DiscoveryAgentRouting(InterruptRequest.DiscoveryAgentInterruptRequest interruptRequest, DiscoveryAgentResult agentResult) {
-            this(interruptRequest, agentResult, null);
-        }
-    }
+            DiscoveryAgentResult agentResult
+    ) implements DispatchedAgentRouting { }
 
     @Builder(toBuilder=true)
     @JsonClassDescription("Routing result for the discovery collector.")
@@ -3424,6 +3422,8 @@ public interface AgentModels {
     record DiscoveryAgentDispatchRouting(
             @JsonPropertyDescription("Interrupt request for dispatch decisions.")
             InterruptRequest.DiscoveryAgentDispatchInterruptRequest interruptRequest,
+            @SkipPropertyFilter
+            InterruptRequest.DiscoveryAgentInterruptRequest agentInterruptRequest,
             @JsonPropertyDescription("Route to discovery collector with aggregated results.")
             DiscoveryCollectorRequest collectorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
@@ -3775,10 +3775,8 @@ public interface AgentModels {
             @JsonPropertyDescription("Interrupt request for planning agent decisions.")
             InterruptRequest.PlanningAgentInterruptRequest interruptRequest,
             @JsonPropertyDescription("Planning agent result payload.")
-            PlanningAgentResult agentResult,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
-    ) implements Routing {
+            PlanningAgentResult agentResult
+    ) implements DispatchedAgentRouting {
     }
 
     @Builder(toBuilder=true)
@@ -3824,6 +3822,8 @@ public interface AgentModels {
     record PlanningAgentDispatchRouting(
             @JsonPropertyDescription("Interrupt request for dispatch decisions.")
             InterruptRequest.PlanningAgentDispatchInterruptRequest interruptRequest,
+            @SkipPropertyFilter
+            InterruptRequest.PlanningAgentInterruptRequest agentInterruptRequest,
             @JsonPropertyDescription("Route to planning collector with aggregated results.")
             PlanningCollectorRequest planningCollectorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")
@@ -4367,10 +4367,8 @@ public interface AgentModels {
             @JsonPropertyDescription("Interrupt request for ticket agent decisions.")
             InterruptRequest.TicketAgentInterruptRequest interruptRequest,
             @JsonPropertyDescription("Ticket agent result payload.")
-            TicketAgentResult agentResult,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
-    ) implements Routing {
+            TicketAgentResult agentResult
+    ) implements DispatchedAgentRouting {
     }
 
     @Builder(toBuilder=true)
@@ -4403,6 +4401,8 @@ public interface AgentModels {
     record TicketAgentDispatchRouting(
             @JsonPropertyDescription("Interrupt request for dispatch decisions.")
             InterruptRequest.TicketAgentDispatchInterruptRequest interruptRequest,
+            @SkipPropertyFilter
+            InterruptRequest.TicketAgentInterruptRequest agentInterruptRequest,
             @JsonPropertyDescription("Route to ticket collector with aggregated results.")
             TicketCollectorRequest ticketCollectorRequest,
             @JsonPropertyDescription("Route to context manager for context reconstruction.")

@@ -20,8 +20,8 @@ public interface NodeMappings {
     /**
      * Map of request types to their corresponding routing types
      */
-    static Map<Class<?>, Class<? extends AgentModels.Routing>> getRequestToRoutingMap() {
-        Map<Class<?>, Class<? extends AgentModels.Routing>> map = new LinkedHashMap<>();
+    static Map<Class<?>, Class<? extends AgentModels.AgentRouting>> getRequestToRoutingMap() {
+        Map<Class<?>, Class<? extends AgentModels.AgentRouting>> map = new LinkedHashMap<>();
 
 //        TODO: retrieve this information using sealed hierarchy introspection
 //        AgentModels.AgentRequest.class.getPermittedSubclasses()
@@ -86,12 +86,12 @@ public interface NodeMappings {
     /**
      * The AgentRequest -> Routing
      */
-    Map<Class<?>, Class<? extends AgentModels.Routing>> REQUEST_TO_ROUTING = getRequestToRoutingMap();
+    Map<Class<?>, Class<? extends AgentModels.AgentRouting>> REQUEST_TO_ROUTING = getRequestToRoutingMap();
 
     /**
      * TODO:
      */
-    Map<Class<? extends AgentModels.Routing>, List<? extends AgentModels.AgentRequest>> ROUTING_TO_REQUESTS  = new HashMap<>();
+    Map<Class<? extends AgentModels.AgentRouting>, List<? extends AgentModels.AgentRequest>> ROUTING_TO_REQUESTS  = new HashMap<>();
 //            = getRequestToRoutingMap();
 
     /** Display name lookup by request type. */

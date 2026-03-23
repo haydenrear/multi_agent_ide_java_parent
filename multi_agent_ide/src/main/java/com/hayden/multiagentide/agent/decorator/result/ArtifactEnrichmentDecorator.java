@@ -20,7 +20,7 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
+    public <T extends AgentModels.AgentRouting> T decorate(T t, DecoratorContext context) {
         if (t == null) {
             return null;
         }
@@ -61,7 +61,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                     (T) routing.toBuilder()
                             .interruptRequest(enrichRequest(routing.interruptRequest(), operationContext))
                             .agentResult(enrichResult(routing.agentResult(), operationContext))
-                            .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
             case AgentModels.DiscoveryCollectorRouting routing ->
                     (T) routing.toBuilder()
@@ -117,7 +116,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                     (T) routing.toBuilder()
                             .interruptRequest(enrichRequest(routing.interruptRequest(), operationContext))
                             .agentResult(enrichResult(routing.agentResult(), operationContext))
-                            .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
             case AgentModels.PlanningCollectorRouting routing ->
                     (T) routing.toBuilder()
@@ -157,7 +155,6 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                     (T) routing.toBuilder()
                             .interruptRequest(enrichRequest(routing.interruptRequest(), operationContext))
                             .agentResult(enrichResult(routing.agentResult(), operationContext))
-                            .contextManagerRequest(enrichRequest(routing.contextManagerRequest(), operationContext))
                             .build();
             case AgentModels.TicketCollectorRouting routing ->
                     (T) routing.toBuilder()

@@ -260,7 +260,7 @@ public class RequestEnrichment {
         return null;
     }
 
-    private <T extends AgentModels.Routing> T enrichRouting(T model, OperationContext context, Artifact.AgentModel parent) {
+    private <T extends AgentModels.AgentRouting> T enrichRouting(T model, OperationContext context, Artifact.AgentModel parent) {
 //        doesn't need to be enriched - any request will be enriched in the action it routes to when it routes to that action.
         return model;
     }

@@ -24,7 +24,12 @@ import com.hayden.multiagentide.agent.decorator.result.FinalResultDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentidelib.events.DegenerateLoopException;
+import com.hayden.multiagentide.filter.service.FilterExecutionService;
+import com.hayden.multiagentide.propagation.service.PropagationExecutionService;
 import com.hayden.multiagentide.service.InterruptService;
+import com.hayden.multiagentide.service.WorktreeAutoCommitService;
+import com.hayden.multiagentide.service.WorktreeMergeConflictService;
+import com.hayden.multiagentide.transformation.service.TransformerExecutionService;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.tool.ToolAbstraction;
 import com.hayden.multiagentidelib.tool.ToolContext;
@@ -54,6 +59,244 @@ import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestRe
 public interface AgentInterfaces {
 
     Logger log = LoggerFactory.getLogger(AgentInterfaces.class);
+
+    interface MultiAgentIdeMetadata {
+
+
+        interface AgentMetadata {
+
+            record AgentActionMetadata<T extends AgentModels.AgentRequest, U extends AgentModels.AgentRouting, V extends AgentModels.AgentResult>(
+                    AgentType agentType,
+                    String agentName,
+                    String actionName,
+                    String methodName,
+                    String template,
+                    Class<T> requestType,
+                    Class<U> routingType,
+                    Class<V> resultType
+            ) { }
+
+            // ── WorkflowAgent LLM-calling actions ──
+            AgentActionMetadata<AgentModels.ContextManagerRequest, AgentModels.ContextManagerResultRouting, AgentModels.AgentResult>
+                    CONTEXT_MANAGER_STUCK = new AgentActionMetadata<>(
+                    AgentType.CONTEXT_MANAGER, WORKFLOW_AGENT_NAME,
+                    ACTION_CONTEXT_MANAGER_STUCK, METHOD_HANDLE_STUCK,
+                    TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
+                    AgentModels.ContextManagerRequest.class, AgentModels.ContextManagerResultRouting.class, AgentModels.AgentResult.class);
+
+            AgentActionMetadata<AgentModels.ContextManagerRequest, AgentModels.ContextManagerResultRouting, AgentModels.AgentResult>
+                    CONTEXT_MANAGER_REQUEST = new AgentActionMetadata<>(
+                    AgentType.CONTEXT_MANAGER, WORKFLOW_AGENT_NAME,
+                    ACTION_CONTEXT_MANAGER, METHOD_CONTEXT_MANAGER,
+                    TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
+                    AgentModels.ContextManagerRequest.class, AgentModels.ContextManagerResultRouting.class, AgentModels.AgentResult.class);
+
+            AgentActionMetadata<AgentModels.OrchestratorRequest, AgentModels.OrchestratorRouting, AgentModels.AgentResult>
+                    COORDINATE_WORKFLOW = new AgentActionMetadata<>(
+                    AgentType.ORCHESTRATOR, WORKFLOW_AGENT_NAME,
+                    ACTION_ORCHESTRATOR, METHOD_COORDINATE_WORKFLOW,
+                    TEMPLATE_WORKFLOW_ORCHESTRATOR,
+                    AgentModels.OrchestratorRequest.class, AgentModels.OrchestratorRouting.class, AgentModels.AgentResult.class);
+
+            AgentActionMetadata<AgentModels.OrchestratorCollectorRequest, AgentModels.OrchestratorCollectorRouting, AgentModels.OrchestratorCollectorResult>
+                    CONSOLIDATE_WORKFLOW_OUTPUTS = new AgentActionMetadata<>(
+                    AgentType.ORCHESTRATOR_COLLECTOR, WORKFLOW_AGENT_NAME,
+                    ACTION_ORCHESTRATOR_COLLECTOR, METHOD_CONSOLIDATE_WORKFLOW_OUTPUTS,
+                    TEMPLATE_WORKFLOW_ORCHESTRATOR_COLLECTOR,
+                    AgentModels.OrchestratorCollectorRequest.class, AgentModels.OrchestratorCollectorRouting.class, AgentModels.OrchestratorCollectorResult.class);
+
+            AgentActionMetadata<AgentModels.DiscoveryCollectorRequest, AgentModels.DiscoveryCollectorRouting, AgentModels.DiscoveryCollectorResult>
+                    CONSOLIDATE_DISCOVERY_FINDINGS = new AgentActionMetadata<>(
+                    AgentType.DISCOVERY_COLLECTOR, WORKFLOW_AGENT_NAME,
+                    ACTION_DISCOVERY_COLLECTOR, METHOD_CONSOLIDATE_DISCOVERY_FINDINGS,
+                    TEMPLATE_WORKFLOW_DISCOVERY_COLLECTOR,
+                    AgentModels.DiscoveryCollectorRequest.class, AgentModels.DiscoveryCollectorRouting.class, AgentModels.DiscoveryCollectorResult.class);
+
+            AgentActionMetadata<AgentModels.PlanningCollectorRequest, AgentModels.PlanningCollectorRouting, AgentModels.PlanningCollectorResult>
+                    CONSOLIDATE_PLANS_INTO_TICKETS = new AgentActionMetadata<>(
+                    AgentType.PLANNING_COLLECTOR, WORKFLOW_AGENT_NAME,
+                    ACTION_PLANNING_COLLECTOR, METHOD_CONSOLIDATE_PLANS_INTO_TICKETS,
+                    TEMPLATE_WORKFLOW_PLANNING_COLLECTOR,
+                    AgentModels.PlanningCollectorRequest.class, AgentModels.PlanningCollectorRouting.class, AgentModels.PlanningCollectorResult.class);
+
+            AgentActionMetadata<AgentModels.TicketCollectorRequest, AgentModels.TicketCollectorRouting, AgentModels.TicketCollectorResult>
+                    CONSOLIDATE_TICKET_RESULTS = new AgentActionMetadata<>(
+                    AgentType.TICKET_COLLECTOR, WORKFLOW_AGENT_NAME,
+                    ACTION_TICKET_COLLECTOR, METHOD_CONSOLIDATE_TICKET_RESULTS,
+                    TEMPLATE_WORKFLOW_TICKET_COLLECTOR,
+                    AgentModels.TicketCollectorRequest.class, AgentModels.TicketCollectorRouting.class, AgentModels.TicketCollectorResult.class);
+
+            AgentActionMetadata<AgentModels.DiscoveryOrchestratorRequest, AgentModels.DiscoveryOrchestratorRouting, AgentModels.DiscoveryOrchestratorResult>
+                    KICK_OFF_DISCOVERY_AGENTS = new AgentActionMetadata<>(
+                    AgentType.DISCOVERY_ORCHESTRATOR, WORKFLOW_AGENT_NAME,
+                    ACTION_DISCOVERY_ORCHESTRATOR, METHOD_KICK_OFF_ANY_NUMBER_OF_AGENTS_FOR_CODE_SEARCH,
+                    TEMPLATE_WORKFLOW_DISCOVERY_ORCHESTRATOR,
+                    AgentModels.DiscoveryOrchestratorRequest.class, AgentModels.DiscoveryOrchestratorRouting.class, AgentModels.DiscoveryOrchestratorResult.class);
+
+            AgentActionMetadata<AgentModels.PlanningOrchestratorRequest, AgentModels.PlanningOrchestratorRouting, AgentModels.PlanningOrchestratorResult>
+                    DECOMPOSE_PLAN = new AgentActionMetadata<>(
+                    AgentType.PLANNING_ORCHESTRATOR, WORKFLOW_AGENT_NAME,
+                    ACTION_PLANNING_ORCHESTRATOR, METHOD_DECOMPOSE_PLAN_AND_CREATE_WORK_ITEMS,
+                    TEMPLATE_WORKFLOW_PLANNING_ORCHESTRATOR,
+                    AgentModels.PlanningOrchestratorRequest.class, AgentModels.PlanningOrchestratorRouting.class, AgentModels.PlanningOrchestratorResult.class);
+
+            AgentActionMetadata<AgentModels.TicketOrchestratorRequest, AgentModels.TicketOrchestratorRouting, AgentModels.TicketOrchestratorResult>
+                    ORCHESTRATE_TICKET_EXECUTION = new AgentActionMetadata<>(
+                    AgentType.TICKET_ORCHESTRATOR, WORKFLOW_AGENT_NAME,
+                    ACTION_TICKET_ORCHESTRATOR, METHOD_ORCHESTRATE_TICKET_EXECUTION,
+                    TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR,
+                    AgentModels.TicketOrchestratorRequest.class, AgentModels.TicketOrchestratorRouting.class, AgentModels.TicketOrchestratorResult.class);
+
+            AgentActionMetadata<AgentModels.MergerRequest, AgentModels.MergerRouting, AgentModels.MergerAgentResult>
+                    PERFORM_MERGE = new AgentActionMetadata<>(
+                    AgentType.MERGER_AGENT, WORKFLOW_AGENT_NAME,
+                    ACTION_MERGER_AGENT, METHOD_PERFORM_MERGE,
+                    TEMPLATE_WORKFLOW_MERGER,
+                    AgentModels.MergerRequest.class, AgentModels.MergerRouting.class, AgentModels.MergerAgentResult.class);
+
+            AgentActionMetadata<AgentModels.ReviewRequest, AgentModels.ReviewRouting, AgentModels.ReviewAgentResult>
+                    PERFORM_REVIEW = new AgentActionMetadata<>(
+                    AgentType.REVIEW_AGENT, WORKFLOW_AGENT_NAME,
+                    ACTION_REVIEW_AGENT, METHOD_PERFORM_REVIEW,
+                    TEMPLATE_WORKFLOW_REVIEW,
+                    AgentModels.ReviewRequest.class, AgentModels.ReviewRouting.class, AgentModels.ReviewAgentResult.class);
+
+            // ── Dispatch LLM calls (post-subprocess routing) ──
+
+            AgentActionMetadata<AgentModels.DiscoveryAgentResults, AgentModels.DiscoveryAgentDispatchRouting, AgentModels.AgentResult>
+                    DISPATCH_DISCOVERY_AGENTS = new AgentActionMetadata<>(
+                    AgentType.DISCOVERY_AGENT_DISPATCH, WORKFLOW_AGENT_NAME,
+                    ACTION_DISCOVERY_DISPATCH, METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
+                    TEMPLATE_WORKFLOW_DISCOVERY_DISPATCH,
+                    AgentModels.DiscoveryAgentResults.class, AgentModels.DiscoveryAgentDispatchRouting.class, AgentModels.AgentResult.class);
+
+            AgentActionMetadata<AgentModels.PlanningAgentResults, AgentModels.PlanningAgentDispatchRouting, AgentModels.AgentResult>
+                    DISPATCH_PLANNING_AGENTS = new AgentActionMetadata<>(
+                    AgentType.PLANNING_AGENT_DISPATCH, WORKFLOW_AGENT_NAME,
+                    ACTION_PLANNING_DISPATCH, METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
+                    TEMPLATE_WORKFLOW_PLANNING_DISPATCH,
+                    AgentModels.PlanningAgentResults.class, AgentModels.PlanningAgentDispatchRouting.class, AgentModels.AgentResult.class);
+
+            AgentActionMetadata<AgentModels.TicketAgentResults, AgentModels.TicketAgentDispatchRouting, AgentModels.AgentResult>
+                    DISPATCH_TICKET_AGENTS = new AgentActionMetadata<>(
+                    AgentType.TICKET_AGENT_DISPATCH, WORKFLOW_AGENT_NAME,
+                    ACTION_TICKET_DISPATCH, METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
+                    TEMPLATE_WORKFLOW_TICKET_DISPATCH,
+                    AgentModels.TicketAgentResults.class, AgentModels.TicketAgentDispatchRouting.class, AgentModels.AgentResult.class);
+
+            // ── Subagent LLM-calling actions ──
+
+            AgentActionMetadata<AgentModels.TicketAgentRequest, AgentModels.TicketAgentRouting, AgentModels.TicketAgentResult>
+                    RUN_TICKET_AGENT = new AgentActionMetadata<>(
+                    AgentType.TICKET_AGENT, WORKFLOW_TICKET_DISPATCH_SUBAGENT,
+                    ACTION_TICKET_AGENT, METHOD_RUN_TICKET_AGENT,
+                    TEMPLATE_WORKFLOW_TICKET_AGENT,
+                    AgentModels.TicketAgentRequest.class, AgentModels.TicketAgentRouting.class, AgentModels.TicketAgentResult.class);
+
+            AgentActionMetadata<AgentModels.PlanningAgentRequest, AgentModels.PlanningAgentRouting, AgentModels.PlanningAgentResult>
+                    RUN_PLANNING_AGENT = new AgentActionMetadata<>(
+                    AgentType.PLANNING_AGENT, WORKFLOW_PLANNING_DISPATCH_SUBAGENT,
+                    ACTION_PLANNING_AGENT, METHOD_RUN_PLANNING_AGENT,
+                    TEMPLATE_WORKFLOW_PLANNING_AGENT,
+                    AgentModels.PlanningAgentRequest.class, AgentModels.PlanningAgentRouting.class, AgentModels.PlanningAgentResult.class);
+
+            AgentActionMetadata<AgentModels.DiscoveryAgentRequest, AgentModels.DiscoveryAgentRouting, AgentModels.DiscoveryAgentResult>
+                    RUN_DISCOVERY_AGENT = new AgentActionMetadata<>(
+                    AgentType.DISCOVERY_AGENT, WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT,
+                    ACTION_DISCOVERY_AGENT, METHOD_RUN_DISCOVERY_AGENT,
+                    TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
+                    AgentModels.DiscoveryAgentRequest.class, AgentModels.DiscoveryAgentRouting.class, AgentModels.DiscoveryAgentResult.class);
+
+            // ── Interrupt handlers ──
+
+            AgentActionMetadata<AgentModels.InterruptRequest, AgentModels.InterruptRouting, AgentModels.AgentResult>
+                    HANDLE_UNIFIED_INTERRUPT = new AgentActionMetadata<>(
+                    AgentType.CONTEXT_MANAGER, WORKFLOW_AGENT_NAME,
+                    ACTION_UNIFIED_INTERRUPT, METHOD_HANDLE_UNIFIED_INTERRUPT,
+                    TEMPLATE_WORKFLOW_CONTEXT_MANAGER_INTERRUPT,
+                    AgentModels.InterruptRequest.class, AgentModels.InterruptRouting.class, AgentModels.AgentResult.class);
+
+            AgentActionMetadata<AgentModels.InterruptRequest.TicketAgentInterruptRequest, AgentModels.TicketAgentRouting, AgentModels.TicketAgentResult>
+                    TICKET_AGENT_INTERRUPT = new AgentActionMetadata<>(
+                    AgentType.TICKET_AGENT, WORKFLOW_TICKET_DISPATCH_SUBAGENT,
+                    ACTION_TICKET_AGENT_INTERRUPT, METHOD_TRANSITION_TO_INTERRUPT_STATE,
+                    TEMPLATE_WORKFLOW_TICKET_AGENT,
+                    AgentModels.InterruptRequest.TicketAgentInterruptRequest.class, AgentModels.TicketAgentRouting.class, AgentModels.TicketAgentResult.class);
+
+            AgentActionMetadata<AgentModels.InterruptRequest.PlanningAgentInterruptRequest, AgentModels.PlanningAgentRouting, AgentModels.PlanningAgentResult>
+                    PLANNING_AGENT_INTERRUPT = new AgentActionMetadata<>(
+                    AgentType.PLANNING_AGENT, WORKFLOW_PLANNING_DISPATCH_SUBAGENT,
+                    ACTION_PLANNING_AGENT_INTERRUPT, METHOD_TRANSITION_TO_INTERRUPT_STATE,
+                    TEMPLATE_WORKFLOW_PLANNING_AGENT,
+                    AgentModels.InterruptRequest.PlanningAgentInterruptRequest.class, AgentModels.PlanningAgentRouting.class, AgentModels.PlanningAgentResult.class);
+
+            AgentActionMetadata<AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest, AgentModels.DiscoveryAgentRouting, AgentModels.DiscoveryAgentResult>
+                    DISCOVERY_AGENT_INTERRUPT = new AgentActionMetadata<>(
+                    AgentType.DISCOVERY_AGENT, WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT,
+                    ACTION_DISCOVERY_AGENT_INTERRUPT, METHOD_TRANSITION_TO_INTERRUPT_STATE,
+                    TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
+                    AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest.class, AgentModels.DiscoveryAgentRouting.class, AgentModels.DiscoveryAgentResult.class);
+
+            // ── InterruptService LLM calls ──
+
+            AgentActionMetadata<AgentModels.InterruptRequest, AgentModels.InterruptRouting, AgentModels.AgentResult>
+                    INTERRUPT_REVIEW_RESOLUTION = new AgentActionMetadata<>(
+                    AgentType.REVIEW_RESOLUTION_AGENT, AGENT_NAME_INTERRUPT_SERVICE,
+                    ACTION_INTERRUPT_AGENT_REVIEW, METHOD_HANDLE_INTERRUPT,
+                    TEMPLATE_REVIEW_RESOLUTION,
+                    AgentModels.InterruptRequest.class, AgentModels.InterruptRouting.class, AgentModels.AgentResult.class);
+
+            AgentActionMetadata<AgentModels.InterruptRequest, AgentModels.Routing, AgentModels.ReviewAgentResult>
+                    INTERRUPT_AGENT_REVIEW = new AgentActionMetadata<>(
+                    AgentType.REVIEW_AGENT, AGENT_NAME_INTERRUPT_SERVICE,
+                    ACTION_INTERRUPT_AGENT_REVIEW, METHOD_RUN_INTERRUPT_AGENT_REVIEW,
+                    TEMPLATE_WORKFLOW_REVIEW,
+                    AgentModels.InterruptRequest.class, AgentModels.Routing.class, AgentModels.ReviewAgentResult.class);
+
+            // ── Worktree service LLM calls ──
+
+            AgentActionMetadata<AgentModels.CommitAgentRequest, AgentModels.Routing, AgentModels.CommitAgentResult>
+                    WORKTREE_AUTO_COMMIT = new AgentActionMetadata<>(
+                    AgentType.COMMIT_AGENT, AGENT_NAME_WORKTREE_AUTO_COMMIT,
+                    ACTION_COMMIT_AGENT, METHOD_RUN_COMMIT_AGENT,
+                    TEMPLATE_WORKTREE_COMMIT_AGENT,
+                    AgentModels.CommitAgentRequest.class, AgentModels.Routing.class, AgentModels.CommitAgentResult.class);
+
+            AgentActionMetadata<AgentModels.MergeConflictRequest, AgentModels.Routing, AgentModels.MergeConflictResult>
+                    WORKTREE_MERGE_CONFLICT = new AgentActionMetadata<>(
+                    AgentType.MERGE_CONFLICT_AGENT, AGENT_NAME_WORKTREE_MERGE_CONFLICT,
+                    ACTION_MERGE_CONFLICT_AGENT, METHOD_RUN_MERGE_CONFLICT_AGENT,
+                    TEMPLATE_WORKTREE_MERGE_CONFLICT_AGENT,
+                    AgentModels.MergeConflictRequest.class, AgentModels.Routing.class, AgentModels.MergeConflictResult.class);
+
+            // ── AI tool LLM calls ──
+
+            AgentActionMetadata<AgentModels.AiFilterRequest, AgentModels.Routing, AgentModels.AiFilterResult>
+                    AI_FILTER = new AgentActionMetadata<>(
+                    AgentType.AI_FILTER, AGENT_NAME_AI_FILTER,
+                    ACTION_AI_FILTER, METHOD_AI_FILTER,
+                    TEMPLATE_AI_FILTER,
+                    AgentModels.AiFilterRequest.class, AgentModels.Routing.class, AgentModels.AiFilterResult.class);
+
+            AgentActionMetadata<AgentModels.AiPropagatorRequest, AgentModels.Routing, AgentModels.AiPropagatorResult>
+                    AI_PROPAGATOR = new AgentActionMetadata<>(
+                    AgentType.AI_PROPAGATOR, AGENT_NAME_AI_PROPAGATOR,
+                    ACTION_AI_PROPAGATOR, METHOD_AI_PROPAGATOR,
+                    TEMPLATE_AI_PROPAGATOR,
+                    AgentModels.AiPropagatorRequest.class, AgentModels.Routing.class, AgentModels.AiPropagatorResult.class);
+
+            AgentActionMetadata<AgentModels.AiTransformerRequest, AgentModels.Routing, AgentModels.AiTransformerResult>
+                    AI_TRANSFORMER = new AgentActionMetadata<>(
+                    AgentType.AI_TRANSFORMER, AGENT_NAME_AI_TRANSFORMER,
+                    ACTION_AI_TRANSFORMER, METHOD_AI_TRANSFORMER,
+                    TEMPLATE_AI_TRANSFORMER,
+                    AgentModels.AiTransformerRequest.class, AgentModels.Routing.class, AgentModels.AiTransformerResult.class);
+
+        }
+
+    }
+
+
 
     String WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT = "WorkflowDiscoveryDispatchSubagent";
     String WORKFLOW_PLANNING_DISPATCH_SUBAGENT = "WorkflowPlanningDispatchSubagent";
@@ -156,6 +399,43 @@ public interface AgentInterfaces {
     String TEMPLATE_WORKFLOW_TICKET_AGENT = "workflow/ticket_agent";
     String TEMPLATE_WORKFLOW_PLANNING_AGENT = "workflow/planning_agent";
     String TEMPLATE_WORKFLOW_DISCOVERY_AGENT = "workflow/discovery_agent";
+    // InterruptService constants (sourced from InterruptService)
+    String AGENT_NAME_INTERRUPT_SERVICE = InterruptService.AGENT_NAME;
+    String ACTION_INTERRUPT_AGENT_REVIEW = InterruptService.ACTION_AGENT_REVIEW;
+    String METHOD_HANDLE_INTERRUPT = InterruptService.METHOD_HANDLE_INTERRUPT;
+    String METHOD_RUN_INTERRUPT_AGENT_REVIEW = InterruptService.METHOD_RUN_INTERRUPT_AGENT_REVIEW;
+    String TEMPLATE_REVIEW_RESOLUTION = InterruptService.TEMPLATE_REVIEW_RESOLUTION;
+
+    // WorktreeAutoCommitService constants (sourced from WorktreeAutoCommitService)
+    String AGENT_NAME_WORKTREE_AUTO_COMMIT = WorktreeAutoCommitService.AGENT_NAME;
+    String ACTION_COMMIT_AGENT = WorktreeAutoCommitService.ACTION_NAME;
+    String METHOD_RUN_COMMIT_AGENT = WorktreeAutoCommitService.METHOD_NAME;
+    String TEMPLATE_WORKTREE_COMMIT_AGENT = WorktreeAutoCommitService.TEMPLATE_WORKTREE_COMMIT_AGENT;
+
+    // WorktreeMergeConflictService constants (sourced from WorktreeMergeConflictService)
+    String AGENT_NAME_WORKTREE_MERGE_CONFLICT = WorktreeMergeConflictService.AGENT_NAME;
+    String ACTION_MERGE_CONFLICT_AGENT = WorktreeMergeConflictService.ACTION_NAME;
+    String METHOD_RUN_MERGE_CONFLICT_AGENT = WorktreeMergeConflictService.METHOD_NAME;
+    String TEMPLATE_WORKTREE_MERGE_CONFLICT_AGENT = WorktreeMergeConflictService.TEMPLATE;
+
+    // AI filter constants (sourced from FilterExecutionService)
+    String AGENT_NAME_AI_FILTER = FilterExecutionService.AI_FILTER_AGENT_NAME;
+    String ACTION_AI_FILTER = FilterExecutionService.AI_FILTER_ACTION_NAME;
+    String METHOD_AI_FILTER = FilterExecutionService.AI_FILTER_METHOD_NAME;
+    String TEMPLATE_AI_FILTER = FilterExecutionService.AI_FILTER_TEMPLATE_NAME;
+
+    // AI propagator constants (sourced from PropagationExecutionService)
+    String AGENT_NAME_AI_PROPAGATOR = PropagationExecutionService.AI_PROPAGATOR_AGENT_NAME;
+    String ACTION_AI_PROPAGATOR = PropagationExecutionService.AI_PROPAGATOR_ACTION_NAME;
+    String METHOD_AI_PROPAGATOR = PropagationExecutionService.AI_PROPAGATOR_METHOD_NAME;
+    String TEMPLATE_AI_PROPAGATOR = PropagationExecutionService.AI_PROPAGATOR_TEMPLATE_NAME;
+
+    // AI transformer constants (sourced from TransformerExecutionService)
+    String AGENT_NAME_AI_TRANSFORMER = TransformerExecutionService.AI_TRANSFORMER_AGENT_NAME;
+    String ACTION_AI_TRANSFORMER = TransformerExecutionService.AI_TRANSFORMER_ACTION_NAME;
+    String METHOD_AI_TRANSFORMER = TransformerExecutionService.AI_TRANSFORMER_METHOD_NAME;
+    String TEMPLATE_AI_TRANSFORMER = TransformerExecutionService.AI_TRANSFORMER_TEMPLATE_NAME;
+
     String UNKNOWN_VALUE = "unknown";
     String RETURN_ROUTE_NONE = "none";
 
@@ -1382,15 +1662,22 @@ public interface AgentInterfaces {
 
                 context.addObject(input);
 
-                AgentModels.DiscoveryAgentResult response = runSubProcess(
+                AgentModels.DiscoveryAgentRouting response = runSubProcess(
                         context,
                         request,
                         discoveryDispatchAgent,
-                        AgentModels.DiscoveryAgentResult.class
+                        AgentModels.DiscoveryAgentRouting.class
                 );
 
-                if (response != null)
-                    discoveryResults.add(response);
+                if (response.interruptRequest() != null) {
+//                  has to route to interrupt request, without llm.
+                    return AgentModels.DiscoveryAgentDispatchRouting.builder()
+                            .agentInterruptRequest(response.interruptRequest())
+                            .build();
+                }
+
+                if (response.agentResult() != null)
+                    discoveryResults.add(response.agentResult());
             }
 
             var d = AgentModels.DiscoveryAgentResults.builder()
@@ -1571,15 +1858,20 @@ public interface AgentInterfaces {
 
                 context.addObject(input);
 
-                AgentModels.PlanningAgentResult response = runSubProcess(
+                AgentModels.PlanningAgentRouting response = runSubProcess(
                         context,
                         request,
                         planningDispatchAgent,
-                        AgentModels.PlanningAgentResult.class
+                        AgentModels.PlanningAgentRouting.class
                 );
 
-                if (response != null)
-                    planningResults.add(response);
+                if (response.interruptRequest() != null)
+                    return AgentModels.PlanningAgentDispatchRouting.builder()
+                            .agentInterruptRequest(response.interruptRequest())
+                            .build();
+
+                if (response.agentResult() != null)
+                    planningResults.add(response.agentResult());
             }
 
             AgentModels.PlanningAgentResults planningAgentResults = AgentModels.PlanningAgentResults.builder()
@@ -1789,15 +2081,20 @@ public interface AgentInterfaces {
 
                 context.addObject(input);
 
-                AgentModels.TicketAgentResult agentResult = runSubProcess(
+                AgentModels.TicketAgentRouting agentResult = runSubProcess(
                         context,
                         request,
                         ticketDispatchAgent,
-                        AgentModels.TicketAgentResult.class
+                        AgentModels.TicketAgentRouting.class
                 );
 
-                if (agentResult != null)
-                    ticketResults.add(agentResult);
+                if (agentResult.interruptRequest() != null)
+                    return AgentModels.TicketAgentDispatchRouting.builder()
+                            .agentInterruptRequest(agentResult.interruptRequest())
+                            .build();
+
+                if (agentResult.agentResult() != null)
+                    ticketResults.add(agentResult.agentResult());
             }
 
             var ticketAgentResults = AgentModels.TicketAgentResults.builder()
@@ -2433,86 +2730,6 @@ public interface AgentInterfaces {
 
         @Action
         @AchievesGoal(description = "Handle context agent request")
-        public AgentModels.TicketAgentResult ranTicketAgentResult(
-                AgentModels.TicketAgentResult input,
-                OperationContext context
-        ) {
-            AgentModels.TicketAgentRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.TicketAgentRequest.class);
-            if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
-                        "Ticket agent request not found - cannot record ticket agent result.",
-                        METHOD_RAN_TICKET_AGENT_RESULT,
-                        AgentModels.TicketAgentResult.class,
-                        1
-                );
-            }
-            return input;
-        }
-
-        @Action
-        public AgentModels.TicketAgentRouting transitionToInterruptState(
-                AgentModels.InterruptRequest.TicketAgentInterruptRequest interruptRequest,
-                OperationContext context
-        ) {
-            AgentModels.TicketAgentRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.TicketAgentRequest.class);
-            if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Ticket agent request not found - cannot recover from interrupt.",
-                        METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                        AgentModels.InterruptRequest.TicketAgentInterruptRequest.class,
-                        1
-                );
-            }
-            interruptRequest = decorateRequest(
-                    interruptRequest,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_AGENT_INTERRUPT,
-                    METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                    lastRequest
-            );
-            Map<String, Object> model = Map.of(
-                    "ticketDetails", lastRequest.ticketDetails() != null ? lastRequest.ticketDetails() : "",
-                    "ticketDetailsFilePath", lastRequest.ticketDetailsFilePath() != null ? lastRequest.ticketDetailsFilePath() : ""
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.TICKET_AGENT,
-                    lastRequest,
-                    lastRequest,
-                    interruptRequest,
-                    context,
-                    ACTION_TICKET_AGENT_INTERRUPT,
-                    METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                    TEMPLATE_WORKFLOW_TICKET_AGENT,
-                    model
-            );
-            GraphNode originNode = workflowGraphService.findNodeForContext(context)
-                    .orElseGet(() -> workflowGraphService.requireTicketOrchestrator(context));
-            AgentModels.TicketAgentRouting routing = interruptService.handleInterrupt(
-                    context,
-                    interruptRequest,
-                    originNode,
-                    TEMPLATE_WORKFLOW_TICKET_AGENT,
-                    promptContext,
-                    model,
-                    AgentModels.TicketAgentRouting.class
-            );
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_AGENT_INTERRUPT,
-                    METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                    lastRequest
-            );
-        }
-
-        @Action
         public AgentModels.TicketAgentRouting runTicketAgent(
                 AgentModels.TicketAgentRequest input,
                 OperationContext context
@@ -2674,86 +2891,8 @@ public interface AgentInterfaces {
             );
         }
 
-        @Action
+        @Action(canRerun = true)
         @AchievesGoal(description = "Handle context agent request")
-        public AgentModels.PlanningAgentResult ranPlanningAgent(
-                AgentModels.PlanningAgentResult input,
-                OperationContext context
-        ) {
-            AgentModels.PlanningAgentRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningAgentRequest.class);
-            if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context,
-                        "Planning agent request not found - cannot record planning agent result.",
-                        METHOD_RAN_PLANNING_AGENT,
-                        AgentModels.PlanningAgentResult.class,
-                        1
-                );
-            }
-            return input;
-        }
-
-        @Action(canRerun = true)
-        public AgentModels.PlanningAgentRouting transitionToInterruptState(
-                AgentModels.InterruptRequest.PlanningAgentInterruptRequest interruptRequest,
-                OperationContext context
-        ) {
-            AgentModels.PlanningAgentRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningAgentRequest.class);
-
-            if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Planning agent request not found - cannot recover from interrupt.",
-                        METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                        AgentModels.InterruptRequest.PlanningAgentInterruptRequest.class,
-                        1
-                );
-            }
-            interruptRequest = decorateRequest(
-                    interruptRequest,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_AGENT_INTERRUPT,
-                    METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                    lastRequest
-            );
-            Map<String, Object> model = Map.of("goal", Objects.toString(lastRequest.goal(), ""));
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.PLANNING_AGENT,
-                    lastRequest,
-                    lastRequest,
-                    interruptRequest,
-                    context,
-                    ACTION_PLANNING_AGENT_INTERRUPT,
-                    METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                    TEMPLATE_WORKFLOW_PLANNING_AGENT,
-                    model
-            );
-            GraphNode originNode = workflowGraphService.findNodeForContext(context)
-                    .orElseGet(() -> workflowGraphService.requirePlanningOrchestrator(context));
-            AgentModels.PlanningAgentRouting routing = interruptService.handleInterrupt(
-                    context,
-                    interruptRequest,
-                    originNode,
-                    TEMPLATE_WORKFLOW_PLANNING_AGENT,
-                    promptContext,
-                    model,
-                    AgentModels.PlanningAgentRouting.class
-            );
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_AGENT_INTERRUPT,
-                    METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                    lastRequest
-            );
-        }
-
-        @Action(canRerun = true)
         public AgentModels.PlanningAgentRouting runPlanningAgent(
                 AgentModels.PlanningAgentRequest input,
                 OperationContext context
@@ -2912,78 +3051,6 @@ public interface AgentInterfaces {
 
         @Action
         @AchievesGoal(description = "Handle context agent request")
-        public AgentModels.DiscoveryAgentResult ranDiscoveryAgent(
-                AgentModels.DiscoveryAgentResult input,
-                OperationContext context
-        ) {
-//            do an event emission of complete
-            return input;
-        }
-
-        @Action
-        public AgentModels.DiscoveryAgentRouting transitionToInterruptState(
-                AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest interruptRequest,
-                OperationContext context
-        ) {
-
-            AgentModels.DiscoveryAgentRequest lastRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryAgentRequest.class);
-            if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
-                        "Discovery agent request not found - cannot recover from interrupt.",
-                        METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                        AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest.class,
-                        1
-                );
-            }
-            interruptRequest = decorateRequest(
-                    interruptRequest,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_AGENT_INTERRUPT,
-                    METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                    lastRequest
-            );
-            Map<String, Object> model = Map.of(
-                    "goal", Objects.toString(lastRequest.goal(), ""),
-                    "subdomainFocus", Objects.toString(lastRequest.subdomainFocus(), "")
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.DISCOVERY_AGENT,
-                    lastRequest,
-                    lastRequest,
-                    interruptRequest,
-                    context,
-                    ACTION_DISCOVERY_AGENT_INTERRUPT,
-                    METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                    TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
-                    model
-            );
-            GraphNode originNode = workflowGraphService.findNodeForContext(context)
-                    .orElseGet(() -> workflowGraphService.requireDiscoveryOrchestrator(context));
-            AgentModels.DiscoveryAgentRouting routing = interruptService.handleInterrupt(
-                    context,
-                    interruptRequest,
-                    originNode,
-                    TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
-                    promptContext,
-                    model,
-                    AgentModels.DiscoveryAgentRouting.class
-            );
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_AGENT_INTERRUPT,
-                    METHOD_TRANSITION_TO_INTERRUPT_STATE,
-                    lastRequest
-            );
-        }
-
-        @Action
         public AgentModels.DiscoveryAgentRouting runDiscoveryAgent(
                 AgentModels.DiscoveryAgentRequest input,
                 OperationContext context

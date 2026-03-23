@@ -22,7 +22,7 @@ public class EnrichResultDecorator implements ResultDecorator {
     }
 
     @Override
-    public <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
+    public <T extends AgentModels.AgentRouting> T decorate(T t, DecoratorContext context) {
         return t;
     }
 

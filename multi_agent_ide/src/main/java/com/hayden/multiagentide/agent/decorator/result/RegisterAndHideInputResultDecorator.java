@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
+import com.hayden.acp_cdc_ai.acp.events.HasContextId;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.BlackboardHistoryService;
@@ -7,6 +8,12 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+
+import java.lang.reflect.InvocationTargetException;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Request decorator that registers the input in blackboard history and hides it.
@@ -39,6 +46,9 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
         log.info("hideInput (result) — agent={} action={} resultType={}",
                 context.agentName(), context.actionName(),
                 request.getClass().getSimpleName());
+
+        blackboardHistoryService.registerResult(context.operationContext(), context.actionName(), request);
+
         blackboardHistoryService.hideInput(
                 context.operationContext()
         );
@@ -47,10 +57,28 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
     }
 
     @Override
-    public <T extends AgentModels.Routing> T decorate(T t, DecoratorContext context) {
+    public <T extends AgentModels.AgentRouting> T decorate(T t, DecoratorContext context) {
         log.info("hideInput (routing) — agent={} action={} routingType={}",
                 context.agentName(), context.actionName(),
                 t != null ? t.getClass().getSimpleName() : "(null)");
+
+        Optional.ofNullable(t).map(s -> s.getClass())
+                .stream()
+                .flatMap(s -> Arrays.stream(s.getRecordComponents()))
+                .flatMap(rc -> {
+                    try {
+                        return Stream.of(rc.getAccessor().invoke(t));
+                    } catch (
+                            IllegalAccessException |
+                            InvocationTargetException e) {
+                        log.error("Error when trying to retrieve record components of {}.", t);
+                        return Stream.empty();
+                    }
+                })
+                .filter(Objects::nonNull)
+                .flatMap(s -> s instanceof HasContextId h ? Stream.of(h) : Stream.empty())
+                .forEach(h -> blackboardHistoryService.registerResult(context.operationContext(), context.actionName(), h));
+
         blackboardHistoryService.hideInput(
                 context.operationContext()
         );
@@ -75,6 +103,8 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
         log.info("hideInput (finalResult) — agent={} action={} resultType={}",
                 context.decoratorContext().agentName(), context.decoratorContext().actionName(),
                 t != null ? t.getClass().getSimpleName() : "(null)");
+        blackboardHistoryService.registerResult(context.decoratorContext().operationContext(), context.decoratorContext().actionName(), t);
+
         blackboardHistoryService.hideInput(
                 context.decoratorContext().operationContext()
         );
