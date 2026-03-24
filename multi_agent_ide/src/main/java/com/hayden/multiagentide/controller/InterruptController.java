@@ -1,5 +1,7 @@
 package com.hayden.multiagentide.controller;
 
+import com.hayden.multiagentide.repository.GraphRepository;
+import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
 import jakarta.validation.Valid;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
@@ -7,10 +9,12 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.service.AgentControlService;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.service.PermissionGateService;
+import com.hayden.multiagentidelib.agent.AgentType;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
@@ -37,6 +41,7 @@ public class InterruptController {
     private final EventBus eventBus;
     private final PermissionGate permissionGate;
     private final PermissionGateService permissionGateService;
+    private final GraphRepository graphRepository;
 
     public record PendingInterruptSummary(
             String interruptId,
@@ -88,6 +93,23 @@ public class InterruptController {
             }
             default -> throw new IllegalArgumentException("Unsupported interrupt type: " + type);
         }
+        eventBus.publish(new Events.InterruptRequestEvent(
+                interruptId,
+                Instant.now(),
+                request.originNodeId(),
+                graphRepository.findById(request.originNodeId)
+                       .or(() -> graphRepository.findById(interruptId))
+                       .flatMap(gn -> Optional.ofNullable(NodeMappings.agentTypeFromNode(gn)))
+                        .map(AgentType::wireValue)
+                       .orElse(null),
+                request.rerouteToAgentType().wireValue(),
+                type,
+                reason,
+                List.of(),
+                List.of(),
+                null,
+                interruptId
+        ));
         return new InterruptStatusResponse(interruptId, "REQUESTED", request.originNodeId(), request.originNodeId());
     }
 
@@ -163,7 +185,12 @@ public class InterruptController {
     public record InterruptRequest(
             @Schema(description = "Interrupt type: PAUSE, STOP, HUMAN_REVIEW, or PRUNE. See Events.InterruptType.") Events.InterruptType type,
             @Schema(description = "ArtifactKey of the target agent node") String originNodeId,
-            @Schema(description = "Human-readable reason for the interrupt") String reason
+            @Schema(description = "Human-readable reason for the interrupt") String reason,
+            @Schema(description = "Target AgentType to reroute the interrupted agent to. "
+                    + "Must be a workflow agent type. Cannot route to: ALL, COMMIT_AGENT, MERGE_CONFLICT_AGENT, "
+                    + "AI_FILTER, AI_PROPAGATOR, AI_TRANSFORMER, REVIEW_AGENT, REVIEW_RESOLUTION_AGENT, "
+                    + "MERGER_AGENT, CONTEXT_MANAGER.")
+            AgentType rerouteToAgentType
     ) {
     }
 

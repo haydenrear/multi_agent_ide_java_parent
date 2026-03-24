@@ -252,13 +252,6 @@ public final class FilterLayerCatalog {
 
         registerAction(action(
                 AgentInterfaces.WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT,
-                AgentInterfaces.ACTION_DISCOVERY_AGENT,
-                AgentInterfaces.METHOD_RAN_DISCOVERY_AGENT,
-                AgentType.DISCOVERY_AGENT,
-                DISCOVERY_DISPATCH_SUBAGENT
-        ));
-        registerAction(action(
-                AgentInterfaces.WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT,
                 AgentInterfaces.ACTION_DISCOVERY_AGENT_INTERRUPT,
                 AgentInterfaces.METHOD_TRANSITION_TO_INTERRUPT_STATE,
                 AgentType.DISCOVERY_AGENT,
@@ -275,13 +268,6 @@ public final class FilterLayerCatalog {
         ));
         registerAction(action(
                 AgentInterfaces.WORKFLOW_PLANNING_DISPATCH_SUBAGENT,
-                AgentInterfaces.ACTION_PLANNING_AGENT,
-                AgentInterfaces.METHOD_RAN_PLANNING_AGENT,
-                AgentType.PLANNING_AGENT,
-                PLANNING_DISPATCH_SUBAGENT
-        ));
-        registerAction(action(
-                AgentInterfaces.WORKFLOW_PLANNING_DISPATCH_SUBAGENT,
                 AgentInterfaces.ACTION_PLANNING_AGENT_INTERRUPT,
                 AgentInterfaces.METHOD_TRANSITION_TO_INTERRUPT_STATE,
                 AgentType.PLANNING_AGENT,
@@ -295,13 +281,6 @@ public final class FilterLayerCatalog {
                 AgentType.PLANNING_AGENT,
                 PLANNING_DISPATCH_SUBAGENT,
                 AgentModels.PlanningAgentRequest.class
-        ));
-        registerAction(action(
-                AgentInterfaces.WORKFLOW_TICKET_DISPATCH_SUBAGENT,
-                AgentInterfaces.ACTION_TICKET_AGENT,
-                AgentInterfaces.METHOD_RAN_TICKET_AGENT_RESULT,
-                AgentType.TICKET_AGENT,
-                TICKET_DISPATCH_SUBAGENT
         ));
         registerAction(action(
                 AgentInterfaces.WORKFLOW_TICKET_DISPATCH_SUBAGENT,

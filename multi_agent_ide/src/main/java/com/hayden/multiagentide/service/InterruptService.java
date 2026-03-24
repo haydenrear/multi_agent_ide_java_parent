@@ -277,8 +277,8 @@ public class InterruptService {
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
 
         // Rebuild prompt context with the interrupt request as currentRequest so that
-        // prompt contributor factories (e.g. InterruptPromptContributorFactory,
-        // WorktreeSandboxPromptContributorFactory) can see it and contribute.
+        // prompt contributor factories (e.g. WorktreeSandboxPromptContributorFactory)
+        // can see it and contribute.
         DecoratorContext decoratorContext = new DecoratorContext(
                 context, AGENT_NAME, ACTION_AGENT_REVIEW, METHOD_RUN_INTERRUPT_AGENT_REVIEW, callerPromptContext.previousRequest(), request
         );

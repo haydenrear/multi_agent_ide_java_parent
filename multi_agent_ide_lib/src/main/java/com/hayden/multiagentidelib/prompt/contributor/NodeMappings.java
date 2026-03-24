@@ -2,6 +2,8 @@ package com.hayden.multiagentidelib.prompt.contributor;
 
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentModels.InterruptRequest;
+import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.model.nodes.*;
 import org.jspecify.annotations.Nullable;
 
 import java.util.*;
@@ -113,6 +115,73 @@ public interface NodeMappings {
         return null;
     }
 
+    /**
+     * AgentType → primary (non-interrupt) routing class. Used by schema generators
+     * to resolve the Routing type for a given agent when generating filtered schemas
+     * (e.g., SomeOf(InterruptRequest) = Routing filtered to interrupt fields only).
+     */
+    Map<AgentType, Class<? extends AgentModels.AgentRouting>> AGENT_TYPE_TO_ROUTING = initAgentTypeToRouting();
+
+    static @Nullable Class<? extends AgentModels.AgentRouting> routingClassForAgentType(AgentType agentType) {
+        return AGENT_TYPE_TO_ROUTING.get(agentType);
+    }
+
+    static @Nullable AgentType agentTypeFromRequest(AgentModels.AgentRequest node) {
+        return switch(node) {
+            case AgentModels.AiFilterRequest ignored -> AgentType.AI_FILTER;
+            case AgentModels.AiPropagatorRequest ignored -> AgentType.AI_PROPAGATOR;
+            case AgentModels.AiTransformerRequest ignored -> AgentType.AI_TRANSFORMER;
+            case AgentModels.CommitAgentRequest ignored -> AgentType.COMMIT_AGENT;
+            case AgentModels.MergeConflictRequest ignored -> AgentType.MERGE_CONFLICT_AGENT;
+            case AgentModels.ContextManagerRequest ignored -> AgentType.CONTEXT_MANAGER;
+            case AgentModels.ContextManagerRoutingRequest ignored -> AgentType.CONTEXT_MANAGER;
+            case AgentModels.OrchestratorRequest ignored -> AgentType.ORCHESTRATOR;
+            case AgentModels.OrchestratorCollectorRequest ignored -> AgentType.ORCHESTRATOR_COLLECTOR;
+            case AgentModels.DiscoveryOrchestratorRequest ignored -> AgentType.DISCOVERY_ORCHESTRATOR;
+            case AgentModels.DiscoveryAgentRequest ignored -> AgentType.DISCOVERY_AGENT;
+            case AgentModels.DiscoveryAgentRequests ignored -> AgentType.DISCOVERY_AGENT_DISPATCH;
+            case AgentModels.DiscoveryCollectorRequest ignored -> AgentType.DISCOVERY_COLLECTOR;
+            case AgentModels.PlanningOrchestratorRequest ignored -> AgentType.PLANNING_ORCHESTRATOR;
+            case AgentModels.PlanningAgentRequest ignored -> AgentType.PLANNING_AGENT;
+            case AgentModels.PlanningAgentRequests ignored -> AgentType.PLANNING_AGENT_DISPATCH;
+            case AgentModels.PlanningCollectorRequest ignored -> AgentType.PLANNING_COLLECTOR;
+            case AgentModels.TicketOrchestratorRequest ignored -> AgentType.TICKET_ORCHESTRATOR;
+            case AgentModels.TicketAgentRequest ignored -> AgentType.TICKET_AGENT;
+            case AgentModels.TicketAgentRequests ignored -> AgentType.TICKET_AGENT_DISPATCH;
+            case AgentModels.TicketCollectorRequest ignored -> AgentType.TICKET_COLLECTOR;
+            case AgentModels.ResultsRequest ignored -> null;
+            case InterruptRequest ignored -> null;
+        };
+    }
+
+    /**
+     * Resolve the AgentType for a GraphNode subtype. Returns null for node types
+     * that don't map to an LLM-calling agent (e.g., InterruptNode, ReviewNode).
+     */
+    static @Nullable AgentType agentTypeFromNode(GraphNode node) {
+        return switch (node) {
+            case OrchestratorNode ignored -> AgentType.ORCHESTRATOR;
+            case CollectorNode ignored -> AgentType.ORCHESTRATOR_COLLECTOR;
+            case DiscoveryOrchestratorNode ignored -> AgentType.DISCOVERY_ORCHESTRATOR;
+            case DiscoveryDispatchAgentNode ignored -> AgentType.DISCOVERY_AGENT_DISPATCH;
+            case DiscoveryNode ignored -> AgentType.DISCOVERY_AGENT;
+            case DiscoveryCollectorNode ignored -> AgentType.DISCOVERY_COLLECTOR;
+            case PlanningOrchestratorNode ignored -> AgentType.PLANNING_ORCHESTRATOR;
+            case PlanningDispatchAgentNode ignored -> AgentType.PLANNING_AGENT_DISPATCH;
+            case PlanningNode ignored -> AgentType.PLANNING_AGENT;
+            case PlanningCollectorNode ignored -> AgentType.PLANNING_COLLECTOR;
+            case TicketOrchestratorNode ignored -> AgentType.TICKET_ORCHESTRATOR;
+            case TicketDispatchAgentNode ignored -> AgentType.TICKET_AGENT_DISPATCH;
+            case TicketNode ignored -> AgentType.TICKET_AGENT;
+            case TicketCollectorNode ignored -> AgentType.TICKET_COLLECTOR;
+            case InterruptNode ignored -> null;
+            case ReviewNode ignored -> null;
+            case MergeNode ignored -> null;
+            case SummaryNode ignored -> null;
+            case AskPermissionNode ignored -> null;
+        };
+    }
+
     // -----------------------------------------------------------
     // Initialization
     // -----------------------------------------------------------
@@ -187,6 +256,26 @@ public interface NodeMappings {
                 map.put(m.requestType(), m.fieldName());
             }
         }
+        return Collections.unmodifiableMap(map);
+    }
+
+    private static Map<AgentType, Class<? extends AgentModels.AgentRouting>> initAgentTypeToRouting() {
+        Map<AgentType, Class<? extends AgentModels.AgentRouting>> map = new LinkedHashMap<>();
+        map.put(AgentType.ORCHESTRATOR, AgentModels.OrchestratorRouting.class);
+        map.put(AgentType.ORCHESTRATOR_COLLECTOR, AgentModels.OrchestratorCollectorRouting.class);
+        map.put(AgentType.DISCOVERY_ORCHESTRATOR, AgentModels.DiscoveryOrchestratorRouting.class);
+        map.put(AgentType.DISCOVERY_AGENT_DISPATCH, AgentModels.DiscoveryAgentDispatchRouting.class);
+        map.put(AgentType.DISCOVERY_AGENT, AgentModels.DiscoveryAgentRouting.class);
+        map.put(AgentType.DISCOVERY_COLLECTOR, AgentModels.DiscoveryCollectorRouting.class);
+        map.put(AgentType.PLANNING_ORCHESTRATOR, AgentModels.PlanningOrchestratorRouting.class);
+        map.put(AgentType.PLANNING_AGENT_DISPATCH, AgentModels.PlanningAgentDispatchRouting.class);
+        map.put(AgentType.PLANNING_AGENT, AgentModels.PlanningAgentRouting.class);
+        map.put(AgentType.PLANNING_COLLECTOR, AgentModels.PlanningCollectorRouting.class);
+        map.put(AgentType.TICKET_ORCHESTRATOR, AgentModels.TicketOrchestratorRouting.class);
+        map.put(AgentType.TICKET_AGENT_DISPATCH, AgentModels.TicketAgentDispatchRouting.class);
+        map.put(AgentType.TICKET_AGENT, AgentModels.TicketAgentRouting.class);
+        map.put(AgentType.TICKET_COLLECTOR, AgentModels.TicketCollectorRouting.class);
+        map.put(AgentType.CONTEXT_MANAGER, AgentModels.ContextManagerResultRouting.class);
         return Collections.unmodifiableMap(map);
     }
 }

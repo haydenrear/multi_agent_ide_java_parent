@@ -2885,9 +2885,6 @@ public interface AgentModels {
             @TicketRoute
             @JsonPropertyDescription("Return to ticket orchestrator.")
             TicketOrchestratorRequest ticketOrchestratorRequest,
-            @ContextManagerRoute
-            @JsonPropertyDescription("Return to context manager.")
-            ContextManagerRoutingRequest contextManagerRequest,
             @OrchestratorCollectorRoute
             @JsonPropertyDescription("Return to orchestrator collector.")
             OrchestratorCollectorRequest orchestratorCollectorRequest,
@@ -2908,7 +2905,10 @@ public interface AgentModels {
             PlanningAgentRequests planningAgentRequests,
             @TicketDispatchRoute
             @JsonPropertyDescription("Return to ticket dispatch node.")
-            TicketAgentRequests ticketAgentRequests
+            TicketAgentRequests ticketAgentRequests,
+            @ContextManagerRoute
+            @JsonPropertyDescription("Route to context manager for context refinement - will look in request log to identify next step.")
+            ContextManagerRoutingRequest contextManagerRoutingRequest
     ) implements Routing {}
 
     /**
@@ -2923,12 +2923,10 @@ public interface AgentModels {
             @JsonPropertyDescription("Route to orchestrator collector for finalization.")
             OrchestratorCollectorRequest collectorRequest,
             @JsonPropertyDescription("Route to discovery orchestrator.")
-            DiscoveryOrchestratorRequest discoveryOrchestratorRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
+            DiscoveryOrchestratorRequest discoveryOrchestratorRequest
     ) implements Routing {
         public OrchestratorRouting(InterruptRequest.OrchestratorInterruptRequest interruptRequest, OrchestratorCollectorRequest collectorRequest) {
-            this(interruptRequest, collectorRequest, null, null);
+            this(interruptRequest, collectorRequest, null);
         }
     }
 
@@ -2941,12 +2939,10 @@ public interface AgentModels {
             OrchestratorCollectorResult collectorResult,
             @JsonPropertyDescription("Route back to orchestrator.")
             @SkipPropertyFilter
-            OrchestratorRequest orchestratorRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
+            OrchestratorRequest orchestratorRequest
     ) implements Routing {
         public OrchestratorCollectorRouting(OrchestratorCollectorResult collectorResult) {
-            this(null, collectorResult, null, null);
+            this(null, collectorResult, null);
         }
     }
 
@@ -3281,9 +3277,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Delegation payload for discovery agents.")
             DiscoveryAgentRequests agentRequests,
             @JsonPropertyDescription("Route to discovery collector.")
-            DiscoveryCollectorRequest collectorRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
+            DiscoveryCollectorRequest collectorRequest
     ) implements Routing {
     }
 
@@ -3310,9 +3304,7 @@ public interface AgentModels {
             DiscoveryOrchestratorRequest discoveryRequest,
             @JsonPropertyDescription("Route to planning orchestrator.")
             @SkipPropertyFilter
-            PlanningOrchestratorRequest planningRequest,
-            @JsonPropertyDescription("Route to context manager only when specific context from another agent chat/history is required.")
-            ContextManagerRoutingRequest contextManagerRequest
+            PlanningOrchestratorRequest planningRequest
     ) implements Routing {
     }
 
@@ -3324,9 +3316,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             InterruptRequest.DiscoveryAgentInterruptRequest agentInterruptRequest,
             @JsonPropertyDescription("Route to discovery collector with aggregated results.")
-            DiscoveryCollectorRequest collectorRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
+            DiscoveryCollectorRequest collectorRequest
     ) implements Routing { }
 
     /**
@@ -3662,9 +3652,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Delegation payload for planning agents.")
             PlanningAgentRequests agentRequests,
             @JsonPropertyDescription("Route to planning collector.")
-            PlanningCollectorRequest collectorRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
+            PlanningCollectorRequest collectorRequest
     ) implements Routing {
     }
 
@@ -3695,9 +3683,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             OrchestratorCollectorRequest orchestratorCollectorRequest,
             @JsonPropertyDescription("Route to orchestrator for non-standard workflow coordination.")
-            OrchestratorRequest orchestratorRequest,
-            @JsonPropertyDescription("Route to context manager only when specific context from another agent chat/history is required.")
-            ContextManagerRoutingRequest contextManagerRequest
+            OrchestratorRequest orchestratorRequest
     ) implements Routing {
         public PlanningCollectorRouting(InterruptRequest.PlanningCollectorInterruptRequest interruptRequest,
                                         PlanningCollectorResult collectorResult,
@@ -3705,7 +3691,7 @@ public interface AgentModels {
                                         TicketOrchestratorRequest ticketOrchestratorRequest,
                                         OrchestratorRequest orchestratorRequest) {
             this(interruptRequest, collectorResult, planningRequest, ticketOrchestratorRequest,
-                    null, orchestratorRequest, null);
+                    null, orchestratorRequest);
         }
     }
 
@@ -3717,9 +3703,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             InterruptRequest.PlanningAgentInterruptRequest agentInterruptRequest,
             @JsonPropertyDescription("Route to planning collector with aggregated results.")
-            PlanningCollectorRequest planningCollectorRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
+            PlanningCollectorRequest planningCollectorRequest
     ) implements Routing {
     }
 
@@ -4247,9 +4231,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Delegation payload for ticket agents.")
             TicketAgentRequests agentRequests,
             @JsonPropertyDescription("Route to ticket collector.")
-            TicketCollectorRequest collectorRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
+            TicketCollectorRequest collectorRequest
     ) implements Routing {
     }
 
@@ -4277,9 +4259,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             OrchestratorCollectorRequest orchestratorCollectorRequest,
             @JsonPropertyDescription("Route to orchestrator for non-standard workflow coordination.")
-            OrchestratorRequest orchestratorRequest,
-            @JsonPropertyDescription("Route to context manager only when specific context from another agent chat/history is required.")
-            ContextManagerRoutingRequest contextManagerRequest
+            OrchestratorRequest orchestratorRequest
     ) implements Routing {
     }
 
@@ -4291,9 +4271,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             InterruptRequest.TicketAgentInterruptRequest agentInterruptRequest,
             @JsonPropertyDescription("Route to ticket collector with aggregated results.")
-            TicketCollectorRequest ticketCollectorRequest,
-            @JsonPropertyDescription("Route to context manager for context reconstruction.")
-            ContextManagerRoutingRequest contextManagerRequest
+            TicketCollectorRequest ticketCollectorRequest
     ) implements Routing {
     }
 

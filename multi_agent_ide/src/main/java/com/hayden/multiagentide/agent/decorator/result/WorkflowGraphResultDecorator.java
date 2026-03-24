@@ -269,7 +269,7 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
         if (routing == null) {
             return null;
         }
-        if (routing.orchestratorRequest() != null || routing.contextManagerRequest() != null) {
+        if (routing.orchestratorRequest() != null) {
             return requireNode(context, routing, () -> workflowGraphService.requireOrchestrator(context));
         }
         if (routing.orchestratorCollectorRequest() != null) {

@@ -355,9 +355,6 @@ public interface AgentInterfaces {
     String METHOD_RUN_TICKET_AGENT = "runTicketAgent";
     String METHOD_RUN_PLANNING_AGENT = "runPlanningAgent";
     String METHOD_RUN_DISCOVERY_AGENT = "runDiscoveryAgent";
-    String METHOD_RAN_TICKET_AGENT_RESULT = "ranTicketAgentResult";
-    String METHOD_RAN_PLANNING_AGENT = "ranPlanningAgent";
-    String METHOD_RAN_DISCOVERY_AGENT = "ranDiscoveryAgent";
 
     String STUCK_HANDLER = "stuck-handler";
     String TEMPLATE_WORKFLOW_CONTEXT_MANAGER = "workflow/context_manager";
@@ -1131,10 +1128,63 @@ public interface AgentInterfaces {
                             ToolContext.empty()
                     );
                 }
-                case AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest discoveryAgentInterruptRequest -> null;
-                case AgentModels.InterruptRequest.PlanningAgentInterruptRequest planningAgentInterruptRequest -> null;
-                case AgentModels.InterruptRequest.TicketAgentInterruptRequest ticketAgentInterruptRequest -> null;
-                case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest questionAnswerInterruptRequest -> null;
+                case AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest ignored -> {
+                    AgentModels.DiscoveryAgentRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryAgentRequest.class);
+                    GraphNode originNode = workflowGraphService.findNodeForContext(context)
+                            .filter(n -> n instanceof DiscoveryNode dn && dn.interruptibleContext() != null)
+                            .orElseGet(() -> workflowGraphService.requireDiscoveryDispatch(context));
+                    yield new InterruptRouteConfig(
+                            AgentType.DISCOVERY_AGENT,
+                            lastRequest,
+                            originNode,
+                            TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.PlanningAgentInterruptRequest ignored -> {
+                    AgentModels.PlanningAgentRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningAgentRequest.class);
+                    GraphNode originNode = workflowGraphService.findNodeForContext(context)
+                            .filter(n -> n instanceof PlanningNode pn && pn.interruptibleContext() != null)
+                            .orElseGet(() -> workflowGraphService.requirePlanningDispatch(context));
+                    yield new InterruptRouteConfig(
+                            AgentType.PLANNING_AGENT,
+                            lastRequest,
+                            originNode,
+                            TEMPLATE_WORKFLOW_PLANNING_AGENT,
+                            mapGoal(lastRequest != null ? lastRequest.goal() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.TicketAgentInterruptRequest ignored -> {
+                    AgentModels.TicketAgentRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.TicketAgentRequest.class);
+                    GraphNode originNode = workflowGraphService.findNodeForContext(context)
+                            .filter(n -> n instanceof TicketNode tn && tn.interruptibleContext() != null)
+                            .orElseGet(() -> workflowGraphService.requireTicketDispatch(context));
+                    yield new InterruptRouteConfig(
+                            AgentType.TICKET_AGENT,
+                            lastRequest,
+                            originNode,
+                            TEMPLATE_WORKFLOW_TICKET_AGENT,
+                            mapGoal(lastRequest != null ? lastRequest.ticketDetails() : null),
+                            ToolContext.empty()
+                    );
+                }
+                case AgentModels.InterruptRequest.QuestionAnswerInterruptRequest ignored -> {
+                    AgentModels.OrchestratorRequest lastRequest =
+                            BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
+                    yield new InterruptRouteConfig(
+                            AgentType.ORCHESTRATOR,
+                            lastRequest,
+                            workflowGraphService.requireOrchestrator(context),
+                            TEMPLATE_WORKFLOW_ORCHESTRATOR,
+                            mapGoalAndPhase(lastRequest != null ? lastRequest.goal() : null, lastRequest != null ? lastRequest.phase() : null),
+                            ToolContext.empty()
+                    );
+                }
             };
         }
 

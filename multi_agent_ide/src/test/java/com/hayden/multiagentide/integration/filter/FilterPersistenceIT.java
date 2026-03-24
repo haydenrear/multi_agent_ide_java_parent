@@ -92,7 +92,7 @@ class FilterPersistenceIT {
         List<LayerEntity> all = layerRepository.findAll();
         // controller(1) + controller-ui-event-poll(1) + workflow-agent(1)
         // + 3 workflow sub-agents + 7 service roots + 38 action layers = 51
-        assertThat(all).hasSize(51);
+        assertThat(all).hasSize(46);
 
         // Root
         LayerEntity controller = layerRepository.findByLayerId("controller").orElseThrow();
@@ -124,7 +124,6 @@ class FilterPersistenceIT {
         assertThat(wa.getParentLayerId()).isEqualTo("controller");
         assertThat(wa.getChildLayerIds()).contains(
                 "workflow-agent/coordinateWorkflow",
-                "workflow-agent/performReview",
                 "discovery-dispatch-subagent",
                 "planning-dispatch-subagent",
                 "ticket-dispatch-subagent"
@@ -143,7 +142,6 @@ class FilterPersistenceIT {
         assertThat(disc.getDepth()).isEqualTo(2);
         assertThat(disc.getParentLayerId()).isEqualTo("workflow-agent");
         assertThat(disc.getChildLayerIds()).containsExactlyInAnyOrder(
-                "discovery-dispatch-subagent/ranDiscoveryAgent",
                 "discovery-dispatch-subagent/transitionToInterruptState",
                 "discovery-dispatch-subagent/runDiscoveryAgent"
         );
@@ -197,11 +195,11 @@ class FilterPersistenceIT {
 
         // Children of workflow-agent should include actions + sub-agents
         List<LayerEntity> waChildren = layerService.getChildLayers("workflow-agent", false);
-        assertThat(waChildren).hasSizeGreaterThanOrEqualTo(25); // 22 actions + 3 sub-agents
+        assertThat(waChildren).hasSizeGreaterThanOrEqualTo(23); // 22 actions + 3 sub-agents
 
         // Descendants of controller should be everything else
         Set<String> descendants = layerService.getDescendantLayerIds("controller");
-        assertThat(descendants).hasSize(50); // all except controller itself
+        assertThat(descendants).hasSize(45); // all except controller itself
 
         // Effective layers for a sub-agent action should include itself + ancestors
         List<LayerEntity> effective = layerService.getEffectiveLayers(
@@ -225,7 +223,7 @@ class FilterPersistenceIT {
         assertThat(agents).hasSize(11); // workflow-agent + 3 sub-agents + 7 service roots
 
         List<LayerEntity> actions = layerRepository.findByLayerType("WORKFLOW_AGENT_ACTION");
-        assertThat(actions).hasSize(38); // 31 workflow actions + 7 service actions
+        assertThat(actions).hasSize(33); // 31 workflow actions + 7 service actions
 
         // findByParentLayerId
         List<LayerEntity> controllerChildren = layerRepository.findByParentLayerId("controller");
