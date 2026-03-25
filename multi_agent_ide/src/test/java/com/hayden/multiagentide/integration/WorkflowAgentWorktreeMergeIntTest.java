@@ -512,11 +512,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
                 .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
                         .consolidatedOutput("Discovery complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance to planning")
-                                .requestedPhase("PLANNING")
-                                .build())
                         .build())
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
@@ -592,11 +587,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
                 .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
                         .consolidatedOutput("Discovery complete with conflicts")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance despite conflicts")
-                                .requestedPhase("PLANNING")
-                                .build())
                         .build())
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
@@ -661,11 +651,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
                 .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
                         .consolidatedOutput("Discovery complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance to planning")
-                                .requestedPhase("PLANNING")
-                                .build())
                         .build())
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
@@ -712,11 +697,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
                 .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
                         .consolidatedOutput("Discovery complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance to planning")
-                                .requestedPhase("PLANNING")
-                                .build())
                         .build())
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
@@ -762,11 +742,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.PlanningCollectorRouting.builder()
                 .collectorResult(AgentModels.PlanningCollectorResult.builder()
                         .consolidatedOutput("Planning complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance to tickets")
-                                .requestedPhase("TICKETS")
-                                .build())
                         .build())
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
@@ -816,11 +791,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.TicketCollectorRouting.builder()
                 .collectorResult(AgentModels.TicketCollectorResult.builder()
                         .consolidatedOutput("Tickets complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance to orchestrator collector")
-                                .requestedPhase("COMPLETE")
-                                .build())
                         .build())
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
@@ -831,11 +801,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.OrchestratorCollectorRouting.builder()
                 .collectorResult(AgentModels.OrchestratorCollectorResult.builder()
                         .consolidatedOutput("Workflow complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("All phases done")
-                                .requestedPhase("COMPLETE")
-                                .build())
                         .build())
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());

@@ -820,14 +820,10 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                             .build())
                     .build());
 
-            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
-                    .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
-                            .consolidatedOutput("Need more discovery")
-                            .collectorDecision(AgentModels.CollectorDecision.builder()
-                                    .decisionType(Events.CollectorDecisionType.ROUTE_BACK)
-                                    .rationale("Loop back to discovery")
-                                    .requestedPhase("DISCOVERY")
-                                    .build())
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting
+                    .builder()
+                    .discoveryRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                            .goal("Need more discovery")
                             .build())
                     .build());
 
@@ -858,11 +854,6 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
                     .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
                             .consolidatedOutput("Discovery complete")
-                            .collectorDecision(AgentModels.CollectorDecision.builder()
-                                    .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                    .rationale("Advance to planning")
-                                    .requestedPhase("PLANNING")
-                                    .build())
                             .build())
                     .build());
 
@@ -891,7 +882,6 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             ordered.verify(workflowAgent).dispatchDiscoveryAgentRequests(any(), any());
             ordered.verify(discoveryDispatchSubagent).runDiscoveryAgent(any(AgentModels.DiscoveryAgentRequest.class), any());
             ordered.verify(workflowAgent).consolidateDiscoveryFindings(any(), any());
-            ordered.verify(workflowAgent).handleDiscoveryCollectorBranch(any(), any());
             ordered.verify(workflowAgent).kickOffAnyNumberOfAgentsForCodeSearch(any(), any());
             ordered.verify(workflowAgent).dispatchDiscoveryAgentRequests(any(), any());
             ordered.verify(discoveryDispatchSubagent).runDiscoveryAgent(any(AgentModels.DiscoveryAgentRequest.class), any());
@@ -1046,11 +1036,6 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         discoveryOnly(goal, AgentModels.DiscoveryCollectorRouting.builder()
                 .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
                         .consolidatedOutput("Discovery complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance to planning")
-                                .requestedPhase("PLANNING")
-                                .build())
                         .build())
                 .build());
     }
@@ -1103,11 +1088,6 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.OrchestratorCollectorRouting.builder()
                 .collectorResult(AgentModels.OrchestratorCollectorResult.builder()
                         .consolidatedOutput("Workflow complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("All phases done")
-                                .requestedPhase("COMPLETE")
-                                .build())
                         .build())
                 .build());
     }
@@ -1140,11 +1120,6 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.TicketCollectorRouting.builder()
                 .collectorResult(AgentModels.TicketCollectorResult.builder()
                         .consolidatedOutput("Tickets complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance to orchestrator collector")
-                                .requestedPhase("COMPLETE")
-                                .build())
                         .build())
                 .build());
     }
@@ -1183,11 +1158,6 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.PlanningCollectorRouting.builder()
                 .collectorResult(AgentModels.PlanningCollectorResult.builder()
                         .consolidatedOutput("Planning complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance to tickets")
-                                .requestedPhase("TICKETS")
-                                .build())
                         .build())
                 .build());
     }
@@ -1219,11 +1189,6 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.PlanningCollectorRouting.builder()
                 .collectorResult(AgentModels.PlanningCollectorResult.builder()
                         .consolidatedOutput("Planning complete")
-                        .collectorDecision(AgentModels.CollectorDecision.builder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .rationale("Advance to tickets")
-                                .requestedPhase("TICKETS")
-                                .build())
                         .build())
                 .build());
     }

@@ -416,28 +416,24 @@ public class RequestEnrichment {
             case AgentModels.TicketCollectorResult collectorResult -> {
                 collectorResult = collectorResult.toBuilder()
                         .contextId(resolveContextId(context, AgentType.TICKET_COLLECTOR, parent))
-                        .collectorDecision(wrapCollectorDecision(collectorResult.collectorDecision()))
                         .build();
                 yield withEnrichedChildren(collectorResult, collectorResult.children(), context);
             }
             case AgentModels.DiscoveryCollectorResult collectorResult -> {
                 collectorResult = collectorResult.toBuilder()
                         .contextId(resolveContextId(context, AgentType.DISCOVERY_COLLECTOR, parent))
-                        .collectorDecision(wrapCollectorDecision(collectorResult.collectorDecision()))
                         .build();
                 yield withEnrichedChildren(collectorResult, collectorResult.children(), context);
             }
             case AgentModels.OrchestratorCollectorResult collectorResult -> {
                 collectorResult = collectorResult.toBuilder()
                         .contextId(resolveContextId(context, AgentType.ORCHESTRATOR_COLLECTOR, parent))
-                        .collectorDecision(wrapCollectorDecision(collectorResult.collectorDecision()))
                         .build();
                 yield withEnrichedChildren(collectorResult, collectorResult.children(), context);
             }
             case AgentModels.PlanningCollectorResult collectorResult -> {
                 collectorResult = collectorResult.toBuilder()
                         .contextId(resolveContextId(context, AgentType.PLANNING_COLLECTOR, parent))
-                        .collectorDecision(wrapCollectorDecision(collectorResult.collectorDecision()))
                         .build();
                 yield withEnrichedChildren(collectorResult, collectorResult.children(), context);
             }
@@ -456,21 +452,6 @@ public class RequestEnrichment {
         };
 
         return (T) res;
-    }
-
-    public AgentModels.CollectorDecision wrapCollectorDecision(@Nullable AgentModels.CollectorDecision c) {
-        return Optional.ofNullable(c)
-                .map(cd -> {
-                    if (cd.decisionType() == null)
-                        return cd.toBuilder()
-                                .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                                .build();
-
-                    return cd;
-                })
-                .orElseGet(() -> AgentModels.CollectorDecision.builder()
-                        .decisionType(Events.CollectorDecisionType.ADVANCE_PHASE)
-                        .build());
     }
 
     private <T extends Artifact.AgentModel> T enrichAgentModel(T input, OperationContext context, Artifact.AgentModel parent) {

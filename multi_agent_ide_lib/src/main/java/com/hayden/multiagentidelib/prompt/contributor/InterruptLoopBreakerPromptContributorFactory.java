@@ -93,7 +93,7 @@ public class InterruptLoopBreakerPromptContributorFactory implements PromptContr
             case AgentModels.OrchestratorCollectorRequest ignored -> new InterruptLoopMapping(
                     InterruptRequest.OrchestratorCollectorInterruptRequest.class,
                     AgentModels.OrchestratorCollectorRequest.class,
-                    "OrchestratorCollectorResult with a CollectorDecision",
+                    "OrchestratorCollectorResult with consolidated results",
                     "collectorResult"
             );
 
@@ -113,7 +113,7 @@ public class InterruptLoopBreakerPromptContributorFactory implements PromptContr
             case AgentModels.DiscoveryCollectorRequest ignored -> new InterruptLoopMapping(
                     InterruptRequest.DiscoveryCollectorInterruptRequest.class,
                     AgentModels.DiscoveryCollectorRequest.class,
-                    "DiscoveryCollectorResult with a CollectorDecision",
+                    "DiscoveryCollectorResult with consolidated results",
                     "collectorResult"
             );
             case AgentModels.DiscoveryAgentRequests ignored -> new InterruptLoopMapping(
@@ -139,7 +139,7 @@ public class InterruptLoopBreakerPromptContributorFactory implements PromptContr
             case AgentModels.PlanningCollectorRequest ignored -> new InterruptLoopMapping(
                     InterruptRequest.PlanningCollectorInterruptRequest.class,
                     AgentModels.PlanningCollectorRequest.class,
-                    "PlanningCollectorResult with a CollectorDecision",
+                    "PlanningCollectorResult with consolidated results",
                     "collectorResult"
             );
             case AgentModels.PlanningAgentRequests ignored -> new InterruptLoopMapping(
@@ -165,7 +165,7 @@ public class InterruptLoopBreakerPromptContributorFactory implements PromptContr
             case AgentModels.TicketCollectorRequest ignored -> new InterruptLoopMapping(
                     InterruptRequest.TicketCollectorInterruptRequest.class,
                     AgentModels.TicketCollectorRequest.class,
-                    "TicketCollectorResult with a CollectorDecision",
+                    "TicketCollectorResult with consolidated results",
                     "collectorResult"
             );
             case AgentModels.TicketAgentRequests ignored -> new InterruptLoopMapping(

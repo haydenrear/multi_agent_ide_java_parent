@@ -183,12 +183,6 @@ class CurationHistoryContextContributorFactoryTest {
 
     @Test
     void createIncludesAllSupplementaryResultTypeSections() {
-        var collectorDecision = new AgentModels.CollectorDecision(
-                Events.CollectorDecisionType.ADVANCE_PHASE,
-                "ok",
-                "PLANNING"
-        );
-
         var context = promptContext(
                 new AgentModels.OrchestratorRequest("goal", "DISCOVERY"),
                 historyOf(
@@ -196,7 +190,7 @@ class CurationHistoryContextContributorFactoryTest {
                         new AgentModels.PlanningOrchestratorResult("planning orchestrator output"),
                         new AgentModels.TicketOrchestratorResult("ticket orchestrator output"),
                         new AgentModels.OrchestratorAgentResult("orchestrator agent output"),
-                        new AgentModels.OrchestratorCollectorResult("orchestrator collector output", collectorDecision),
+                        new AgentModels.OrchestratorCollectorResult("orchestrator collector output"),
                         new AgentModels.ReviewAgentResult("review output"),
                         new AgentModels.MergerAgentResult("merger output")
                 ));
@@ -372,10 +366,6 @@ class CurationHistoryContextContributorFactoryTest {
         return new AgentModels.DiscoveryCollectorResult(
                 ArtifactKey.createRoot(),
                 consolidatedOutput,
-                new AgentModels.CollectorDecision(
-                        Events.CollectorDecisionType.ADVANCE_PHASE,
-                        "discovery complete",
-                        "PLANNING"),
                 Map.of(),
                 null,
                 List.of(),
@@ -391,10 +381,6 @@ class CurationHistoryContextContributorFactoryTest {
         return new AgentModels.PlanningCollectorResult(
                 ArtifactKey.createRoot(),
                 consolidatedOutput,
-                new AgentModels.CollectorDecision(
-                        Events.CollectorDecisionType.ADVANCE_PHASE,
-                        "planning complete",
-                        "TICKETS"),
                 Map.of(),
                 List.of(),
                 List.of(),
@@ -409,10 +395,6 @@ class CurationHistoryContextContributorFactoryTest {
         return new AgentModels.TicketCollectorResult(
                 ArtifactKey.createRoot(),
                 consolidatedOutput,
-                new AgentModels.CollectorDecision(
-                        Events.CollectorDecisionType.ADVANCE_PHASE,
-                        "tickets complete",
-                        "COMPLETE"),
                 Map.of(),
                 "complete",
                 List.of(),

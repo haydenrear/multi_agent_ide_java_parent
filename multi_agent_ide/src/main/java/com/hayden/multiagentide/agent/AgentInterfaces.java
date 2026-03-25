@@ -1927,8 +1927,7 @@ public interface AgentInterfaces {
             }
             blackboardHistoryService.register(context, METHOD_FINALIZE_TICKET_ORCHESTRATOR, input);
             AgentModels.OrchestratorCollectorResult result = new AgentModels.OrchestratorCollectorResult(
-                    input.output(),
-                    new AgentModels.CollectorDecision(Events.CollectorDecisionType.ADVANCE_PHASE, "", ""));
+                    input.output());
 
             return DecorateRequestResults.decorateFinalResult(
                     result,
@@ -2161,45 +2160,17 @@ public interface AgentInterfaces {
                     ? lastTicketOrchestratorRequest.planningCuration()
                     : null;
 
-            AgentModels.TicketCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
-                case ROUTE_BACK -> {
-                    AgentModels.TicketOrchestratorRequest ticketRequest = AgentModels.TicketOrchestratorRequest.builder()
-                            .goal(request.consolidatedOutput())
-                            .discoveryCuration(discoveryCuration)
-                            .planningCuration(planningCuration)
-                            .build();
+            // Collectors always advance forward — route-back handled by conversational topology
+            AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest = AgentModels.OrchestratorCollectorRequest.builder()
+                    .goal(request.consolidatedOutput())
+                    .discoveryCuration(discoveryCuration)
+                    .planningCuration(planningCuration)
+                    .ticketCuration(request.ticketCuration())
+                    .build();
 
-                    yield AgentModels.TicketCollectorRouting.builder()
-                            .ticketRequest(ticketRequest)
-                            .build();
-                }
-                case ADVANCE_PHASE -> {
-                    AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest = AgentModels.OrchestratorCollectorRequest.builder()
-                            .goal(request.consolidatedOutput())
-                            .phase(request.collectorDecision().requestedPhase())
-                            .discoveryCuration(discoveryCuration)
-                            .planningCuration(planningCuration)
-                            .ticketCuration(request.ticketCuration())
-                            .build();
-
-                    yield AgentModels.TicketCollectorRouting.builder()
-                            .orchestratorCollectorRequest(orchestratorCollectorRequest)
-                            .build();
-                }
-                case STOP -> {
-                    AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest = AgentModels.OrchestratorCollectorRequest.builder()
-                            .goal(request.consolidatedOutput())
-                            .phase(request.collectorDecision().requestedPhase())
-                            .discoveryCuration(discoveryCuration)
-                            .planningCuration(planningCuration)
-                            .ticketCuration(request.ticketCuration())
-                            .build();
-
-                    yield AgentModels.TicketCollectorRouting.builder()
-                            .orchestratorCollectorRequest(orchestratorCollectorRequest)
-                            .build();
-                }
-            };
+            AgentModels.TicketCollectorRouting routing = AgentModels.TicketCollectorRouting.builder()
+                    .orchestratorCollectorRequest(orchestratorCollectorRequest)
+                    .build();
 
             return decorateRouting(
                     routing,
@@ -2228,40 +2199,14 @@ public interface AgentInterfaces {
                 );
             }
             blackboardHistoryService.register(context, METHOD_HANDLE_DISCOVERY_COLLECTOR_BRANCH, request);
-            AgentModels.DiscoveryCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
-                case ROUTE_BACK -> {
-                    AgentModels.DiscoveryOrchestratorRequest discoveryRequest = AgentModels.DiscoveryOrchestratorRequest.builder()
-//                            TODO: fix this
-                            .goal(request.consolidatedOutput())
-                            .build();
-                    yield AgentModels.DiscoveryCollectorRouting.builder()
-                            .discoveryRequest(discoveryRequest)
-                            .build();
-                }
-                case ADVANCE_PHASE -> {
-                    // Pass the discovery curation directly to planning orchestrator
-                    AgentModels.PlanningOrchestratorRequest planningRequest = AgentModels.PlanningOrchestratorRequest.builder()
-//                            TODO: fix this
-                            .goal(request.consolidatedOutput())
-                            .discoveryCuration(request.discoveryCollectorContext())
-                            .build();
-                    yield AgentModels.DiscoveryCollectorRouting.builder()
-                            .planningRequest(planningRequest)
-                            .build();
-                }
-                case STOP -> {
-                    AgentModels.OrchestratorRequest orchestratorRequest = AgentModels.OrchestratorRequest.builder()
-//                            TODO: fix this
-                            .goal(request.consolidatedOutput())
-                            .phase(request.collectorDecision().requestedPhase())
-                            .discoveryCuration(request.discoveryCollectorContext())
-                            .build();
-
-                    yield AgentModels.DiscoveryCollectorRouting.builder()
-                            .orchestratorRequest(orchestratorRequest)
-                            .build();
-                }
-            };
+            // Collectors always advance forward — route-back handled by conversational topology
+            AgentModels.PlanningOrchestratorRequest planningRequest = AgentModels.PlanningOrchestratorRequest.builder()
+                    .goal(request.consolidatedOutput())
+                    .discoveryCuration(request.discoveryCollectorContext())
+                    .build();
+            AgentModels.DiscoveryCollectorRouting routing = AgentModels.DiscoveryCollectorRouting.builder()
+                    .planningRequest(planningRequest)
+                    .build();
             return decorateRouting(
                     routing,
                     context,
@@ -2289,34 +2234,12 @@ public interface AgentInterfaces {
                 );
             }
             blackboardHistoryService.register(context, METHOD_HANDLE_ORCHESTRATOR_COLLECTOR_BRANCH, request);
-            AgentModels.OrchestratorCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
-                case ROUTE_BACK -> {
-                    AgentModels.OrchestratorRequest orchestratorRequest = AgentModels.OrchestratorRequest.builder()
-                            .goal(request.consolidatedOutput())
-                            .phase(request.collectorDecision().requestedPhase())
-                            .discoveryCuration(request.discoveryCollectorResult() != null
-                                    ? request.discoveryCollectorResult().discoveryCollectorContext()
-                                    : null)
-                            .planningCuration(request.planningCollectorResult() != null
-                                    ? request.planningCollectorResult().planningCuration()
-                                    : null)
-                            .ticketCuration(request.ticketCollectorResult() != null
-                                    ? request.ticketCollectorResult().ticketCuration()
-                                    : null)
-                            .build();
-
-                    yield AgentModels.OrchestratorCollectorRouting.builder()
-                            .orchestratorRequest(orchestratorRequest)
-                            .build();
-                }
-                case ADVANCE_PHASE, STOP -> {
-                    AgentModels.OrchestratorCollectorResult collectorResult
-                            = new AgentModels.OrchestratorCollectorResult(request.consolidatedOutput(), request.collectorDecision());
-                    yield AgentModels.OrchestratorCollectorRouting.builder()
-                            .collectorResult(collectorResult)
-                            .build();
-                }
-            };
+            // Collectors always advance forward — route-back handled by conversational topology
+            AgentModels.OrchestratorCollectorResult collectorResult
+                    = new AgentModels.OrchestratorCollectorResult(request.consolidatedOutput());
+            AgentModels.OrchestratorCollectorRouting routing = AgentModels.OrchestratorCollectorRouting.builder()
+                    .collectorResult(collectorResult)
+                    .build();
             return decorateRouting(
                     routing,
                     context,
@@ -2351,43 +2274,16 @@ public interface AgentInterfaces {
                     ? lastPlanningOrchestratorRequest.discoveryCuration()
                     : null;
 
-            AgentModels.PlanningCollectorRouting routing = switch (request.collectorDecision().decisionType()) {
-                case ROUTE_BACK -> {
-                    // Pass discovery curation back when routing back
-                    AgentModels.PlanningOrchestratorRequest planningRequest = AgentModels.PlanningOrchestratorRequest.builder()
-                            .goal(request.consolidatedOutput())
-                            .discoveryCuration(discoveryCuration)
-                            .build();
+            // Collectors always advance forward — route-back handled by conversational topology
+            AgentModels.TicketOrchestratorRequest ticketRequest = AgentModels.TicketOrchestratorRequest.builder()
+                    .goal(request.consolidatedOutput())
+                    .discoveryCuration(discoveryCuration)
+                    .planningCuration(request.planningCuration())
+                    .build();
 
-                    yield AgentModels.PlanningCollectorRouting.builder()
-                            .planningRequest(planningRequest)
-                            .build();
-                }
-                case ADVANCE_PHASE -> {
-                    // Pass both discovery and planning curations to ticket orchestrator
-                    AgentModels.TicketOrchestratorRequest ticketRequest = AgentModels.TicketOrchestratorRequest.builder()
-                            .goal(request.consolidatedOutput())
-                            .discoveryCuration(discoveryCuration)
-                            .planningCuration(request.planningCuration())
-                            .build();
-
-                    yield AgentModels.PlanningCollectorRouting.builder()
-                            .ticketOrchestratorRequest(ticketRequest)
-                            .build();
-                }
-                case STOP -> {
-                    AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest = AgentModels.OrchestratorCollectorRequest.builder()
-                            .goal(request.consolidatedOutput())
-                            .phase(request.collectorDecision().requestedPhase())
-                            .discoveryCuration(discoveryCuration)
-                            .planningCuration(request.planningCuration())
-                            .build();
-
-                    yield AgentModels.PlanningCollectorRouting.builder()
-                            .orchestratorCollectorRequest(orchestratorCollectorRequest)
-                            .build();
-                }
-            };
+            AgentModels.PlanningCollectorRouting routing = AgentModels.PlanningCollectorRouting.builder()
+                    .ticketOrchestratorRequest(ticketRequest)
+                    .build();
             return decorateRouting(
                     routing,
                     context,

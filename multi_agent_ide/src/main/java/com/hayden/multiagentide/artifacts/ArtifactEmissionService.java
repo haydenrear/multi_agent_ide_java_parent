@@ -25,7 +25,6 @@ import java.util.List;
  * - AgentResultArtifact
  * - InterruptRequestArtifact
  * - InterruptResolutionArtifact
- * - CollectorDecisionArtifact
  * - ExecutionConfigArtifact
  * - OutcomeEvidenceArtifact
  * - RenderedPromptArtifact

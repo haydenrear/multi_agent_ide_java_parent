@@ -237,10 +237,10 @@ public interface AgentModels {
         @JsonIgnore
         default String routeGuardrailsExtraction() {
             return switch (this) {
-                case DiscoveryCollectorRequest ignored -> "CollectorDecision: use ADVANCE_PHASE or ROUTE_BACK for normal flow; STOP stops execution. Prefer collectorResult. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required.";
-                case PlanningCollectorRequest ignored -> "CollectorDecision: use ADVANCE_PHASE or ROUTE_BACK for normal flow; STOP stops execution. Prefer collectorResult. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required.";
-                case TicketCollectorRequest ignored -> "CollectorDecision: use ADVANCE_PHASE or ROUTE_BACK for normal flow; STOP stops execution. Prefer collectorResult. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required.";
-                case OrchestratorCollectorRequest ignored -> "CollectorDecision: ADVANCE_PHASE completes workflow, ROUTE_BACK returns to an Orchestrator request. Before ROUTE_BACK, request interrupt clarification explaining why route-back is required. Use contextManagerRequest only for missing cross-agent context.";
+                case DiscoveryCollectorRequest ignored -> "Consolidate discovery results. Collectors always advance forward. Use contextManagerRequest only for missing cross-agent context.";
+                case PlanningCollectorRequest ignored -> "Consolidate planning results. Collectors always advance forward. Use contextManagerRequest only for missing cross-agent context.";
+                case TicketCollectorRequest ignored -> "Consolidate ticket results. Collectors always advance forward. Use contextManagerRequest only for missing cross-agent context.";
+                case OrchestratorCollectorRequest ignored -> "Consolidate workflow results. Collectors always advance forward. Use contextManagerRequest only for missing cross-agent context.";
                 case ContextManagerRequest ignored -> "Return exactly one non-null returnTo* route based on recovered context.";
                 case ContextManagerRoutingRequest ignored -> "Set context manager reason/type and route to context manager request.";
                 default -> "Set exactly one non-null route field that matches the next intended node.";
@@ -300,17 +300,8 @@ public interface AgentModels {
         }
     }
 
-    /**
-     * Marker for requests where routing can explicitly choose ROUTE_BACK semantics.
-     * Prompt contributors use this to inject anti-loop guardrails.
-     */
-    interface HasRouteBack {}
-
-    /**
-     * Marker for requests where routing can send control back to OrchestratorRequest.
-     * Prompt contributors use this to require clarification before routing to orchestrator.
-     */
-    interface HasOrchestratorRequestRouteBack {}
+    // HasRouteBack and HasOrchestratorRequestRouteBack removed — route-back is handled
+    // by the conversational topology controller conference (Story 7).
 
     /**
      * Marker for models that carry a merge descriptor.
@@ -940,18 +931,8 @@ public interface AgentModels {
         }
     }
 
-    @Builder(toBuilder=true)
-    @JsonClassDescription("Collector branch decision used to route workflow phases.")
-    @With
-    record CollectorDecision(
-            @JsonPropertyDescription("Decision type (ADVANCE_PHASE, ROUTE_BACK, STOP).")
-            Events.CollectorDecisionType decisionType,
-            @JsonPropertyDescription("Rationale for the decision.")
-            String rationale,
-            @JsonPropertyDescription("Requested phase when advancing.")
-            String requestedPhase
-    ) {
-    }
+    // CollectorDecision removed — collectors always route forward. Route-back is handled
+    // by the conversational topology controller conference (Story 7).
 
     /**
      * Shared data models describing agent interactions, results, and interrupts.
@@ -1548,8 +1529,6 @@ public interface AgentModels {
             ArtifactKey contextId,
             @JsonPropertyDescription("Unified consolidated output summary.")
             String consolidatedOutput,
-            @JsonPropertyDescription("Collector decision for routing.")
-            CollectorDecision collectorDecision,
             @JsonPropertyDescription("Additional metadata for the result.")
             Map<String, String> metadata,
             @JsonPropertyDescription("Unified code map derived from discovery.")
@@ -1584,7 +1563,6 @@ public interface AgentModels {
         public DiscoveryCollectorResult(
                 ArtifactKey contextId,
                 String consolidatedOutput,
-                CollectorDecision collectorDecision,
                 Map<String, String> metadata,
                 CodeMap unifiedCodeMap,
                 List<Recommendation> recommendations,
@@ -1594,7 +1572,6 @@ public interface AgentModels {
             this(
                     contextId,
                     consolidatedOutput,
-                    collectorDecision,
                     metadata,
                     unifiedCodeMap,
                     recommendations,
@@ -1604,8 +1581,8 @@ public interface AgentModels {
             );
         }
 
-        public DiscoveryCollectorResult(String consolidatedOutput, CollectorDecision collectorDecision) {
-            this(null, consolidatedOutput, collectorDecision, Map.of(), null, List.of(), Map.of(), null, null);
+        public DiscoveryCollectorResult(String consolidatedOutput) {
+            this(null, consolidatedOutput, Map.of(), null, List.of(), Map.of(), null, null);
         }
 
         @Override
@@ -1614,22 +1591,10 @@ public interface AgentModels {
         }
 
         @Override
-        public CollectorDecision decision() {
-            return collectorDecision;
-        }
-
-        @Override
         public String prettyPrint() {
             StringBuilder builder = new StringBuilder();
             if (consolidatedOutput != null && !consolidatedOutput.isBlank()) {
                 builder.append(consolidatedOutput.trim()).append("\n");
-            }
-            if (collectorDecision != null) {
-                builder.append("Decision: ").append(collectorDecision.decisionType());
-                if (collectorDecision.rationale() != null && !collectorDecision.rationale().isBlank()) {
-                    builder.append(" - ").append(collectorDecision.rationale().trim());
-                }
-                builder.append("\n");
             }
             if (discoveryCollectorContext != null) {
                 builder.append("Curation:\n").append(discoveryCollectorContext.prettyPrint()).append("\n");
@@ -1647,8 +1612,6 @@ public interface AgentModels {
             ArtifactKey contextId,
             @JsonPropertyDescription("Unified consolidated output summary.")
             String consolidatedOutput,
-            @JsonPropertyDescription("Collector decision for routing.")
-            CollectorDecision collectorDecision,
             @JsonPropertyDescription("Additional metadata for the result.")
             Map<String, String> metadata,
             @JsonPropertyDescription("Finalized planning tickets.")
@@ -1681,7 +1644,6 @@ public interface AgentModels {
         public PlanningCollectorResult(
                 ArtifactKey contextId,
                 String consolidatedOutput,
-                CollectorDecision collectorDecision,
                 Map<String, String> metadata,
                 List<PlanningTicket> finalizedTickets,
                 List<TicketDependency> dependencyGraph,
@@ -1690,7 +1652,6 @@ public interface AgentModels {
             this(
                     contextId,
                     consolidatedOutput,
-                    collectorDecision,
                     metadata,
                     finalizedTickets,
                     dependencyGraph,
@@ -1699,8 +1660,8 @@ public interface AgentModels {
             );
         }
 
-        public PlanningCollectorResult(String consolidatedOutput, CollectorDecision collectorDecision) {
-            this(null, consolidatedOutput, collectorDecision, Map.of(), List.of(), List.of(), null, null);
+        public PlanningCollectorResult(String consolidatedOutput) {
+            this(null, consolidatedOutput, Map.of(), List.of(), List.of(), null, null);
         }
 
         @Override
@@ -1709,22 +1670,10 @@ public interface AgentModels {
         }
 
         @Override
-        public CollectorDecision decision() {
-            return collectorDecision;
-        }
-
-        @Override
         public String prettyPrint() {
             StringBuilder builder = new StringBuilder();
             if (consolidatedOutput != null && !consolidatedOutput.isBlank()) {
                 builder.append(consolidatedOutput.trim()).append("\n");
-            }
-            if (collectorDecision != null) {
-                builder.append("Decision: ").append(collectorDecision.decisionType());
-                if (collectorDecision.rationale() != null && !collectorDecision.rationale().isBlank()) {
-                    builder.append(" - ").append(collectorDecision.rationale().trim());
-                }
-                builder.append("\n");
             }
             if (finalizedTickets != null && !finalizedTickets.isEmpty()) {
                 builder.append("Tickets:\n");
@@ -1751,8 +1700,6 @@ public interface AgentModels {
             ArtifactKey contextId,
             @JsonPropertyDescription("Unified consolidated output summary.")
             String consolidatedOutput,
-            @JsonPropertyDescription("Collector decision for routing.")
-            CollectorDecision collectorDecision,
             @JsonPropertyDescription("Additional metadata for the result.")
             Map<String, String> metadata,
             @JsonPropertyDescription("Discovery collector result included in consolidation.")
@@ -1797,7 +1744,6 @@ public interface AgentModels {
         public OrchestratorCollectorResult(
                 ArtifactKey contextId,
                 String consolidatedOutput,
-                CollectorDecision collectorDecision,
                 Map<String, String> metadata,
                 DiscoveryCollectorResult discoveryCollectorResult,
                 PlanningCollectorResult planningCollectorResult,
@@ -1806,7 +1752,6 @@ public interface AgentModels {
             this(
                     contextId,
                     consolidatedOutput,
-                    collectorDecision,
                     metadata,
                     discoveryCollectorResult,
                     planningCollectorResult,
@@ -1815,8 +1760,8 @@ public interface AgentModels {
             );
         }
 
-        public OrchestratorCollectorResult(String consolidatedOutput, CollectorDecision collectorDecision) {
-            this(null, consolidatedOutput, collectorDecision, Map.of(), null, null, null, null);
+        public OrchestratorCollectorResult(String consolidatedOutput) {
+            this(null, consolidatedOutput, Map.of(), null, null, null, null);
         }
 
         @Override
@@ -1825,22 +1770,10 @@ public interface AgentModels {
         }
 
         @Override
-        public CollectorDecision decision() {
-            return collectorDecision;
-        }
-
-        @Override
         public String prettyPrint() {
             StringBuilder builder = new StringBuilder();
             if (consolidatedOutput != null && !consolidatedOutput.isBlank()) {
                 builder.append(consolidatedOutput.trim()).append("\n");
-            }
-            if (collectorDecision != null) {
-                builder.append("Decision: ").append(collectorDecision.decisionType());
-                if (collectorDecision.rationale() != null && !collectorDecision.rationale().isBlank()) {
-                    builder.append(" - ").append(collectorDecision.rationale().trim());
-                }
-                builder.append("\n");
             }
             if (discoveryCollectorResult != null) {
                 builder.append("Discovery Result:\n").append(discoveryCollectorResult.prettyPrint()).append("\n");
@@ -1864,8 +1797,6 @@ public interface AgentModels {
             ArtifactKey contextId,
             @JsonPropertyDescription("Unified consolidated output summary.")
             String consolidatedOutput,
-            @JsonPropertyDescription("Collector decision for routing.")
-            CollectorDecision collectorDecision,
             @JsonPropertyDescription("Additional metadata for the result.")
             Map<String, String> metadata,
             @JsonPropertyDescription("Completion status summary.")
@@ -1882,7 +1813,6 @@ public interface AgentModels {
         public TicketCollectorResult(
                 ArtifactKey contextId,
                 String consolidatedOutput,
-                CollectorDecision collectorDecision,
                 Map<String, String> metadata,
                 String completionStatus,
                 List<String> followUps,
@@ -1891,7 +1821,6 @@ public interface AgentModels {
             this(
                     contextId,
                     consolidatedOutput,
-                    collectorDecision,
                     metadata,
                     completionStatus,
                     followUps,
@@ -1900,8 +1829,8 @@ public interface AgentModels {
             );
         }
 
-        public TicketCollectorResult(String consolidatedOutput, CollectorDecision collectorDecision) {
-            this(null, consolidatedOutput, collectorDecision, Map.of(), "", List.of(), null, null);
+        public TicketCollectorResult(String consolidatedOutput) {
+            this(null, consolidatedOutput, Map.of(), "", List.of(), null, null);
         }
 
         @Override
@@ -1928,11 +1857,6 @@ public interface AgentModels {
         }
 
         @Override
-        public CollectorDecision decision() {
-            return collectorDecision;
-        }
-
-        @Override
         public String prettyPrint() {
             StringBuilder builder = new StringBuilder();
             if (consolidatedOutput != null && !consolidatedOutput.isBlank()) {
@@ -1942,13 +1866,6 @@ public interface AgentModels {
                 builder.append("Completion Status: ").append(completionStatus.trim()).append("\n");
             }
             appendList(builder, "Follow Ups", followUps);
-            if (collectorDecision != null) {
-                builder.append("Decision: ").append(collectorDecision.decisionType());
-                if (collectorDecision.rationale() != null && !collectorDecision.rationale().isBlank()) {
-                    builder.append(" - ").append(collectorDecision.rationale().trim());
-                }
-                builder.append("\n");
-            }
             if (ticketCuration != null) {
                 builder.append("Curation:\n").append(ticketCuration.prettyPrint()).append("\n");
             }
@@ -2778,7 +2695,7 @@ public interface AgentModels {
             UpstreamContext.TicketCollectorContext ticketCuration,
             @JsonPropertyDescription("Merge descriptor from final merge to source repository.")
             MergeDescriptor mergeDescriptor
-    ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack, HasMergeDescriptor {
+    ) implements AgentRequest, HasMergeDescriptor {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -2919,6 +2836,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for the orchestrator.")
     record OrchestratorRouting(
             @JsonPropertyDescription("Interrupt request for orchestration decisions.")
+            @SkipPropertyFilter
             InterruptRequest.OrchestratorInterruptRequest interruptRequest,
             @JsonPropertyDescription("Route to orchestrator collector for finalization.")
             OrchestratorCollectorRequest collectorRequest,
@@ -2934,6 +2852,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for the orchestrator collector.")
     record OrchestratorCollectorRouting(
             @JsonPropertyDescription("Interrupt request for collector decisions.")
+            @SkipPropertyFilter
             InterruptRequest.OrchestratorCollectorInterruptRequest interruptRequest,
             @JsonPropertyDescription("Final consolidation decision. Use this to complete the workflow (ADVANCE_PHASE with requestedPhase=\"COMPLETE\") or intentionally route back via collector decision semantics.")
             OrchestratorCollectorResult collectorResult,
@@ -3222,7 +3141,7 @@ public interface AgentModels {
             String goal,
             @JsonPropertyDescription("Serialized discovery results to consolidate.")
             String discoveryResults
-    ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
+    ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3273,6 +3192,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for the discovery orchestrator.")
     record DiscoveryOrchestratorRouting(
             @JsonPropertyDescription("Interrupt request for discovery orchestration decisions.")
+            @SkipPropertyFilter
             InterruptRequest.DiscoveryOrchestratorInterruptRequest interruptRequest,
             @JsonPropertyDescription("Delegation payload for discovery agents.")
             DiscoveryAgentRequests agentRequests,
@@ -3285,6 +3205,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for a discovery agent.")
     record DiscoveryAgentRouting(
             @JsonPropertyDescription("Interrupt request for discovery agent decisions.")
+            @SkipPropertyFilter
             InterruptRequest.DiscoveryAgentInterruptRequest interruptRequest,
             @JsonPropertyDescription("Discovery agent result payload.")
             DiscoveryAgentResult agentResult
@@ -3294,10 +3215,12 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for the discovery collector.")
     record DiscoveryCollectorRouting(
             @JsonPropertyDescription("Interrupt request for discovery collector decisions.")
+            @SkipPropertyFilter
             InterruptRequest.DiscoveryCollectorInterruptRequest interruptRequest,
             @JsonPropertyDescription("Collector result to drive branching decisions.")
             DiscoveryCollectorResult collectorResult,
             @JsonPropertyDescription("Route to orchestrator.")
+            @SkipPropertyFilter
             OrchestratorRequest orchestratorRequest,
             @JsonPropertyDescription("Route back to discovery orchestrator.")
             @SkipPropertyFilter
@@ -3312,6 +3235,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for discovery agent dispatch.")
     record DiscoveryAgentDispatchRouting(
             @JsonPropertyDescription("Interrupt request for dispatch decisions.")
+            @SkipPropertyFilter
             InterruptRequest.DiscoveryAgentDispatchInterruptRequest interruptRequest,
             @SkipPropertyFilter
             InterruptRequest.DiscoveryAgentInterruptRequest agentInterruptRequest,
@@ -3590,7 +3514,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Curated discovery context from discovery collector.")
             @SkipPropertyFilter
             UpstreamContext.DiscoveryCollectorContext discoveryCuration
-    ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
+    ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -3648,6 +3572,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for the planning orchestrator.")
     record PlanningOrchestratorRouting(
             @JsonPropertyDescription("Interrupt request for planning orchestration decisions.")
+            @SkipPropertyFilter
             InterruptRequest.PlanningOrchestratorInterruptRequest interruptRequest,
             @JsonPropertyDescription("Delegation payload for planning agents.")
             PlanningAgentRequests agentRequests,
@@ -3660,6 +3585,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for a planning agent.")
     record PlanningAgentRouting(
             @JsonPropertyDescription("Interrupt request for planning agent decisions.")
+            @SkipPropertyFilter
             InterruptRequest.PlanningAgentInterruptRequest interruptRequest,
             @JsonPropertyDescription("Planning agent result payload.")
             PlanningAgentResult agentResult
@@ -3670,6 +3596,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for the planning collector.")
     record PlanningCollectorRouting(
             @JsonPropertyDescription("Interrupt request for planning collector decisions.")
+            @SkipPropertyFilter
             InterruptRequest.PlanningCollectorInterruptRequest interruptRequest,
             @JsonPropertyDescription("Collector result to drive branching decisions.")
             PlanningCollectorResult collectorResult,
@@ -3683,6 +3610,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             OrchestratorCollectorRequest orchestratorCollectorRequest,
             @JsonPropertyDescription("Route to orchestrator for non-standard workflow coordination.")
+            @SkipPropertyFilter
             OrchestratorRequest orchestratorRequest
     ) implements Routing {
         public PlanningCollectorRouting(InterruptRequest.PlanningCollectorInterruptRequest interruptRequest,
@@ -3699,6 +3627,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for planning agent dispatch.")
     record PlanningAgentDispatchRouting(
             @JsonPropertyDescription("Interrupt request for dispatch decisions.")
+            @SkipPropertyFilter
             InterruptRequest.PlanningAgentDispatchInterruptRequest interruptRequest,
             @SkipPropertyFilter
             InterruptRequest.PlanningAgentInterruptRequest agentInterruptRequest,
@@ -4162,7 +4091,7 @@ public interface AgentModels {
             @JsonPropertyDescription("Curated planning context from planning collector.")
             @SkipPropertyFilter
             UpstreamContext.PlanningCollectorContext planningCuration
-    ) implements AgentRequest, HasRouteBack, HasOrchestratorRequestRouteBack {
+    ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -4227,6 +4156,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for the ticket orchestrator.")
     record TicketOrchestratorRouting(
             @JsonPropertyDescription("Interrupt request for ticket orchestration decisions.")
+            @SkipPropertyFilter
             InterruptRequest.TicketOrchestratorInterruptRequest interruptRequest,
             @JsonPropertyDescription("Delegation payload for ticket agents.")
             TicketAgentRequests agentRequests,
@@ -4239,6 +4169,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for a ticket agent.")
     record TicketAgentRouting(
             @JsonPropertyDescription("Interrupt request for ticket agent decisions.")
+            @SkipPropertyFilter
             InterruptRequest.TicketAgentInterruptRequest interruptRequest,
             @JsonPropertyDescription("Ticket agent result payload.")
             TicketAgentResult agentResult
@@ -4249,6 +4180,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for the ticket collector.")
     record TicketCollectorRouting(
             @JsonPropertyDescription("Interrupt request for ticket collector decisions.")
+            @SkipPropertyFilter
             InterruptRequest.TicketCollectorInterruptRequest interruptRequest,
             @JsonPropertyDescription("Collector result to drive branching decisions.")
             TicketCollectorResult collectorResult,
@@ -4259,6 +4191,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             OrchestratorCollectorRequest orchestratorCollectorRequest,
             @JsonPropertyDescription("Route to orchestrator for non-standard workflow coordination.")
+            @SkipPropertyFilter
             OrchestratorRequest orchestratorRequest
     ) implements Routing {
     }
@@ -4267,6 +4200,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for ticket agent dispatch.")
     record TicketAgentDispatchRouting(
             @JsonPropertyDescription("Interrupt request for dispatch decisions.")
+            @SkipPropertyFilter
             InterruptRequest.TicketAgentDispatchInterruptRequest interruptRequest,
             @SkipPropertyFilter
             InterruptRequest.TicketAgentInterruptRequest agentInterruptRequest,
@@ -4628,6 +4562,7 @@ public interface AgentModels {
     @JsonClassDescription("Routing result for the context manager agent.")
     record ContextManagerResultRouting(
             @JsonPropertyDescription("Interrupt request for context manager decisions.")
+            @SkipPropertyFilter
             InterruptRequest.ContextManagerInterruptRequest interruptRequest,
             @JsonPropertyDescription("Route to orchestrator.")
             OrchestratorRequest orchestratorRequest,

@@ -29,7 +29,6 @@ public record PlanningCollectorNode(
         int estimatedSubtasks,
         int completedSubtasks,
         List<CollectedNodeStatus> collectedNodes,
-        AgentModels.CollectorDecision collectorDecision,
         AgentModels.PlanningCollectorResult planningCollectorResult,
         InterruptContext interruptibleContext,
         WorkflowContext workflowContext
@@ -37,7 +36,7 @@ public record PlanningCollectorNode(
 
     public PlanningCollectorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, List<String> generatedTicketIds, String planContent, int estimatedSubtasks, int completedSubtasks) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                generatedTicketIds, planContent, estimatedSubtasks, completedSubtasks, new ArrayList<>(), null, null, null, WorkflowContext.initial());
+                generatedTicketIds, planContent, estimatedSubtasks, completedSubtasks, new ArrayList<>(), null, null, WorkflowContext.initial());
     }
 
     public PlanningCollectorNode {
@@ -106,7 +105,6 @@ public record PlanningCollectorNode(
     public PlanningCollectorNode withResult(AgentModels.PlanningCollectorResult result) {
         return toBuilder()
                 .planningCollectorResult(result)
-                .collectorDecision(result != null ? result.collectorDecision() : collectorDecision)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

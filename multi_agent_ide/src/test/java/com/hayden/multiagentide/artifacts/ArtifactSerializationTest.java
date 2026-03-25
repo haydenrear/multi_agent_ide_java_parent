@@ -872,11 +872,6 @@ class ArtifactSerializationTest {
             AgentModels.DiscoveryCollectorResult parent = AgentModels.DiscoveryCollectorResult.builder()
                     .contextId(parentKey)
                     .consolidatedOutput("Consolidated discovery results")
-                    .collectorDecision(new AgentModels.CollectorDecision(
-                            com.hayden.acp_cdc_ai.acp.events.Events.CollectorDecisionType.ADVANCE_PHASE,
-                            "All discoveries complete",
-                            "planning"
-                    ))
                     .discoveryCollectorContext(
                             UpstreamContext.DiscoveryCollectorContext
                                     .builder()
@@ -911,8 +906,6 @@ class ArtifactSerializationTest {
                     (AgentModels.DiscoveryCollectorResult) result.agentModel();
             
             assertThat(resultCollector.consolidatedOutput()).isEqualTo("Consolidated discovery results");
-            assertThat(resultCollector.decision().decisionType()).isEqualTo(
-                    com.hayden.acp_cdc_ai.acp.events.Events.CollectorDecisionType.ADVANCE_PHASE);
         }
         
         @Test

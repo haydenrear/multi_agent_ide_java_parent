@@ -5,7 +5,6 @@ import com.embabel.agent.core.support.BlackboardWorldState;
 import com.embabel.plan.Action;
 import com.embabel.plan.Goal;
 import com.embabel.plan.common.condition.*;
-import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -76,20 +75,10 @@ public class BlackboardRoutingPlanner extends AbstractConditionPlanner {
             return new ConditionPlan(List.of(), goal, currentState);
         }
 
-        if (lastResult instanceof AgentModels.OrchestratorCollectorResult res
-                && (res.collectorDecision().decisionType() == Events.CollectorDecisionType.ADVANCE_PHASE
-                        || res.collectorDecision().decisionType() == Events.CollectorDecisionType.STOP)) {
+        // Collectors always route forward — route-back is handled by conversational topology (Story 7)
+        if (lastResult instanceof AgentModels.OrchestratorCollectorResult) {
             for (Action action : actions) {
                 if (action.getName().endsWith(".finalCollectorResult")) {
-                    return new ConditionPlan(List.of(action), goal, currentState);
-                }
-            }
-        }
-
-        if (lastResult instanceof AgentModels.OrchestratorCollectorResult res
-                && res.collectorDecision().decisionType() == Events.CollectorDecisionType.ROUTE_BACK) {
-            for (Action action : actions) {
-                if (action.getName().endsWith(".handleOrchestratorCollectorBranch")) {
                     return new ConditionPlan(List.of(action), goal, currentState);
                 }
             }

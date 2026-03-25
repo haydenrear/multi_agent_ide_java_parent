@@ -31,7 +31,6 @@ public record CollectorNode(
         String orchestratorOutput,
         List<SubmoduleNode> submodules,
         List<CollectedNodeStatus> collectedNodes,
-        AgentModels.CollectorDecision collectorDecision,
         AgentModels.OrchestratorCollectorResult collectorResult,
         InterruptContext interruptibleContext,
         WorkflowContext workflowContext
@@ -40,13 +39,13 @@ public record CollectorNode(
     public CollectorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String repositoryUrl, String baseBranch, boolean hasSubmodules, List<String> submoduleNames, String mainWorktreeId, List<String> submoduleWorktreeIds, String orchestratorOutput) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
                 repositoryUrl, baseBranch, hasSubmodules, submoduleNames, mainWorktreeId, submoduleWorktreeIds, orchestratorOutput,
-                new ArrayList<>(), new ArrayList<>(), null, null, null, WorkflowContext.initial());
+                new ArrayList<>(), new ArrayList<>(), null, null, WorkflowContext.initial());
     }
 
     public CollectorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String repositoryUrl, String baseBranch, boolean hasSubmodules, List<String> submoduleNames, String mainWorktreeId, List<String> submoduleWorktreeIds, String orchestratorOutput, List<SubmoduleNode> submodules) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
                 repositoryUrl, baseBranch, hasSubmodules, submoduleNames, mainWorktreeId, submoduleWorktreeIds, orchestratorOutput,
-                submodules, new ArrayList<>(), null, null, null, WorkflowContext.initial());
+                submodules, new ArrayList<>(), null, null, WorkflowContext.initial());
     }
 
     public CollectorNode {
@@ -105,7 +104,6 @@ public record CollectorNode(
     public CollectorNode withResult(AgentModels.OrchestratorCollectorResult result) {
         return toBuilder()
                 .collectorResult(result)
-                .collectorDecision(result != null ? result.collectorDecision() : collectorDecision)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

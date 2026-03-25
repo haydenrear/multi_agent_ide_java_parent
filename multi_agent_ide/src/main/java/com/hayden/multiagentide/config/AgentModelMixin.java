@@ -99,7 +99,6 @@ public interface AgentModelMixin {
         @JsonSubTypes.Type(value = AgentModels.InterruptRequest.StructuredChoice.class),
         @JsonSubTypes.Type(value = AgentModels.InterruptRequest.ConfirmationItem.class),
         @JsonSubTypes.Type(value = AgentModels.InterruptRequest.InterruptResolution.class),
-        @JsonSubTypes.Type(value = AgentModels.CollectorDecision.class),
         @JsonSubTypes.Type(value = AgentModels.AgentInteraction.class),
         @JsonSubTypes.Type(value = AgentModels.DelegationPlan.class),
         @JsonSubTypes.Type(value = AgentModels.ModuleOverview.class),

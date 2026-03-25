@@ -26,7 +26,6 @@ public record DiscoveryCollectorNode(
         int totalTasksCompleted,
         int totalTasksFailed,
         List<CollectedNodeStatus> collectedNodes,
-        AgentModels.CollectorDecision collectorDecision,
         AgentModels.DiscoveryCollectorResult discoveryCollectorResult,
         InterruptContext interruptibleContext,
         WorkflowContext workflowContext
@@ -34,7 +33,7 @@ public record DiscoveryCollectorNode(
 
     public DiscoveryCollectorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String summaryContent, int totalTasksCompleted, int totalTasksFailed) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                summaryContent, totalTasksCompleted, totalTasksFailed, new ArrayList<>(), null, null, null, WorkflowContext.initial());
+                summaryContent, totalTasksCompleted, totalTasksFailed, new ArrayList<>(), null, null, WorkflowContext.initial());
     }
 
     public DiscoveryCollectorNode {
@@ -78,7 +77,6 @@ public record DiscoveryCollectorNode(
     public DiscoveryCollectorNode withResult(AgentModels.DiscoveryCollectorResult result) {
         return toBuilder()
                 .discoveryCollectorResult(result)
-                .collectorDecision(result != null ? result.collectorDecision() : collectorDecision)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

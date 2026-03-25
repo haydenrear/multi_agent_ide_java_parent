@@ -28,7 +28,6 @@ public record TicketCollectorNode(
         int totalTicketsCompleted,
         int totalTicketsFailed,
         List<CollectedNodeStatus> collectedNodes,
-        AgentModels.CollectorDecision collectorDecision,
         AgentModels.TicketCollectorResult ticketCollectorResult,
         InterruptContext interruptibleContext,
         WorkflowContext workflowContext
@@ -36,7 +35,7 @@ public record TicketCollectorNode(
 
     public TicketCollectorNode(String nodeId, String title, String goal, Events.NodeStatus status, String parentNodeId, List<String> childNodeIds, Map<String, String> metadata, Instant createdAt, Instant lastUpdatedAt, String ticketSummary, int totalTicketsCompleted, int totalTicketsFailed) {
         this(nodeId, title, goal, status, parentNodeId, childNodeIds, metadata, createdAt, lastUpdatedAt,
-                ticketSummary, totalTicketsCompleted, totalTicketsFailed, new ArrayList<>(), null, null, null, WorkflowContext.initial());
+                ticketSummary, totalTicketsCompleted, totalTicketsFailed, new ArrayList<>(), null, null, WorkflowContext.initial());
     }
 
     public TicketCollectorNode {
@@ -81,7 +80,6 @@ public record TicketCollectorNode(
     public TicketCollectorNode withResult(AgentModels.TicketCollectorResult result) {
         return toBuilder()
                 .ticketCollectorResult(result)
-                .collectorDecision(result != null ? result.collectorDecision() : collectorDecision)
                 .lastUpdatedAt(Instant.now())
                 .build();
     }

@@ -1,6 +1,5 @@
 package com.hayden.multiagentidelib.template;
 
-import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 
 import java.util.List;
@@ -11,8 +10,6 @@ public interface ConsolidationTemplate {
     ArtifactKey contextId();
 
     String consolidatedOutput();
-
-    AgentModels.CollectorDecision decision();
 
     Map<String, String> metadata();
 

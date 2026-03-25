@@ -384,26 +384,22 @@ public class CliEventFormatter {
         return switch (result) {
             case AgentModels.OrchestratorAgentResult r -> "OrchestratorAgentResult summary=" + summary;
             case AgentModels.OrchestratorCollectorResult r ->
-                    "OrchestratorCollectorResult decision=" + summarize(args, r.decision())
-                            + " summary=" + summary;
+                    "OrchestratorCollectorResult summary=" + summary;
             case AgentModels.DiscoveryOrchestratorResult r -> "DiscoveryOrchestratorResult summary=" + summary;
             case AgentModels.DiscoveryCollectorResult r ->
-                    "DiscoveryCollectorResult decision=" + summarize(args, r.decision())
-                            + " summary=" + summary;
+                    "DiscoveryCollectorResult summary=" + summary;
             case AgentModels.DiscoveryAgentResult r ->
                     "DiscoveryAgentResult children=" + countOf(r.children())
                             + " summary=" + summary;
             case AgentModels.PlanningOrchestratorResult r -> "PlanningOrchestratorResult summary=" + summary;
             case AgentModels.PlanningCollectorResult r ->
-                    "PlanningCollectorResult decision=" + summarize(args, r.decision())
-                            + " summary=" + summary;
+                    "PlanningCollectorResult summary=" + summary;
             case AgentModels.PlanningAgentResult r ->
                     "PlanningAgentResult children=" + countOf(r.children())
                             + " summary=" + summary;
             case AgentModels.TicketOrchestratorResult r -> "TicketOrchestratorResult summary=" + summary;
             case AgentModels.TicketCollectorResult r ->
-                    "TicketCollectorResult decision=" + summarize(args, r.decision())
-                            + " summary=" + summary;
+                    "TicketCollectorResult summary=" + summary;
             case AgentModels.TicketAgentResult r ->
                     "TicketAgentResult summary=" + summary;
             case AgentModels.CommitAgentResult r ->
