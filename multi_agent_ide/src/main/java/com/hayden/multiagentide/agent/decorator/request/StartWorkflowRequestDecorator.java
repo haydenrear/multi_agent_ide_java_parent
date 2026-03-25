@@ -138,6 +138,15 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
             case AgentModels.InterruptRequest.TicketCollectorInterruptRequest req ->
                     handleInterrupt(operationContext, req,
                             () -> workflowGraphService.requireTicketCollector(operationContext));
+            case AgentModels.AgentToAgentRequest ignored -> {
+                // Communication request: no dedicated workflow node needed.
+            }
+            case AgentModels.AgentToControllerRequest ignored -> {
+                // Communication request: no dedicated workflow node needed.
+            }
+            case AgentModels.ControllerToAgentRequest ignored -> {
+                // Communication request: no dedicated workflow node needed.
+            }
         }
 
         return request;

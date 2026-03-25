@@ -525,6 +525,15 @@ class PermissionGate(
 
             is com.hayden.multiagentidelib.model.nodes.AskPermissionNode ->
                 node.toBuilder().lastUpdatedAt(Instant.now()).build()
+
+            is com.hayden.multiagentidelib.model.nodes.AgentToAgentConversationNode ->
+                node.toBuilder().lastUpdatedAt(Instant.now()).build()
+
+            is com.hayden.multiagentidelib.model.nodes.AgentToControllerConversationNode ->
+                node.toBuilder().lastUpdatedAt(Instant.now()).build()
+
+            is com.hayden.multiagentidelib.model.nodes.ControllerToAgentConversationNode ->
+                node.toBuilder().lastUpdatedAt(Instant.now()).build()
         }
     }
 }

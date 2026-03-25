@@ -151,6 +151,9 @@ public interface NodeMappings {
             case AgentModels.TicketCollectorRequest ignored -> AgentType.TICKET_COLLECTOR;
             case AgentModels.ResultsRequest ignored -> null;
             case InterruptRequest ignored -> null;
+            case AgentModels.AgentToAgentRequest r -> r.sourceAgentType();
+            case AgentModels.AgentToControllerRequest r -> r.sourceAgentType();
+            case AgentModels.ControllerToAgentRequest r -> r.targetAgentType();
         };
     }
 
@@ -179,6 +182,9 @@ public interface NodeMappings {
             case MergeNode ignored -> null;
             case SummaryNode ignored -> null;
             case AskPermissionNode ignored -> null;
+            case AgentToAgentConversationNode n -> n.sourceAgentType();
+            case AgentToControllerConversationNode n -> n.sourceAgentType();
+            case ControllerToAgentConversationNode n -> n.targetAgentType();
         };
     }
 

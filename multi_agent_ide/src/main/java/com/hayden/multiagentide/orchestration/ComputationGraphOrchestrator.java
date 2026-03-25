@@ -421,6 +421,21 @@ public class ComputationGraphOrchestrator {
                             .childNodeIds(childIds)
                             .lastUpdatedAt(Instant.now())
                             .build();
+            case AgentToAgentConversationNode n ->
+                    n.toBuilder()
+                            .childNodeIds(childIds)
+                            .lastUpdatedAt(Instant.now())
+                            .build();
+            case AgentToControllerConversationNode n ->
+                    n.toBuilder()
+                            .childNodeIds(childIds)
+                            .lastUpdatedAt(Instant.now())
+                            .build();
+            case ControllerToAgentConversationNode n ->
+                    n.toBuilder()
+                            .childNodeIds(childIds)
+                            .lastUpdatedAt(Instant.now())
+                            .build();
         };
     }
 }

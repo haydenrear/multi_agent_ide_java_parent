@@ -141,6 +141,12 @@ public class PromptContextFactory {
             }
             case AgentModels.TicketAgentRequests ticketAgentRequests -> {
             }
+            case AgentModels.AgentToAgentRequest ignored -> {
+            }
+            case AgentModels.AgentToControllerRequest ignored -> {
+            }
+            case AgentModels.ControllerToAgentRequest ignored -> {
+            }
             case AgentModels.InterruptRequest interruptRequest -> {
                 switch(interruptRequest) {
                     case AgentModels.InterruptRequest.ContextManagerInterruptRequest contextManagerInterruptRequest -> {

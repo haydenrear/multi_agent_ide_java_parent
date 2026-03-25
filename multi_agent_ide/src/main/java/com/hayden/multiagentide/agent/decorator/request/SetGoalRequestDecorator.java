@@ -121,6 +121,15 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                                         case AgentModels.AiTransformerRequest aiTransformerRequest -> {
                                             return null;
                                         }
+                                        case AgentModels.AgentToAgentRequest ignored -> {
+                                            return null;
+                                        }
+                                        case AgentModels.AgentToControllerRequest ignored -> {
+                                            return null;
+                                        }
+                                        case AgentModels.ControllerToAgentRequest ignored -> {
+                                            return null;
+                                        }
                                     }
                                 })
                                 .filter(Objects::nonNull)

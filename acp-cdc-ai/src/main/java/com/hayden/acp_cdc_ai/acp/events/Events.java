@@ -63,7 +63,10 @@ public interface Events {
         AGENT_REVIEW,
         SUMMARY,
         INTERRUPT,
-        PERMISSION
+        PERMISSION,
+        AGENT_TO_AGENT_CONVERSATION,
+        AGENT_TO_CONTROLLER_CONVERSATION,
+        CONTROLLER_TO_AGENT_CONVERSATION
     }
 
     enum InterruptType {

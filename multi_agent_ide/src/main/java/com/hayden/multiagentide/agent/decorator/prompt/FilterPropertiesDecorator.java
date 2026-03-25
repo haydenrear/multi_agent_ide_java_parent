@@ -212,6 +212,9 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case AgentModels.AiFilterRequest ignored -> null;
             case AgentModels.AiPropagatorRequest ignored -> null;
             case AgentModels.AiTransformerRequest ignored -> null;
+            case AgentModels.AgentToAgentRequest ignored -> null;
+            case AgentModels.AgentToControllerRequest ignored -> null;
+            case AgentModels.ControllerToAgentRequest ignored -> null;
         };
     }
 

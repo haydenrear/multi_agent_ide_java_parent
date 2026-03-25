@@ -376,6 +376,12 @@ public class CliEventFormatter {
                     "AiPropagatorRequest";
             case AgentModels.AiTransformerRequest aiTransformerRequest ->
                     "AiTransformerRequest";
+            case AgentModels.AgentToAgentRequest r ->
+                    "AgentToAgentRequest target=" + r.targetAgentType() + " summary=" + summary;
+            case AgentModels.AgentToControllerRequest r ->
+                    "AgentToControllerRequest source=" + r.sourceAgentType() + " summary=" + summary;
+            case AgentModels.ControllerToAgentRequest r ->
+                    "ControllerToAgentRequest target=" + r.targetAgentType() + " summary=" + summary;
         };
     }
 

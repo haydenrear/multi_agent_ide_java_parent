@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public sealed interface Artifact
-        permits Artifact.AgentModelArtifact, Artifact.ArtifactDbRef, Artifact.EventArtifact, Artifact.ExecutionArtifact, Artifact.ExecutionConfigArtifact, Artifact.FilterDecisionRecordArtifact, Artifact.FilterDescriptorArtifact, Artifact.IntermediateArtifact, Artifact.OutcomeEvidenceArtifact, Artifact.PolicyDeactivationArtifact, Artifact.PolicyLayerBindingToggleArtifact, Artifact.PolicyLayerBindingUpdateArtifact, Artifact.PolicyRegistrationArtifact, Artifact.PromptArgsArtifact, Artifact.RenderedPromptArtifact, Artifact.ToolCallArtifact, MessageStreamArtifact, Templated {
+        permits Artifact.AgentModelArtifact, Artifact.ArtifactDbRef, Artifact.ControllerChecklistTurnArtifact, Artifact.EventArtifact, Artifact.ExecutionArtifact, Artifact.ExecutionConfigArtifact, Artifact.FilterDecisionRecordArtifact, Artifact.FilterDescriptorArtifact, Artifact.IntermediateArtifact, Artifact.OutcomeEvidenceArtifact, Artifact.PolicyDeactivationArtifact, Artifact.PolicyLayerBindingToggleArtifact, Artifact.PolicyLayerBindingUpdateArtifact, Artifact.PolicyRegistrationArtifact, Artifact.PromptArgsArtifact, Artifact.RenderedPromptArtifact, Artifact.ToolCallArtifact, MessageStreamArtifact, Templated {
 
     String SCHEMA = "schema";
 
@@ -678,6 +678,35 @@ public sealed interface Artifact
             List<Artifact> children
     ) implements Artifact {
 
+
+        @Override
+        public Optional<String> contentHash() {
+            return Optional.ofNullable(hash);
+        }
+    }
+
+    // ========== Controller Checklist ==========
+
+    /**
+     * Audit trail artifact for controller checklist turns during justification conversations.
+     * Persisted for observability only — NOT passed to the model.
+     */
+    @Builder(toBuilder = true)
+    @With
+    record ControllerChecklistTurnArtifact(
+            ArtifactKey artifactKey,
+            ArtifactKey targetAgentKey,
+            String targetAgentType,
+            String checklistActionType,
+            String completedStep,
+            String stepDescription,
+            String controllerMessage,
+            ArtifactKey conversationKey,
+            Instant timestamp,
+            String hash,
+            Map<String, String> metadata,
+            List<Artifact> children
+    ) implements Artifact {
 
         @Override
         public Optional<String> contentHash() {

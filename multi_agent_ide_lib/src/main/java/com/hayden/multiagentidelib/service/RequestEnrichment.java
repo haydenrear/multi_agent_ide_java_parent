@@ -197,6 +197,15 @@ public class RequestEnrichment {
             case AgentModels.AiTransformerRequest ignored ->
                     findLastFromHistory(history,
                             AgentModels.AgentRequest.class);
+            case AgentModels.AgentToAgentRequest ignored ->
+                    findLastFromHistory(history,
+                            AgentModels.AgentRequest.class);
+            case AgentModels.AgentToControllerRequest ignored ->
+                    findLastFromHistory(history,
+                            AgentModels.AgentRequest.class);
+            case AgentModels.ControllerToAgentRequest ignored ->
+                    findLastFromHistory(history,
+                            AgentModels.AgentRequest.class);
         };
     }
 
@@ -339,6 +348,18 @@ public class RequestEnrichment {
                             .contextId(resolveContextId(context, req, parent))
                             .build();
             case AgentModels.AiTransformerRequest req ->
+                    (T) req.toBuilder()
+                            .contextId(resolveContextId(context, req, parent))
+                            .build();
+            case AgentModels.AgentToAgentRequest req ->
+                    (T) req.toBuilder()
+                            .contextId(resolveContextId(context, req, parent))
+                            .build();
+            case AgentModels.AgentToControllerRequest req ->
+                    (T) req.toBuilder()
+                            .contextId(resolveContextId(context, req, parent))
+                            .build();
+            case AgentModels.ControllerToAgentRequest req ->
                     (T) req.toBuilder()
                             .contextId(resolveContextId(context, req, parent))
                             .build();

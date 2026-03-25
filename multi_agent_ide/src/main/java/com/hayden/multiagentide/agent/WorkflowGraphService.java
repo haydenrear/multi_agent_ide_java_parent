@@ -1082,6 +1082,9 @@ public class WorkflowGraphService {
             case SummaryNode n -> n.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build();
             case InterruptNode n -> n.toBuilder().interruptContext(context).lastUpdatedAt(Instant.now()).build();
             case AskPermissionNode n -> n.toBuilder().lastUpdatedAt(Instant.now()).build();
+            case AgentToAgentConversationNode n -> n.toBuilder().lastUpdatedAt(Instant.now()).build();
+            case AgentToControllerConversationNode n -> n.toBuilder().lastUpdatedAt(Instant.now()).build();
+            case ControllerToAgentConversationNode n -> n.toBuilder().lastUpdatedAt(Instant.now()).build();
         };
     }
 

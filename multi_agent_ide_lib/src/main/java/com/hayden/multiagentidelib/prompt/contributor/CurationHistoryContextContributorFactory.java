@@ -502,6 +502,9 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                             b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
                     case AgentModels.TicketOrchestratorRequest ticketOrchestratorRequest ->
                             b = addPromptContributor(req, contributors, b.phase, b.seq, de, retryCount);
+                    case AgentModels.AgentToAgentRequest ignored -> {}
+                    case AgentModels.AgentToControllerRequest ignored -> {}
+                    case AgentModels.ControllerToAgentRequest ignored -> {}
                 }
 
                 lastPhase = b.phase;
@@ -737,6 +740,10 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                         AllowedHistoryType.TICKET_AGENT_RESULT,
                         AllowedHistoryType.INTERRUPT_REQUEST);
             }
+
+            case AgentModels.AgentToAgentRequest ignored -> {}
+            case AgentModels.AgentToControllerRequest ignored -> {}
+            case AgentModels.ControllerToAgentRequest ignored -> {}
         }
 
         // Include all result variants so AgentResult matching stays exhaustive.

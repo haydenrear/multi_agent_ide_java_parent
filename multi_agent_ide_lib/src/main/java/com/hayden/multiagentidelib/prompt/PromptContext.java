@@ -62,6 +62,9 @@ public record PromptContext(
                 log.error("MergeConflictRequest {} could not get parent. Returning regular.", mcr.contextId());
                 return mcr.contextId();
             });
+            case AgentModels.AgentToAgentRequest aar -> aar.targetAgentKey();
+            case AgentModels.AgentToControllerRequest acr -> acr.sourceAgentKey();
+            case AgentModels.ControllerToAgentRequest car -> car.targetAgentKey();
             case AgentModels.AgentRequest ar -> ar.contextId();
         };
     }

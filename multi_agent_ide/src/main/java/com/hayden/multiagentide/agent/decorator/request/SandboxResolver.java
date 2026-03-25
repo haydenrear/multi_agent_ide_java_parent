@@ -194,6 +194,12 @@ public class SandboxResolver {
             }
             case AgentModels.MergeConflictRequest mergeConflictRequest -> {
             }
+            case AgentModels.AgentToAgentRequest ignored -> {
+            }
+            case AgentModels.AgentToControllerRequest ignored -> {
+            }
+            case AgentModels.ControllerToAgentRequest ignored -> {
+            }
         }
 
         return null;

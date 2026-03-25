@@ -105,7 +105,11 @@ public interface AgentModels {
             AiFilterRequest,
             AiPropagatorRequest,
             AiTransformerRequest,
-            ResultsRequest
+            ResultsRequest,
+//          Communication request types for inter-agent and controller topology
+            AgentToAgentRequest,
+            AgentToControllerRequest,
+            ControllerToAgentRequest
     {
 
         @JsonIgnore
@@ -151,6 +155,9 @@ public interface AgentModels {
                 case AiFilterRequest aiFilterRequest -> aiFilterRequest.goal;
                 case AiPropagatorRequest aiPropagatorRequest -> aiPropagatorRequest.goal();
                 case AiTransformerRequest aiTransformerRequest -> aiTransformerRequest.goal();
+                case AgentToAgentRequest r -> r.goal();
+                case AgentToControllerRequest r -> r.goal();
+                case ControllerToAgentRequest r -> r.goal();
             };
         }
 
@@ -197,6 +204,9 @@ public interface AgentModels {
                 case AiFilterRequest ignored -> "AI_FILTER";
                 case AiPropagatorRequest ignored -> "AI_PROPAGATOR";
                 case AiTransformerRequest ignored -> "AI_TRANSFORMER";
+                case AgentToAgentRequest ignored -> "AGENT_TO_AGENT_CONVERSATION";
+                case AgentToControllerRequest ignored -> "AGENT_TO_CONTROLLER_CONVERSATION";
+                case ControllerToAgentRequest ignored -> "CONTROLLER_TO_AGENT_CONVERSATION";
             };
         }
 
@@ -231,6 +241,9 @@ public interface AgentModels {
                         CurationPhase.OTHER;
                 case AiTransformerRequest aiTransformerRequest ->
                         CurationPhase.OTHER;
+                case AgentToAgentRequest ignored -> CurationPhase.OTHER;
+                case AgentToControllerRequest ignored -> CurationPhase.OTHER;
+                case ControllerToAgentRequest ignored -> CurationPhase.OTHER;
             };
         }
 
@@ -4551,6 +4564,12 @@ public interface AgentModels {
                 }
                 case AiTransformerRequest ignored -> {
                 }
+                case AgentToAgentRequest ignored -> {
+                }
+                case AgentToControllerRequest ignored -> {
+                }
+                case ControllerToAgentRequest ignored -> {
+                }
             }
 
             return builder.build();
@@ -5055,6 +5074,200 @@ public interface AgentModels {
             }
             if (errorMessage != null && !errorMessage.isBlank()) {
                 builder.append("Error: ").append(errorMessage.trim()).append("\n");
+            }
+            return builder.toString().trim();
+        }
+    }
+
+    // ========== Communication Topology Types ==========
+
+    record CallChainEntry(
+            ArtifactKey agentKey,
+            AgentType agentType,
+            java.time.Instant timestamp
+    ) {}
+
+    record CallChain(
+            List<CallChainEntry> entries,
+            ArtifactKey initiatorKey
+    ) {
+        public boolean containsAgent(ArtifactKey agentKey) {
+            return entries != null && entries.stream().anyMatch(e -> e.agentKey().equals(agentKey));
+        }
+
+        public int depth() {
+            return entries != null ? entries.size() : 0;
+        }
+    }
+
+    record ChecklistAction(
+            @JsonPropertyDescription("ACTION identifier from checklist row (e.g. VERIFY_REQUIREMENTS_MAPPING, CHALLENGE_ASSUMPTIONS)")
+            String actionType,
+            @JsonPropertyDescription("Reference to the checklist step (e.g. checklist-discovery-agent.md#step-3)")
+            String completedStep,
+            @JsonPropertyDescription("Human-readable description of the completed step")
+            String stepDescription
+    ) {}
+
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Request from one agent to another agent for inter-agent communication.")
+    record AgentToAgentRequest(
+            @JsonPropertyDescription("Unique context id for this request.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Worktree sandbox context for this request.")
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("The calling agent's ArtifactKey.")
+            @SkipPropertyFilter
+            ArtifactKey sourceAgentKey,
+            @JsonPropertyDescription("Role of the calling agent.")
+            @SkipPropertyFilter
+            AgentType sourceAgentType,
+            @JsonPropertyDescription("The target agent's ArtifactKey.")
+            @SkipPropertyFilter
+            ArtifactKey targetAgentKey,
+            @JsonPropertyDescription("Role of the target agent.")
+            @SkipPropertyFilter
+            AgentType targetAgentType,
+            @JsonPropertyDescription("Message content from the calling agent.")
+            String message,
+            @JsonPropertyDescription("Current call chain for loop detection.")
+            @SkipPropertyFilter
+            List<CallChainEntry> callChain,
+            @JsonPropertyDescription("Current goal context.")
+            String goal
+    ) implements AgentRequest {
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this.toBuilder().goal(goal).build();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            StringBuilder builder = new StringBuilder();
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Source Agent", sourceAgentType != null ? sourceAgentType.name() : null);
+            appendPrettyLine(builder, "Target Agent", targetAgentType != null ? targetAgentType.name() : null);
+            appendPrettyText(builder, "Message", message);
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Agent-to-Agent Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Source Agent Key", sourceAgentKey);
+            appendPrettyLine(builder, "Source Agent Type", sourceAgentType != null ? sourceAgentType.name() : null);
+            appendPrettyLine(builder, "Target Agent Key", targetAgentKey);
+            appendPrettyLine(builder, "Target Agent Type", targetAgentType != null ? targetAgentType.name() : null);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyText(builder, "Message", message);
+            return builder.toString().trim();
+        }
+    }
+
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Request from an agent to the controller for justification conversations.")
+    record AgentToControllerRequest(
+            @JsonPropertyDescription("Unique context id for this request.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Worktree sandbox context for this request.")
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("The calling agent's ArtifactKey.")
+            @SkipPropertyFilter
+            ArtifactKey sourceAgentKey,
+            @JsonPropertyDescription("Role of the calling agent.")
+            @SkipPropertyFilter
+            AgentType sourceAgentType,
+            @JsonPropertyDescription("Structured justification content.")
+            String justificationMessage,
+            @JsonPropertyDescription("Current goal context.")
+            String goal
+    ) implements AgentRequest {
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this.toBuilder().goal(goal).build();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            StringBuilder builder = new StringBuilder();
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Source Agent", sourceAgentType != null ? sourceAgentType.name() : null);
+            appendPrettyText(builder, "Justification", justificationMessage);
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Agent-to-Controller Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Source Agent Key", sourceAgentKey);
+            appendPrettyLine(builder, "Source Agent Type", sourceAgentType != null ? sourceAgentType.name() : null);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyText(builder, "Justification", justificationMessage);
+            return builder.toString().trim();
+        }
+    }
+
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Request from the controller to an agent as part of a conversation.")
+    record ControllerToAgentRequest(
+            @JsonPropertyDescription("Unique context id for this request.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("Worktree sandbox context for this request.")
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Controller's per-target conversation key.")
+            @SkipPropertyFilter
+            ArtifactKey sourceKey,
+            @JsonPropertyDescription("The target agent's ArtifactKey.")
+            @SkipPropertyFilter
+            ArtifactKey targetAgentKey,
+            @JsonPropertyDescription("Role of the target agent.")
+            @SkipPropertyFilter
+            AgentType targetAgentType,
+            @JsonPropertyDescription("Controller's response content.")
+            String message,
+            @JsonPropertyDescription("Optional checklist action when responding as part of a structured checklist review.")
+            @SkipPropertyFilter
+            ChecklistAction checklistAction,
+            @JsonPropertyDescription("Current goal context.")
+            String goal
+    ) implements AgentRequest {
+        @Override
+        public AgentRequest withGoal(String goal) {
+            return this.toBuilder().goal(goal).build();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            StringBuilder builder = new StringBuilder();
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Target Agent", targetAgentType != null ? targetAgentType.name() : null);
+            appendPrettyText(builder, "Message", message);
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Controller-to-Agent Request\n");
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Source Key", sourceKey);
+            appendPrettyLine(builder, "Target Agent Key", targetAgentKey);
+            appendPrettyLine(builder, "Target Agent Type", targetAgentType != null ? targetAgentType.name() : null);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyText(builder, "Message", message);
+            if (checklistAction != null) {
+                appendPrettyLine(builder, "Checklist Action", checklistAction.actionType());
+                appendPrettyLine(builder, "Completed Step", checklistAction.completedStep());
             }
             return builder.toString().trim();
         }
