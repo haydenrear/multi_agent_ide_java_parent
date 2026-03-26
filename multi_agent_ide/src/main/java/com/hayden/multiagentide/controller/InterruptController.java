@@ -78,31 +78,29 @@ public class InterruptController {
         String interruptId = UUID.randomUUID().toString();
         String reason = request.reason() != null ? request.reason() : "Interrupt requested";
         Events.InterruptType type = request.type();
-        switch (type) {
-            case PAUSE -> agentControlService.requestPause(request.originNodeId(), reason);
-            case STOP -> agentControlService.requestStop(request.originNodeId());
-            case HUMAN_REVIEW -> agentControlService.requestReview(request.originNodeId(), reason);
-            case PRUNE -> {
-                eventBus.publish(new Events.NodePrunedEvent(
-                        interruptId,
-                        Instant.now(),
-                        request.originNodeId(),
-                        reason,
-                        List.of()
-                ));
-            }
-            default -> throw new IllegalArgumentException("Unsupported interrupt type: " + type);
+
+        // Only HUMAN_REVIEW is accepted — the controller acts as human for routing decisions
+        if (type != Events.InterruptType.HUMAN_REVIEW) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only HUMAN_REVIEW interrupt type is accepted; got: " + type);
         }
+
+        agentControlService.requestReview(request.originNodeId(), reason);
+
+        String sourceAgentType = graphRepository.findById(request.originNodeId())
+                .or(() -> graphRepository.findById(interruptId))
+                .flatMap(gn -> Optional.ofNullable(NodeMappings.agentTypeFromNode(gn)))
+                .map(AgentType::wireValue)
+                .orElse(null);
+
+        String rerouteWireValue = request.rerouteToAgentType().wireValue();
+
         eventBus.publish(new Events.InterruptRequestEvent(
                 interruptId,
                 Instant.now(),
                 request.originNodeId(),
-                graphRepository.findById(request.originNodeId)
-                       .or(() -> graphRepository.findById(interruptId))
-                       .flatMap(gn -> Optional.ofNullable(NodeMappings.agentTypeFromNode(gn)))
-                        .map(AgentType::wireValue)
-                       .orElse(null),
-                request.rerouteToAgentType().wireValue(),
+                sourceAgentType,
+                rerouteWireValue,
                 type,
                 reason,
                 List.of(),
@@ -181,15 +179,20 @@ public class InterruptController {
     public record InterruptError(String message) {
     }
 
-    @Schema(description = "Request to create an interrupt signal on an agent node.")
+    @Schema(description = "Request to create an interrupt signal on an agent node. "
+            + "Only HUMAN_REVIEW is accepted — the controller acts as a human for routing decisions.")
     public record InterruptRequest(
-            @Schema(description = "Interrupt type: PAUSE, STOP, HUMAN_REVIEW, or PRUNE. See Events.InterruptType.") Events.InterruptType type,
-            @Schema(description = "ArtifactKey of the target agent node") String originNodeId,
-            @Schema(description = "Human-readable reason for the interrupt") String reason,
-            @Schema(description = "Target AgentType to reroute the interrupted agent to. "
+            @Schema(description = "Interrupt type — must be HUMAN_REVIEW. See Events.InterruptType.")
+            Events.InterruptType type,
+            @Schema(description = "ArtifactKey of the target agent node")
+            String originNodeId,
+            @Schema(description = "Human-readable reason for the interrupt")
+            String reason,
+            @Schema(description = "Target AgentType to reroute the interrupted agent to. Required (non-null). "
                     + "Must be a workflow agent type. Cannot route to: ALL, COMMIT_AGENT, MERGE_CONFLICT_AGENT, "
                     + "AI_FILTER, AI_PROPAGATOR, AI_TRANSFORMER, REVIEW_AGENT, REVIEW_RESOLUTION_AGENT, "
                     + "MERGER_AGENT, CONTEXT_MANAGER.")
+            @jakarta.validation.constraints.NotNull
             AgentType rerouteToAgentType
     ) {
     }
