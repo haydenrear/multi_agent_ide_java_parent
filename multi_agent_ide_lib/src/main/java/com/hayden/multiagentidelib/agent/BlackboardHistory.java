@@ -649,6 +649,9 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                     buildTargets(propagationEvent.sourceNodeId(), null);
             case Events.TransformationEvent ignored -> new ArrayList<>();
             case Events.CompactionEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.AgentCallStartedEvent callStarted ->
+                    buildTargets(callStarted.callerNodeId(), callStarted.targetNodeId());
+            case Events.AgentCallCompletedEvent ignored -> buildTargets(event.nodeId(), null);
         };
     }
 

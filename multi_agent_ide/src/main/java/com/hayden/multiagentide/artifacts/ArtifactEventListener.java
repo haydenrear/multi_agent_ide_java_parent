@@ -112,6 +112,8 @@ public class ArtifactEventListener implements EventListener {
             }
             case Events.TuiSystemGraphEvent ignored -> {
             }
+            case Events.AgentCallStartedEvent agentCallStartedEvent -> handleEventArtifact(agentCallStartedEvent);
+            case Events.AgentCallCompletedEvent agentCallCompletedEvent -> handleEventArtifact(agentCallCompletedEvent);
         }
     }
 
@@ -169,6 +171,8 @@ public class ArtifactEventListener implements EventListener {
             case Events.AvailableCommandsUpdateEvent ignored -> false;
             case Events.TuiInteractionGraphEvent ignored -> false;
             case Events.TuiSystemGraphEvent ignored -> false;
+            case Events.AgentCallStartedEvent ignored -> true;
+            case Events.AgentCallCompletedEvent ignored -> true;
         };
     }
 

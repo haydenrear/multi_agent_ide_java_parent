@@ -35,6 +35,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import com.hayden.multiagentide.gate.PermissionGateAdapter;
+import com.hayden.multiagentide.service.AgentCommunicationService;
+import com.hayden.multiagentide.repository.GraphRepository;
+import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
+import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 
 import static com.hayden.acp_cdc_ai.acp.AcpChatModel.MCP_SESSION_HEADER;
 
@@ -48,6 +53,10 @@ public class AcpTooling implements ToolCarrier {
     private final RequestContextRepository requestContextRepository;
 
     private final ObjectMapper objectMapper;
+
+    private final AgentCommunicationService agentCommunicationService;
+
+    private final GraphRepository graphRepository;
 
     private PermissionGateAdapter permissionGate;
 
@@ -503,6 +512,24 @@ public class AcpTooling implements ToolCarrier {
         }
 
         return result.toString();
+    }
+
+    @Tool(name = "list_agents", description = "Lists all available agent sessions that can be communicated with. "
+            + "Returns a JSON array of agents with their keys, types, busy status, and whether the current agent "
+            + "is permitted to call them based on topology rules. Use this to discover which agents are available "
+            + "before calling them with the call_agent tool.")
+    public String listAgents(
+            @SetFromHeader(MCP_SESSION_HEADER)
+            String sessionId
+    ) {
+        if (!StringUtils.hasText(sessionId)) {
+            return "{\"error\": \"missing session id\"}";
+        }
+        AgentType callingAgentType = graphRepository.findById(sessionId)
+                .map(NodeMappings::agentTypeFromNode)
+                .orElse(null);
+        var agents = agentCommunicationService.listAvailableAgents(sessionId, callingAgentType);
+        return toJson(agents);
     }
 
     private void cleanupExpiredBackgroundProcesses() {

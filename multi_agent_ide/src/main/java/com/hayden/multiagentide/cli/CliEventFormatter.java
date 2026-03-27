@@ -130,6 +130,12 @@ public class CliEventFormatter {
                         + " controller=" + summarize(normalizedArgs, e.controllerId())
                         + " endpoint=" + summarize(normalizedArgs, e.endpointId()));
                 case Events.CompactionEvent e -> format(normalizedArgs, "COMPACTION", e, "message=" + summarize(normalizedArgs, e.message()));
+                case Events.AgentCallStartedEvent e -> format(normalizedArgs, "AGENT_CALL", e,
+                        "caller=" + summarize(normalizedArgs, e.callerNodeId())
+                                + " target=" + summarize(normalizedArgs, e.targetNodeId())
+                                + " callId=" + summarize(normalizedArgs, e.callId()));
+                case Events.AgentCallCompletedEvent e -> format(normalizedArgs, "AGENT_CALL", e,
+                        "callId=" + summarize(normalizedArgs, e.callId()));
             };
     }
 

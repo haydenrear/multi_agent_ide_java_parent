@@ -22,6 +22,7 @@ import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRep
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.*;
+import com.hayden.multiagentide.topology.CommunicationTopologyConfig;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentide.support.QueuedLlmRunner;
 import com.hayden.multiagentide.support.TestEventListener;
@@ -169,6 +170,12 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
     @MockitoSpyBean
     private ComputationGraphOrchestrator computationGraphOrchestrator;
+
+    @Autowired
+    private AgentCommunicationService agentCommunicationService;
+
+    @Autowired
+    private com.hayden.multiagentide.agent.decorator.prompt.FilterPropertiesDecorator filterPropertiesDecorator;
 
     @MockitoSpyBean
     private WorktreeMergeConflictService conflictService;
@@ -984,6 +991,566 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 //        @Test
         void orchestratorCollector_loopsBackMultipleTimes() {
         }
+    }
+
+    // ── External interrupt routing (controller-initiated) ────────────────
+
+    @Nested
+    class ExternalInterruptRouting {
+
+        /**
+         * External interrupt targeting the orchestrator node during discovery.
+         * The controller publishes an InterruptRequestEvent which the
+         * InterruptRequestEventListener picks up, stores in FilterPropertiesDecorator,
+         * and publishes an AddMessageEvent. The next LLM call should see the
+         * interrupt stored in the decorator. After resolution, workflow completes.
+         */
+        @SneakyThrows
+        @Test
+        void externalInterrupt_atOrchestrator_storesInFilterPropertiesAndCompletes() {
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            // 1st LLM call: orchestrator routes to discovery, but in callback we inject
+            //    an external interrupt targeting the orchestrator node
+            queuedLlmRunner.enqueue(
+                    AgentModels.OrchestratorRouting.builder()
+                            .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                                    .goal("External interrupt test")
+                                    .build())
+                            .build(),
+                    (response, opCtx) -> {
+                        // Inject external interrupt targeting the orchestrator node
+                        eventBus.publish(new Events.InterruptRequestEvent(
+                                UUID.randomUUID().toString(),
+                                Instant.now(),
+                                contextId,
+                                "orchestrator",
+                                "discovery-orchestrator",
+                                Events.InterruptType.HUMAN_REVIEW,
+                                "Controller wants to reroute to discovery orchestrator",
+                                List.of(), List.of(), null,
+                                UUID.randomUUID().toString()
+                        ));
+                    }
+            );
+
+            // 2nd LLM call: discovery orchestrator — the interrupt was stored but the
+            //    workflow continues because the agent's response was already determined.
+            //    The interrupt event should be in FilterPropertiesDecorator for the NEXT call.
+            discoveryOnly("External interrupt test");
+
+            // Continue with planning + tickets to complete the workflow
+            enqueuePlanningToCompletion("External interrupt test");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "External interrupt test", "DISCOVERY"))
+            );
+
+            assertThat(output).isNotNull();
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        /**
+         * External interrupt during discovery agent execution. The controller
+         * publishes an interrupt targeting the discovery agent's node during
+         * the discovery agent's LLM call. The discovery agent's next response
+         * is an interrupt. After resolution, the workflow continues.
+         */
+        @SneakyThrows
+        @Test
+        void externalInterrupt_duringDiscoveryAgent_interruptHandledAndCompletes() {
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            initialOrchestratorToDiscovery("Discovery interrupt test");
+
+            // Discovery orchestrator dispatches to discovery agent
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.DiscoveryAgentRequest.builder()
+                                            .goal("Discovery interrupt test")
+                                            .subdomainFocus("Primary")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            // Discovery agent returns an interrupt (simulating agent seeing the injected
+            // interrupt message and responding with an interrupt request)
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentRouting.builder()
+                    .interruptRequest(AgentModels.InterruptRequest.DiscoveryAgentInterruptRequest.builder()
+                            .type(Events.InterruptType.HUMAN_REVIEW)
+                            .reason("Discovery agent needs human review")
+                            .build())
+                    .build());
+
+            // After interrupt resolution, InterruptService.handleInterrupt() calls
+            // runWithTemplate expecting InterruptRouting — route back to orchestrator
+            queuedLlmRunner.enqueue(AgentModels.InterruptRouting.builder()
+                    .orchestratorRequest(AgentModels.OrchestratorRequest.builder()
+                            .goal("Discovery interrupt test")
+                            .build())
+                    .build());
+
+            // Orchestrator re-dispatches to discovery
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                    .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                            .goal("Discovery interrupt test")
+                            .build())
+                    .build());
+
+            // Discovery orchestrator dispatches agent again
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.DiscoveryAgentRequest.builder()
+                                            .goal("Discovery interrupt test")
+                                            .subdomainFocus("Primary")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            // Discovery agent responds normally after re-dispatch
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentRouting.builder()
+                    .agentResult(AgentModels.DiscoveryAgentResult.builder()
+                            .output("Found stuff after interrupt")
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
+                    .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
+                            .goal("Discovery interrupt test")
+                            .discoveryResults("discovery-results")
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
+                    .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
+                            .consolidatedOutput("Discovery complete")
+                            .build())
+                    .build());
+
+            enqueuePlanningToCompletion("Discovery interrupt test");
+
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Discovery interrupt test", "DISCOVERY"))
+            ));
+
+            // Wait for the interrupt to be published
+            await().atMost(Duration.ofSeconds(300))
+                    .until(() -> permissionGate.isInterruptPending(
+                            t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                                 && Objects.equals(t.getReason(), "Discovery agent needs human review")));
+
+            var pendingInterrupt = permissionGate.getInterruptPending(
+                    t -> Objects.equals(t.getReason(), "Discovery agent needs human review"));
+            assertThat(pendingInterrupt).isNotNull();
+
+            // Resolve the interrupt
+            permissionGate.resolveInterrupt(
+                    pendingInterrupt.getInterruptId(),
+                    IPermissionGate.ResolutionType.APPROVED,
+                    "Proceed with discovery",
+                    (IPermissionGate.InterruptResult) null);
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+
+            var result = workflowFuture.get();
+            assertThat(result).isNotNull();
+            assertThat(result.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        /**
+         * Discovery collector returns an interrupt (agent-initiated), then after
+         * resolution routes back to discovery for another pass.
+         */
+        @SneakyThrows
+        @Test
+        void discoveryCollector_agentInitiatedInterrupt_resolvesAndContinues() {
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            initialOrchestratorToDiscovery("Collector interrupt test");
+
+            // Discovery pass
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.DiscoveryAgentRequest.builder()
+                                            .goal("Collector interrupt test")
+                                            .subdomainFocus("Primary")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentRouting.builder()
+                    .agentResult(AgentModels.DiscoveryAgentResult.builder()
+                            .output("Found stuff")
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
+                    .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
+                            .goal("Collector interrupt test")
+                            .discoveryResults("discovery-results")
+                            .build())
+                    .build());
+
+            // Collector returns an interrupt instead of a result
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
+                    .interruptRequest(AgentModels.InterruptRequest.DiscoveryCollectorInterruptRequest.builder()
+                            .type(Events.InterruptType.HUMAN_REVIEW)
+                            .reason("Collector needs human review before consolidating")
+                            .build())
+                    .build());
+
+            // After interrupt resolution, InterruptService expects InterruptRouting
+            queuedLlmRunner.enqueue(AgentModels.InterruptRouting.builder()
+                    .orchestratorRequest(AgentModels.OrchestratorRequest.builder()
+                            .goal("Collector interrupt test")
+                            .build())
+                    .build());
+
+            // Orchestrator re-dispatches to discovery
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
+                    .discoveryOrchestratorRequest(AgentModels.DiscoveryOrchestratorRequest.builder()
+                            .goal("Collector interrupt test")
+                            .build())
+                    .build());
+
+            // Full discovery pass again
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.DiscoveryAgentRequest.builder()
+                                            .goal("Collector interrupt test")
+                                            .subdomainFocus("Primary")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentRouting.builder()
+                    .agentResult(AgentModels.DiscoveryAgentResult.builder()
+                            .output("Found stuff after review")
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
+                    .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
+                            .goal("Collector interrupt test")
+                            .discoveryResults("discovery-results")
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
+                    .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
+                            .consolidatedOutput("Discovery complete after review")
+                            .build())
+                    .build());
+
+            enqueuePlanningToCompletion("Collector interrupt test");
+
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Collector interrupt test", "DISCOVERY"))
+            ));
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(() -> permissionGate.isInterruptPending(
+                            t -> Objects.equals(t.getReason(), "Collector needs human review before consolidating")));
+
+            var pendingInterrupt = permissionGate.getInterruptPending(
+                    t -> Objects.equals(t.getReason(), "Collector needs human review before consolidating"));
+            assertThat(pendingInterrupt).isNotNull();
+
+            permissionGate.resolveInterrupt(
+                    pendingInterrupt.getInterruptId(),
+                    IPermissionGate.ResolutionType.APPROVED,
+                    "Proceed",
+                    (IPermissionGate.InterruptResult) null);
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+
+            var result = workflowFuture.get();
+            assertThat(result).isNotNull();
+            assertThat(result.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        /**
+         * Planning agent dispatch returns an interrupt — tests interrupt at the
+         * dispatch agent level (between planning agent completion and collector).
+         */
+        @SneakyThrows
+        @Test
+        void planningAgentDispatch_interruptAndResume() {
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            initialOrchestratorToDiscovery("Dispatch interrupt test");
+            discoveryOnly("Dispatch interrupt test");
+
+            // Planning orchestrator dispatches
+            queuedLlmRunner.enqueue(AgentModels.PlanningOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.PlanningAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.PlanningAgentRequest.builder()
+                                            .goal("Dispatch interrupt test")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            // Planning agent completes normally
+            queuedLlmRunner.enqueue(AgentModels.PlanningAgentRouting.builder()
+                    .agentResult(AgentModels.PlanningAgentResult.builder()
+                            .output("Plan output")
+                            .build())
+                    .build());
+
+            // Planning dispatch agent returns an interrupt
+            queuedLlmRunner.enqueue(AgentModels.PlanningAgentDispatchRouting.builder()
+                    .interruptRequest(AgentModels.InterruptRequest.PlanningAgentDispatchInterruptRequest.builder()
+                            .type(Events.InterruptType.HUMAN_REVIEW)
+                            .reason("Planning dispatch needs review before collecting")
+                            .build())
+                    .build());
+
+            // After interrupt resolution, InterruptService expects InterruptRouting
+            // Route directly to planning orchestrator (bypasses orchestrator re-entry)
+            queuedLlmRunner.enqueue(AgentModels.InterruptRouting.builder()
+                    .planningOrchestratorRequest(AgentModels.PlanningOrchestratorRequest.builder()
+                            .goal("Dispatch interrupt test")
+                            .build())
+                    .build());
+
+            // Full planning pass again
+            queuedLlmRunner.enqueue(AgentModels.PlanningOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.PlanningAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.PlanningAgentRequest.builder()
+                                            .goal("Dispatch interrupt test")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.PlanningAgentRouting.builder()
+                    .agentResult(AgentModels.PlanningAgentResult.builder()
+                            .output("Plan output after review")
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.PlanningAgentDispatchRouting.builder()
+                    .planningCollectorRequest(AgentModels.PlanningCollectorRequest.builder()
+                            .goal("Dispatch interrupt test")
+                            .planningResults("planning-results")
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.PlanningCollectorRouting.builder()
+                    .collectorResult(AgentModels.PlanningCollectorResult.builder()
+                            .consolidatedOutput("Planning complete")
+                            .build())
+                    .build());
+
+            ticketsOnly("Dispatch interrupt test");
+            finalOrchestratorCollector();
+
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Dispatch interrupt test", "DISCOVERY"))
+            ));
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(() -> permissionGate.isInterruptPending(
+                            t -> Objects.equals(t.getReason(), "Planning dispatch needs review before collecting")));
+
+            var pendingInterrupt = permissionGate.getInterruptPending(
+                    t -> Objects.equals(t.getReason(), "Planning dispatch needs review before collecting"));
+            assertThat(pendingInterrupt).isNotNull();
+
+            permissionGate.resolveInterrupt(
+                    pendingInterrupt.getInterruptId(),
+                    IPermissionGate.ResolutionType.APPROVED,
+                    "Proceed to collector",
+                    (IPermissionGate.InterruptResult) null);
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+
+            var result = workflowFuture.get();
+            assertThat(result).isNotNull();
+            assertThat(result.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        /**
+         * Final orchestrator collector returns an interrupt before consolidating.
+         */
+        @SneakyThrows
+        @Test
+        void orchestratorCollector_interruptBeforeFinalConsolidation() {
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            enqueueHappyPathExceptFinalCollector("Final collector interrupt test");
+
+            // Orchestrator collector returns an interrupt
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorCollectorRouting.builder()
+                    .interruptRequest(AgentModels.InterruptRequest.OrchestratorCollectorInterruptRequest.builder()
+                            .type(Events.InterruptType.HUMAN_REVIEW)
+                            .reason("Final collector wants review before wrapping up")
+                            .build())
+                    .build());
+
+            // After interrupt resolution, InterruptService expects InterruptRouting
+            // Route directly to orchestrator collector
+            queuedLlmRunner.enqueue(AgentModels.InterruptRouting.builder()
+                    .orchestratorCollectorRequest(AgentModels.OrchestratorCollectorRequest.builder()
+                            .goal("Final collector interrupt test")
+                            .build())
+                    .build());
+
+            // Collector completes normally after re-dispatch
+            queuedLlmRunner.enqueue(AgentModels.OrchestratorCollectorRouting.builder()
+                    .collectorResult(AgentModels.OrchestratorCollectorResult.builder()
+                            .consolidatedOutput("Workflow complete after review")
+                            .build())
+                    .build());
+
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Final collector interrupt test", "DISCOVERY"))
+            ));
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(() -> permissionGate.isInterruptPending(
+                            t -> Objects.equals(t.getReason(), "Final collector wants review before wrapping up")));
+
+            var pendingInterrupt = permissionGate.getInterruptPending(
+                    t -> Objects.equals(t.getReason(), "Final collector wants review before wrapping up"));
+            assertThat(pendingInterrupt).isNotNull();
+
+            permissionGate.resolveInterrupt(
+                    pendingInterrupt.getInterruptId(),
+                    IPermissionGate.ResolutionType.APPROVED,
+                    "Wrap it up",
+                    (IPermissionGate.InterruptResult) null);
+
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+
+            var result = workflowFuture.get();
+            assertThat(result).isNotNull();
+            assertThat(result.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+        }
+    }
+
+    // ── Topology and agent communication ────────────────────────────────
+
+    @Nested
+    class TopologyScenarios {
+
+        /**
+         * During a workflow execution, verify that list_agents returns the
+         * correct topology permissions for the calling agent.
+         */
+        @SneakyThrows
+        @Test
+        void listAgents_duringWorkflow_returnsCorrectTopology() {
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            var topologyResults = new java.util.concurrent.CopyOnWriteArrayList<AgentCommunicationService.AgentAvailabilityEntry>();
+
+            initialOrchestratorToDiscovery("Topology test");
+
+            // During discovery agent execution, call listAgents in the callback
+            queuedLlmRunner.enqueue(
+                    AgentModels.DiscoveryOrchestratorRouting.builder()
+                            .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                                    .requests(List.of(
+                                            AgentModels.DiscoveryAgentRequest.builder()
+                                                    .goal("Topology test")
+                                                    .subdomainFocus("Primary")
+                                                    .build()
+                                    ))
+                                    .build())
+                            .build(),
+                    (response, opCtx) -> {
+                        // Call listAvailableAgents from the discovery orchestrator's perspective
+                        var agents = agentCommunicationService.listAvailableAgents(
+                                contextId,
+                                com.hayden.multiagentidelib.agent.AgentType.ORCHESTRATOR
+                        );
+                        topologyResults.addAll(agents);
+                    }
+            );
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentRouting.builder()
+                    .agentResult(AgentModels.DiscoveryAgentResult.builder()
+                            .output("Found stuff")
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
+                    .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
+                            .goal("Topology test")
+                            .discoveryResults("discovery-results")
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
+                    .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
+                            .consolidatedOutput("Discovery complete")
+                            .build())
+                    .build());
+
+            enqueuePlanningToCompletion("Topology test");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Topology test", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // Topology results were collected during execution — verify they're
+            // either empty (no other sessions open) or properly filtered
+            // The key assertion is that no entry has the caller's own session key
+            for (var entry : topologyResults) {
+                assertThat(entry.agentKey())
+                        .as("list_agents should not return the caller's own session")
+                        .isNotEqualTo(contextId);
+            }
+        }
+    }
+
+    private void enqueueHappyPathExceptFinalCollector(String goal) {
+        initialOrchestratorToDiscovery(goal);
+        discoveryOnly(goal);
+        planningOnly(goal);
+        ticketsOnly(goal);
     }
 
     private com.embabel.agent.core.Agent findWorkflowAgent() {

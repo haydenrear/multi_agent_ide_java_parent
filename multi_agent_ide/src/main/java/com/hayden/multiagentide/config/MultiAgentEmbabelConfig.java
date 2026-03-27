@@ -20,7 +20,7 @@ import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties;
 import com.hayden.acp_cdc_ai.acp.config.McpProperties;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.AcpChatModel;
-import com.hayden.multiagentide.repository.EventStreamRepository;
+
 import io.micrometer.common.util.StringUtils;
 import io.micrometer.context.ThreadLocalAccessor;
 import lombok.SneakyThrows;
@@ -42,7 +42,7 @@ import org.springframework.util.ReflectionUtils;
 import reactor.core.publisher.Flux;
 
 import java.lang.reflect.Field;
-import java.util.Comparator;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -53,7 +53,7 @@ import java.util.stream.Stream;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties({AcpModelProperties.class, McpProperties.class, LlmModelSelectionProperties.class})
+@EnableConfigurationProperties({AcpModelProperties.class, McpProperties.class, LlmModelSelectionProperties.class, com.hayden.multiagentide.topology.CommunicationTopologyConfig.class})
 @ComponentScan(basePackages = {"com.hayden.acp_cdc_ai"})
 public class MultiAgentEmbabelConfig {
 
@@ -201,7 +201,8 @@ public class MultiAgentEmbabelConfig {
 
     @Bean
     @Primary
-    public OutputChannel llmOutputChannel(ChatModel chatModel, @Lazy AgentPlatform agentPlatform, EventStreamRepository graphRepository) {
+    public OutputChannel llmOutputChannel(ChatModel chatModel, @Lazy AgentPlatform agentPlatform,
+                                           com.hayden.multiagentide.service.SessionKeyResolutionService sessionKeyResolutionService) {
         return new MulticastOutputChannel(List.of(
                 (OutputChannel) event -> {
                     switch (event) {
@@ -226,19 +227,14 @@ public class MultiAgentEmbabelConfig {
                                                 },
                                                 () -> log.info("Received kill request for unknown process, {}", evt.getProcessId()));
                             } else {
-                                ArtifactKey r;
                                 try {
-                                    r = new ArtifactKey(evt.getProcessId());
+                                    new ArtifactKey(evt.getProcessId());
                                 } catch (IllegalArgumentException e) {
                                     log.debug("Error attempting to decode {} into artifact key.", evt.getProcessId());
                                     return;
                                 }
 
-                                var thisArtifactKeyForMessage =
-                                        graphRepository.getAllMatching(Events.ChatSessionCreatedEvent.class, n -> matchesThisSession(evt, n))
-//                                               send to the process ID that is closest to this one
-                                                .min(Comparator.comparing(c -> c.chatModelId().value().replace(event.getProcessId(), "").length()))
-                                                .map(Events.ChatSessionCreatedEvent::chatModelId);
+                                var thisArtifactKeyForMessage = sessionKeyResolutionService.resolveSessionForMessage(evt);
 
                                 if (thisArtifactKeyForMessage.isEmpty()) {
                                     log.error("Could not find valid chat session to add message to for {}.", event.getProcessId());
@@ -266,27 +262,6 @@ public class MultiAgentEmbabelConfig {
                 },
                 DevNullOutputChannel.INSTANCE
         ));
-    }
-
-    private static @NonNull Optional<String> getDescendent(String s) {
-        try {
-            return new ArtifactKey(s)
-                    .parent()
-                    .flatMap(ArtifactKey::parent)
-                    .map(ArtifactKey::value);
-        } catch (Exception e) {
-            log.error("Error getting descendent for {}.", s);
-            return Optional.empty();
-        }
-    }
-
-    private static boolean matchesThisSession(MessageOutputChannelEvent evt, Events.ChatSessionCreatedEvent n) {
-        try {
-            return evt.getProcessId().equals(n.chatModelId().value());
-        } catch (Exception e) {
-            log.error("Error finding session {}", e.getMessage(), e);
-            return false;
-        }
     }
 
     /**

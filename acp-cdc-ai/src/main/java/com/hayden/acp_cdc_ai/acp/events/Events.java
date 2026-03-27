@@ -157,7 +157,9 @@ public interface Events {
             @JsonSubTypes.Type(value = MergePhaseCompletedEvent.class, name = "MERGE_PHASE_COMPLETED"),
             @JsonSubTypes.Type(value = ArtifactEvent.class, name = "ARTIFACT_EMITTED"),
             @JsonSubTypes.Type(value = PropagationEvent.class, name = "PROPAGATION"),
-            @JsonSubTypes.Type(value = TransformationEvent.class, name = "TRANSFORMATION")
+            @JsonSubTypes.Type(value = TransformationEvent.class, name = "TRANSFORMATION"),
+            @JsonSubTypes.Type(value = AgentCallStartedEvent.class, name = "AGENT_CALL_STARTED"),
+            @JsonSubTypes.Type(value = AgentCallCompletedEvent.class, name = "AGENT_CALL_COMPLETED")
     })
     sealed interface GraphEvent extends FilteredObject, HasContextId {
 
@@ -553,6 +555,18 @@ public interface Events {
                         line("timestamp", e.timestamp()),
                         line("nodeId", e.nodeId()),
                         block("message", e.message()));
+                case AgentCallStartedEvent e -> formatEvent("Agent Call Started Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("callerNodeId", e.callerNodeId()),
+                        line("targetNodeId", e.targetNodeId()),
+                        line("callId", e.callId()));
+                case AgentCallCompletedEvent e -> formatEvent("Agent Call Completed Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("callId", e.callId()));
             };
         }
 
@@ -1712,6 +1726,39 @@ public interface Events {
         @Override
         public String eventType() {
             return "TRANSFORMATION";
+        }
+    }
+
+    /**
+     * Emitted when an inter-agent communication call begins.
+     * Used to track the active call chain for cycle detection.
+     */
+    record AgentCallStartedEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String callerNodeId,
+            String targetNodeId,
+            String callId
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "AGENT_CALL_STARTED";
+        }
+    }
+
+    /**
+     * Emitted when an inter-agent communication call completes.
+     */
+    record AgentCallCompletedEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String callId
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "AGENT_CALL_COMPLETED";
         }
     }
 }

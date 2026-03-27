@@ -3,7 +3,9 @@ package com.hayden.multiagentide.filter.service;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.repository.GraphRepository;
+import com.hayden.multiagentide.service.SessionKeyResolutionService;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
 import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
@@ -27,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,13 +42,16 @@ class AiFilterSessionResolverTest {
     @Mock
     private EventBus eventBus;
 
+    private SessionKeyResolutionService sessionKeyResolutionService;
     private AiFilterSessionResolver resolver;
 
     @BeforeEach
     void setUp() {
         lenient().when(graphRepository.findById(anyString())).thenReturn(Optional.empty());
-        resolver = new AiFilterSessionResolver(graphRepository);
-        resolver.setEventBus(eventBus);
+        EventStreamRepository eventStreamRepository = mock(EventStreamRepository.class);
+        sessionKeyResolutionService = new SessionKeyResolutionService(graphRepository, eventStreamRepository);
+        sessionKeyResolutionService.setEventBus(eventBus);
+        resolver = new AiFilterSessionResolver(sessionKeyResolutionService);
     }
 
     @Test
@@ -147,7 +153,7 @@ class AiFilterSessionResolverTest {
                 promptContext
         );
 
-        resolver.onEvent(new Events.GoalCompletedEvent(
+        sessionKeyResolutionService.onEvent(new Events.GoalCompletedEvent(
                 UUID.randomUUID().toString(),
                 Instant.now(),
                 root.value(),
@@ -185,7 +191,7 @@ class AiFilterSessionResolverTest {
                 promptContext
         );
 
-        resolver.onEvent(new Events.ActionCompletedEvent(
+        sessionKeyResolutionService.onEvent(new Events.ActionCompletedEvent(
                 UUID.randomUUID().toString(),
                 Instant.now(),
                 root.value(),

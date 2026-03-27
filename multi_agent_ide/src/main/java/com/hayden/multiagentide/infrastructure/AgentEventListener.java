@@ -182,6 +182,12 @@ public class AgentEventListener implements EventListener {
             case Events.CompactionEvent compactionEvent -> {
                 log.info("Compaction event: {} node={}", compactionEvent.eventId(), compactionEvent.nodeId());
             }
+            case Events.AgentCallStartedEvent callStarted -> {
+                log.debug("Agent call started: {} -> {} callId={}", callStarted.callerNodeId(), callStarted.targetNodeId(), callStarted.callId());
+            }
+            case Events.AgentCallCompletedEvent callCompleted -> {
+                log.debug("Agent call completed: callId={}", callCompleted.callId());
+            }
         }
     }
 

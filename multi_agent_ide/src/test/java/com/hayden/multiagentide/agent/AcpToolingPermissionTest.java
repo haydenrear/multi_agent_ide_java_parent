@@ -83,7 +83,9 @@ class AcpToolingPermissionTest {
         ReflectionTestUtils.setField(permissionGate, "eventBus", eventBus);
 
         PermissionGateAdapter permissionGateAdapter = new PermissionGateAdapter(permissionGate);
-        acpTooling = new AcpTooling(requestContextRepository, new ObjectMapper());
+        acpTooling = new AcpTooling(requestContextRepository, new ObjectMapper(),
+                mock(com.hayden.multiagentide.service.AgentCommunicationService.class),
+                mock(GraphRepository.class));
         acpTooling.setPermissionGate(permissionGateAdapter);
 
         EventBus.Process.set(new EventBus.AgentNodeKey(ArtifactKey.createRoot().value()));
