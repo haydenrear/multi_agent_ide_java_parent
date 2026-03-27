@@ -278,6 +278,15 @@ public interface AgentInterfaces {
                     TEMPLATE_AI_TRANSFORMER,
                     AgentModels.AiTransformerRequest.class, AgentModels.Routing.class, AgentModels.AiTransformerResult.class);
 
+            // ── Inter-agent communication LLM calls ──
+
+            AgentActionMetadata<AgentModels.AgentToAgentRequest, AgentModels.AgentCallRouting, AgentModels.AgentCallResult>
+                    CALL_AGENT = new AgentActionMetadata<>(
+                    AgentType.AGENT_CALL, AGENT_NAME_AGENT_CALL,
+                    ACTION_AGENT_CALL, METHOD_CALL_AGENT,
+                    TEMPLATE_COMMUNICATION_AGENT_CALL,
+                    AgentModels.AgentToAgentRequest.class, AgentModels.AgentCallRouting.class, AgentModels.AgentCallResult.class);
+
         }
 
     }
@@ -410,6 +419,12 @@ public interface AgentInterfaces {
     String ACTION_AI_TRANSFORMER = TransformerExecutionService.AI_TRANSFORMER_ACTION_NAME;
     String METHOD_AI_TRANSFORMER = TransformerExecutionService.AI_TRANSFORMER_METHOD_NAME;
     String TEMPLATE_AI_TRANSFORMER = TransformerExecutionService.AI_TRANSFORMER_TEMPLATE_NAME;
+
+    // Agent call (inter-agent communication) constants
+    String AGENT_NAME_AGENT_CALL = "agent-call";
+    String ACTION_AGENT_CALL = "agent-call";
+    String METHOD_CALL_AGENT = "callAgent";
+    String TEMPLATE_COMMUNICATION_AGENT_CALL = "communication/agent_call";
 
     String UNKNOWN_VALUE = "unknown";
     String RETURN_ROUTE_NONE = "none";

@@ -5,6 +5,7 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.agent.core.ProcessOptions;
 import com.hayden.multiagentide.agent.AgentInterfaces;
+import com.hayden.multiagentide.agent.AgentTopologyTools;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentide.artifacts.ArtifactEventListener;
 import com.hayden.multiagentide.artifacts.ArtifactTreeBuilder;
@@ -29,6 +30,7 @@ import com.hayden.multiagentide.support.TestEventListener;
 import com.hayden.multiagentide.transformation.repository.TransformationRecordRepository;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
@@ -171,8 +173,11 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
     @MockitoSpyBean
     private ComputationGraphOrchestrator computationGraphOrchestrator;
 
-    @Autowired
+    @MockitoSpyBean
     private AgentCommunicationService agentCommunicationService;
+
+    @MockitoSpyBean
+    private AgentTopologyTools agentTopologyTools;
 
     @Autowired
     private com.hayden.multiagentide.agent.decorator.prompt.FilterPropertiesDecorator filterPropertiesDecorator;
@@ -231,7 +236,9 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                 gitMergeService,
                 conflictService,
                 worktreeAutoCommitService,
-                eventBus
+                eventBus,
+                agentCommunicationService,
+                agentTopologyTools
         );
         doThrow(new RuntimeException("worktree disabled"))
                 .when(worktreeService)
@@ -1543,6 +1550,292 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                         .as("list_agents should not return the caller's own session")
                         .isNotEqualTo(contextId);
             }
+        }
+
+        /**
+         * Verify that graph nodes of all expected types are created during a happy-path
+         * workflow, and that each node tracks its parent lineage correctly.
+         */
+        @SneakyThrows
+        @Test
+        void happyPath_graphNodesCreatedWithCorrectParentage() {
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+            enqueueHappyPath("Graph lineage test");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Graph lineage test", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // Verify graph contains orchestrator node
+            var allNodes = graphRepository.findAll();
+            assertThat(allNodes).isNotEmpty();
+
+            var orchestratorNodes = allNodes.stream()
+                    .filter(n -> n instanceof OrchestratorNode)
+                    .toList();
+            assertThat(orchestratorNodes).hasSize(1);
+            assertThat(orchestratorNodes.getFirst().nodeId()).isEqualTo(contextId);
+
+            // Verify discovery, planning, and ticket orchestrator nodes exist
+            // and each has the top-level orchestrator as ancestor
+            verify(workflowGraphService).startOrchestrator(any());
+            verify(workflowGraphService).startDiscoveryOrchestrator(any(), any());
+            verify(workflowGraphService).startPlanningOrchestrator(any(), any());
+            verify(workflowGraphService).startTicketOrchestrator(any(), any());
+
+            // Each agent node should have been parented under its phase orchestrator
+            verify(workflowGraphService).startDiscoveryAgent(any(), any(), any(), any());
+            verify(workflowGraphService).startPlanningAgent(any(), any(), any(), any());
+            verify(workflowGraphService).startTicketAgent(any(), any(), anyInt());
+        }
+
+        /**
+         * During a discovery agent callback, call another agent via AgentTopologyTools.callAgent.
+         * Verify: AgentToAgentConversationNode created in graph with correct source/target,
+         * chatSessionKey set, and node completed after call returns.
+         */
+        @SneakyThrows
+        @Test
+        void callAgent_createsAndCompletesAgentToAgentNode() {
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            // Create a target agent node in the graph
+            ArtifactKey targetKey = ArtifactKey.createRoot();
+            graphRepository.save(DiscoveryCollectorNode.builder()
+                    .nodeId(targetKey.value())
+                    .title("Target Collector")
+                    .goal("test target")
+                    .status(Events.NodeStatus.RUNNING)
+                    .metadata(new HashMap<>())
+                    .createdAt(Instant.now())
+                    .lastUpdatedAt(Instant.now())
+                    .build());
+
+            // Stub validateCall to bypass ACP session availability check
+            doReturn(AgentCommunicationService.CallValidationResult.ok())
+                    .when(agentCommunicationService)
+                    .validateCall(any(), any(), any(), any(), any());
+
+            var callResults = new java.util.concurrent.CopyOnWriteArrayList<String>();
+
+            initialOrchestratorToDiscovery("Call agent test");
+
+            // Discovery orchestrator dispatches one agent
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.DiscoveryAgentRequest.builder()
+                                            .goal("Call agent test")
+                                            .subdomainFocus("Primary")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            // Discovery agent — callback calls another agent via callAgent
+            queuedLlmRunner.enqueue(
+                    AgentModels.DiscoveryAgentRouting.builder()
+                            .agentResult(AgentModels.DiscoveryAgentResult.builder()
+                                    .output("Found stuff")
+                                    .build())
+                            .build(),
+                    (response, opCtx) -> {
+                        // Insert at front so callAgent dequeues this before the remaining workflow steps
+                        queuedLlmRunner.enqueueNext(AgentModels.AgentCallRouting.builder()
+                                .response("Hello from target collector")
+                                .build());
+
+                        String result = agentTopologyTools.callAgent(
+                                contextId, targetKey.value(), "Need your analysis");
+                        callResults.add(result);
+                    }
+            );
+
+            // Dispatch → collector
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
+                    .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
+                            .goal("Call agent test")
+                            .discoveryResults("discovery-results")
+                            .build())
+                    .build());
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
+                    .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
+                            .consolidatedOutput("Discovery complete")
+                            .build())
+                    .build());
+
+            enqueuePlanningToCompletion("Call agent test");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Call agent test", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // Verify the call returned a response
+            assertThat(callResults).hasSize(1);
+            assertThat(callResults.getFirst()).contains("Hello from target collector");
+
+            // Verify AgentToAgentConversationNode was created in the graph
+            var a2aNodes = graphRepository.findAll().stream()
+                    .filter(n -> n instanceof AgentToAgentConversationNode)
+                    .map(n -> (AgentToAgentConversationNode) n)
+                    .toList();
+            assertThat(a2aNodes).hasSize(1);
+
+            var a2aNode = a2aNodes.getFirst();
+            assertThat(a2aNode.targetAgentKey()).isEqualTo(targetKey.value());
+            assertThat(a2aNode.targetAgentType()).isEqualTo(AgentType.DISCOVERY_COLLECTOR);
+            assertThat(a2aNode.chatSessionKey()).isNotNull();
+            assertThat(a2aNode.status()).isEqualTo(Events.NodeStatus.COMPLETED);
+
+            // Verify startAgentCall and completeAgentCall were called
+            verify(workflowGraphService).startAgentCall(any(AgentModels.AgentToAgentRequest.class));
+            verify(workflowGraphService).completeAgentCall(any(), any());
+        }
+
+        /**
+         * Chained call_agent calls: discovery agent calls collector, which calls orchestrator.
+         * Verifies call chain tracking and multiple AgentToAgentConversationNodes.
+         */
+        @SneakyThrows
+        @Test
+        void callAgent_chainedCalls_callChainTrackedCorrectly() {
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            // Create two target nodes
+            ArtifactKey target1Key = ArtifactKey.createRoot();
+            ArtifactKey target2Key = ArtifactKey.createRoot();
+
+            graphRepository.save(DiscoveryCollectorNode.builder()
+                    .nodeId(target1Key.value())
+                    .title("Target Collector")
+                    .goal("test")
+                    .status(Events.NodeStatus.RUNNING)
+                    .metadata(new HashMap<>())
+                    .createdAt(Instant.now())
+                    .lastUpdatedAt(Instant.now())
+                    .build());
+
+            graphRepository.save(DiscoveryOrchestratorNode.builder()
+                    .nodeId(target2Key.value())
+                    .title("Target Orchestrator")
+                    .goal("test")
+                    .status(Events.NodeStatus.RUNNING)
+                    .metadata(new HashMap<>())
+                    .createdAt(Instant.now())
+                    .lastUpdatedAt(Instant.now())
+                    .build());
+
+            // Bypass session availability
+            doReturn(AgentCommunicationService.CallValidationResult.ok())
+                    .when(agentCommunicationService)
+                    .validateCall(any(), any(), any(), any(), any());
+
+            var callResults = new java.util.concurrent.CopyOnWriteArrayList<String>();
+
+            initialOrchestratorToDiscovery("Chain test");
+
+            // Discovery orchestrator dispatches one agent
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.DiscoveryAgentRequest.builder()
+                                            .goal("Chain test")
+                                            .subdomainFocus("Primary")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            // Discovery agent — callback makes two sequential callAgent calls
+            queuedLlmRunner.enqueue(
+                    AgentModels.DiscoveryAgentRouting.builder()
+                            .agentResult(AgentModels.DiscoveryAgentResult.builder()
+                                    .output("Found stuff")
+                                    .build())
+                            .build(),
+                    (response, opCtx) -> {
+                        // First call — enqueue at front
+                        queuedLlmRunner.enqueueNext(AgentModels.AgentCallRouting.builder()
+                                .response("Response from collector")
+                                .build());
+                        String result1 = agentTopologyTools.callAgent(
+                                contextId, target1Key.value(), "First call");
+                        callResults.add(result1);
+
+                        // Second call — enqueue at front again
+                        queuedLlmRunner.enqueueNext(AgentModels.AgentCallRouting.builder()
+                                .response("Response from orchestrator")
+                                .build());
+                        String result2 = agentTopologyTools.callAgent(
+                                contextId, target2Key.value(), "Second call");
+                        callResults.add(result2);
+                    }
+            );
+
+            // Dispatch → collector
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
+                    .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
+                            .goal("Chain test")
+                            .discoveryResults("discovery-results")
+                            .build())
+                    .build());
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
+                    .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
+                            .consolidatedOutput("Discovery complete")
+                            .build())
+                    .build());
+
+            enqueuePlanningToCompletion("Chain test");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Chain test", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // Both calls returned
+            assertThat(callResults).hasSize(2);
+            assertThat(callResults.get(0)).contains("Response from collector");
+            assertThat(callResults.get(1)).contains("Response from orchestrator");
+
+            // Two AgentToAgentConversationNodes created
+            var a2aNodes = graphRepository.findAll().stream()
+                    .filter(n -> n instanceof AgentToAgentConversationNode)
+                    .map(n -> (AgentToAgentConversationNode) n)
+                    .toList();
+            assertThat(a2aNodes).hasSize(2);
+
+            // Both should be completed
+            assertThat(a2aNodes).allMatch(n -> n.status() == Events.NodeStatus.COMPLETED);
+
+            // Verify distinct targets
+            var targetKeys = a2aNodes.stream()
+                    .map(AgentToAgentConversationNode::targetAgentKey)
+                    .toList();
+            assertThat(targetKeys).containsExactlyInAnyOrder(target1Key.value(), target2Key.value());
+
+            // Both should have chatSessionKey set
+            assertThat(a2aNodes).allMatch(n -> n.chatSessionKey() != null);
+
+            // Verify two startAgentCall invocations
+            verify(workflowGraphService, times(2)).startAgentCall(any(AgentModels.AgentToAgentRequest.class));
+            verify(workflowGraphService, times(2)).completeAgentCall(any(), any());
         }
     }
 

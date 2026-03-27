@@ -158,6 +158,7 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .planningAgentRequests(enrichRequest(routing.planningAgentRequests(), operationContext))
                             .ticketAgentRequests(enrichRequest(routing.ticketAgentRequests(), operationContext))
                             .build();
+            case AgentModels.AgentCallRouting ignored -> t;
         };
     }
 

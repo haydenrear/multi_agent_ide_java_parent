@@ -133,9 +133,7 @@ public class WorktreeMergeConflictService {
         }
 
         AgentModels.AgentRequest routedFromRequest = parentResultsRequest != null ? parentResultsRequest : sourceRequest;
-        ArtifactKey contextId = resolveContextId(routedFromRequest, sourceResult);
         AgentModels.MergeConflictRequest request = AgentModels.MergeConflictRequest.builder()
-                .contextId(contextId)
                 .worktreeContext(worktreeContext)
                 .routedFromRequest(routedFromRequest)
                 .goal(goalHint)
@@ -337,6 +335,8 @@ public class WorktreeMergeConflictService {
         }
         return com.hayden.acp_cdc_ai.acp.events.ArtifactKey.createRoot().createChild();
     }
+
+
 
     private void publishNodeError(String reason, ArtifactKey key) {
         if (eventBus == null) {

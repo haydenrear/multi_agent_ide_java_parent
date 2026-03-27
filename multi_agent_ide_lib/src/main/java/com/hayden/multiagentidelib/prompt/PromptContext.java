@@ -54,17 +54,16 @@ public record PromptContext(
 
     public ArtifactKey chatId() {
         return switch(currentRequest)  {
-            case AgentModels.CommitAgentRequest car ->  car.contextId().parent().orElseGet(() -> {
-                log.error("CommitAgentRequest {} could not get parent. Returning regular.", car.contextId());
-                return car.contextId();
-            });
-            case AgentModels.MergeConflictRequest mcr -> mcr.contextId().parent().orElseGet(() -> {
-                log.error("MergeConflictRequest {} could not get parent. Returning regular.", mcr.contextId());
-                return mcr.contextId();
-            });
-            case AgentModels.AgentToAgentRequest aar -> aar.targetAgentKey();
+            case AgentModels.CommitAgentRequest car -> car.chatKey() != null ? car.chatKey() : car.contextId();
+            case AgentModels.MergeConflictRequest mcr -> mcr.chatKey() != null ? mcr.chatKey() : mcr.contextId();
+            case AgentModels.AgentToAgentRequest aar -> aar.targetNodeId() != null && !aar.targetNodeId().isBlank()
+                    ? new ArtifactKey(aar.targetNodeId())
+                    : aar.targetAgentKey();
             case AgentModels.AgentToControllerRequest acr -> acr.sourceAgentKey();
             case AgentModels.ControllerToAgentRequest car -> car.targetAgentKey();
+            case AgentModels.AiFilterRequest afr -> afr.chatKey() != null ? afr.chatKey() : afr.contextId();
+            case AgentModels.AiPropagatorRequest apr -> apr.chatKey() != null ? apr.chatKey() : apr.contextId();
+            case AgentModels.AiTransformerRequest atr -> atr.chatKey() != null ? atr.chatKey() : atr.contextId();
             case AgentModels.AgentRequest ar -> ar.contextId();
         };
     }

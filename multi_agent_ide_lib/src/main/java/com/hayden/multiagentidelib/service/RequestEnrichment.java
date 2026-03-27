@@ -118,6 +118,8 @@ public class RequestEnrichment {
                     findLastFromHistory(history, AgentModels.AiPropagatorRequest.class);
             case AgentModels.AiTransformerResult ignored ->
                     findLastFromHistory(history, AgentModels.AiTransformerRequest.class);
+            case AgentModels.AgentCallResult ignored ->
+                    findLastFromHistory(history, AgentModels.AgentToAgentRequest.class);
         };
     }
 
@@ -302,8 +304,10 @@ public class RequestEnrichment {
                 AgentModels.AgentRequest routedFrom = req.routedFromRequest() != null
                         ? req.routedFromRequest()
                         : (parent instanceof AgentModels.AgentRequest ar ? ar : null);
+                ArtifactKey chatKey = commitParent != null ? commitParent.key() : null;
                 yield (T) req.toBuilder()
                         .contextId(resolveContextId(context, req, commitParent))
+                        .chatKey(chatKey)
                         .routedFromRequest(routedFrom)
                         .build();
             }
@@ -312,8 +316,10 @@ public class RequestEnrichment {
                 AgentModels.AgentRequest routedFrom = req.routedFromRequest() != null
                         ? req.routedFromRequest()
                         : (parent instanceof AgentModels.AgentRequest ar ? ar : null);
+                ArtifactKey chatKey = mergeParent != null ? mergeParent.key() : null;
                 yield (T) req.toBuilder()
                         .contextId(resolveContextId(context, req, mergeParent))
+                        .chatKey(chatKey)
                         .routedFromRequest(routedFrom)
                         .build();
             }
@@ -340,29 +346,17 @@ public class RequestEnrichment {
                             .contextId(resolveContextId(context, req, parent))
                             .build();
             case AgentModels.AiFilterRequest req ->
-                    (T) req.toBuilder()
-                            .contextId(resolveContextId(context, req, parent))
-                            .build();
+                    (T) req;
             case AgentModels.AiPropagatorRequest req ->
-                    (T) req.toBuilder()
-                            .contextId(resolveContextId(context, req, parent))
-                            .build();
+                    (T) req;
             case AgentModels.AiTransformerRequest req ->
-                    (T) req.toBuilder()
-                            .contextId(resolveContextId(context, req, parent))
-                            .build();
+                    (T) req;
             case AgentModels.AgentToAgentRequest req ->
-                    (T) req.toBuilder()
-                            .contextId(resolveContextId(context, req, parent))
-                            .build();
+                    (T) req;
             case AgentModels.AgentToControllerRequest req ->
-                    (T) req.toBuilder()
-                            .contextId(resolveContextId(context, req, parent))
-                            .build();
+                    (T) req;
             case AgentModels.ControllerToAgentRequest req ->
-                    (T) req.toBuilder()
-                            .contextId(resolveContextId(context, req, parent))
-                            .build();
+                    (T) req;
         };
     }
 
@@ -469,6 +463,10 @@ public class RequestEnrichment {
             case AgentModels.AiTransformerResult aiTransformerResult ->
                     aiTransformerResult.toBuilder()
                             .contextId(resolveContextId(context, AgentType.AI_TRANSFORMER, parent))
+                            .build();
+            case AgentModels.AgentCallResult agentCallResult ->
+                    agentCallResult.toBuilder()
+                            .contextId(resolveContextId(context, AgentType.AGENT_CALL, parent))
                             .build();
         };
 

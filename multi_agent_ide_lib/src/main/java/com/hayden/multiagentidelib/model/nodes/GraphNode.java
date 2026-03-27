@@ -20,7 +20,7 @@ import java.util.Map;
 public sealed interface GraphNode extends EventNode, HasContextId
         permits
             AgentToAgentConversationNode, AgentToControllerConversationNode, AskPermissionNode, CollectorNode, ControllerToAgentConversationNode,
-            DiscoveryCollectorNode, DiscoveryDispatchAgentNode, DiscoveryNode, DiscoveryOrchestratorNode, InterruptNode,
+            DataLayerOperationNode, DiscoveryCollectorNode, DiscoveryDispatchAgentNode, DiscoveryNode, DiscoveryOrchestratorNode, InterruptNode,
             MergeNode, OrchestratorNode, PlanningCollectorNode, PlanningDispatchAgentNode, PlanningNode, PlanningOrchestratorNode,
             ReviewNode, SummaryNode, TicketCollectorNode, TicketDispatchAgentNode, TicketNode, TicketOrchestratorNode {
 

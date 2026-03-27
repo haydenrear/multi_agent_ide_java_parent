@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.agent;
 
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
@@ -333,6 +334,65 @@ public class GraphNodeFactory {
                 "",
                 reviewerType,
                 null
+        );
+    }
+
+    public AgentToAgentConversationNode agentToAgentNode(
+            String parentId,
+            AgentModels.AgentToAgentRequest request,
+            ArtifactKey artifactKey
+    ) {
+        Instant now = Instant.now();
+        String sourceKey = request != null && request.sourceAgentKey() != null ? request.sourceAgentKey().value() : "";
+        String targetKey = request != null && request.targetAgentKey() != null ? request.targetAgentKey().value() : "";
+        AgentType sourceType = request != null ? request.sourceAgentType() : null;
+        AgentType targetType = request != null ? request.targetAgentType() : null;
+        String callingNodeId = request != null ? request.callingNodeId() : null;
+        String originatingNodeId = request != null ? request.originatingAgentToAgentNodeId() : null;
+        String targetNodeId = request != null ? request.targetNodeId() : null;
+        var callChain = request != null ? request.callChain() : null;
+        String chatSessionKey = request != null ? request.chatSessionKey() : null;
+        return new AgentToAgentConversationNode(
+                artifactKey != null ? artifactKey.value() : newNodeId(),
+                "Agent Call: " + sourceKey + " → " + targetKey,
+                request != null ? request.message() : "",
+                Events.NodeStatus.READY,
+                parentId,
+                new ArrayList<>(),
+                new ConcurrentHashMap<>(),
+                now,
+                now,
+                sourceKey,
+                sourceType,
+                targetKey,
+                targetType,
+                callingNodeId,
+                originatingNodeId,
+                targetNodeId,
+                callChain != null ? callChain : new ArrayList<>(),
+                chatSessionKey
+        );
+    }
+
+    public DataLayerOperationNode dataLayerOperationNode(
+            String parentId,
+            String operationType,
+            String chatSessionKey,
+            ArtifactKey artifactKey
+    ) {
+        Instant now = Instant.now();
+        return new DataLayerOperationNode(
+                artifactKey != null ? artifactKey.value() : newNodeId(),
+                "Data Layer: " + operationType,
+                operationType,
+                Events.NodeStatus.READY,
+                parentId,
+                new ArrayList<>(),
+                new ConcurrentHashMap<>(),
+                now,
+                now,
+                chatSessionKey,
+                operationType
         );
     }
 

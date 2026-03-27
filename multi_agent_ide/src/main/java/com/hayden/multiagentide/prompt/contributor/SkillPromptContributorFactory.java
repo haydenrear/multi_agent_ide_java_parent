@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.prompt.contributor;
 
+import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.skills.SkillDecorator;
 import com.hayden.multiagentide.skills.SkillFinder;
 import com.hayden.multiagentidelib.prompt.PromptContext;
@@ -37,6 +38,9 @@ public class SkillPromptContributorFactory implements PromptContributorFactory {
             return List.of();
         }
 
+        if (isExcludedRequestType(context.currentRequest())) {
+            return List.of();
+        }
 
         return skillFinder.findSkillDecorator(context.currentRequest().getClass().getSimpleName())
                 .map(SkillPromptContributor::new)
@@ -106,6 +110,15 @@ public class SkillPromptContributorFactory implements PromptContributorFactory {
         public int priority() {
             return 10_000;
         }
+    }
+
+    private static boolean isExcludedRequestType(AgentModels.AgentRequest request) {
+        return request instanceof AgentModels.AiFilterRequest
+                || request instanceof AgentModels.AiPropagatorRequest
+                || request instanceof AgentModels.AiTransformerRequest
+                || request instanceof AgentModels.AgentToAgentRequest
+                || request instanceof AgentModels.AgentToControllerRequest
+                || request instanceof AgentModels.ControllerToAgentRequest;
     }
 
 }

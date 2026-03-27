@@ -2,14 +2,20 @@ package com.hayden.multiagentide.agent.decorator.request;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.nodes.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 @Component
@@ -18,6 +24,14 @@ import java.util.function.Supplier;
 public class StartWorkflowRequestDecorator implements RequestDecorator, DispatchedAgentRequestDecorator {
 
     private final WorkflowGraphService workflowGraphService;
+
+    private EventBus eventBus;
+
+    @Autowired
+    @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     @Override
     public int order() {
@@ -72,20 +86,30 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
                 }
                 storeRunning(operationContext, workflowGraphService.startTicketAgent(parent, req));
             }
-            case AgentModels.CommitAgentRequest ignored -> {
-                // Internal commit action: do not create a dedicated workflow node.
+            case AgentModels.AiFilterRequest req -> {
+                String chatSessionKey = req.chatKey() != null ? req.chatKey().value() : null;
+                storeRunning(operationContext,
+                        workflowGraphService.startDataLayerOperation(req.contextId(), "AiFilter", chatSessionKey));
             }
-            case AgentModels.MergeConflictRequest ignored -> {
-                // Internal merge-conflict action: do not create a dedicated workflow node.
+            case AgentModels.AiPropagatorRequest req -> {
+                String chatSessionKey = req.chatKey() != null ? req.chatKey().value() : null;
+                storeRunning(operationContext,
+                        workflowGraphService.startDataLayerOperation(req.contextId(), "AiPropagator", chatSessionKey));
             }
-            case AgentModels.AiFilterRequest aiFilterRequest -> {
-//                skipping this - no need.
+            case AgentModels.AiTransformerRequest req -> {
+                String chatSessionKey = req.chatKey() != null ? req.chatKey().value() : null;
+                storeRunning(operationContext,
+                        workflowGraphService.startDataLayerOperation(req.contextId(), "AiTransformer", chatSessionKey));
             }
-            case AgentModels.AiPropagatorRequest aiPropagatorRequest -> {
-//                skipping this - no need.
+            case AgentModels.CommitAgentRequest req -> {
+                String chatSessionKey = req.chatKey() != null ? req.chatKey().value() : null;
+                storeRunning(operationContext,
+                        workflowGraphService.startDataLayerOperation(req.contextId(), "CommitAgent", chatSessionKey));
             }
-            case AgentModels.AiTransformerRequest aiTransformerRequest -> {
-//                skipping this - no need.
+            case AgentModels.MergeConflictRequest req -> {
+                String chatSessionKey = req.chatKey() != null ? req.chatKey().value() : null;
+                storeRunning(operationContext,
+                        workflowGraphService.startDataLayerOperation(req.contextId(), "MergeConflictAgent", chatSessionKey));
             }
             case AgentModels.ContextManagerRequest req ->
                     storeRequiredNode(operationContext, req,
@@ -138,8 +162,21 @@ public class StartWorkflowRequestDecorator implements RequestDecorator, Dispatch
             case AgentModels.InterruptRequest.TicketCollectorInterruptRequest req ->
                     handleInterrupt(operationContext, req,
                             () -> workflowGraphService.requireTicketCollector(operationContext));
-            case AgentModels.AgentToAgentRequest ignored -> {
-                // Communication request: no dedicated workflow node needed.
+            case AgentModels.AgentToAgentRequest req -> {
+                AgentToAgentConversationNode node = workflowGraphService.startAgentCall(req);
+                storeRunning(operationContext, node);
+                if (node != null) {
+                    String sourceKey = req.sourceAgentKey() != null ? req.sourceAgentKey().value() : "";
+                    String targetKey = req.targetAgentKey() != null ? req.targetAgentKey().value() : "";
+                    eventBus.publish(new Events.AgentCallStartedEvent(
+                            UUID.randomUUID().toString(),
+                            Instant.now(),
+                            node.nodeId(),
+                            sourceKey,
+                            targetKey,
+                            node.nodeId()
+                    ));
+                }
             }
             case AgentModels.AgentToControllerRequest ignored -> {
                 // Communication request: no dedicated workflow node needed.

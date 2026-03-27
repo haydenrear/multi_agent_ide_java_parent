@@ -1,8 +1,6 @@
 package com.hayden.multiagentidelib.model.nodes;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
 import lombok.Builder;
 
 import java.time.Instant;
@@ -12,10 +10,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Node representing an agent-to-agent conversation in the computation graph.
+ * Node representing a data layer operation (AiFilter, AiPropagator, AiTransformer)
+ * in the computation graph. These operations may run on their own chat sessions
+ * resolved via AiFilterSessionResolver.
  */
 @Builder(toBuilder = true)
-public record AgentToAgentConversationNode(
+public record DataLayerOperationNode(
         String nodeId,
         String title,
         String goal,
@@ -25,18 +25,11 @@ public record AgentToAgentConversationNode(
         Map<String, String> metadata,
         Instant createdAt,
         Instant lastUpdatedAt,
-        String sourceAgentKey,
-        AgentType sourceAgentType,
-        String targetAgentKey,
-        AgentType targetAgentType,
-        String callingNodeId,
-        String originatingAgentToAgentNodeId,
-        String targetNodeId,
-        List<AgentModels.CallChainEntry> callChain,
-        String chatSessionKey
+        String chatSessionKey,
+        String operationType
 ) implements GraphNode, HasChatSessionKey {
 
-    public AgentToAgentConversationNode {
+    public DataLayerOperationNode {
         if (nodeId == null || nodeId.isEmpty()) throw new IllegalArgumentException("nodeId required");
         if (childNodeIds == null) childNodeIds = new ArrayList<>();
         if (metadata == null) metadata = new HashMap<>();
@@ -44,11 +37,11 @@ public record AgentToAgentConversationNode(
 
     @Override
     public Events.NodeType nodeType() {
-        return Events.NodeType.AGENT_TO_AGENT_CONVERSATION;
+        return Events.NodeType.DATA_LAYER_OPERATION;
     }
 
     @Override
-    public AgentToAgentConversationNode withStatus(Events.NodeStatus newStatus) {
+    public DataLayerOperationNode withStatus(Events.NodeStatus newStatus) {
         return toBuilder()
                 .status(newStatus)
                 .lastUpdatedAt(Instant.now())

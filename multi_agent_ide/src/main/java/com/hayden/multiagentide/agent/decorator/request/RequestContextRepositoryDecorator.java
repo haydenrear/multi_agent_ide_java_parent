@@ -25,6 +25,10 @@ public class RequestContextRepositoryDecorator implements RequestDecorator {
             return request;
         }
 
+        if (request instanceof AgentModels.AgentToAgentRequest) {
+            return request;
+        }
+
         String sessionId = request.contextId().value();
 
         RequestContext updated = requestContextRepository.findBySessionId(sessionId)

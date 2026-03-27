@@ -24,6 +24,9 @@ public class PropagateActionRequestDecorator implements RequestDecorator, Dispat
 
     @Override
     public <T extends AgentModels.AgentRequest> T decorate(T request, DecoratorContext context) {
+        if (request instanceof AgentModels.AgentToAgentRequest) {
+            return request;
+        }
         return integration.propagate(request, context.agentName(), context.actionName(), context.methodName(), context.operationContext());
     }
 }

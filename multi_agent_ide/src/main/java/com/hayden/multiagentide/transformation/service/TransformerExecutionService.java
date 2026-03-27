@@ -195,11 +195,16 @@ public class TransformerExecutionService {
                 .hashContext(Artifact.HashContext.defaultHashContext())
                 .operationContext(operationContext)
                 .build();
+        ArtifactKey chatKey = aiFilterSessionResolver.resolveSessionKey(
+                aiTextTransformer.id(),
+                aiExecutor.sessionMode(),
+                parentPromptContext);
+        ArtifactKey contextId = parentPromptContext.currentContextId() != null
+                ? parentPromptContext.currentContextId().createChild()
+                : chatKey;
         AgentModels.AiTransformerRequest request = AgentModels.AiTransformerRequest.builder()
-                .contextId(aiFilterSessionResolver.resolveSessionKey(
-                        aiTextTransformer.id(),
-                        aiExecutor.sessionMode(),
-                        parentPromptContext))
+                .contextId(contextId)
+                .chatKey(chatKey)
                 .worktreeContext(parentRequest == null ? null : parentRequest.worktreeContext())
                 .goal(buildGoal(context))
                 .input(currentText)

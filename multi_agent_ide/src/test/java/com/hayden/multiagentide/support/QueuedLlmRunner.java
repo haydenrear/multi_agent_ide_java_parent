@@ -126,6 +126,15 @@ public class QueuedLlmRunner implements LlmRunner {
         responseQueue.offer(new QueuedResponse(response, (BiConsumer<Object, OperationContext>) onDequeue));
     }
 
+    /**
+     * Insert a response at the front of the queue, so it will be dequeued next.
+     * Useful from within callbacks that need to enqueue responses for nested calls
+     * (e.g., agent-to-agent calls made during a workflow step).
+     */
+    public <T> void enqueueNext(T response) {
+        ((LinkedList<QueuedResponse>) responseQueue).addFirst(new QueuedResponse(response));
+    }
+
     public int getCallCount() {
         return callCount;
     }

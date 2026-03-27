@@ -5,6 +5,9 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.repository.GraphRepository;
+import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.model.nodes.AgentToAgentConversationNode;
+import com.hayden.multiagentidelib.model.nodes.GraphNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -14,6 +17,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -160,45 +165,51 @@ class SessionKeyResolutionServiceTest {
         }
     }
 
-    // ── Active call chain cycle detection ─────────────────────────────────
+    // ── Graph-derived call chain cycle detection ───────────────────────────
 
     @Nested
     class CallChainCycleDetection {
 
-        @Test
-        void noActiveChain_noCycleDetected() {
-            assertThat(service.isInActiveCallChain("nodeA", "nodeB")).isFalse();
+        private AgentToAgentConversationNode makeCallNode(String sourceKey, String targetKey) {
+            Instant now = Instant.now();
+            return AgentToAgentConversationNode.builder()
+                    .nodeId(ArtifactKey.createRoot().value())
+                    .title("Call")
+                    .goal("test")
+                    .status(Events.NodeStatus.RUNNING)
+                    .parentNodeId(null)
+                    .childNodeIds(List.of())
+                    .metadata(Map.of())
+                    .createdAt(now)
+                    .lastUpdatedAt(now)
+                    .sourceAgentKey(sourceKey)
+                    .sourceAgentType(AgentType.DISCOVERY_AGENT)
+                    .targetAgentKey(targetKey)
+                    .targetAgentType(AgentType.PLANNING_AGENT)
+                    .callChain(List.of())
+                    .chatSessionKey(null)
+                    .build();
         }
 
         @Test
-        void directCycle_detected() {
-            // B called A, now A wants to call B — cycle
-            service.registerCall("nodeB", "nodeA", "call-1");
-            assertThat(service.isInActiveCallChain("nodeA", "nodeB")).isTrue();
+        void noActiveChain_buildCallChainReturnsEmpty() {
+            ArtifactKey key = ArtifactKey.createRoot();
+            when(graphRepository.findByType(Events.NodeType.AGENT_TO_AGENT_CONVERSATION))
+                    .thenReturn(List.of());
+            assertThat(service.buildCallChainFromGraph(key.value())).isEmpty();
         }
 
         @Test
-        void indirectCycle_detected() {
-            // C called B, B called A, now A wants to call C — cycle
-            service.registerCall("nodeC", "nodeB", "call-1");
-            service.registerCall("nodeB", "nodeA", "call-2");
-            assertThat(service.isInActiveCallChain("nodeA", "nodeC")).isTrue();
-        }
-
-        @Test
-        void noCycle_whenChainDoesNotReachCaller() {
-            // B called C, now A wants to call B — no cycle (B→C, not B→A)
-            service.registerCall("nodeB", "nodeC", "call-1");
-            assertThat(service.isInActiveCallChain("nodeA", "nodeB")).isFalse();
-        }
-
-        @Test
-        void unregisterCall_breaksCycle() {
-            service.registerCall("nodeB", "nodeA", "call-1");
-            assertThat(service.isInActiveCallChain("nodeA", "nodeB")).isTrue();
-
-            service.unregisterCall("nodeB", "nodeA");
-            assertThat(service.isInActiveCallChain("nodeA", "nodeB")).isFalse();
+        void directCall_buildCallChainFromGraph() {
+            ArtifactKey keyA = ArtifactKey.createRoot();
+            ArtifactKey keyB = ArtifactKey.createRoot();
+            // B called A — chain from A should show B
+            AgentToAgentConversationNode bToA = makeCallNode(keyB.value(), keyA.value());
+            when(graphRepository.findByType(Events.NodeType.AGENT_TO_AGENT_CONVERSATION))
+                    .thenReturn(List.of(bToA));
+            var chain = service.buildCallChainFromGraph(keyA.value());
+            assertThat(chain).hasSize(1);
+            assertThat(chain.getFirst().agentKey()).isEqualTo(keyB);
         }
 
         @Test
@@ -206,8 +217,10 @@ class SessionKeyResolutionServiceTest {
             ArtifactKey callerKey = ArtifactKey.createRoot();
             ArtifactKey targetKey = ArtifactKey.createRoot();
 
-            // Target has an active call to caller — calling target would create a cycle
-            service.registerCall(targetKey.value(), callerKey.value(), "call-1");
+            // Target (B) called caller (A) — calling target would create a cycle
+            AgentToAgentConversationNode bToA = makeCallNode(targetKey.value(), callerKey.value());
+            when(graphRepository.findByType(Events.NodeType.AGENT_TO_AGENT_CONVERSATION))
+                    .thenReturn(List.of(bToA));
 
             Set<ArtifactKey> candidates = Set.of(targetKey);
             assertThat(service.filterSelfCalls(callerKey, candidates)).isEmpty();
@@ -220,7 +233,9 @@ class SessionKeyResolutionServiceTest {
             ArtifactKey otherKey = ArtifactKey.createRoot();
 
             // Target called other, not caller — no cycle
-            service.registerCall(targetKey.value(), otherKey.value(), "call-1");
+            AgentToAgentConversationNode bToC = makeCallNode(targetKey.value(), otherKey.value());
+            when(graphRepository.findByType(Events.NodeType.AGENT_TO_AGENT_CONVERSATION))
+                    .thenReturn(List.of(bToC));
 
             Set<ArtifactKey> candidates = Set.of(targetKey);
             assertThat(service.filterSelfCalls(callerKey, candidates)).containsExactly(targetKey);

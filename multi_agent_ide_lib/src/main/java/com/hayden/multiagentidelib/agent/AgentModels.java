@@ -53,7 +53,7 @@ public interface AgentModels {
     }
 
     sealed interface AgentResult extends AgentContext
-            permits AiFilterResult, AiPropagatorResult, AiTransformerResult, CommitAgentResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergeConflictResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
+            permits AgentCallResult, AiFilterResult, AiPropagatorResult, AiTransformerResult, CommitAgentResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergeConflictResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
 
     {
         WorktreeSandboxContext worktreeContext();
@@ -2773,7 +2773,7 @@ public interface AgentModels {
         }
     }
 
-    sealed interface AgentRouting permits DispatchedAgentRouting, Routing {}
+    sealed interface AgentRouting permits AgentCallRouting, DispatchedAgentRouting, Routing {}
 
     sealed interface DispatchedAgentRouting extends AgentRouting permits
             DiscoveryAgentRouting,
@@ -3819,6 +3819,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Worktree sandbox context for this request.")
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Chat session key for LLM communication, may differ from contextId.")
+            @SkipPropertyFilter
+            ArtifactKey chatKey,
             @JsonPropertyDescription("Goal context for AI filter execution.")
             String goal,
             @JsonPropertyDescription("The serialized input content to be filtered.")
@@ -3857,6 +3860,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Worktree sandbox context for this request.")
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Chat session key for LLM session routing (may differ from contextId).")
+            @SkipPropertyFilter
+            ArtifactKey chatKey,
             @JsonPropertyDescription("Original request that routed into this commit request.")
             @SkipPropertyFilter
             AgentRequest routedFromRequest,
@@ -3912,6 +3918,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Worktree sandbox context for this request.")
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Chat session key for LLM session routing (may differ from contextId).")
+            @SkipPropertyFilter
+            ArtifactKey chatKey,
             @JsonPropertyDescription("Original request that routed into this merge conflict request.")
             @SkipPropertyFilter
             AgentRequest routedFromRequest,
@@ -4864,6 +4873,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Worktree sandbox context for this request.")
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Chat session key for LLM communication, may differ from contextId.")
+            @SkipPropertyFilter
+            ArtifactKey chatKey,
             @JsonPropertyDescription("Goal context for AI transformer execution.")
             String goal,
             @JsonPropertyDescription("The serialized input content to be transformed.")
@@ -4976,6 +4988,9 @@ public interface AgentModels {
             @JsonPropertyDescription("Worktree sandbox context for this request.")
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext,
+            @JsonPropertyDescription("Chat session key for LLM communication, may differ from contextId.")
+            @SkipPropertyFilter
+            ArtifactKey chatKey,
             @JsonPropertyDescription("Goal context for AI propagator execution.")
             String goal,
             @JsonPropertyDescription("The serialized input content to be propagated.")
@@ -5136,6 +5151,18 @@ public interface AgentModels {
             @JsonPropertyDescription("Current call chain for loop detection.")
             @SkipPropertyFilter
             List<CallChainEntry> callChain,
+            @JsonPropertyDescription("Node ID of the calling agent's workflow graph node (the parent for the new AgentToAgentConversationNode).")
+            @SkipPropertyFilter
+            String callingNodeId,
+            @JsonPropertyDescription("Node ID of the first AgentToAgentConversationNode in this call chain, null if this is the first hop.")
+            @SkipPropertyFilter
+            String originatingAgentToAgentNodeId,
+            @JsonPropertyDescription("Graph node ID of the target agent's workflow node, used for chatId routing.")
+            @SkipPropertyFilter
+            String targetNodeId,
+            @JsonPropertyDescription("Chat session key for the calling agent's LLM session.")
+            @SkipPropertyFilter
+            String chatSessionKey,
             @JsonPropertyDescription("Current goal context.")
             String goal
     ) implements AgentRequest {
@@ -5270,6 +5297,38 @@ public interface AgentModels {
                 appendPrettyLine(builder, "Completed Step", checklistAction.completedStep());
             }
             return builder.toString().trim();
+        }
+    }
+
+    @Builder(toBuilder = true)
+    @JsonClassDescription("Routing result from an inter-agent call. Contains the target agent's response.")
+    record AgentCallRouting(
+            @JsonPropertyDescription("The target agent's response text.")
+            String response
+    ) implements AgentRouting {}
+
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Result of an inter-agent call.")
+    record AgentCallResult(
+            @JsonPropertyDescription("Unique context id for this result.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("The target agent's response text.")
+            String response,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
+    ) implements AgentResult {
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Agent Call Result\n");
+            appendPrettyText(builder, "Response", response);
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            return prettyPrint();
         }
     }
 }

@@ -19,6 +19,9 @@ public class PropagateActionResultDecorator implements ResultDecorator, Dispatch
 
     @Override
     public <T extends AgentModels.AgentRouting> T decorate(T t, DecoratorContext context) {
+        if (t instanceof AgentModels.AgentCallRouting) {
+            return t;
+        }
         return integration.propagate(
                 t,
                 context.agentName(),

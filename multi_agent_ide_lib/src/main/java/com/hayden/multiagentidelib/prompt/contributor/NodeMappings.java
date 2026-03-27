@@ -185,6 +185,7 @@ public interface NodeMappings {
             case AgentToAgentConversationNode n -> n.sourceAgentType();
             case AgentToControllerConversationNode n -> n.sourceAgentType();
             case ControllerToAgentConversationNode n -> n.targetAgentType();
+            case DataLayerOperationNode ignored -> null;
         };
     }
 

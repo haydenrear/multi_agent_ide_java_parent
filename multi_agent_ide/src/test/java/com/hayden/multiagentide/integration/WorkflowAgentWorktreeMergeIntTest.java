@@ -398,6 +398,116 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         }
     }
 
+    @Nested
+    class DataLayerNodeAndChatKeyValidation {
+
+        @Test
+        @DisplayName("DataLayerOperationNodes created for propagator calls during workflow")
+        void dataLayerOperationNodes_createdDuringWorkflow() throws Exception {
+            setLogFile("dataLayerOperationNodes_createdDuringWorkflow");
+            var contextId = seedOrchestratorWithRealWorktree();
+            queuedLlmRunner.setThread(contextId.value());
+
+            enqueueHappyPathWithWork("DataLayer test");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId.value()).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(contextId, "DataLayer test", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // Verify DataLayerOperationNode entries were created in the graph
+            verify(workflowGraphService, atLeastOnce()).startDataLayerOperation(any(), anyString(), any());
+
+            // Check that DataLayerOperationNode instances exist in the graph
+            var dataLayerNodes = graphRepository.findAll().stream()
+                    .filter(n -> n instanceof com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode)
+                    .map(n -> (com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode) n)
+                    .toList();
+            assertThat(dataLayerNodes).isNotEmpty();
+
+            // Each data layer node should have a valid operation type
+            for (var node : dataLayerNodes) {
+                assertThat(node.operationType()).isNotBlank();
+                assertThat(node.nodeId()).isNotBlank();
+            }
+        }
+
+        @Test
+        @DisplayName("AiPropagator DataLayerOperationNodes have chatSessionKey set to parent agent key")
+        void propagator_chatSessionKey_setCorrectly() throws Exception {
+            setLogFile("propagator_chatSessionKey_setCorrectly");
+            var contextId = seedOrchestratorWithRealWorktree();
+            queuedLlmRunner.setThread(contextId.value());
+
+            enqueueHappyPathWithWork("PropagatorChatKey test");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId.value()).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(contextId, "PropagatorChatKey test", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // AiPropagator data layer nodes should exist with chatSessionKey set
+            var propagatorNodes = graphRepository.findAll().stream()
+                    .filter(n -> n instanceof com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode dln
+                            && "AiPropagator".equals(dln.operationType()))
+                    .map(n -> (com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode) n)
+                    .toList();
+
+            assertThat(propagatorNodes)
+                    .as("AiPropagator DataLayerOperationNodes should be created during workflow")
+                    .isNotEmpty();
+
+            for (var node : propagatorNodes) {
+                assertThat(node.chatSessionKey())
+                        .as("AiPropagator DataLayerOperationNode should have chatSessionKey set (parent's key)")
+                        .isNotNull();
+                assertThat(node.chatSessionKey())
+                        .as("chatSessionKey should differ from nodeId (routes to parent session)")
+                        .isNotEqualTo(node.nodeId());
+            }
+        }
+
+        @Test
+        @DisplayName("Parallel agents — each propagator node tracks distinct chatSessionKey")
+        void parallelAgents_propagatorNodes_distinctChatKeys() throws Exception {
+            setLogFile("parallelAgents_propagatorNodes_distinctChatKeys");
+            var contextId = seedOrchestratorWithRealWorktree();
+            queuedLlmRunner.setThread(contextId.value());
+
+            enqueueParallelDiscoveryWithDistinctFiles("Parallel chatKey test");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId.value()).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(contextId, "Parallel chatKey test", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            var propagatorNodes = graphRepository.findAll().stream()
+                    .filter(n -> n instanceof com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode dln
+                            && "AiPropagator".equals(dln.operationType()))
+                    .map(n -> (com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode) n)
+                    .toList();
+
+            assertThat(propagatorNodes).hasSizeGreaterThanOrEqualTo(2);
+
+            // All propagator nodes should have chatSessionKey set
+            for (var node : propagatorNodes) {
+                assertThat(node.chatSessionKey()).isNotNull();
+            }
+        }
+    }
+
     // ========================================================================
     // Orchestrator seeding
     // ========================================================================

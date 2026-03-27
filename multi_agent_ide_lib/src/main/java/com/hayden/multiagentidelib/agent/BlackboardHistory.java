@@ -96,6 +96,9 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                         && !(a instanceof AgentModels.AiFilterRequest)
                         && !(a instanceof AgentModels.AiPropagatorRequest)
                         && !(a instanceof AgentModels.AiTransformerRequest)
+                        && !(a instanceof AgentModels.AgentToAgentRequest)
+                        && !(a instanceof AgentModels.AgentToControllerRequest)
+                        && !(a instanceof AgentModels.ControllerToAgentRequest)
         );
         return lastRequest;
     }
@@ -111,6 +114,9 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                         && !(a instanceof AgentModels.AiPropagatorRequest)
                         && !(a instanceof AgentModels.AiTransformerRequest)
                         && !(a instanceof AgentModels.MergeConflictRequest)
+                        && !(a instanceof AgentModels.AgentToAgentRequest)
+                        && !(a instanceof AgentModels.AgentToControllerRequest)
+                        && !(a instanceof AgentModels.ControllerToAgentRequest)
         );
     }
 

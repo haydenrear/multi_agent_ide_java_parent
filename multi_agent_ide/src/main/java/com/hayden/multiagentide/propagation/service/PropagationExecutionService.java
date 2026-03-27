@@ -213,11 +213,16 @@ public class PropagationExecutionService {
                 .hashContext(Artifact.HashContext.defaultHashContext())
                 .operationContext(resolvedOperationContext)
                 .build();
+        ArtifactKey chatKey = aiFilterSessionResolver.resolveSessionKey(
+                aiTextPropagator.id(),
+                aiExecutor.sessionMode(),
+                parentPromptContext);
+        ArtifactKey contextId = parentPromptContext.currentContextId() != null
+                ? parentPromptContext.currentContextId().createChild()
+                : chatKey;
         AgentModels.AiPropagatorRequest request = AgentModels.AiPropagatorRequest.builder()
-                .contextId(aiFilterSessionResolver.resolveSessionKey(
-                        aiTextPropagator.id(),
-                        aiExecutor.sessionMode(),
-                        parentPromptContext))
+                .contextId(contextId)
+                .chatKey(chatKey)
                 .worktreeContext(parentRequest == null ? null : parentRequest.worktreeContext())
                 .goal(buildGoal(context))
                 .input(beforePayload)

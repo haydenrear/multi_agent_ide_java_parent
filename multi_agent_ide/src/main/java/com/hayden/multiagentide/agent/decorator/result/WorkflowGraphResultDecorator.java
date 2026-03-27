@@ -4,10 +4,17 @@ import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentide.agent.WorkflowGraphService;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.model.nodes.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -15,6 +22,14 @@ import org.springframework.stereotype.Component;
 public class WorkflowGraphResultDecorator implements ResultDecorator, DispatchedAgentResultDecorator {
 
     private final WorkflowGraphService workflowGraphService;
+
+    private EventBus eventBus;
+
+    @Autowired
+    @Lazy
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
 
     @Override
     public int order() {
@@ -167,9 +182,72 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
                 GraphNode targetNode = resolveInterruptRoutingTarget(operationContext, routing);
                 handleRoutingResult(operationContext, routing, targetNode);
             }
+            case AgentModels.AgentCallRouting routing -> {
+                // AgentToAgentRequest is filtered out by findLastWorkflowRequest (used by
+                // getLastFromHistory with AgentRequest.class), so resolveRunning's generic
+                // DecoratorContext path won't find it.  Look it up directly by type instead.
+                AgentToAgentConversationNode running = resolveRunningByRequestType(
+                        context, routing, AgentModels.AgentToAgentRequest.class, AgentToAgentConversationNode.class);
+                if (running != null) {
+                    workflowGraphService.completeAgentCall(running, routing);
+                    eventBus.publish(new Events.AgentCallCompletedEvent(
+                            UUID.randomUUID().toString(),
+                            Instant.now(),
+                            running.nodeId(),
+                            running.nodeId()
+                    ));
+                } else {
+                    reportMissingNode(operationContext, routing, null);
+                }
+            }
         }
 
         return t;
+    }
+
+    @Override
+    public <T extends AgentModels.AgentResult> T decorate(T t, DecoratorContext context) {
+        if (t == null || workflowGraphService == null || context == null) {
+            return t;
+        }
+        switch (t) {
+            case AgentModels.MergeConflictResult ignored ->
+                    handleDataLayerOperationNode(context);
+            case AgentModels.CommitAgentResult ignored ->
+                    handleDataLayerOperationNode(context);
+            case AgentModels.AiTransformerResult ignored ->
+                    handleDataLayerOperationNode(context);
+            case AgentModels.AiPropagatorResult ignored ->
+                    handleDataLayerOperationNode(context);
+            case AgentModels.AiFilterResult ignored ->
+                    handleDataLayerOperationNode(context);
+            default -> {
+                // Other result types handled elsewhere
+            }
+        }
+        return t;
+    }
+
+    private void handleDataLayerOperationNode(DecoratorContext context) {
+        String nodeId = resolveResultNodeId(context);
+        if (nodeId != null) {
+            workflowGraphService.findNodeById(nodeId, DataLayerOperationNode.class)
+                    .ifPresent(workflowGraphService::completeDataLayerOperation);
+        }
+    }
+
+    private String resolveResultNodeId(DecoratorContext context) {
+        AgentContext requestContext = null;
+        if (context.agentRequest() instanceof AgentContext ac) {
+            requestContext = ac;
+        } else if (context.lastRequest() instanceof AgentContext lc) {
+            requestContext = lc;
+        }
+        if (requestContext == null) {
+            return null;
+        }
+        ArtifactKey contextId = requestContext.contextId();
+        return contextId != null ? contextId.value() : null;
     }
 
     private <T extends GraphNode> T resolveRunning(
@@ -182,6 +260,37 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
             return null;
         }
         return workflowGraphService.findNodeById(nodeId, type).orElse(null);
+    }
+
+    /**
+     * Resolve the running node by looking up the request directly from the blackboard
+     * by its concrete type. This bypasses the {@code findLastWorkflowRequest} filter
+     * which excludes communication request types (AgentToAgentRequest, etc.).
+     */
+    private <R extends AgentModels.AgentRequest & AgentContext, N extends GraphNode> N resolveRunningByRequestType(
+            DecoratorContext decoratorContext,
+            AgentModels.AgentRouting routing,
+            Class<R> requestType,
+            Class<N> nodeType
+    ) {
+        if (decoratorContext == null || decoratorContext.operationContext() == null) {
+            return null;
+        }
+        R request = BlackboardHistory.getEntireBlackboardHistory(decoratorContext.operationContext()) != null
+                ? BlackboardHistory.getEntireBlackboardHistory(decoratorContext.operationContext()).getLastOfType(requestType)
+                : null;
+        if (request == null) {
+            reportMissingNode(decoratorContext.operationContext(), routing,
+                    new IllegalStateException("No " + requestType.getSimpleName() + " found on blackboard"));
+            return null;
+        }
+        ArtifactKey contextId = request.contextId();
+        if (contextId == null || contextId.value() == null || contextId.value().isBlank()) {
+            reportMissingNode(decoratorContext.operationContext(), routing,
+                    new IllegalStateException("Missing contextId on " + requestType.getSimpleName()));
+            return null;
+        }
+        return workflowGraphService.findNodeById(contextId.value(), nodeType).orElse(null);
     }
 
     private String resolveRequestNodeId(DecoratorContext decoratorContext, AgentModels.AgentRouting routing) {

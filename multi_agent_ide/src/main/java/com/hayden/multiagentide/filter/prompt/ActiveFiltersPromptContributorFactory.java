@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
 import com.hayden.multiagentide.filter.service.LayerIdResolver;
 import com.hayden.multiagentide.filter.service.PolicyDiscoveryService;
+import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
@@ -33,6 +34,12 @@ public class ActiveFiltersPromptContributorFactory implements PromptContributorF
 
     @Override
     public List<PromptContributor> create(PromptContext context) {
+        if (context != null && context.agentType() != null) {
+            var at = context.agentType();
+            if (at == AgentType.AI_PROPAGATOR || at == AgentType.AI_FILTER || at == AgentType.AI_TRANSFORMER) {
+                return List.of();
+            }
+        }
         Optional<String> layerId = layerIdResolver.resolveForPromptContributor(context);
         if (layerId.isEmpty()) {
             return List.of();

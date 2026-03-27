@@ -432,6 +432,8 @@ public class CliEventFormatter {
                     "AiPropagatorResult " + summary;
             case AgentModels.AiTransformerResult r ->
                     "AiTransformerResult " + summary;
+            case AgentModels.AgentCallResult r ->
+                    "AgentCallResult " + summary;
         };
     }
 

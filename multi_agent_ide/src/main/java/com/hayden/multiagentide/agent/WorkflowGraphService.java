@@ -100,6 +100,60 @@ public class WorkflowGraphService {
         return resolveState(context, state -> requireNode(state.orchestratorCollectorNodeId(), CollectorNode.class, "orchestrator collector"));
     }
 
+    public AgentToAgentConversationNode startAgentCall(
+            AgentModels.AgentToAgentRequest request
+    ) {
+        String parentId = request != null ? request.callingNodeId() : null;
+        ArtifactKey contextId = request != null ? request.contextId() : null;
+        AgentToAgentConversationNode node = nodeFactory.agentToAgentNode(parentId, request, contextId);
+        if (parentId != null && graphRepository.exists(parentId)) {
+            computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, node);
+        } else {
+            computationGraphOrchestrator.emitNodeAddedEvent(node, parentId);
+        }
+        return markNodeRunning(node);
+    }
+
+    public void completeAgentCall(AgentToAgentConversationNode node, AgentModels.AgentCallRouting routing) {
+        if (node == null) {
+            return;
+        }
+        String response = routing != null ? routing.response() : "";
+        AgentToAgentConversationNode updated = node.toBuilder()
+                .lastUpdatedAt(Instant.now())
+                .metadata(new java.util.concurrent.ConcurrentHashMap<>(
+                        java.util.Map.of("response", response != null ? response : "")))
+                .build();
+        persistNode(updated);
+        markNodeCompleted(updated);
+    }
+
+    public DataLayerOperationNode startDataLayerOperation(
+            ArtifactKey contextId,
+            String operationType,
+            String chatSessionKey
+    ) {
+        // Parent is derived from contextId's parent if it exists in the graph
+        String parentId = contextId != null
+                ? contextId.parent().map(ArtifactKey::value).filter(graphRepository::exists).orElse(null)
+                : null;
+        DataLayerOperationNode node = nodeFactory.dataLayerOperationNode(
+                parentId, operationType, chatSessionKey, contextId);
+        if (parentId != null) {
+            computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, node);
+        } else {
+            computationGraphOrchestrator.emitNodeAddedEvent(node, parentId);
+        }
+        return markNodeRunning(node);
+    }
+
+    public void completeDataLayerOperation(DataLayerOperationNode node) {
+        if (node == null) {
+            return;
+        }
+        markNodeCompleted(node);
+    }
+
     public void emitErrorEvent(GraphNode node, String message) {
         if (node == null) {
             return;
@@ -1085,6 +1139,7 @@ public class WorkflowGraphService {
             case AgentToAgentConversationNode n -> n.toBuilder().lastUpdatedAt(Instant.now()).build();
             case AgentToControllerConversationNode n -> n.toBuilder().lastUpdatedAt(Instant.now()).build();
             case ControllerToAgentConversationNode n -> n.toBuilder().lastUpdatedAt(Instant.now()).build();
+            case DataLayerOperationNode n -> n.toBuilder().lastUpdatedAt(Instant.now()).build();
         };
     }
 

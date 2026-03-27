@@ -239,7 +239,7 @@ public class FilterPropertiesDecorator implements LlmCallDecorator {
             case REVIEW_AGENT, REVIEW_RESOLUTION_AGENT,
                  MERGER_AGENT, ALL,
                  COMMIT_AGENT, MERGE_CONFLICT_AGENT, AI_FILTER,
-                 AI_PROPAGATOR, AI_TRANSFORMER -> null;
+                 AI_PROPAGATOR, AI_TRANSFORMER, AGENT_CALL -> null;
         };
     }
 

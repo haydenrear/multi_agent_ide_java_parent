@@ -66,7 +66,8 @@ public interface Events {
         PERMISSION,
         AGENT_TO_AGENT_CONVERSATION,
         AGENT_TO_CONTROLLER_CONVERSATION,
-        CONTROLLER_TO_AGENT_CONVERSATION
+        CONTROLLER_TO_AGENT_CONVERSATION,
+        DATA_LAYER_OPERATION
     }
 
     enum InterruptType {

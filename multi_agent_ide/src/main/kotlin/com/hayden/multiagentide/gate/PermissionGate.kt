@@ -534,6 +534,9 @@ class PermissionGate(
 
             is com.hayden.multiagentidelib.model.nodes.ControllerToAgentConversationNode ->
                 node.toBuilder().lastUpdatedAt(Instant.now()).build()
+
+            is com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode ->
+                node.toBuilder().lastUpdatedAt(Instant.now()).build()
         }
     }
 }

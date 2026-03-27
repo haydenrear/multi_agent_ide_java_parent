@@ -6,8 +6,12 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.repository.EventStreamRepository;
+import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
+import com.hayden.multiagentidelib.model.nodes.AgentToAgentConversationNode;
 import com.hayden.multiagentidelib.model.nodes.ExecutionNode;
+import com.hayden.multiagentidelib.model.nodes.GraphNode;
+import com.hayden.multiagentidelib.model.nodes.HasChatSessionKey;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import lombok.RequiredArgsConstructor;
@@ -47,17 +51,6 @@ public class SessionKeyResolutionService implements EventListener {
     private EventBus eventBus;
 
     private final ConcurrentHashMap<SessionScopeKey, ArtifactKey> sessionCache = new ConcurrentHashMap<>();
-
-    /**
-     * Tracks active inter-agent calls: callerNodeId → Set of targetNodeIds.
-     * Used for cycle detection in filterSelfCalls.
-     */
-    private final ConcurrentHashMap<String, Set<String>> activeCallChain = new ConcurrentHashMap<>();
-
-    /**
-     * Maps callId → callerNodeId for fast unregister on AgentCallCompletedEvent.
-     */
-    private final ConcurrentHashMap<String, String> callIdToCaller = new ConcurrentHashMap<>();
 
     @Autowired
     @Lazy
@@ -255,64 +248,60 @@ public class SessionKeyResolutionService implements EventListener {
         }
     }
 
+    // ── Call chain derivation from workflow graph ──────────────────────────
+
+    /**
+     * Finds an active AgentToAgentConversationNode where the given session
+     * is the target — meaning someone called this session and it's part of an existing chain.
+     */
+    public @Nullable AgentToAgentConversationNode findIncomingCallNode(@NonNull String sessionId) {
+        return graphRepository.findByType(Events.NodeType.AGENT_TO_AGENT_CONVERSATION).stream()
+                .filter(AgentToAgentConversationNode.class::isInstance)
+                .map(AgentToAgentConversationNode.class::cast)
+                .filter(n -> sessionId.equals(n.targetAgentKey())
+                        || sessionId.equals(n.targetNodeId()))
+                .filter(n -> n.status() == Events.NodeStatus.RUNNING)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Builds the call chain by walking AgentToAgentConversationNode ancestors
+     * from the current session backwards through the graph.
+     */
+    public @NonNull List<AgentModels.CallChainEntry> buildCallChainFromGraph(@NonNull String sessionId) {
+        List<AgentModels.CallChainEntry> chain = new ArrayList<>();
+        AgentToAgentConversationNode current = findIncomingCallNode(sessionId);
+        while (current != null) {
+            chain.addFirst(new AgentModels.CallChainEntry(
+                    new ArtifactKey(current.sourceAgentKey()),
+                    current.sourceAgentType(),
+                    current.createdAt()
+            ));
+            String sourceKey = current.sourceAgentKey();
+            AgentToAgentConversationNode parent = findIncomingCallNode(sourceKey);
+            if (parent == current) {
+                break;
+            }
+            current = parent;
+        }
+        return chain;
+    }
+
+    /**
+     * Resolves a graph node by session key. Searches all nodes where either the nodeId
+     * or chatSessionKey (for HasChatSessionKey nodes) matches, and returns the most
+     * recently updated match.
+     */
+    public @Nullable GraphNode resolveNodeBySessionKey(@NonNull String sessionKey) {
+        return graphRepository.findAll().stream()
+                .filter(n -> sessionKey.equals(n.nodeId())
+                        || (n instanceof HasChatSessionKey hck && sessionKey.equals(hck.chatSessionKey())))
+                .max(java.util.Comparator.comparing(GraphNode::lastUpdatedAt))
+                .orElse(null);
+    }
+
     // ── Self-call filtering (FR-013c) ─────────────────────────────────────
-
-    /**
-     * Registers an inter-agent call for cycle detection tracking.
-     * Call this when an agent-to-agent communication begins.
-     */
-    public void registerCall(@NonNull String callerNodeId, @NonNull String targetNodeId, @NonNull String callId) {
-        activeCallChain.computeIfAbsent(callerNodeId, k -> ConcurrentHashMap.newKeySet()).add(targetNodeId);
-        callIdToCaller.put(callId, callerNodeId);
-        if (eventBus != null) {
-            eventBus.publish(new Events.AgentCallStartedEvent(
-                    UUID.randomUUID().toString(), Instant.now(),
-                    callerNodeId, callerNodeId, targetNodeId, callId));
-        }
-    }
-
-    /**
-     * Unregisters an inter-agent call when it completes.
-     */
-    public void unregisterCall(@NonNull String callId) {
-        String callerNodeId = callIdToCaller.remove(callId);
-        if (callerNodeId != null) {
-            Set<String> targets = activeCallChain.get(callerNodeId);
-            if (targets != null) {
-                targets.remove(callIdToTarget(callId));
-                if (targets.isEmpty()) {
-                    activeCallChain.remove(callerNodeId);
-                }
-            }
-        }
-        if (eventBus != null) {
-            eventBus.publish(new Events.AgentCallCompletedEvent(
-                    UUID.randomUUID().toString(), Instant.now(),
-                    callerNodeId != null ? callerNodeId : "", callId));
-        }
-    }
-
-    /**
-     * Unregisters an inter-agent call using caller and target nodeIds directly.
-     */
-    public void unregisterCall(@NonNull String callerNodeId, @NonNull String targetNodeId) {
-        Set<String> targets = activeCallChain.get(callerNodeId);
-        if (targets != null) {
-            targets.remove(targetNodeId);
-            if (targets.isEmpty()) {
-                activeCallChain.remove(callerNodeId);
-            }
-        }
-    }
-
-    private @Nullable String callIdToTarget(@NonNull String callId) {
-        // Look up from events if needed; for in-memory tracking we store in activeCallChain
-        // The unregister-by-callId path uses the event-driven approach
-        return eventStreamRepository.getLastMatching(
-                Events.AgentCallStartedEvent.class,
-                e -> callId.equals(e.callId())
-        ).map(Events.AgentCallStartedEvent::targetNodeId).orElse(null);
-    }
 
     /**
      * Filters out candidate session keys to prevent cycles in the inter-agent
@@ -329,9 +318,25 @@ public class SessionKeyResolutionService implements EventListener {
      * are allowed to communicate.
      */
     public @NonNull Set<ArtifactKey> filterSelfCalls(@Nullable ArtifactKey callingKey, @Nullable Set<ArtifactKey> candidateKeys) {
+        return filterSelfCalls(callingKey, candidateKeys, null);
+    }
+
+    /**
+     * Filters candidate keys using self-call detection and graph-derived call chain for cycle detection.
+     * When a call chain is provided it is used directly; otherwise one is built from the graph.
+     */
+    public @NonNull Set<ArtifactKey> filterSelfCalls(
+            @Nullable ArtifactKey callingKey,
+            @Nullable Set<ArtifactKey> candidateKeys,
+            @Nullable List<AgentModels.CallChainEntry> callChain
+    ) {
         if (callingKey == null || candidateKeys == null) {
             return candidateKeys != null ? candidateKeys : Set.of();
         }
+
+        List<AgentModels.CallChainEntry> effectiveChain = callChain != null && !callChain.isEmpty()
+                ? callChain
+                : buildCallChainFromGraph(callingKey.value());
 
         String callerNodeId = resolveOwningNodeId(callingKey);
 
@@ -344,42 +349,16 @@ public class SessionKeyResolutionService implements EventListener {
                 continue;
             }
 
-            // Cycle check: would calling this candidate create a cycle?
-            // A cycle exists if the candidate currently has an active call chain
-            // that leads back to the caller.
-            if (isInActiveCallChain(callerNodeId, candidateNodeId)) {
-                log.debug("Filtered candidate {} — would create cycle with caller {}", candidateNodeId, callerNodeId);
+            // Cycle check using graph-derived call chain
+            if (!effectiveChain.isEmpty()
+                    && effectiveChain.stream().anyMatch(e -> e.agentKey().equals(candidate))) {
+                log.debug("Filtered candidate {} — present in call chain from graph", candidateNodeId);
                 continue;
             }
 
             filtered.add(candidate);
         }
         return filtered;
-    }
-
-    /**
-     * Checks if calling targetNodeId from callerNodeId would create a cycle.
-     * Walks the active call chain starting from targetNodeId to see if it
-     * eventually reaches callerNodeId.
-     */
-    boolean isInActiveCallChain(@NonNull String callerNodeId, @NonNull String targetNodeId) {
-        Set<String> visited = new HashSet<>();
-        Deque<String> toCheck = new ArrayDeque<>();
-        toCheck.add(targetNodeId);
-        while (!toCheck.isEmpty()) {
-            String current = toCheck.poll();
-            if (current.equals(callerNodeId)) {
-                return true;
-            }
-            if (!visited.add(current)) {
-                continue;
-            }
-            Set<String> targets = activeCallChain.get(current);
-            if (targets != null) {
-                toCheck.addAll(targets);
-            }
-        }
-        return false;
     }
 
     /**
@@ -428,9 +407,7 @@ public class SessionKeyResolutionService implements EventListener {
     @Override
     public boolean isInterestedIn(Events.GraphEvent eventType) {
         return eventType instanceof Events.GoalCompletedEvent
-                || eventType instanceof Events.ActionCompletedEvent
-                || eventType instanceof Events.AgentCallStartedEvent
-                || eventType instanceof Events.AgentCallCompletedEvent;
+                || eventType instanceof Events.ActionCompletedEvent;
     }
 
     @Override
@@ -438,26 +415,6 @@ public class SessionKeyResolutionService implements EventListener {
         switch (event) {
             case Events.GoalCompletedEvent goal -> evictGoalScopedSessions(goal.nodeId());
             case Events.ActionCompletedEvent action -> evictActionScopedSessions(action.nodeId());
-            case Events.AgentCallStartedEvent callStarted -> {
-                if (callStarted.callerNodeId() != null && callStarted.targetNodeId() != null) {
-                    activeCallChain.computeIfAbsent(callStarted.callerNodeId(), k -> ConcurrentHashMap.newKeySet())
-                            .add(callStarted.targetNodeId());
-                    if (callStarted.callId() != null) {
-                        callIdToCaller.put(callStarted.callId(), callStarted.callerNodeId());
-                    }
-                }
-            }
-            case Events.AgentCallCompletedEvent callCompleted -> {
-                if (callCompleted.callId() != null) {
-                    String callerNodeId = callIdToCaller.remove(callCompleted.callId());
-                    if (callerNodeId != null) {
-                        String target = callIdToTarget(callCompleted.callId());
-                        if (target != null) {
-                            unregisterCall(callerNodeId, target);
-                        }
-                    }
-                }
-            }
             default -> {
             }
         }

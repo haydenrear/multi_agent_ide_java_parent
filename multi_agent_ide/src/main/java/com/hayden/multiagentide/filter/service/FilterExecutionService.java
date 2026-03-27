@@ -264,13 +264,18 @@ public class FilterExecutionService {
         // The parent workflow request is already decorated — do not re-run requestDecorators on it.
         AgentModels.AgentRequest parentRequest = promptContext.currentRequest();
 
+        ArtifactKey chatKey = aiFilterSessionResolver.resolveSessionKey(
+                policy.getRegistrationId(),
+                aiExecutor.sessionMode(),
+                promptContext);
+        ArtifactKey contextId = promptContext.currentContextId() != null
+                ? promptContext.currentContextId().createChild()
+                : chatKey;
         AgentModels.AiFilterRequest aiSessionRequest = decorateRequestResults.decorateRequest(
                 new DecorateRequestResults.DecorateRequestArgs<>(
                         AgentModels.AiFilterRequest.builder()
-                                .contextId(aiFilterSessionResolver.resolveSessionKey(
-                                        policy.getRegistrationId(),
-                                        aiExecutor.sessionMode(),
-                                        promptContext))
+                                .contextId(contextId)
+                                .chatKey(chatKey)
                                 .input(payload)
                                 .goal("AI filter execution for policy " + policy.getRegistrationId())
                                 .build(),

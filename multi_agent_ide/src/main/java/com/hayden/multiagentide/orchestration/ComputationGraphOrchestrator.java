@@ -436,6 +436,11 @@ public class ComputationGraphOrchestrator {
                             .childNodeIds(childIds)
                             .lastUpdatedAt(Instant.now())
                             .build();
+            case DataLayerOperationNode n ->
+                    n.toBuilder()
+                            .childNodeIds(childIds)
+                            .lastUpdatedAt(Instant.now())
+                            .build();
         };
     }
 }
