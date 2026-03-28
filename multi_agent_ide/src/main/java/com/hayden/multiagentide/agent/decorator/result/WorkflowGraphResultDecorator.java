@@ -200,6 +200,12 @@ public class WorkflowGraphResultDecorator implements ResultDecorator, Dispatched
                     reportMissingNode(operationContext, routing, null);
                 }
             }
+            case AgentModels.ControllerCallRouting routing -> {
+                log.debug("ControllerCallRouting result received — node completion handled by interrupt resolution flow");
+            }
+            case AgentModels.ControllerResponseRouting routing -> {
+                log.debug("ControllerResponseRouting result received — node completion handled by controller endpoint");
+            }
         }
 
         return t;

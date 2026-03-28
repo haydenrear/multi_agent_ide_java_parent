@@ -27,7 +27,9 @@ public enum AgentType {
     REVIEW_RESOLUTION_AGENT,
     MERGER_AGENT,
     CONTEXT_MANAGER,
-    AGENT_CALL;
+    AGENT_CALL,
+    CONTROLLER_CALL,
+    CONTROLLER_RESPONSE;
 
     public String wireValue() {
         return name().toLowerCase(Locale.ROOT).replace('_', '-');

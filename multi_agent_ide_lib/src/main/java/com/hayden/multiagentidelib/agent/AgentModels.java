@@ -53,7 +53,7 @@ public interface AgentModels {
     }
 
     sealed interface AgentResult extends AgentContext
-            permits AgentCallResult, AiFilterResult, AiPropagatorResult, AiTransformerResult, CommitAgentResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergeConflictResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
+            permits AgentCallResult, ControllerCallResult, ControllerResponseResult, AiFilterResult, AiPropagatorResult, AiTransformerResult, CommitAgentResult, DiscoveryAgentResult, DiscoveryCollectorResult, DiscoveryOrchestratorResult, MergeConflictResult, MergerAgentResult, OrchestratorAgentResult, OrchestratorCollectorResult, PlanningAgentResult, PlanningCollectorResult, PlanningOrchestratorResult, ReviewAgentResult, TicketAgentResult, TicketCollectorResult, TicketOrchestratorResult
 
     {
         WorktreeSandboxContext worktreeContext();
@@ -2773,7 +2773,7 @@ public interface AgentModels {
         }
     }
 
-    sealed interface AgentRouting permits AgentCallRouting, DispatchedAgentRouting, Routing {}
+    sealed interface AgentRouting permits AgentCallRouting, ControllerCallRouting, ControllerResponseRouting, DispatchedAgentRouting, Routing {}
 
     sealed interface DispatchedAgentRouting extends AgentRouting permits
             DiscoveryAgentRouting,
@@ -5325,6 +5325,82 @@ public interface AgentModels {
         public String prettyPrint() {
             StringBuilder builder = new StringBuilder("Agent Call Result\n");
             appendPrettyText(builder, "Response", response);
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            return prettyPrint();
+        }
+    }
+
+    // ========== Controller Call Communication Types ==========
+
+    @JsonClassDescription("Routing result from an agent-to-controller call.")
+    record ControllerCallRouting(
+            @JsonPropertyDescription("The controller's response text.")
+            String response,
+            @JsonPropertyDescription("The controller conversation key for follow-up messages.")
+            String controllerConversationKey
+    ) implements AgentRouting {}
+
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Result of an agent-to-controller call.")
+    record ControllerCallResult(
+            @JsonPropertyDescription("Unique context id for this result.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("The controller's response text.")
+            String response,
+            @JsonPropertyDescription("The controller conversation key.")
+            String controllerConversationKey,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
+    ) implements AgentResult {
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Controller Call Result\n");
+            appendPrettyText(builder, "Response", response);
+            appendPrettyLine(builder, "Conversation Key", controllerConversationKey);
+            return builder.toString().trim();
+        }
+
+        @Override
+        public String prettyPrintInterruptContinuation() {
+            return prettyPrint();
+        }
+    }
+
+    // ========== Controller Response Communication Types ==========
+
+    @JsonClassDescription("Routing result from a controller-to-agent response.")
+    record ControllerResponseRouting(
+            @JsonPropertyDescription("The enriched response text after decorator pipeline processing.")
+            String response,
+            @JsonPropertyDescription("The controller conversation key.")
+            String controllerConversationKey
+    ) implements AgentRouting {}
+
+    @Builder(toBuilder = true)
+    @With
+    @JsonClassDescription("Result of a controller-to-agent response.")
+    record ControllerResponseResult(
+            @JsonPropertyDescription("Unique context id for this result.")
+            @SkipPropertyFilter
+            ArtifactKey contextId,
+            @JsonPropertyDescription("The response text delivered to the agent.")
+            String response,
+            @JsonPropertyDescription("The controller conversation key.")
+            String controllerConversationKey,
+            @SkipPropertyFilter
+            WorktreeSandboxContext worktreeContext
+    ) implements AgentResult {
+        @Override
+        public String prettyPrint() {
+            StringBuilder builder = new StringBuilder("Controller Response Result\n");
+            appendPrettyText(builder, "Response", response);
+            appendPrettyLine(builder, "Conversation Key", controllerConversationKey);
             return builder.toString().trim();
         }
 

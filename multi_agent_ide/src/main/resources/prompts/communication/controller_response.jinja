@@ -1,0 +1,12 @@
+## Controller Response to Agent
+
+**To**: {{ targetAgentKey }}{% if targetAgentType %} ({{ targetAgentType }}){% endif %}
+
+### Response
+
+{{ message }}
+
+{% if checklistAction %}### Checklist Action
+
+{{ checklistAction }}
+{% endif %}

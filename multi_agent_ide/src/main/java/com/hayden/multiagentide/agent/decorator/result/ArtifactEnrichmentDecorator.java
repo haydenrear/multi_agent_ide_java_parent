@@ -159,6 +159,8 @@ public class ArtifactEnrichmentDecorator implements ResultDecorator {
                             .ticketAgentRequests(enrichRequest(routing.ticketAgentRequests(), operationContext))
                             .build();
             case AgentModels.AgentCallRouting ignored -> t;
+            case AgentModels.ControllerCallRouting ignored -> t;
+            case AgentModels.ControllerResponseRouting ignored -> t;
         };
     }
 

@@ -120,6 +120,10 @@ public class RequestEnrichment {
                     findLastFromHistory(history, AgentModels.AiTransformerRequest.class);
             case AgentModels.AgentCallResult ignored ->
                     findLastFromHistory(history, AgentModels.AgentToAgentRequest.class);
+            case AgentModels.ControllerCallResult ignored ->
+                    findLastFromHistory(history, AgentModels.AgentToControllerRequest.class);
+            case AgentModels.ControllerResponseResult ignored ->
+                    findLastFromHistory(history, AgentModels.ControllerToAgentRequest.class);
         };
     }
 
@@ -467,6 +471,14 @@ public class RequestEnrichment {
             case AgentModels.AgentCallResult agentCallResult ->
                     agentCallResult.toBuilder()
                             .contextId(resolveContextId(context, AgentType.AGENT_CALL, parent))
+                            .build();
+            case AgentModels.ControllerCallResult controllerCallResult ->
+                    controllerCallResult.toBuilder()
+                            .contextId(resolveContextId(context, AgentType.CONTROLLER_CALL, parent))
+                            .build();
+            case AgentModels.ControllerResponseResult controllerResponseResult ->
+                    controllerResponseResult.toBuilder()
+                            .contextId(resolveContextId(context, AgentType.CONTROLLER_RESPONSE, parent))
                             .build();
         };
 

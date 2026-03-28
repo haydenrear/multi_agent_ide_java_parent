@@ -446,6 +446,10 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
                     }
                     case AgentModels.AgentCallResult ignored -> {
                     }
+                    case AgentModels.ControllerCallResult ignored -> {
+                    }
+                    case AgentModels.ControllerResponseResult ignored -> {
+                    }
                 }
             }
 

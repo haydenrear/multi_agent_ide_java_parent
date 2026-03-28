@@ -287,6 +287,20 @@ public interface AgentInterfaces {
                     TEMPLATE_COMMUNICATION_AGENT_CALL,
                     AgentModels.AgentToAgentRequest.class, AgentModels.AgentCallRouting.class, AgentModels.AgentCallResult.class);
 
+            AgentActionMetadata<AgentModels.AgentToControllerRequest, AgentModels.ControllerCallRouting, AgentModels.ControllerCallResult>
+                    CALL_CONTROLLER = new AgentActionMetadata<>(
+                    AgentType.CONTROLLER_CALL, AGENT_NAME_CONTROLLER_CALL,
+                    ACTION_CONTROLLER_CALL, METHOD_CALL_CONTROLLER,
+                    TEMPLATE_COMMUNICATION_CONTROLLER_CALL,
+                    AgentModels.AgentToControllerRequest.class, AgentModels.ControllerCallRouting.class, AgentModels.ControllerCallResult.class);
+
+            AgentActionMetadata<AgentModels.ControllerToAgentRequest, AgentModels.ControllerResponseRouting, AgentModels.ControllerResponseResult>
+                    RESPOND_TO_AGENT = new AgentActionMetadata<>(
+                    AgentType.CONTROLLER_RESPONSE, AGENT_NAME_CONTROLLER_RESPONSE,
+                    ACTION_CONTROLLER_RESPONSE, METHOD_RESPOND_TO_AGENT,
+                    TEMPLATE_COMMUNICATION_CONTROLLER_RESPONSE,
+                    AgentModels.ControllerToAgentRequest.class, AgentModels.ControllerResponseRouting.class, AgentModels.ControllerResponseResult.class);
+
         }
 
     }
@@ -425,6 +439,18 @@ public interface AgentInterfaces {
     String ACTION_AGENT_CALL = "agent-call";
     String METHOD_CALL_AGENT = "callAgent";
     String TEMPLATE_COMMUNICATION_AGENT_CALL = "communication/agent_call";
+
+    // Controller call (agent-to-controller communication) constants
+    String AGENT_NAME_CONTROLLER_CALL = "controller-call";
+    String ACTION_CONTROLLER_CALL = "controller-call";
+    String METHOD_CALL_CONTROLLER = "callController";
+    String TEMPLATE_COMMUNICATION_CONTROLLER_CALL = "communication/controller_call";
+
+    // Controller response (controller-to-agent communication) constants
+    String AGENT_NAME_CONTROLLER_RESPONSE = "controller-response";
+    String ACTION_CONTROLLER_RESPONSE = "controller-response";
+    String METHOD_RESPOND_TO_AGENT = "respondToAgent";
+    String TEMPLATE_COMMUNICATION_CONTROLLER_RESPONSE = "communication/controller_response";
 
     String UNKNOWN_VALUE = "unknown";
     String RETURN_ROUTE_NONE = "none";

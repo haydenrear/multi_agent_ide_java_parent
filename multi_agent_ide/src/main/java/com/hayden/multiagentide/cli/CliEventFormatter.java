@@ -438,6 +438,10 @@ public class CliEventFormatter {
                     "AiTransformerResult " + summary;
             case AgentModels.AgentCallResult r ->
                     "AgentCallResult " + summary;
+            case AgentModels.ControllerCallResult r ->
+                    "ControllerCallResult " + summary;
+            case AgentModels.ControllerResponseResult r ->
+                    "ControllerResponseResult " + summary;
         };
     }
 
