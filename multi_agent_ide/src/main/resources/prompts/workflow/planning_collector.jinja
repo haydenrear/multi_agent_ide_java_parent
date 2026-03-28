@@ -12,6 +12,9 @@ Return your result using the structured `PlanningCollectorResult` schema. Do NOT
 - `consolidatedOutput` — human-readable summary
 - `collectorDecision` — routing decision (decisionType, requestedPhase, rationale)
 
+{% include "workflow/_review_justification.jinja" %}
+{% include "justification/planning_collector.jinja" %}
+
 {% include "workflow/_interrupt_guidance.jinja" %}
 
 {% include "workflow/_collector_base.jinja" %}

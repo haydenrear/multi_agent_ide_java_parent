@@ -8,4 +8,7 @@ Primary routing behavior:
 - Use that request to consolidate all ticket agent outputs into a single ticket collector input.
 - Include enough synthesis/context so the collector can choose ADVANCE_PHASE vs ROUTE_BACK confidently.
 
+{% include "workflow/_review_justification.jinja" %}
+{% include "justification/ticket_dispatch.jinja" %}
+
 {% include "workflow/_interrupt_guidance.jinja" %}

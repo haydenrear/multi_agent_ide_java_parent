@@ -23,4 +23,7 @@ Scope coordination:
 - Each request should include `priorAgentSummary` describing what earlier agents found and what to NOT re-discover.
 - This prevents looping and ensures knowledge compounds across sequential agent invocations.
 
+{% include "workflow/_review_justification.jinja" %}
+{% include "justification/discovery_orchestrator.jinja" %}
+
 {% include "workflow/_interrupt_guidance.jinja" %}

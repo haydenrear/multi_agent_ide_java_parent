@@ -14,6 +14,9 @@ Happy path guidance:
   summarizing accomplishments and noting limitations in consolidatedOutput.
 - Only set contextManagerRequest when you need specific missing context from another agent chat/history.
 
+{% include "workflow/_review_justification.jinja" %}
+{% include "justification/orchestrator_collector.jinja" %}
+
 {% include "workflow/_interrupt_guidance.jinja" %}
 
 {% include "workflow/_collector_base.jinja" %}

@@ -21,4 +21,7 @@ Return your result using the structured `PlanningAgentResult` schema. Do NOT wri
 
 Do not write the plan to any file path. Do not use Edit, Write, or Terminal tools. Return the structured result directly.
 
+{% include "workflow/_review_justification.jinja" %}
+{% include "justification/planning.jinja" %}
+
 {% include "workflow/_interrupt_guidance.jinja" %}

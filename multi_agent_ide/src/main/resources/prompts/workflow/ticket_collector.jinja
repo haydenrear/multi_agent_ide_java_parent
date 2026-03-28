@@ -6,6 +6,9 @@ Produce a summary with:
 - Failed tickets (with brief reasons)
 - Outstanding follow-ups
 
+{% include "workflow/_review_justification.jinja" %}
+{% include "justification/ticket_collector.jinja" %}
+
 {% include "workflow/_interrupt_guidance.jinja" %}
 
 {% include "workflow/_collector_base.jinja" %}
