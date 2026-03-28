@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 
@@ -39,8 +40,9 @@ public class GoalExecutor {
 
         try {
 
-            if (!Path.of(request.repositoryUrl()).toFile().exists()) {
-                throw new IllegalArgumentException("Repository did not exist!") ;
+            Path repoPath = resolveRepoPath(request.repositoryUrl());
+            if (!repoPath.toFile().exists()) {
+                throw new IllegalArgumentException("Repository did not exist: " + repoPath);
             }
 
             eventBus.publish(new Events.GoalStartedEvent(
@@ -66,6 +68,13 @@ public class GoalExecutor {
             log.error(message, e);
             eventBus.publish(Events.NodeErrorEvent.err(message, root));
         }
+    }
+
+    private static Path resolveRepoPath(String repositoryUrl) {
+        if (repositoryUrl.startsWith("file://")) {
+            return Path.of(URI.create(repositoryUrl));
+        }
+        return Path.of(repositoryUrl);
     }
 
 }
