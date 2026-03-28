@@ -58,6 +58,9 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | N6 | — | **GAP (P1)** |
 | N7 | — | **GAP (P1)** |
 | N8 | — | **GAP (P1)** |
+| H6 | — | **GAP (P0)** |
+| H7 | — | **GAP (P0)** |
+| H8 | — | GAP (P1) |
 
 ---
 
@@ -340,6 +343,21 @@ AiFilterResult, AiPropagatorResult, etc. resolve their DataLayerOperationNode us
 
 **Validates**: Data layer results are self-addressed. No dependency on findLastWorkflowRequest.
 
+### H6. ToolContextDecorators Execute Before LlmCallDecorators (P0)
+ToolContextDecorators (AddTopologyTools, AddMemoryToolCallDecorator, AddSkillToolContextDecorator, AddAcpTools, AddIntellij, RemoveIntellij) run in `DecorateRequestResults.decorateToolContext()` during the agent pipeline, BEFORE `DefaultLlmRunner.runWithTemplate()` is called. LlmCallDecorators (FilterPropertiesDecorator, ArtifactEmissionLlmCallDecorator, PromptHealthCheckLlmCallDecorator) run inside the runner.
+
+**Validates**: Tool context is fully populated by the time the runner applies it to the PromptRunner. No tools injected via LlmCallDecorator — those only handle prompt-level concerns.
+
+### H7. AddTopologyTools Injects call_controller, call_agent, list_agents (P0)
+Every workflow agent's ToolContext contains the three topology tools (call_controller, call_agent, list_agents) after ToolContextDecorator pipeline completes.
+
+**Validates**: AgentTopologyTools registered via `ToolAbstraction.fromToolCarrier()`. Tools available to ACP session. Agents can invoke call_controller for justification dialogue.
+
+### H8. ToolContextDecorator Order Respected (P1)
+RemoveIntellij (-10_001) runs before AddIntellij (-10_000). AddTopologyTools (-9_000) runs after both. AddSkillToolContextDecorator (0) runs last.
+
+**Validates**: ToolContextDecorator.order() is respected by `DecorateRequestResults.decorateToolContext()` sorted decorator list.
+
 ---
 
 ## I. BlackboardHistory / State Management
@@ -524,3 +542,6 @@ Polling `POST /api/ui/activity-check` with a nodeId returns counts of pending pe
 | N1       | X     | X      |            |          | X         |     |           |
 | N2       |       |        |            |          |           |     |           |
 | N4       | X     |        |            |          |           | X   |           |
+| H6       |       |        |            |          |           |     |           |
+| H7       |       |        |            |          |           |     |           |
+| H8       |       |        |            |          |           |     |           |

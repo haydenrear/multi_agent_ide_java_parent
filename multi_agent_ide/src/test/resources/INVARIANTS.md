@@ -28,6 +28,9 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | N-INV4 | PASS | INITIATED and RETURNED AgentCallEvents emitted with target="controller" |
 | N-INV5 | PASS | A2A node target fields (targetAgentKey, targetAgentType) populated correctly |
 | N-INV6 | — | Not yet validated (needs dedicated unit test for prompt contributor factory) |
+| H-INV3 | — | Not yet validated (needs unit test verifying LlmCallDecorators don't modify tcc()) |
+| H-INV4 | — | Not yet validated (needs integration test verifying topology tools in ToolContext) |
+| H-INV5 | — | Not yet validated (needs unit test on decorator ordering) |
 
 ### Trace Timing Gap (A-INV2)
 
@@ -252,6 +255,18 @@ Each invariant listed here should eventually be expanded into its own group of s
 **Invariant**: DataLayer result types (AiFilter, AiPropagator, CommitAgent, MergeConflict) resolve their node via result's own contextId. DataLayerOperationNode transitions to COMPLETED.
 **Search**: `*.graph.md` — DataLayer node status after corresponding call.
 
+### H-INV3. ToolContextDecorators Run Before LlmCallDecorators (H6)
+**Invariant**: All `ToolContextDecorator` implementations contribute to the `ToolContext` during `DecorateRequestResults.decorateToolContext()`, which executes in the agent pipeline before `DefaultLlmRunner.runWithTemplate()`. No `LlmCallDecorator` modifies tool context — only prompt-level concerns (FilterProperties, ArtifactEmission, PromptHealthCheck).
+**Search**: Code-level assertion. Verify `DefaultLlmRunner.llmCallDecorators` contains zero instances that modify `tcc()`.
+
+### H-INV4. Topology Tools Present in Every Agent ToolContext (H7)
+**Invariant**: After `decorateToolContext()` completes, the resulting `ToolContext.tools()` contains a `ToolAbstraction` wrapping `AgentTopologyTools` (which exposes call_controller, call_agent, list_agents). This holds for all agent types regardless of profile.
+**Search**: Code-level unit test. Integration evidence: agents can invoke `call_controller` during live workflow runs.
+
+### H-INV5. ToolContextDecorator Order Matches Declared Priority (H8)
+**Invariant**: `DecorateRequestResults.decorateToolContext()` sorts decorators by `order()` before applying. RemoveIntellij (-10_001) < AddIntellij/AddMemoryToolCallDecorator/AddAcpTools (-10_000) < AddTopologyTools (-9_000) < AddSkillToolContextDecorator (0).
+**Search**: Code-level unit test on sorted decorator list.
+
 ---
 
 ## I. BlackboardHistory
@@ -380,6 +395,9 @@ Each invariant listed here should eventually be expanded into its own group of s
 | H3 | — (code-level) |
 | H4 | H-INV1, I-INV2 |
 | H5 | H-INV2 |
+| H6 | H-INV3 |
+| H7 | H-INV4 |
+| H8 | H-INV5 |
 | I1 | I-INV1 |
 | I2 | I-INV2 |
 | I3 | I-INV3 |

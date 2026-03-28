@@ -125,9 +125,59 @@ Generated: 2026-03-27
 
 ---
 
+## E11. ToolContextDecorator Contributions Visible in ACP Session
+
+**Where**: Application runtime log (`multi-agent-ide.log`) — grep for `applyToolContext` or `ToolAbstraction` or `AgentTopologyTools`
+**Question**: After the ToolContextDecorator→LlmCallDecorator split, are all expected tools actually reaching the ACP session? Specifically: do call_controller, call_agent, and list_agents appear in the tool list sent to the LLM?
+**Why it matters**: The previous bug (tools added via LlmCallDecorator but applied before decorators ran) was silent — no error, agents just didn't see the tools. If the ToolContextDecorator pipeline has an ordering or registration issue, the same silent failure occurs.
+**What to look for**: Set a breakpoint at `DefaultLlmRunner.applyToolContext()` (line ~79). Inspect the `toolContext.tools()` list. It should contain: AskUserQuestion (always), AgentTopologyTools (from AddTopologyTools), hindsight tools (from AddMemoryToolCallDecorator if available), skill tools (from AddSkillToolContextDecorator if applicable). If AgentTopologyTools is missing, the ToolContextDecorator was not wired or ordered correctly.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E12. Live Workflow: call_controller Invocation by Agents
+
+**Where**: `POST /api/agent-conversations/list` with the workflow nodeId — or `poll.py` CONVERSATIONS section
+**Question**: During a live deployed workflow with justification prompts in templates, do agents actually invoke `call_controller`? If not, why — is the tool missing, is the prompt not compelling enough, or does the LLM ignore it?
+**Why it matters**: The justification dialogue is the core verification mechanism for the controller skill. If agents don't call it, the entire review checklist workflow is dead. The prompt says "MUST use call_controller" but LLMs may not comply.
+**What to look for**:
+1. Poll output → CONVERSATIONS section shows entries with `agentType` and `pending=true`
+2. If 0 conversations: check poll → PENDING PERMISSIONS for tool call evidence
+3. If still nothing: check runtime log for "AgentTopologyTools" or "call_controller" to see if the tool was even offered
+4. Breakpoint: `AgentTopologyTools.callController()` — if never hit, the tool isn't in the ACP session
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E13. DecoratorContext.agentRequest() Cast Safety
+
+**Where**: `AddIntellij.resolveMainWorktreePath()` and `RemoveIntellij.resolveMainWorktreePath()` — both cast `DecoratorContext.agentRequest()` from `Artifact.AgentModel` to `AgentModels.AgentRequest`
+**Question**: Are there cases where `agentRequest()` is NOT an `AgentModels.AgentRequest` (e.g., InterruptRequest, AgentToAgentRequest, ControllerToAgentRequest)? If so, the `instanceof` check silently returns empty — is that the right behavior for those request types?
+**Why it matters**: If an interrupt handler or A2A call triggers AddIntellij, it won't find a worktree path (even if one exists on the underlying request). This could mean IntelliJ MCP tools are missing from those call contexts.
+**What to look for**: Set breakpoint at `AddIntellij.decorate()`. Check what type `decoratorContext.agentRequest()` actually is during interrupt-handler and A2A call flows. If it's `InterruptRequest`, the worktree path comes from `InterruptRequest.worktreeContext()` which exists — but the cast will miss it.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E14. Propagation Item Payloads During Review Justification
+
+**Where**: `POST /api/propagations/items/by-node` or `poll.py` PROPAGATION ITEMS section — `propagation_detail.py` for full payload
+**Question**: When agents do call `call_controller`, what does the propagation item look like? Does the `summaryText` capture the justification, or is it lost in the interrupt resolution flow?
+**Why it matters**: The controller skill user needs to see the agent's justification rationale in the propagation data to make a review decision. If propagation items only capture the structured output (DiscoveryAgentRouting, etc.) and not the justification dialogue, the controller is flying blind.
+**What to look for**: After a live run where agents call `call_controller`, use `propagation_detail.py` to examine the full payload. Check if `llmOutput` or `propagationRequest` contains the justification text. If not, the justification lives only in the interrupt resolution text, which is not propagated.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
 ## Future Exploration Candidates
 
 - **F-E1**: Data layer operation timing relative to agent completion — do DataLayerOperationNodes always complete before their parent agent completes?
 - **F-E2**: Blackboard entry types at each phase boundary — does findLastWorkflowRequest consistently return the right type?
 - **F-E3**: Concurrent event emission ordering under parallel agents — are events interleaved or batched?
 - **F-E4**: Graph snapshot consistency — does the same graph state ever appear in two consecutive snapshots (indicating a no-op LLM call)?
+- **F-E5**: ToolContextDecorator sort stability — if two decorators share the same `order()` value, does their relative execution order vary between runs? Could cause non-deterministic tool registration.
+- **F-E6**: Justification prompt template resolution — do all 16 workflow templates actually include `_review_justification.jinja` and their role-specific justification partial? Grep the resolved prompt text in trace data.
