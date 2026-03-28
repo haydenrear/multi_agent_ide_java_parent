@@ -40,7 +40,9 @@ public class GoalExecutor {
 
         try {
 
-            Path repoPath = resolveRepoPath(request.repositoryUrl());
+            String normalizedUrl = normalizeRepositoryUrl(request.repositoryUrl());
+
+            Path repoPath = resolveRepoPath(normalizedUrl);
             if (!repoPath.toFile().exists()) {
                 throw new IllegalArgumentException("Repository did not exist: " + repoPath);
             }
@@ -50,14 +52,14 @@ public class GoalExecutor {
                     java.time.Instant.now(),
                     nodeId,
                     request.goal(),
-                    request.repositoryUrl(),
+                    normalizedUrl,
                     baseBranch,
                     request.title(),
                     request.tags()
             ));
 
             agentLifecycleHandler.initializeOrchestrator(
-                    request.repositoryUrl(),
+                    normalizedUrl,
                     baseBranch,
                     request.goal(),
                     request.title(),
@@ -70,11 +72,22 @@ public class GoalExecutor {
         }
     }
 
-    private static Path resolveRepoPath(String repositoryUrl) {
-        if (repositoryUrl.startsWith("file://")) {
-            return Path.of(URI.create(repositoryUrl));
+    static String normalizeRepositoryUrl(String repositoryUrl) {
+        String url = repositoryUrl;
+        // Strip file:// scheme to get a plain filesystem path
+        if (url.startsWith("file://")) {
+            url = Path.of(URI.create(url)).toString();
         }
-        return Path.of(repositoryUrl);
+        // If path ends with .git, resolve to the parent directory
+        Path p = Path.of(url);
+        if (p.getFileName() != null && p.getFileName().toString().equals(".git")) {
+            url = p.getParent().toString();
+        }
+        return url;
+    }
+
+    private static Path resolveRepoPath(String normalizedUrl) {
+        return Path.of(normalizedUrl);
     }
 
 }
