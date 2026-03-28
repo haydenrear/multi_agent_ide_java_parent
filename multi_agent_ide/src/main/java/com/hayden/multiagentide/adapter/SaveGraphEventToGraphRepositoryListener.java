@@ -149,6 +149,8 @@ public class SaveGraphEventToGraphRepositoryListener implements EventListener {
             }
             case Events.AgentCallCompletedEvent ignored -> {
             }
+            case Events.AgentCallEvent ignored -> {
+            }
         }
     }
 

@@ -5099,6 +5099,8 @@ public interface AgentModels {
     record CallChainEntry(
             ArtifactKey agentKey,
             AgentType agentType,
+            ArtifactKey targetAgentKey,
+            AgentType targetAgentType,
             java.time.Instant timestamp
     ) {}
 

@@ -276,6 +276,8 @@ public class SessionKeyResolutionService implements EventListener {
             chain.addFirst(new AgentModels.CallChainEntry(
                     new ArtifactKey(current.sourceAgentKey()),
                     current.sourceAgentType(),
+                    current.targetAgentKey() != null ? new ArtifactKey(current.targetAgentKey()) : null,
+                    current.targetAgentType(),
                     current.createdAt()
             ));
             String sourceKey = current.sourceAgentKey();

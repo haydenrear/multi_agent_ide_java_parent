@@ -3,6 +3,8 @@ package com.hayden.multiagentide.agent;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentPlatform;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.commitdiffcontext.cdc_utils.SetFromHeader;
 import com.hayden.commitdiffcontext.mcp.ToolCarrier;
 import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
@@ -27,8 +29,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.hayden.acp_cdc_ai.acp.AcpChatModel.MCP_SESSION_HEADER;
 
@@ -45,6 +49,7 @@ public class AgentTopologyTools implements ToolCarrier {
     private DecorateRequestResults decorateRequestResults;
     private LlmRunner llmRunner;
     private PromptContextFactory promptContextFactory;
+    private EventBus eventBus;
 
     @Autowired
     public void setAgentPlatform(AgentPlatform agentPlatform) {
@@ -64,6 +69,11 @@ public class AgentTopologyTools implements ToolCarrier {
     @Autowired
     public void setPromptContextFactory(PromptContextFactory promptContextFactory) {
         this.promptContextFactory = promptContextFactory;
+    }
+
+    @Autowired
+    public void setEventBus(@org.springframework.context.annotation.Lazy EventBus eventBus) {
+        this.eventBus = eventBus;
     }
 
     @Tool(name = "list_agents", description = "Lists all available agent sessions that can be communicated with. "
@@ -133,6 +143,8 @@ public class AgentTopologyTools implements ToolCarrier {
                 agentCommunicationService.validateCall(callingKey, callingType, targetKey, targetType, callChain);
 
         if (!validation.valid()) {
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, callingType, targetAgentKey, targetType,
+                    callChain, message, null, validation.error(), null);
             return validation.error();
         }
 
@@ -235,6 +247,10 @@ public class AgentTopologyTools implements ToolCarrier {
                     )
             );
 
+            // Emit INITIATED event before LLM call
+            emitCallEvent(Events.AgentCallEventType.INITIATED, sessionId, callingType, targetAgentKey, targetType,
+                    callChain, message, null, null, null);
+
             // 4. Call LLM through the target agent's session (routed by PromptContext.chatId())
             AgentModels.AgentCallRouting routing = llmRunner.runWithTemplate(
                     AgentInterfaces.TEMPLATE_COMMUNICATION_AGENT_CALL,
@@ -261,11 +277,18 @@ public class AgentTopologyTools implements ToolCarrier {
                 responseText = "Agent responded but returned no content.";
             }
 
+            // Emit RETURNED event on success
+            emitCallEvent(Events.AgentCallEventType.RETURNED, sessionId, callingType, targetAgentKey, targetType,
+                    callChain, null, responseText, null, null);
+
             return responseText;
         } catch (Exception e) {
             log.error("Failed to call agent {}: {}", targetAgentKey, e.getMessage(), e);
-            return "ERROR: Agent %s is down. Try an alternative route. Detail: %s"
+            String errorMsg = "ERROR: Agent %s is down. Try an alternative route. Detail: %s"
                     .formatted(targetAgentKey, e.getMessage());
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, callingType, targetAgentKey, targetType,
+                    callChain, null, null, errorMsg, null);
+            return errorMsg;
         }
     }
 
@@ -285,6 +308,40 @@ public class AgentTopologyTools implements ToolCarrier {
             searchThrough = searchThrough.parent().orElse(null);
         }
         return null;
+    }
+
+    private void emitCallEvent(
+            Events.AgentCallEventType callEventType,
+            String callerSessionId, AgentType callerType,
+            String targetSessionId, AgentType targetType,
+            List<AgentModels.CallChainEntry> callChain,
+            String message, String response, String errorDetail, String checklistAction
+    ) {
+        if (eventBus == null) return;
+        try {
+            List<String> chainKeys = callChain != null
+                    ? callChain.stream()
+                        .map(e -> e.targetAgentKey() != null
+                                ? e.agentKey().value() + "->" + e.targetAgentKey().value()
+                                : e.agentKey().value())
+                        .toList()
+                    : List.of();
+            eventBus.publish(new Events.AgentCallEvent(
+                    UUID.randomUUID().toString(),
+                    Instant.now(),
+                    callerSessionId,
+                    callEventType,
+                    callerSessionId,
+                    callerType != null ? callerType.wireValue() : null,
+                    targetSessionId,
+                    targetType != null ? targetType.wireValue() : null,
+                    chainKeys,
+                    null, // availableAgents — populated lazily to avoid overhead
+                    message, response, errorDetail, checklistAction
+            ));
+        } catch (Exception e) {
+            log.warn("Failed to emit AgentCallEvent: {}", e.getMessage());
+        }
     }
 
     private String toJson(Object obj) {

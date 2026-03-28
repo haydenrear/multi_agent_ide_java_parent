@@ -160,7 +160,8 @@ public interface Events {
             @JsonSubTypes.Type(value = PropagationEvent.class, name = "PROPAGATION"),
             @JsonSubTypes.Type(value = TransformationEvent.class, name = "TRANSFORMATION"),
             @JsonSubTypes.Type(value = AgentCallStartedEvent.class, name = "AGENT_CALL_STARTED"),
-            @JsonSubTypes.Type(value = AgentCallCompletedEvent.class, name = "AGENT_CALL_COMPLETED")
+            @JsonSubTypes.Type(value = AgentCallCompletedEvent.class, name = "AGENT_CALL_COMPLETED"),
+            @JsonSubTypes.Type(value = AgentCallEvent.class, name = "AGENT_CALL")
     })
     sealed interface GraphEvent extends FilteredObject, HasContextId {
 
@@ -568,6 +569,15 @@ public interface Events {
                         line("timestamp", e.timestamp()),
                         line("nodeId", e.nodeId()),
                         line("callId", e.callId()));
+                case AgentCallEvent e -> formatEvent("Agent Call Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("callEventType", e.callEventType() != null ? e.callEventType().name() : "null"),
+                        line("callerSessionId", e.callerSessionId()),
+                        line("targetSessionId", e.targetSessionId()),
+                        line("callerAgentType", e.callerAgentType()),
+                        line("targetAgentType", e.targetAgentType()));
             };
         }
 
@@ -1760,6 +1770,39 @@ public interface Events {
         @Override
         public String eventType() {
             return "AGENT_CALL_COMPLETED";
+        }
+    }
+
+    /**
+     * High-level observability event for all communication actions (agent-to-agent, agent-to-controller,
+     * controller-to-agent). Covers the full lifecycle: INITIATED, INTERMEDIARY, RETURNED, ERROR.
+     */
+    enum AgentCallEventType {
+        INITIATED,
+        INTERMEDIARY,
+        RETURNED,
+        ERROR
+    }
+
+    record AgentCallEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            AgentCallEventType callEventType,
+            String callerSessionId,
+            String callerAgentType,
+            String targetSessionId,
+            String targetAgentType,
+            List<String> callChain,
+            List<String> availableAgents,
+            String message,
+            String response,
+            String errorDetail,
+            String checklistAction
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "AGENT_CALL";
         }
     }
 }

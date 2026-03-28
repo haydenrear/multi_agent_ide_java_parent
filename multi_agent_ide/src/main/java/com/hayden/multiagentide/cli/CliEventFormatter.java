@@ -136,6 +136,10 @@ public class CliEventFormatter {
                                 + " callId=" + summarize(normalizedArgs, e.callId()));
                 case Events.AgentCallCompletedEvent e -> format(normalizedArgs, "AGENT_CALL", e,
                         "callId=" + summarize(normalizedArgs, e.callId()));
+                case Events.AgentCallEvent e -> format(normalizedArgs, "AGENT_CALL", e,
+                        (e.callEventType() != null ? e.callEventType().name() : "")
+                                + " caller=" + summarize(normalizedArgs, e.callerSessionId())
+                                + " target=" + summarize(normalizedArgs, e.targetSessionId()));
             };
     }
 

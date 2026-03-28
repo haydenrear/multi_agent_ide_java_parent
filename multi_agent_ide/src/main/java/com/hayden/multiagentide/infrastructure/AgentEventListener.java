@@ -188,6 +188,11 @@ public class AgentEventListener implements EventListener {
             case Events.AgentCallCompletedEvent callCompleted -> {
                 log.debug("Agent call completed: callId={}", callCompleted.callId());
             }
+            case Events.AgentCallEvent agentCallEvent -> {
+                log.debug("Agent call event: {} type={} caller={} target={}",
+                        agentCallEvent.eventId(), agentCallEvent.callEventType(),
+                        agentCallEvent.callerAgentType(), agentCallEvent.targetAgentType());
+            }
         }
     }
 

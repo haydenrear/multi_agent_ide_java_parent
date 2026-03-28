@@ -4,6 +4,7 @@ import com.hayden.acp_cdc_ai.acp.AcpSessionManager;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.topology.CommunicationTopologyConfig;
+import com.hayden.multiagentide.topology.CommunicationTopologyProvider;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
@@ -26,7 +27,7 @@ public class AgentCommunicationService {
 
     private final AcpSessionManager acpSessionManager;
     private final GraphRepository graphRepository;
-    private final CommunicationTopologyConfig topologyConfig;
+    private final CommunicationTopologyProvider topologyProvider;
     private final SessionKeyResolutionService sessionKeyResolutionService;
 
     public record AgentAvailabilityEntry(
@@ -83,7 +84,7 @@ public class AgentCommunicationService {
         for (ArtifactKey key : filteredKeys) {
             AgentType targetType = sessionAgentTypes.get(key);
             boolean topologyPermitted = callingAgentType != null
-                    && topologyConfig.isCommunicationAllowed(callingAgentType, targetType);
+                    && topologyProvider.isCommunicationAllowed(callingAgentType, targetType);
 
             result.add(new AgentAvailabilityEntry(
                     key.value(),
@@ -114,7 +115,7 @@ public class AgentCommunicationService {
 
         // 2. Topology check
         if (callingType != null && targetType != null
-                && !topologyConfig.isCommunicationAllowed(callingType, targetType)) {
+                && !topologyProvider.isCommunicationAllowed(callingType, targetType)) {
             return CallValidationResult.reject(
                     "ERROR: Communication not permitted by topology rules. %s cannot call %s."
                             .formatted(callingType.wireValue(), targetType.wireValue()));
@@ -122,10 +123,10 @@ public class AgentCommunicationService {
 
         // 3. Call chain depth check
         int depth = callChain != null ? callChain.size() : 0;
-        if (depth >= topologyConfig.maxCallChainDepth()) {
+        if (depth >= topologyProvider.maxCallChainDepth()) {
             return CallValidationResult.reject(
                     "ERROR: Call chain depth %d exceeds maximum %d. Call rejected."
-                            .formatted(depth, topologyConfig.maxCallChainDepth()));
+                            .formatted(depth, topologyProvider.maxCallChainDepth()));
         }
 
         // 4. Loop detection via call chain parameter (explicit chain from tool parameter)
@@ -162,7 +163,11 @@ public class AgentCommunicationService {
     private String formatCallChain(@NonNull List<AgentModels.CallChainEntry> chain, @NonNull ArtifactKey target) {
         StringBuilder sb = new StringBuilder();
         for (AgentModels.CallChainEntry entry : chain) {
-            sb.append(entry.agentKey().value()).append(" -> ");
+            sb.append(entry.agentKey().value());
+            if (entry.targetAgentKey() != null) {
+                sb.append(" -> ").append(entry.targetAgentKey().value());
+            }
+            sb.append(" -> ");
         }
         sb.append(target.value());
         return sb.toString();
