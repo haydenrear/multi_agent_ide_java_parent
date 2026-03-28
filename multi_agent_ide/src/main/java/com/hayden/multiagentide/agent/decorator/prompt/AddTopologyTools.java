@@ -2,8 +2,9 @@ package com.hayden.multiagentide.agent.decorator.prompt;
 
 import com.hayden.multiagentide.agent.AgentTopologyTools;
 import com.hayden.multiagentidelib.tool.ToolAbstraction;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -15,10 +16,11 @@ import java.util.ArrayList;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AddTopologyTools implements LlmCallDecorator {
 
-    private final AgentTopologyTools agentTopologyTools;
+    @Autowired
+    @Lazy
+    private AgentTopologyTools agentTopologyTools;
 
     @Override
     public int order() {
