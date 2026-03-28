@@ -3,7 +3,7 @@ package com.hayden.multiagentide.agent.decorator.request;
 import com.embabel.agent.api.common.OperationContext;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
-import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
+import com.hayden.multiagentide.agent.decorator.tools.ToolContextDecorator;
 import com.hayden.multiagentide.agent.decorator.result.FinalResultDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentidelib.agent.AgentModels;

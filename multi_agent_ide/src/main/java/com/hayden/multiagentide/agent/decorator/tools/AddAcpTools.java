@@ -1,20 +1,20 @@
-package com.hayden.multiagentide.agent.decorator.prompt;
+package com.hayden.multiagentide.agent.decorator.tools;
 
 import com.hayden.multiagentide.agent.AcpTooling;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentidelib.tool.ToolAbstraction;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
 @Profile("goose")
-public class AddAcpTools implements LlmCallDecorator {
+public class AddAcpTools implements ToolContextDecorator {
 
     @Autowired(required = false)
     private AcpTooling tools;
@@ -25,17 +25,7 @@ public class AddAcpTools implements LlmCallDecorator {
     }
 
     @Override
-    public LlmCallContext decorate(LlmCallContext promptContext) {
-        var t = new ArrayList<>(promptContext.tcc().tools());
-
-        t.add(ToolAbstraction.fromToolCarrier(tools));
-
-        return promptContext.toBuilder()
-                .tcc(
-                        promptContext.tcc().toBuilder()
-                                .tools(t)
-                                .build())
-                .build();
+    public ToolContext decorate(ToolContext t, DecoratorContext decoratorContext) {
+        return t.withTool(ToolAbstraction.fromToolCarrier(tools));
     }
-
 }

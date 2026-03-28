@@ -1,10 +1,9 @@
 package com.hayden.multiagentide.service;
 
 import com.embabel.agent.api.common.OperationContext;
-import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
-import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
+import com.hayden.multiagentide.agent.decorator.tools.ToolContextDecorator;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentidelib.llm.LlmRunner;

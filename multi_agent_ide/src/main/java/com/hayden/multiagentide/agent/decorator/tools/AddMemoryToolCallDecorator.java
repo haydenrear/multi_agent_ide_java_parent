@@ -1,10 +1,11 @@
-package com.hayden.multiagentide.agent.decorator.prompt;
+package com.hayden.multiagentide.agent.decorator.tools;
 
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentidelib.tool.ToolAbstraction;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -15,12 +16,11 @@ import java.util.Optional;
 import java.util.function.Predicate;
 
 @Slf4j
-@Component
+// @Component
 @RequiredArgsConstructor
-public class AddMemoryToolCallDecorator implements LlmCallDecorator {
+public class AddMemoryToolCallDecorator implements ToolContextDecorator {
 
     private final McpToolObjectRegistrar toolObjectRegistry;
-
 
     @Override
     public int order() {
@@ -28,19 +28,8 @@ public class AddMemoryToolCallDecorator implements LlmCallDecorator {
     }
 
     @Override
-    public <T> LlmCallContext<T> decorate(LlmCallContext<T> promptContext) {
-        var t = withHindsight(promptContext);
-
-        return promptContext.toBuilder()
-                .tcc(
-                        promptContext.tcc().toBuilder()
-                                .tools(t)
-                                .build())
-                .build();
-    }
-
-    private @NonNull List<ToolAbstraction> withHindsight(LlmCallContext promptContext) {
-        var t = new ArrayList<>(promptContext.tcc().tools());
+    public ToolContext decorate(ToolContext t, DecoratorContext decoratorContext) {
+        var tools = new ArrayList<>(t.tools());
 
         toolObjectRegistry.tool("hindsight")
                 .flatMap(to -> {
@@ -51,9 +40,9 @@ public class AddMemoryToolCallDecorator implements LlmCallDecorator {
                             .filter(Predicate.not(CollectionUtils::isEmpty));
                 })
                 .ifPresentOrElse(
-                        t::addAll,
+                        tools::addAll,
                         () -> log.error("Could not find hindsight tool."));
 
-        return t;
+        return new ToolContext(tools);
     }
 }

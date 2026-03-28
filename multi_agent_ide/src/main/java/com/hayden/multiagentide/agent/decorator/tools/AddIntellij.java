@@ -1,11 +1,13 @@
-package com.hayden.multiagentide.agent.decorator.prompt;
+package com.hayden.multiagentide.agent.decorator.tools;
 
 import com.embabel.agent.api.common.ToolObject;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
+import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentidelib.tool.ToolAbstraction;
-import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,10 +20,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
-import java.time.Duration;
-import java.util.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -31,7 +33,7 @@ import java.util.stream.Stream;
 @Component
 @Profile("intellij")
 @RequiredArgsConstructor
-public class AddIntellij implements LlmCallDecorator {
+public class AddIntellij implements ToolContextDecorator {
 
     private static final String INTELLIJ_TOOL_NAME = "intellij";
     private static final String INTELLIJ_CLI = "idea";
@@ -49,24 +51,22 @@ public class AddIntellij implements LlmCallDecorator {
     }
 
     @Override
-    public <T> LlmCallContext<T> decorate(LlmCallContext<T> promptContext) {
-        ensureWorktreeProjectOpened(promptContext);
-        var t = withIntellij(promptContext);
+    public ToolContext decorate(ToolContext t, DecoratorContext decoratorContext) {
+        resolveMainWorktreePath(decoratorContext)
+                .map(Path::toAbsolutePath)
+                .map(Path::normalize)
+                .ifPresent(this::openInIntellijIfNeeded);
 
-        return promptContext.toBuilder()
-                .tcc(
-                        promptContext.tcc().toBuilder()
-                                .tools(t)
-                                .build())
-                .build();
+        var tools = withIntellij(t, decoratorContext);
+        return new ToolContext(tools);
     }
 
     Set<String> enabledTools = Set.of(
         "build_project", "get_file_problems", "get_project_dependencies",
         "get_project_modules", "get_symbol_info", "rename_refactoring", "get_repositories");
 
-    private @NonNull List<ToolAbstraction> withIntellij(LlmCallContext promptContext) {
-        var t = new ArrayList<>(promptContext.tcc().tools());
+    private @NonNull List<ToolAbstraction> withIntellij(ToolContext toolContext, DecoratorContext decoratorContext) {
+        var t = new ArrayList<>(toolContext.tools());
 
         toolObjectRegistry.tool(INTELLIJ_TOOL_NAME)
                 .map(to -> {
@@ -83,6 +83,8 @@ public class AddIntellij implements LlmCallDecorator {
                     var obj = to.stream().filter(Objects::nonNull)
                             .map(ToolAbstraction.EmbabelToolObject::new).toList();
 
+                    Path worktreePath = resolveMainWorktreePath(decoratorContext).orElse(null);
+
                     for (ToolObject o : to) {
                         var f = o.getObjects().stream()
                                 .flatMap(thisToolObj -> thisToolObj instanceof SyncMcpToolCallback s
@@ -90,7 +92,7 @@ public class AddIntellij implements LlmCallDecorator {
                                 .filter(sm -> Objects.equals("build_project", sm.getToolDefinition().name()))
                                 .findFirst();
 
-                        if (f.isPresent()) {
+                        if (f.isPresent() && worktreePath != null) {
                             try {
 //                              build the project quick - waits until it's fully booted.
                                 var called = RetryTemplate.builder()
@@ -101,7 +103,7 @@ public class AddIntellij implements LlmCallDecorator {
                                             try {
                                                 return f.get().call(objectMapper.writeValueAsString(Map.of(
                                                         "projectPath",
-                                                        promptContext.promptContext().currentRequest().worktreeContext().mainWorktree().worktreePath().toAbsolutePath().toString())));
+                                                        worktreePath.toAbsolutePath().toString())));
                                             } catch (
                                                     JsonProcessingException e) {
                                                 throw new RuntimeException(e);
@@ -127,30 +129,6 @@ public class AddIntellij implements LlmCallDecorator {
                                 INTELLIJ_TOOL_NAME));
 
         return t;
-    }
-
-    public void ensureWorktreeProjectOpened(LlmCallContext llmCallContext) {
-        resolveMainWorktreePath(llmCallContext)
-                .map(Path::toAbsolutePath)
-                .map(Path::normalize)
-                .ifPresent(this::openInIntellijIfNeeded);
-    }
-
-    private Optional<Path> resolveMainWorktreePath(LlmCallContext llmCallContext) {
-        return Optional.ofNullable(llmCallContext)
-                .map(LlmCallContext::promptContext)
-                .flatMap(this::resolveMainWorktreePath);
-    }
-
-    private Optional<Path> resolveMainWorktreePath(PromptContext promptContext) {
-        return Optional.ofNullable(promptContext.currentRequest())
-                .map(ar -> ar.worktreeContext())
-                .map(ws -> ws.mainWorktree())
-                .map(main -> main.worktreePath())
-                .or(() -> Optional.ofNullable(promptContext.previousRequest())
-                        .map(ar -> ar.worktreeContext())
-                        .map(ws -> ws.mainWorktree())
-                        .map(main -> main.worktreePath()));
     }
 
     public void openInIntellijIfNeeded(Path worktreePath) {
@@ -185,5 +163,19 @@ public class AddIntellij implements LlmCallDecorator {
             Thread.currentThread().interrupt();
             log.warn("Interrupted while trying to open IntelliJ for worktree '{}'.", worktreePath, e);
         }
+    }
+
+    private Optional<Path> resolveMainWorktreePath(DecoratorContext decoratorContext) {
+        return resolveFromAgentModel(decoratorContext.agentRequest())
+                .or(() -> resolveFromAgentModel(decoratorContext.lastRequest()));
+    }
+
+    private Optional<Path> resolveFromAgentModel(com.hayden.acp_cdc_ai.acp.events.Artifact.AgentModel model) {
+        if (model instanceof AgentModels.AgentRequest ar) {
+            return Optional.ofNullable(ar.worktreeContext())
+                    .map(ws -> ws.mainWorktree())
+                    .map(main -> main.worktreePath());
+        }
+        return Optional.empty();
     }
 }

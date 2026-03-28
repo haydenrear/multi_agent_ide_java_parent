@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.service;
 
+import com.embabel.agent.api.common.nested.ObjectCreator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.embabel.agent.api.common.ContextualPromptElement;
 import com.embabel.agent.api.common.OperationContext;
@@ -69,20 +70,28 @@ public class DefaultLlmRunner implements LlmRunner {
                 .withFirstAvailableLlmOf("acp-chat-model", encodedAcpOptions)
                 .withPromptElements(promptElements.toArray(ContextualPromptElement[]::new));
 
-        aiQuery = applyToolContext(aiQuery, toolContext);
-
-        var aiQueryWithTemplate = aiQuery
-                .creating(responseClass);
-
-        var llmCallContext = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, aiQueryWithTemplate, model, context);
+        var llmCallContext = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, null, model, context);
 
         for (var l : llmCallDecorators) {
             llmCallContext = l.decorate(llmCallContext);
         }
 
+        aiQuery = applyToolContext(aiQuery, llmCallContext.tcc());
+
+        var aiQueryWithTemplate = aiQuery
+                .creating(responseClass);
+
+        var llmCallContextAfter = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, aiQueryWithTemplate, model, context);
+
+        for (var l : llmCallDecorators) {
+            llmCallContextAfter = l.decorate(llmCallContextAfter);
+        }
+
         // Execute and return
-        T result = llmCallContext
-                .templateOperations()
+        ObjectCreator<T> tObjectCreator = llmCallContextAfter
+                .templateOperations();
+
+        T result = tObjectCreator
                 .fromTemplate(templateName, model);
         
         return result;

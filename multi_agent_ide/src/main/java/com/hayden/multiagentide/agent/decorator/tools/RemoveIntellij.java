@@ -1,10 +1,11 @@
-package com.hayden.multiagentide.agent.decorator.prompt;
+package com.hayden.multiagentide.agent.decorator.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.utilitymodule.stream.StreamUtil;
+import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,12 +15,10 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Predicate;
 
 /**
  * When the intellij profile is NOT active, writes a .claude/settings.local.json
@@ -31,7 +30,7 @@ import java.util.function.Predicate;
 @Component
 @Profile("!intellij")
 @RequiredArgsConstructor
-public class RemoveIntellij implements LlmCallDecorator {
+public class RemoveIntellij implements ToolContextDecorator {
 
     private static final List<String> DENY_RULE = List.of(
             "mcp__jetbrains__execute_run_configuration",
@@ -70,12 +69,12 @@ public class RemoveIntellij implements LlmCallDecorator {
     }
 
     @Override
-    public <T> LlmCallContext<T> decorate(LlmCallContext<T> promptContext) {
-        resolveMainWorktreePath(promptContext.promptContext())
+    public ToolContext decorate(ToolContext t, DecoratorContext decoratorContext) {
+        resolveMainWorktreePath(decoratorContext)
                 .map(Path::toAbsolutePath)
                 .map(Path::normalize)
                 .ifPresent(this::ensureDenyRuleWritten);
-        return promptContext;
+        return t;
     }
 
     public void ensureDenyRuleWritten(Path worktreePath) {
@@ -135,14 +134,17 @@ public class RemoveIntellij implements LlmCallDecorator {
         return alreadyPresent;
     }
 
-    private Optional<Path> resolveMainWorktreePath(PromptContext promptContext) {
-        return Optional.ofNullable(promptContext.currentRequest())
-                .map(ar -> ar.worktreeContext())
-                .map(ws -> ws.mainWorktree())
-                .map(main -> main.worktreePath())
-                .or(() -> Optional.ofNullable(promptContext.previousRequest())
-                        .map(ar -> ar.worktreeContext())
-                        .map(ws -> ws.mainWorktree())
-                        .map(main -> main.worktreePath()));
+    private Optional<Path> resolveMainWorktreePath(DecoratorContext decoratorContext) {
+        return resolveFromAgentModel(decoratorContext.agentRequest())
+                .or(() -> resolveFromAgentModel(decoratorContext.lastRequest()));
+    }
+
+    private Optional<Path> resolveFromAgentModel(com.hayden.acp_cdc_ai.acp.events.Artifact.AgentModel model) {
+        if (model instanceof AgentModels.AgentRequest ar) {
+            return Optional.ofNullable(ar.worktreeContext())
+                    .map(ws -> ws.mainWorktree())
+                    .map(main -> main.worktreePath());
+        }
+        return Optional.empty();
     }
 }

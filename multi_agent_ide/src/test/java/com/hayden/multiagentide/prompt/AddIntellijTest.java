@@ -1,28 +1,15 @@
 package com.hayden.multiagentide.prompt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hayden.acp_cdc_ai.acp.config.McpProperties;
-import com.hayden.acp_cdc_ai.mcp.RequiredProtocolProperties;
-import com.hayden.multiagentide.agent.decorator.prompt.AddIntellij;
-import com.hayden.multiagentide.config.SerdesConfiguration;
+import com.hayden.multiagentide.agent.decorator.tools.AddIntellij;
 import com.hayden.multiagentide.service.GitWorktreeService;
-import com.hayden.multiagentide.service.WorktreeService;
-import com.hayden.multiagentide.tool.EmbabelToolObjectRegistry;
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.utilitymodule.config.EnvConfigProps;
-import com.hayden.utilitymodule.git.RepoUtil;
 import com.hayden.utilitymodule.io.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.mcp.SyncMcpToolCallback;
-import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerProperties;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.retry.support.RetryTemplate;
 
 import java.io.IOException;

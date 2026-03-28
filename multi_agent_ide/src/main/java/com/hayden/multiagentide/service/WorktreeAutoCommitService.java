@@ -7,7 +7,7 @@ import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
-import com.hayden.multiagentide.agent.decorator.prompt.ToolContextDecorator;
+import com.hayden.multiagentide.agent.decorator.tools.ToolContextDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentidelib.llm.LlmRunner;

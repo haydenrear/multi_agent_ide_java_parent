@@ -1,13 +1,13 @@
-package com.hayden.multiagentide.agent.decorator.prompt;
+package com.hayden.multiagentide.agent.decorator.tools;
 
 import com.hayden.multiagentide.agent.AgentTopologyTools;
+import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentidelib.tool.ToolAbstraction;
+import com.hayden.multiagentidelib.tool.ToolContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
-
-import java.util.ArrayList;
 
 /**
  * Injects AgentTopologyTools (list_agents, call_agent, call_controller) into every
@@ -16,7 +16,7 @@ import java.util.ArrayList;
  */
 @Slf4j
 @Component
-public class AddTopologyTools implements LlmCallDecorator {
+public class AddTopologyTools implements ToolContextDecorator {
 
     @Autowired
     @Lazy
@@ -28,15 +28,7 @@ public class AddTopologyTools implements LlmCallDecorator {
     }
 
     @Override
-    public <T> LlmCallContext<T> decorate(LlmCallContext<T> promptContext) {
-        var t = new ArrayList<>(promptContext.tcc().tools());
-        t.add(ToolAbstraction.fromToolCarrier(agentTopologyTools));
-
-        return promptContext.toBuilder()
-                .tcc(
-                        promptContext.tcc().toBuilder()
-                                .tools(t)
-                                .build())
-                .build();
+    public ToolContext decorate(ToolContext t, DecoratorContext decoratorContext) {
+        return t.withTool(ToolAbstraction.fromToolCarrier(agentTopologyTools));
     }
 }
