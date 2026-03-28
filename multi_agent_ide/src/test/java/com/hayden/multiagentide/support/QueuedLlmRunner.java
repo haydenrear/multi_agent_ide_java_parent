@@ -89,6 +89,20 @@ public class QueuedLlmRunner implements LlmRunner {
     private String thread;
 
     /**
+     * Optional trace writer for graph snapshots and event streaming.
+     * When set, a graph snapshot is appended after each LLM call.
+     */
+    @Getter @Setter
+    private TestTraceWriter traceWriter;
+
+    /**
+     * Graph repository reference for graph snapshots.
+     * Must be set alongside traceWriter for snapshots to work.
+     */
+    @Setter
+    private com.hayden.multiagentide.repository.GraphRepository graphRepository;
+
+    /**
      * Collected call records (always populated, regardless of logFile).
      */
     @Getter
@@ -161,6 +175,11 @@ public class QueuedLlmRunner implements LlmRunner {
         testMethodName = null;
         headerWritten = false;
         historyHeaderWritten = false;
+        if (traceWriter != null) {
+            traceWriter.clear();
+        }
+        traceWriter = null;
+        graphRepository = null;
     }
 
     @Override
@@ -217,8 +236,15 @@ public class QueuedLlmRunner implements LlmRunner {
         callRecords.add(record);
         appendToLog(record);
         appendBlackboardHistory(record, context);
+        appendGraphSnapshot(record);
 
         return (T) response;
+    }
+
+    private void appendGraphSnapshot(CallRecord record) {
+        if (traceWriter != null && graphRepository != null) {
+            traceWriter.appendGraphSnapshot(record.callIndex(), record.templateName(), graphRepository);
+        }
     }
 
     private void appendToLog(CallRecord record) {

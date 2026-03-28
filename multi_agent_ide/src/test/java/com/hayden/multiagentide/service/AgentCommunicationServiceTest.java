@@ -4,6 +4,7 @@ import com.hayden.acp_cdc_ai.acp.AcpSessionManager;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.topology.CommunicationTopologyConfig;
+import com.hayden.multiagentide.topology.CommunicationTopologyProvider;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
 import com.hayden.multiagentidelib.model.nodes.DiscoveryNode;
@@ -50,18 +51,19 @@ class AgentCommunicationServiceTest {
     @Mock
     private SessionKeyResolutionService sessionKeyResolutionService;
 
-    private CommunicationTopologyConfig topologyConfig;
+    private CommunicationTopologyProvider topologyProvider;
     private AgentCommunicationService service;
 
     private final ConcurrentHashMap<Object, AcpSessionManager.AcpSessionContext> sessionContexts = new ConcurrentHashMap<>();
 
     @BeforeEach
     void setUp() {
-        topologyConfig = new CommunicationTopologyConfig(5, 3, Map.of(
+        var topologyConfig = new CommunicationTopologyConfig(5, 3, Map.of(
                 AgentType.ORCHESTRATOR, Set.of(AgentType.DISCOVERY_ORCHESTRATOR, AgentType.PLANNING_ORCHESTRATOR),
                 AgentType.DISCOVERY_AGENT, Set.of(AgentType.DISCOVERY_ORCHESTRATOR)
         ));
-        service = new AgentCommunicationService(acpSessionManager, graphRepository, topologyConfig, sessionKeyResolutionService);
+        topologyProvider = new CommunicationTopologyProvider(topologyConfig, mock(org.springframework.core.env.Environment.class));
+        service = new AgentCommunicationService(acpSessionManager, graphRepository, topologyProvider, sessionKeyResolutionService);
         lenient().when(acpSessionManager.getSessionContexts()).thenReturn(sessionContexts);
         lenient().when(graphRepository.findById(anyString())).thenReturn(Optional.empty());
         // Default: filterSelfCalls passes through all keys

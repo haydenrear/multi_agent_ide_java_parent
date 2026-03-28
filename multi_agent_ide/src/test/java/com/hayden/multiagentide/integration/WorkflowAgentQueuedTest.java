@@ -192,6 +192,8 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
     @TempDir
     Path path;
 
+    private static final Path TEST_WORK_DIR = Path.of("test_work/queued");
+
     @TestConfiguration
     static class TestConfig {
         @Bean
@@ -297,12 +299,42 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         artifactRepository.flush();
     }
 
+    private void setLogFile(String testName) {
+        Path file = TEST_WORK_DIR.resolve(testName + ".md");
+        Path historyFile = TEST_WORK_DIR.resolve(testName + ".blackboard.md");
+        Path graphFile = TEST_WORK_DIR.resolve(testName + ".graph.md");
+        Path eventFile = TEST_WORK_DIR.resolve(testName + ".events.md");
+        try {
+            java.nio.file.Files.createDirectories(TEST_WORK_DIR);
+            java.nio.file.Files.deleteIfExists(file);
+            java.nio.file.Files.deleteIfExists(historyFile);
+            java.nio.file.Files.deleteIfExists(graphFile);
+            java.nio.file.Files.deleteIfExists(eventFile);
+        } catch (Exception e) {
+            // ignore cleanup failures
+        }
+        queuedLlmRunner.setLogFile(file);
+        queuedLlmRunner.setBlackboardHistoryLogFile(historyFile);
+        queuedLlmRunner.setTestClassName(WorkflowAgentQueuedTest.class.getSimpleName());
+        queuedLlmRunner.setTestMethodName(testName);
+
+        var traceWriter = new com.hayden.multiagentide.support.TestTraceWriter();
+        traceWriter.setGraphLogFile(graphFile);
+        traceWriter.setEventLogFile(eventFile);
+        traceWriter.setTestClassName(WorkflowAgentQueuedTest.class.getSimpleName());
+        traceWriter.setTestMethodName(testName);
+        queuedLlmRunner.setTraceWriter(traceWriter);
+        queuedLlmRunner.setGraphRepository(graphRepository);
+        testEventListener.setTraceWriter(traceWriter);
+    }
+
     @Nested
     class InterruptScenarios {
 
         @SneakyThrows
         @Test
         void orchestratorPause_resolveInterruptContinues() {
+            setLogFile("orchestratorPause_resolveInterruptContinues");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
             queuedLlmRunner.enqueue(AgentModels.OrchestratorRouting.builder()
@@ -379,6 +411,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void humanReviewInterrupt_blocksUntilExternallyResolved() {
+            setLogFile("humanReviewInterrupt_blocksUntilExternallyResolved");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -461,6 +494,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void humanReviewInterrupt_pendingInterruptNotRemovedBeforeResolution() {
+            setLogFile("humanReviewInterrupt_pendingInterruptNotRemovedBeforeResolution");
             // This test specifically targets the observed bug: the pending interrupt entry
             // is added to pendingInterrupts but then disappears before resolveInterrupt
             // is called, causing awaitInterruptBlocking to return invalidInterrupt immediately.
@@ -535,6 +569,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void handle_orchestratorAgent_interruptRequest() {
+            setLogFile("handle_orchestratorAgent_interruptRequest");
             // Verifies that after human resolves the interrupt with feedback notes,
             // those notes are passed through to the LLM as interruptFeedback and the
             // workflow continues to completion.
@@ -583,6 +618,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void humanReviewInterrupt_workflowCompletesWithFeedbackAfterResolution() {
+            setLogFile("humanReviewInterrupt_workflowCompletesWithFeedbackAfterResolution");
             // Verifies that after human resolves the interrupt with feedback notes,
             // those notes are passed through to the LLM as interruptFeedback and the
             // workflow continues to completion.
@@ -650,6 +686,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
         @Test
         void fullWorkflow_discoveryToPlanningSingleAgentsToCompletion() {
+            setLogFile("fullWorkflow_discoveryToPlanningSingleAgentsToCompletion");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
             enqueueHappyPath("Implement auth");
@@ -705,6 +742,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
 //        @Test
         void fullWorkflow_persistsArtifactTree() {
+            setLogFile("fullWorkflow_persistsArtifactTree");
             var contextId =  seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
             enqueueHappyPath("Implement auth");
@@ -805,6 +843,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
         @Test
         void discoveryCollector_loopsBackForMoreInvestigation() {
+            setLogFile("discoveryCollector_loopsBackForMoreInvestigation");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -916,6 +955,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
 
         @Test
         void planningCollector_loopsBackToDiscovery_needsMoreContext() {
+            setLogFile("planningCollector_loopsBackToDiscovery_needsMoreContext");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -1015,6 +1055,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void externalInterrupt_atOrchestrator_storesInFilterPropertiesAndCompletes() {
+            setLogFile("externalInterrupt_atOrchestrator_storesInFilterPropertiesAndCompletes");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -1070,6 +1111,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void externalInterrupt_duringDiscoveryAgent_interruptHandledAndCompletes() {
+            setLogFile("externalInterrupt_duringDiscoveryAgent_interruptHandledAndCompletes");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -1184,6 +1226,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void discoveryCollector_agentInitiatedInterrupt_resolvesAndContinues() {
+            setLogFile("discoveryCollector_agentInitiatedInterrupt_resolvesAndContinues");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -1305,6 +1348,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void planningAgentDispatch_interruptAndResume() {
+            setLogFile("planningAgentDispatch_interruptAndResume");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -1413,6 +1457,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void orchestratorCollector_interruptBeforeFinalConsolidation() {
+            setLogFile("orchestratorCollector_interruptBeforeFinalConsolidation");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -1483,6 +1528,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void listAgents_duringWorkflow_returnsCorrectTopology() {
+            setLogFile("listAgents_duringWorkflow_returnsCorrectTopology");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -1559,6 +1605,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void happyPath_graphNodesCreatedWithCorrectParentage() {
+            setLogFile("happyPath_graphNodesCreatedWithCorrectParentage");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
             enqueueHappyPath("Graph lineage test");
@@ -1603,6 +1650,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void callAgent_createsAndCompletesAgentToAgentNode() {
+            setLogFile("callAgent_createsAndCompletesAgentToAgentNode");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 
@@ -1711,6 +1759,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         @SneakyThrows
         @Test
         void callAgent_chainedCalls_callChainTrackedCorrectly() {
+            setLogFile("callAgent_chainedCalls_callChainTrackedCorrectly");
             var contextId = seedOrchestrator().value();
             queuedLlmRunner.setThread(contextId);
 

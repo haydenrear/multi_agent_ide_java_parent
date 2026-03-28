@@ -13,6 +13,8 @@ public class TestEventListener implements EventListener {
     private final CopyOnWriteArrayList<Events.GraphEvent> events =
         new CopyOnWriteArrayList<>();
 
+    private volatile TestTraceWriter traceWriter;
+
     @Override
     public String listenerId() {
         return "test-event-listener";
@@ -21,10 +23,18 @@ public class TestEventListener implements EventListener {
     @Override
     public void onEvent(Events.GraphEvent event) {
         events.add(event);
+        if (traceWriter != null) {
+            traceWriter.appendEvent(event);
+        }
+    }
+
+    public void setTraceWriter(TestTraceWriter traceWriter) {
+        this.traceWriter = traceWriter;
     }
 
     public void clear() {
         events.clear();
+        traceWriter = null;
     }
 
     public List<Events.GraphEvent> allEvents() {

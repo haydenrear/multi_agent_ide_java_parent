@@ -229,10 +229,14 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
     private void setLogFile(String testName) {
         Path file = TEST_WORK_DIR.resolve(testName + ".md");
         Path historyFile = TEST_WORK_DIR.resolve(testName + ".blackboard.md");
+        Path graphFile = TEST_WORK_DIR.resolve(testName + ".graph.md");
+        Path eventFile = TEST_WORK_DIR.resolve(testName + ".events.md");
         try {
             Files.createDirectories(TEST_WORK_DIR);
             Files.deleteIfExists(file);
             Files.deleteIfExists(historyFile);
+            Files.deleteIfExists(graphFile);
+            Files.deleteIfExists(eventFile);
         } catch (Exception e) {
             log.warn("Failed to clean log file: {}", file, e);
         }
@@ -240,6 +244,16 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.setBlackboardHistoryLogFile(historyFile);
         queuedLlmRunner.setTestClassName(WorkflowAgentWorktreeMergeIntTest.class.getSimpleName());
         queuedLlmRunner.setTestMethodName(testName);
+
+        // Set up graph snapshot + event stream tracing
+        var traceWriter = new com.hayden.multiagentide.support.TestTraceWriter();
+        traceWriter.setGraphLogFile(graphFile);
+        traceWriter.setEventLogFile(eventFile);
+        traceWriter.setTestClassName(WorkflowAgentWorktreeMergeIntTest.class.getSimpleName());
+        traceWriter.setTestMethodName(testName);
+        queuedLlmRunner.setTraceWriter(traceWriter);
+        queuedLlmRunner.setGraphRepository(graphRepository);
+        testEventListener.setTraceWriter(traceWriter);
     }
 
     // ========================================================================
