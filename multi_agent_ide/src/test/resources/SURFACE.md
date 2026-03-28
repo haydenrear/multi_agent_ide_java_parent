@@ -50,6 +50,14 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | L1 | `fullWorkflow_persistsArtifactTree` | COVERED |
 | M1 | `externalInterrupt_atOrchestrator_storesInFilterPropertiesAndCompletes` | COVERED |
 | M2 | `externalInterrupt_duringDiscoveryAgent_interruptHandledAndCompletes` | COVERED |
+| N1 | `callController_happyPath_interruptResolvedAndAgentContinues` | COVERED |
+| N2 | `callController_messageBudgetExceeded_returnsError` | COVERED |
+| N3 | — | GAP (P1) |
+| N4 | `callAgent_createsAndCompletesAgentToAgentNode` (enriched assertions) | COVERED |
+| N5 | — | **GAP (P1)** |
+| N6 | — | **GAP (P1)** |
+| N7 | — | **GAP (P1)** |
+| N8 | — | **GAP (P1)** |
 
 ---
 
@@ -444,6 +452,50 @@ External interrupt injected while discovery agents are running. Interrupted agen
 
 ---
 
+## N. Agent-to-Controller Communication (Topology)
+
+### N1. callController — Happy Path (P0)
+Discovery agent calls `callController(sessionId, justification)`. HUMAN_REVIEW interrupt published. Controller resolves with response text. Agent receives response and continues workflow to completion.
+
+**Validates**: Full callController flow: validate → build AgentToControllerRequest → decorate → publish HUMAN_REVIEW interrupt → awaitInterruptBlocking → resolve → return response. AgentCallEvent emitted at INITIATED/RETURNED stages.
+
+### N2. callController — Message Budget Exceeded (P0)
+Agent calls `callController` more times than `communicationTopology.messageBudget`. Returns ERROR with budget exceeded message. No interrupt published.
+
+**Validates**: ConcurrentHashMap per-session counter increments. Budget check fires before interrupt. Error message includes count and limit.
+
+### N3. callController — Missing/Invalid Session (P1)
+Agent calls `callController` with empty or malformed sessionId. Returns ERROR immediately.
+
+**Validates**: Input validation guard clauses. No interrupt published. No partial state left.
+
+### N4. CallChainEntry Target Enrichment (P0)
+During a standard callAgent flow, CallChainEntry entries contain both `agentKey`/`agentType` (source) and `targetAgentKey`/`targetAgentType` (target).
+
+**Validates**: SessionKeyResolutionService.buildCallChainFromGraph() populates target fields. Target fields non-null for all hops in chained calls.
+
+### N5. AgentTopologyPromptContributor Injection (P1)
+During a standard workflow request (not a communication request), the agent's prompt context includes topology information listing available communication targets.
+
+**Validates**: AgentTopologyPromptContributorFactory.create() returns contributor for non-communication requests. Prompt text contains available agent list XML. Communication request types (AgentToAgentRequest, AgentToControllerRequest) are excluded.
+
+### N6. JustificationPromptContributor Injection (P1)
+When an AgentToControllerRequest is processed, the prompt context includes a role-specific justification template (discovery/planning/ticket/default).
+
+**Validates**: JustificationPromptContributorFactory matches on AgentToControllerRequest/ControllerToAgentRequest. Template selected by agent type. Prompt text contains structured justification guidance.
+
+### N7. AgentConversationController — List and Respond (P1)
+Controller lists pending conversations via `POST /api/agent-conversations/list`. Responds to a pending conversation via `POST /api/agent-conversations/respond` with interruptId and message.
+
+**Validates**: REST endpoint returns conversation summaries. Respond resolves the pending HUMAN_REVIEW interrupt. Agent unblocks after response.
+
+### N8. ActivityCheckController — Pending Counts (P1)
+Polling `POST /api/ui/activity-check` with a nodeId returns counts of pending permissions, interrupts, and conversations. HUMAN_REVIEW interrupts classified as conversations.
+
+**Validates**: Lightweight endpoint. Scope matching via ArtifactKey.isDescendantOf. hasActivity=true when any count > 0.
+
+---
+
 ## Coverage Matrix
 
 | Scenario | Graph | Events | Blackboard | Worktree | Interrupt | A2A | DataLayer |
@@ -469,3 +521,6 @@ External interrupt injected while discovery agents are running. Interrupted agen
 | I1       |       |        | X          |          |           |     |           |
 | I2       |       |        | X          |          |           |     |           |
 | J1-J6    |       | X      |            |          |           |     |           |
+| N1       | X     | X      |            |          | X         |     |           |
+| N2       |       |        |            |          |           |     |           |
+| N4       | X     |        |            |          |           | X   |           |

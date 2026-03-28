@@ -22,6 +22,12 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | D-INV1–2 | PASS | A2A nodes complete correctly, required fields all non-null |
 | J-INV2 | PASS | AgentCallStarted/Completed events paired correctly |
 | J4 | PASS | Exactly 1 GoalCompletedEvent per workflow |
+| N-INV1 | PASS | callController publishes HUMAN_REVIEW interrupt, agent blocks until resolved |
+| N-INV2 | PASS | callController returns controller's response text after resolution |
+| N-INV3 | PASS | 4th call (budget=3) returns ERROR, only 3 INITIATED events emitted |
+| N-INV4 | PASS | INITIATED and RETURNED AgentCallEvents emitted with target="controller" |
+| N-INV5 | PASS | A2A node target fields (targetAgentKey, targetAgentType) populated correctly |
+| N-INV6 | — | Not yet validated (needs dedicated unit test for prompt contributor factory) |
 
 ### Trace Timing Gap (A-INV2)
 
@@ -68,7 +74,7 @@ Each invariant listed here should eventually be expanded into its own group of s
 
 ### G7. LLM Call Template Names Are Valid
 **Applies to**: All scenarios (H1, H2)
-**Invariant**: Template names in `## After Call N:` must be in: `workflow/orchestrator`, `workflow/discovery_orchestrator`, `workflow/discovery_agent`, `workflow/discovery_dispatch`, `workflow/discovery_collector`, `workflow/planning_orchestrator`, `workflow/planning_agent`, `workflow/planning_dispatch`, `workflow/planning_collector`, `workflow/ticket_orchestrator`, `workflow/ticket_agent`, `workflow/ticket_dispatch`, `workflow/ticket_collector`, `workflow/orchestrator_collector`, `workflow/context_manager`, `workflow/interrupt_handler`, `workflow/review_resolution`, `communication/agent_call`.
+**Invariant**: Template names in `## After Call N:` must be in: `workflow/orchestrator`, `workflow/discovery_orchestrator`, `workflow/discovery_agent`, `workflow/discovery_dispatch`, `workflow/discovery_collector`, `workflow/planning_orchestrator`, `workflow/planning_agent`, `workflow/planning_dispatch`, `workflow/planning_collector`, `workflow/ticket_orchestrator`, `workflow/ticket_agent`, `workflow/ticket_dispatch`, `workflow/ticket_collector`, `workflow/orchestrator_collector`, `workflow/context_manager`, `workflow/interrupt_handler`, `workflow/review_resolution`, `communication/agent_call`, `communication/controller_call`, `communication/controller_response`.
 **Search**: `*.graph.md` — extract template names from headers.
 
 ### G8. Request/Response Type Consistency
@@ -296,6 +302,34 @@ Each invariant listed here should eventually be expanded into its own group of s
 
 ---
 
+## N. Agent-to-Controller Communication
+
+### N-INV1. callController Publishes HUMAN_REVIEW Interrupt (N1)
+**Invariant**: When `callController` is invoked, a HUMAN_REVIEW interrupt is published via `permissionGate.publishInterrupt`. The interrupt's originNodeId matches the calling node's nodeId. The agent thread blocks until `resolveInterrupt` is called.
+**Search**: `*.events.md` — InterruptStatusEvent with type=HUMAN_REVIEW during callController flow. Code-level assertion on PermissionGate.
+
+### N-INV2. callController Resolution Returns Controller Text (N1)
+**Invariant**: After the controller resolves the HUMAN_REVIEW interrupt with response text, `callController` returns that exact text. If resolution has empty notes, returns default message.
+**Search**: Test assertion on returned string.
+
+### N-INV3. Message Budget Enforced Before Interrupt (N2)
+**Invariant**: When per-session message count exceeds `communicationTopology.messageBudget`, `callController` returns error WITHOUT publishing an interrupt. The counter increments atomically per session.
+**Search**: Test assertion. Verify `permissionGate.publishInterrupt` NOT called when budget exceeded.
+
+### N-INV4. AgentCallEvent Emitted for Controller Calls (N1)
+**Invariant**: `callController` emits AgentCallEvent at INITIATED (before blocking) and RETURNED (after response) stages. On error, emits ERROR event. Target is always "controller".
+**Search**: `*.events.md` — AgentCallEvent entries with target="controller".
+
+### N-INV5. CallChainEntry Target Fields Populated (N4, D-INV2)
+**Invariant**: Every CallChainEntry in a callAgent flow has non-null `targetAgentKey` and `targetAgentType` fields. In chained calls (D2), each hop's target fields match the subsequent call's source fields.
+**Search**: `*.graph.md` — A2A detail sections, callChain field.
+
+### N-INV6. Topology Prompt Excluded for Communication Requests (N5)
+**Invariant**: AgentTopologyPromptContributorFactory produces zero contributors when the request type is AgentToAgentRequest, AgentToControllerRequest, or ControllerToAgentRequest. For standard workflow requests, it produces a contributor containing available agent topology XML.
+**Search**: Code-level unit test.
+
+---
+
 ## Coverage: Surface → Invariants
 
 | Surface | Invariants |
@@ -358,3 +392,11 @@ Each invariant listed here should eventually be expanded into its own group of s
 | L2 | — (code-level) |
 | M1 | C-INV4 |
 | M2 | C-INV4 |
+| N1 | N-INV1, N-INV2, N-INV4 |
+| N2 | N-INV3 |
+| N3 | — (code-level) |
+| N4 | N-INV5, D-INV2 |
+| N5 | N-INV6 |
+| N6 | — (code-level) |
+| N7 | N-INV1–2 |
+| N8 | — (code-level) |

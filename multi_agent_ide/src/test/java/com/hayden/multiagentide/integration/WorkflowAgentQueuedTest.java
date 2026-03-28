@@ -1886,6 +1886,329 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             verify(workflowGraphService, times(2)).startAgentCall(any(AgentModels.AgentToAgentRequest.class));
             verify(workflowGraphService, times(2)).completeAgentCall(any(), any());
         }
+
+        /**
+         * N1: callController happy path — discovery agent calls callController(), HUMAN_REVIEW
+         * interrupt published, controller resolves with response, agent receives response,
+         * workflow completes. Validates N-INV1, N-INV2, N-INV4.
+         */
+        @SneakyThrows
+        @Test
+        void callController_happyPath_interruptResolvedAndAgentContinues() {
+            setLogFile("callController_happyPath_interruptResolvedAndAgentContinues");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            var callResults = new java.util.concurrent.CopyOnWriteArrayList<String>();
+
+            initialOrchestratorToDiscovery("Controller call test");
+
+            // Discovery orchestrator dispatches one agent
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.DiscoveryAgentRequest.builder()
+                                            .goal("Controller call test")
+                                            .subdomainFocus("Primary")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            // Discovery agent — callback calls controller via callController (blocks on interrupt)
+            queuedLlmRunner.enqueue(
+                    AgentModels.DiscoveryAgentRouting.builder()
+                            .agentResult(AgentModels.DiscoveryAgentResult.builder()
+                                    .output("Found something needing controller approval")
+                                    .build())
+                            .build(),
+                    (response, opCtx) -> {
+                        String result = agentTopologyTools.callController(
+                                contextId, "I found a critical design decision that requires your approval.");
+                        callResults.add(result);
+                    }
+            );
+
+            // Remaining workflow after callController returns
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
+                    .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
+                            .goal("Controller call test")
+                            .discoveryResults("discovery-results")
+                            .build())
+                    .build());
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
+                    .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
+                            .consolidatedOutput("Discovery complete")
+                            .build())
+                    .build());
+
+            enqueuePlanningToCompletion("Controller call test");
+
+            // Run workflow async since callController blocks
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Controller call test", "DISCOVERY"))
+            ));
+
+            // Wait for the HUMAN_REVIEW interrupt from callController
+            await().atMost(Duration.ofSeconds(300))
+                    .until(() -> permissionGate.isInterruptPending(
+                            t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                                 && t.getReason() != null
+                                 && t.getReason().contains("critical design decision")));
+
+            var pendingInterrupt = permissionGate.getInterruptPending(
+                    t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                         && t.getReason() != null
+                         && t.getReason().contains("critical design decision"));
+            assertThat(pendingInterrupt).isNotNull();
+
+            // Workflow should be blocked
+            Thread.sleep(1000);
+            assertThat(workflowFuture.isDone())
+                    .as("Workflow should be blocked on callController interrupt")
+                    .isFalse();
+
+            // Resolve the interrupt (simulating controller approval)
+            permissionGate.resolveInterrupt(
+                    pendingInterrupt.getInterruptId(),
+                    IPermissionGate.ResolutionType.APPROVED,
+                    "Approved — proceed with the design decision.",
+                    (IPermissionGate.InterruptResult) null);
+
+            // Workflow should complete
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+
+            var output = workflowFuture.get();
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // N-INV2: callController returned the controller's response text
+            assertThat(callResults).hasSize(1);
+            assertThat(callResults.getFirst()).contains("Approved");
+
+            // N-INV4: AgentCallEvent emitted with target="controller"
+            var agentCallEvents = testEventListener.eventsOfType(Events.AgentCallEvent.class);
+            var controllerCallEvents = agentCallEvents.stream()
+                    .filter(e -> "controller".equals(e.targetSessionId()))
+                    .toList();
+            assertThat(controllerCallEvents)
+                    .as("Should have INITIATED and RETURNED AgentCallEvents for controller call")
+                    .hasSizeGreaterThanOrEqualTo(2);
+
+            var initiatedEvents = controllerCallEvents.stream()
+                    .filter(e -> e.callEventType() == Events.AgentCallEventType.INITIATED)
+                    .toList();
+            var returnedEvents = controllerCallEvents.stream()
+                    .filter(e -> e.callEventType() == Events.AgentCallEventType.RETURNED)
+                    .toList();
+            assertThat(initiatedEvents).hasSize(1);
+            assertThat(returnedEvents).hasSize(1);
+        }
+
+        /**
+         * N2: callController message budget exceeded — agent calls callController more
+         * than messageBudget times. Last call returns ERROR. No interrupt published for
+         * the budget-exceeded call. Validates N-INV3.
+         */
+        @SneakyThrows
+        @Test
+        void callController_messageBudgetExceeded_returnsError() {
+            setLogFile("callController_messageBudgetExceeded_returnsError");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            var callResults = new java.util.concurrent.CopyOnWriteArrayList<String>();
+
+            initialOrchestratorToDiscovery("Budget test");
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.DiscoveryAgentRequest.builder()
+                                            .goal("Budget test")
+                                            .subdomainFocus("Primary")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            // Discovery agent callback: call callController 4 times (budget is 3)
+            // First 3 calls will block on interrupts that we immediately resolve.
+            // 4th call should return budget exceeded error without blocking.
+            queuedLlmRunner.enqueue(
+                    AgentModels.DiscoveryAgentRouting.builder()
+                            .agentResult(AgentModels.DiscoveryAgentResult.builder()
+                                    .output("Budget test output")
+                                    .build())
+                            .build(),
+                    (response, opCtx) -> {
+                        // Make 4 callController calls; first 3 within budget, 4th exceeds
+                        for (int i = 0; i < 4; i++) {
+                            final int callNum = i + 1;
+                            String result = agentTopologyTools.callController(
+                                    contextId, "Call #" + callNum);
+                            callResults.add(result);
+
+                            // If it returned an error (budget exceeded), don't try to resolve
+                            if (result.startsWith("ERROR")) {
+                                break;
+                            }
+                        }
+                    }
+            );
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
+                    .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
+                            .goal("Budget test")
+                            .discoveryResults("discovery-results")
+                            .build())
+                    .build());
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
+                    .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
+                            .consolidatedOutput("Discovery complete")
+                            .build())
+                    .build());
+
+            enqueuePlanningToCompletion("Budget test");
+
+            // Run workflow async — callController blocks on interrupt
+            var workflowFuture = CompletableFuture.supplyAsync(() -> agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Budget test", "DISCOVERY"))
+            ));
+
+            // Resolve interrupts as they arrive (up to 3 — the budget)
+            for (int i = 0; i < 3; i++) {
+                final int callNum = i + 1;
+                await().atMost(Duration.ofSeconds(300))
+                        .until(() -> permissionGate.isInterruptPending(
+                                t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                                     && t.getReason() != null
+                                     && t.getReason().contains("Call #" + callNum)));
+
+                var pending = permissionGate.getInterruptPending(
+                        t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
+                             && t.getReason() != null
+                             && t.getReason().contains("Call #" + callNum));
+                assertThat(pending).isNotNull();
+
+                permissionGate.resolveInterrupt(
+                        pending.getInterruptId(),
+                        IPermissionGate.ResolutionType.APPROVED,
+                        "Approved call #" + callNum,
+                        (IPermissionGate.InterruptResult) null);
+            }
+
+            // Workflow should complete (4th call returns error immediately, no blocking)
+            await().atMost(Duration.ofSeconds(300))
+                    .until(workflowFuture::isDone);
+
+            var output = workflowFuture.get();
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // N-INV3: 4th call returned budget exceeded error
+            assertThat(callResults).hasSize(4);
+            assertThat(callResults.get(0)).contains("Approved call #1");
+            assertThat(callResults.get(1)).contains("Approved call #2");
+            assertThat(callResults.get(2)).contains("Approved call #3");
+            assertThat(callResults.get(3)).startsWith("ERROR: Message budget exceeded");
+            assertThat(callResults.get(3)).contains("4/3");
+        }
+
+        /**
+         * N4: CallChainEntry target enrichment — verify that A2A nodes have
+         * targetAgentKey and targetAgentType populated in their call chain entries.
+         * Validates N-INV5.
+         */
+        @SneakyThrows
+        @Test
+        void callAgent_callChainEntry_hasTargetFields() {
+            setLogFile("callAgent_callChainEntry_hasTargetFields");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            ArtifactKey targetKey = ArtifactKey.createRoot();
+            graphRepository.save(DiscoveryCollectorNode.builder()
+                    .nodeId(targetKey.value())
+                    .title("Target Collector")
+                    .goal("target test")
+                    .status(Events.NodeStatus.RUNNING)
+                    .metadata(new HashMap<>())
+                    .createdAt(Instant.now())
+                    .lastUpdatedAt(Instant.now())
+                    .build());
+
+            doReturn(AgentCommunicationService.CallValidationResult.ok())
+                    .when(agentCommunicationService)
+                    .validateCall(any(), any(), any(), any(), any());
+
+            initialOrchestratorToDiscovery("Target fields test");
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryOrchestratorRouting.builder()
+                    .agentRequests(AgentModels.DiscoveryAgentRequests.builder()
+                            .requests(List.of(
+                                    AgentModels.DiscoveryAgentRequest.builder()
+                                            .goal("Target fields test")
+                                            .subdomainFocus("Primary")
+                                            .build()
+                            ))
+                            .build())
+                    .build());
+
+            queuedLlmRunner.enqueue(
+                    AgentModels.DiscoveryAgentRouting.builder()
+                            .agentResult(AgentModels.DiscoveryAgentResult.builder()
+                                    .output("Found stuff")
+                                    .build())
+                            .build(),
+                    (response, opCtx) -> {
+                        queuedLlmRunner.enqueueNext(AgentModels.AgentCallRouting.builder()
+                                .response("Response from target")
+                                .build());
+                        agentTopologyTools.callAgent(contextId, targetKey.value(), "Check target fields");
+                    }
+            );
+
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
+                    .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
+                            .goal("Target fields test")
+                            .discoveryResults("discovery-results")
+                            .build())
+                    .build());
+            queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
+                    .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
+                            .consolidatedOutput("Discovery complete")
+                            .build())
+                    .build());
+
+            enqueuePlanningToCompletion("Target fields test");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Target fields test", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // N-INV5: A2A node's call chain entries have target fields populated
+            var a2aNodes = graphRepository.findAll().stream()
+                    .filter(n -> n instanceof AgentToAgentConversationNode)
+                    .map(n -> (AgentToAgentConversationNode) n)
+                    .toList();
+            assertThat(a2aNodes).hasSize(1);
+
+            var a2aNode = a2aNodes.getFirst();
+            // The A2A node itself should have targetAgentKey pointing to the target
+            assertThat(a2aNode.targetAgentKey()).isEqualTo(targetKey.value());
+            assertThat(a2aNode.targetAgentType()).isEqualTo(AgentType.DISCOVERY_COLLECTOR);
+        }
     }
 
     private void enqueueHappyPathExceptFinalCollector(String goal) {

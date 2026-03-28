@@ -203,6 +203,25 @@ public class TestTraceWriter {
                 sb.append("- actionName: `%s`\n".formatted(e.actionName()));
                 sb.append("- outcomeType: `%s`\n".formatted(e.outcomeType()));
             }
+            case Events.AgentCallEvent e -> {
+                sb.append("- callEventType: `%s`\n".formatted(e.callEventType()));
+                sb.append("- callerSessionId: `%s`\n".formatted(e.callerSessionId()));
+                sb.append("- targetSessionId: `%s`\n".formatted(e.targetSessionId()));
+                sb.append("- callerAgentType: `%s`\n".formatted(e.callerAgentType()));
+                sb.append("- targetAgentType: `%s`\n".formatted(e.targetAgentType()));
+                if (e.callChain() != null && !e.callChain().isEmpty()) {
+                    sb.append("- callChain: %s\n".formatted(e.callChain()));
+                }
+                if (e.errorDetail() != null) {
+                    sb.append("- errorDetail: `%s`\n".formatted(e.errorDetail()));
+                }
+            }
+            case Events.InterruptStatusEvent e -> {
+                sb.append("- interruptType: `%s`\n".formatted(e.interruptType()));
+                sb.append("- interruptStatus: `%s`\n".formatted(e.interruptStatus()));
+                sb.append("- originNodeId: `%s`\n".formatted(e.originNodeId()));
+                sb.append("- resumeNodeId: `%s`\n".formatted(e.resumeNodeId()));
+            }
             default -> {
                 // No extra details for other event types
             }
