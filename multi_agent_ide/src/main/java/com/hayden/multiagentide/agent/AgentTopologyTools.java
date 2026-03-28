@@ -8,8 +8,10 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.commitdiffcontext.cdc_utils.SetFromHeader;
 import com.hayden.commitdiffcontext.mcp.ToolCarrier;
 import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
+import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.service.AgentCommunicationService;
 import com.hayden.multiagentide.service.SessionKeyResolutionService;
+import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
@@ -29,10 +31,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.hayden.multiagentide.topology.CommunicationTopologyProvider;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.hayden.acp_cdc_ai.acp.AcpChatModel.MCP_SESSION_HEADER;
 
@@ -43,13 +49,22 @@ public class AgentTopologyTools implements ToolCarrier {
 
     private final AgentCommunicationService agentCommunicationService;
     private final SessionKeyResolutionService sessionKeyResolutionService;
+    private final CommunicationTopologyProvider topologyProvider;
     private final ObjectMapper objectMapper;
+
+    private final ConcurrentHashMap<String, AtomicInteger> conversationMessageCounts = new ConcurrentHashMap<>();
 
     private AgentPlatform agentPlatform;
     private DecorateRequestResults decorateRequestResults;
     private LlmRunner llmRunner;
     private PromptContextFactory promptContextFactory;
     private EventBus eventBus;
+    private PermissionGate permissionGate;
+
+    @Autowired
+    public void setPermissionGate(PermissionGate permissionGate) {
+        this.permissionGate = permissionGate;
+    }
 
     @Autowired
     public void setAgentPlatform(AgentPlatform agentPlatform) {
@@ -288,6 +303,140 @@ public class AgentTopologyTools implements ToolCarrier {
                     .formatted(targetAgentKey, e.getMessage());
             emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, callingType, targetAgentKey, targetType,
                     callChain, null, null, errorMsg, null);
+            return errorMsg;
+        }
+    }
+
+    @Tool(name = "call_controller", description = "Sends a structured justification message to the controller "
+            + "(human operator) and blocks until they respond. Use this when you need approval, clarification, or "
+            + "feedback from the controller before proceeding. The controller will see your justification and can "
+            + "approve, reject, or provide guidance.")
+    public String callController(
+            @SetFromHeader(MCP_SESSION_HEADER)
+            String sessionId,
+            String justificationMessage
+    ) {
+        if (!StringUtils.hasText(sessionId)) {
+            return "ERROR: Missing session id.";
+        }
+        if (!StringUtils.hasText(justificationMessage)) {
+            return "ERROR: Justification message cannot be empty.";
+        }
+
+        ArtifactKey callingKey;
+        try {
+            callingKey = new ArtifactKey(sessionId);
+        } catch (IllegalArgumentException e) {
+            return "ERROR: Invalid session ID.";
+        }
+
+        GraphNode callingNode = sessionKeyResolutionService.resolveNodeBySessionKey(sessionId);
+        AgentType callingType = callingNode != null ? NodeMappings.agentTypeFromNode(callingNode) : null;
+
+        // Message budget check (FR-017)
+        int budget = topologyProvider.messageBudget();
+        if (budget > 0) {
+            int count = conversationMessageCounts
+                    .computeIfAbsent(sessionId, k -> new AtomicInteger(0))
+                    .incrementAndGet();
+            if (count > budget) {
+                log.warn("Message budget exceeded for session {}: {} > {}", sessionId, count, budget);
+                return "ERROR: Message budget exceeded (%d/%d). Escalating to user — please wait for human input."
+                        .formatted(count, budget);
+            }
+        }
+
+        OperationContext operationContext = resolveOperationContext(callingKey);
+        if (operationContext == null) {
+            return "ERROR: Could not resolve operation context for calling agent.";
+        }
+
+        try {
+            AgentModels.AgentRequest lastRequest =
+                    BlackboardHistory.getLastFromHistory(operationContext, AgentModels.AgentRequest.class);
+
+            ArtifactKey contextId = callingKey.createChild();
+            AgentModels.AgentToControllerRequest request = new AgentModels.AgentToControllerRequest(
+                    contextId, null, callingKey, callingType,
+                    justificationMessage, null
+            );
+
+            // 1. Decorate request
+            AgentModels.AgentToControllerRequest enrichedRequest = decorateRequestResults.decorateRequest(
+                    new DecorateRequestResults.DecorateRequestArgs<>(
+                            request, operationContext,
+                            AgentInterfaces.AGENT_NAME_CONTROLLER_CALL,
+                            AgentInterfaces.ACTION_CONTROLLER_CALL,
+                            AgentInterfaces.METHOD_CALL_CONTROLLER,
+                            lastRequest
+                    ));
+
+            // 2. Build and decorate prompt context
+            BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(operationContext);
+            DecoratorContext decoratorContext = new DecoratorContext(
+                    operationContext,
+                    AgentInterfaces.AGENT_NAME_CONTROLLER_CALL,
+                    AgentInterfaces.ACTION_CONTROLLER_CALL,
+                    AgentInterfaces.METHOD_CALL_CONTROLLER,
+                    lastRequest,
+                    enrichedRequest
+            );
+
+            Map<String, Object> templateModel = new java.util.HashMap<>(Map.of(
+                    "sourceAgentKey", callingKey.value(),
+                    "justificationMessage", justificationMessage
+            ));
+            if (callingType != null) {
+                templateModel.put("sourceAgentType", callingType.wireValue());
+            }
+            if (enrichedRequest.goal() != null) {
+                templateModel.put("goal", enrichedRequest.goal());
+            }
+
+            PromptContext promptContext = promptContextFactory.build(
+                    AgentType.CONTROLLER_CALL,
+                    enrichedRequest,
+                    lastRequest,
+                    enrichedRequest,
+                    history,
+                    AgentInterfaces.TEMPLATE_COMMUNICATION_CONTROLLER_CALL,
+                    templateModel,
+                    operationContext,
+                    decoratorContext
+            );
+            promptContext = decorateRequestResults.decoratePromptContext(
+                    new DecorateRequestResults.DecoratePromptContextArgs(promptContext, decoratorContext)
+            );
+
+            // Emit INITIATED event
+            emitCallEvent(Events.AgentCallEventType.INITIATED, sessionId, callingType,
+                    "controller", null, List.of(), justificationMessage, null, null, null);
+
+            // 3. Publish interrupt and block until controller responds
+            String interruptId = contextId.value();
+            permissionGate.publishInterrupt(
+                    interruptId,
+                    callingNode != null ? callingNode.nodeId() : interruptId,
+                    Events.InterruptType.HUMAN_REVIEW,
+                    justificationMessage
+            );
+
+            IPermissionGate.InterruptResolution resolution = permissionGate.awaitInterruptBlocking(interruptId);
+            String responseText = resolution != null ? resolution.getResolutionNotes() : null;
+            if (responseText == null || responseText.isBlank()) {
+                responseText = "Controller acknowledged but provided no response.";
+            }
+
+            // Emit RETURNED event
+            emitCallEvent(Events.AgentCallEventType.RETURNED, sessionId, callingType,
+                    "controller", null, List.of(), null, responseText, null, null);
+
+            return responseText;
+        } catch (Exception e) {
+            log.error("Failed to call controller: {}", e.getMessage(), e);
+            String errorMsg = "ERROR: Failed to reach controller. Detail: %s".formatted(e.getMessage());
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, callingType,
+                    "controller", null, List.of(), null, null, errorMsg, null);
             return errorMsg;
         }
     }
