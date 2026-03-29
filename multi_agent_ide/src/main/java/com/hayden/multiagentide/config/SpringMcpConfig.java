@@ -73,11 +73,18 @@ public class SpringMcpConfig {
                                       SpecialJsonSchemaGenerator specialJsonSchemaGenerator,
                                       DelegatingSchemaReplacer schemaReplacer,
                                       ApplicationContext ctx) {
+        log.info("MCP tool registration: {} ToolCarrier beans injected: {}",
+                codeSearchMcpTools.size(),
+                codeSearchMcpTools.stream().map(tc -> tc.getClass().getSimpleName()).toList());
+        var filteredTools = codeSearchMcpTools.stream()
+                .filter(SpringMcpConfig::hasToolMethod)
+                .map(tc -> (Object) tc)
+                .toList();
+        log.info("MCP tool registration: {} passed hasToolMethod filter: {}",
+                filteredTools.size(),
+                filteredTools.stream().map(tc -> tc.getClass().getSimpleName()).toList());
         var tcp = specialMethodToolCallbackProvider.createToolCallbackProvider(
-                codeSearchMcpTools.stream()
-                        .filter(SpringMcpConfig::hasToolMethod)
-                        .map(tc -> (Object) tc)
-                        .toList(),
+                filteredTools,
                 specialJsonSchemaGenerator,
                 schemaReplacer,
                 ctx);

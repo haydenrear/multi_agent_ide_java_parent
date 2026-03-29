@@ -34,6 +34,8 @@ import com.hayden.multiagentide.controller.OrchestrationController;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.gate.PermissionGateAdapter;
 import com.hayden.multiagentide.agent.AcpTooling;
+import com.hayden.multiagentide.agent.AgentTopologyTools;
+import com.hayden.multiagentidelib.tool.ToolAbstraction;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.multiagentidelib.agent.AgentTools;
@@ -96,6 +98,8 @@ class AcpChatModelCodexIntegrationTest {
     @Autowired(required = false)
     private AcpTooling fileSystemTools;
     @Autowired
+    private AgentTopologyTools agentTopologyTools;
+    @Autowired
     private EnvConfigProps envConfigProps;
 
     @Autowired
@@ -128,6 +132,8 @@ class AcpChatModelCodexIntegrationTest {
         private final McpToolObjectRegistrar toolObjectRegistry;
 
         private final AgentTools guiEvent;
+
+        private final AgentTopologyTools agentTopologyTools;
 
         @Autowired(required = false)
         @Setter
@@ -190,6 +196,9 @@ class AcpChatModelCodexIntegrationTest {
             if (fileSystemTools != null)
                 c = c.withToolObject(fileSystemTools);
 
+            if (agentTopologyTools != null)
+                c = c.withToolObject(new ToolObject(agentTopologyTools));
+
             return c.createObject(input.request, ResultValue.class);
         }
 
@@ -197,7 +206,7 @@ class AcpChatModelCodexIntegrationTest {
 
     @BeforeEach
     public void before() {
-        TestAgent agentInterface = new TestAgent(toolObjectRegistry, guiEvent);
+        TestAgent agentInterface = new TestAgent(toolObjectRegistry, guiEvent, agentTopologyTools);
         agentInterface.setFileSystemTools(fileSystemTools);
         Optional.ofNullable(agentMetadataReader.createAgentMetadata(agentInterface))
                 .ifPresentOrElse(agentPlatform::deploy, () -> log.error("Error deploying {} - could not create agent metadata.", agentInterface));
@@ -345,6 +354,54 @@ class AcpChatModelCodexIntegrationTest {
 
         } catch (Exception e) {
             log.error("Error - will not fail test for codex-acp - but failed", e);
+        }
+    }
+
+    @Test
+    void chatModelHasCallControllerViaMcp() {
+        assertThat(chatModel).isInstanceOf(AcpChatModel.class);
+
+        try {
+            Path testWork = envConfigProps.getProjectDir().resolve("test_work");
+            testWork.toFile().mkdirs();
+            String nodeId = ArtifactKey.createRoot().value();
+
+            Path workingDir = testWork.toAbsolutePath();
+            removeIntellij.ensureDenyRuleWritten(workingDir);
+            RequestContext requestContext = RequestContext.builder()
+                    .sessionId(nodeId)
+                    .sandboxContext(SandboxContext.builder()
+                            .mainWorktreePath(workingDir)
+                            .build())
+                    .build();
+            startPermissionConsole();
+            requestContextRepository.save(requestContext);
+
+            ProcessOptions processOptions = ProcessOptions.DEFAULT.withContextId(nodeId)
+                    .withListener(AgentLifecycleHandler.agentProcessIdListener());
+            List<com.embabel.agent.core.Agent> agents = agentPlatform.agents();
+            var thisAgent = agents.stream()
+                    .filter(agent -> agent.getName().equals(TEST_AGENT))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("Agent not found: " + TEST_AGENT));
+
+            RequestValue v1 = new RequestValue(
+                    "Do you have access to a tool called 'call_controller'? " +
+                    "Also check for 'list_agents' and 'call_agent'. " +
+                    "List all available tool names you can see.");
+            AgentProcess process = agentPlatform.runAgentFrom(
+                    thisAgent,
+                    processOptions,
+                    Map.of(IoBinding.DEFAULT_BINDING, v1));
+
+            process.bind("conversation", new InMemoryConversation());
+
+            var res = process.run().resultOfType(ResultValue.class);
+
+            log.info("call_controller tool check result: {}", res);
+
+        } catch (Exception e) {
+            log.error("Error in call_controller tool check test", e);
         }
     }
 

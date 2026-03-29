@@ -76,6 +76,20 @@ public class DefaultLlmRunner implements LlmRunner {
             llmCallContext = l.decorate(llmCallContext);
         }
 
+        log.info("Applying tool context for agentType={} template={}: tools={}",
+                promptContext.agentType(),
+                promptContext.templateName(),
+                llmCallContext.tcc() != null ? llmCallContext.tcc().tools().stream()
+                        .map(t -> t.getClass().getSimpleName() + ":" + switch (t) {
+                            case ToolAbstraction.EmbabelToolObject o -> o.toolObject().getClass().getSimpleName();
+                            case ToolAbstraction.SpringToolCallback s -> s.toolCallback().getToolDefinition().name();
+                            case ToolAbstraction.SpringToolCallbackProvider p -> "provider";
+                            case ToolAbstraction.EmbabelTool e -> e.tool().toString();
+                            case ToolAbstraction.EmbabelToolGroup g -> "group";
+                            case ToolAbstraction.EmbabelToolGroupRequirement r -> "requirement";
+                            case ToolAbstraction.ToolGroupStrings s -> "strings";
+                            case ToolAbstraction.SkillReference sr -> "skill";
+                        }).toList() : "null");
         aiQuery = applyToolContext(aiQuery, llmCallContext.tcc());
 
         var aiQueryWithTemplate = aiQuery

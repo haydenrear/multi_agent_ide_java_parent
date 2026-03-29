@@ -25,7 +25,10 @@ import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -95,6 +98,9 @@ public class AgentTopologyTools implements ToolCarrier {
     @Tool(name = "list_agents", description = "Lists all available agent sessions. Returns two sections: "
             + "(1) agents you CAN call directly, and (2) agents that exist but you CANNOT call due to topology rules, "
             + "along with which agents can bridge you to them. Use this to discover routing paths before calling agents.")
+    @McpTool(name = "list_agents", description = "Lists all available agent sessions. Returns two sections: "
+            + "(1) agents you CAN call directly, and (2) agents that exist but you CANNOT call due to topology rules, "
+            + "along with which agents can bridge you to them. Use this to discover routing paths before calling agents.")
     public String listAgents(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId
@@ -149,10 +155,18 @@ public class AgentTopologyTools implements ToolCarrier {
             + "Use list_agents first to discover available agents. The target agent must be available and "
             + "communication must be permitted by topology rules. Call chain tracking and loop detection "
             + "are handled automatically.")
+    @McpTool(name = "call_agent", description = "Sends a message to another agent and returns their response. "
+            + "Use list_agents first to discover available agents. The target agent must be available and "
+            + "communication must be permitted by topology rules. Call chain tracking and loop detection "
+            + "are handled automatically.")
     public String callAgent(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
+            @ToolParam(description = "The artifact key of the target agent to call (e.g. ak:01KJ...)")
+            @McpToolParam(description = "The artifact key of the target agent to call (e.g. ak:01KJ...)")
             String targetAgentKey,
+            @ToolParam(description = "The message to send to the target agent")
+            @McpToolParam(description = "The message to send to the target agent")
             String message
     ) {
         if (!StringUtils.hasText(sessionId)) {
@@ -358,11 +372,19 @@ public class AgentTopologyTools implements ToolCarrier {
             + "(human operator) and blocks until they respond. Use this when you need approval, clarification, or "
             + "feedback from the controller before proceeding. The controller will see your justification and can "
             + "approve, reject, or provide guidance.")
+    @McpTool(name = "call_controller", description = "Sends a structured justification message to the controller "
+            + "(human operator) and blocks until they respond. Use this when you need approval, clarification, or "
+            + "feedback from the controller before proceeding. The controller will see your justification and can "
+            + "approve, reject, or provide guidance.")
     public String callController(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
+            @ToolParam(description = "The justification message explaining why you need controller approval or feedback")
+            @McpToolParam(description = "The justification message explaining why you need controller approval or feedback")
             String justificationMessage
     ) {
+        log.info("call_controller START — sessionId={} justification={}",
+                sessionId, justificationMessage != null ? justificationMessage.substring(0, Math.min(200, justificationMessage.length())) : "null");
         if (!StringUtils.hasText(sessionId)) {
             return "ERROR: Missing session id.";
         }
@@ -440,9 +462,11 @@ public class AgentTopologyTools implements ToolCarrier {
             emitCallEvent(Events.AgentCallEventType.RETURNED, sessionId, callingType,
                     "controller", null, List.of(), null, responseText, null, null);
 
+            log.info("call_controller END — sessionId={} responseLength={}", sessionId,
+                    responseText != null ? responseText.length() : 0);
             return responseText;
         } catch (Exception e) {
-            log.error("Failed to call controller: {}", e.getMessage(), e);
+            log.error("call_controller ERROR — sessionId={} error={}", sessionId, e.getMessage(), e);
             String errorMsg = "ERROR: Failed to reach controller. Detail: %s".formatted(e.getMessage());
             emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, callingType,
                     "controller", null, List.of(), null, null, errorMsg, null);
