@@ -72,7 +72,7 @@ logging:
   level:
     root: INFO
     #    org.springframework.web: DEBUG
-    com.hayden.multiagentide: DEBUG
+    com.hayden.multiagentide: INFO
     com.embabel.agent.api.channel: INFO
 #    com.embabel.agent: DEBUG
 #    dev.langchain4j: DEBUG
@@ -223,7 +223,7 @@ skills:
 #      - skill-path: {{PARENT_DIR}}/skills/cli_os_env
 
 logging.level.com.hayden.acp_cdc_ai.acp: INFO
-logging.level.com.hayden.multiagentide.artifacts: DEBUG
+logging.level.com.hayden.multiagentide.artifacts: INFO
 
 multi-agent-ide:
   topology:
