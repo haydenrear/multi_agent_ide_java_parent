@@ -33,8 +33,15 @@ public record AgentToAgentConversationNode(
         String originatingAgentToAgentNodeId,
         String targetNodeId,
         List<AgentModels.CallChainEntry> callChain,
-        String chatSessionKey
-) implements GraphNode, HasChatSessionKey {
+        /** The source agent's ACP session header value — passed in from the calling agent's request context. */
+        String sourceSessionId,
+        String chatId
+) implements GraphNode, HasChatId {
+
+    @Override
+    public String chatId() {
+        return chatId;
+    }
 
     public AgentToAgentConversationNode {
         if (nodeId == null || nodeId.isEmpty()) throw new IllegalArgumentException("nodeId required");

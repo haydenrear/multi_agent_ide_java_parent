@@ -5159,12 +5159,15 @@ public interface AgentModels {
             @JsonPropertyDescription("Node ID of the first AgentToAgentConversationNode in this call chain, null if this is the first hop.")
             @SkipPropertyFilter
             String originatingAgentToAgentNodeId,
-            @JsonPropertyDescription("Graph node ID of the target agent's workflow node, used for chatId routing.")
+            @JsonPropertyDescription("Graph node ID of the target agent's workflow node.")
             @SkipPropertyFilter
             String targetNodeId,
-            @JsonPropertyDescription("Chat session key for the calling agent's LLM session.")
+            @JsonPropertyDescription("The source agent's ACP session header value — passed in from the calling agent's request context.")
             @SkipPropertyFilter
-            String chatSessionKey,
+            String sourceSessionId,
+            @JsonPropertyDescription("Chat ID for the target agent's ACP session (where the LLM call will be routed).")
+            @SkipPropertyFilter
+            ArtifactKey chatId,
             @JsonPropertyDescription("Current goal context.")
             String goal
     ) implements AgentRequest {
@@ -5268,6 +5271,12 @@ public interface AgentModels {
             @JsonPropertyDescription("Optional checklist action when responding as part of a structured checklist review.")
             @SkipPropertyFilter
             ChecklistAction checklistAction,
+            @JsonPropertyDescription("The source agent's ACP session header value — passed in from the controller's request context.")
+            @SkipPropertyFilter
+            String sourceSessionId,
+            @JsonPropertyDescription("Chat ID for the target agent's ACP session (where the LLM call will be routed).")
+            @SkipPropertyFilter
+            ArtifactKey chatId,
             @JsonPropertyDescription("Current goal context.")
             String goal
     ) implements AgentRequest {

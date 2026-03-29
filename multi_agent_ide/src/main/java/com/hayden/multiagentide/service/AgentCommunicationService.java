@@ -34,7 +34,9 @@ public class AgentCommunicationService {
             String agentKey,
             String agentType,
             boolean busy,
-            boolean callableByCurrentAgent
+            boolean callableByCurrentAgent,
+            /** For prohibited agents: list of available agent keys that CAN reach this agent. Empty if callable. */
+            List<String> reachableVia
     ) {
     }
 
@@ -79,18 +81,25 @@ public class AgentCommunicationService {
         // Filter out self-calls
         Set<ArtifactKey> filteredKeys = sessionKeyResolutionService.filterSelfCalls(callingKey, sessionAgentTypes.keySet());
 
-        // Build result with topology check
+        // Build result with topology check and reachableVia for prohibited agents
         List<AgentAvailabilityEntry> result = new ArrayList<>();
         for (ArtifactKey key : filteredKeys) {
             AgentType targetType = sessionAgentTypes.get(key);
             boolean topologyPermitted = callingAgentType != null
                     && topologyProvider.isCommunicationAllowed(callingAgentType, targetType);
 
+            List<String> reachableVia = List.of();
+            if (!topologyPermitted && callingAgentType != null) {
+                // Find agents the caller CAN reach that CAN also reach this prohibited target
+                reachableVia = findReachableVia(callingAgentType, targetType, filteredKeys, sessionAgentTypes);
+            }
+
             result.add(new AgentAvailabilityEntry(
                     key.value(),
                     targetType.wireValue(),
                     false, // busy detection deferred to Phase 6
-                    topologyPermitted
+                    topologyPermitted,
+                    reachableVia
             ));
         }
 
@@ -171,6 +180,29 @@ public class AgentCommunicationService {
         }
         sb.append(target.value());
         return sb.toString();
+    }
+
+    /**
+     * For a prohibited target, find which agents the caller CAN reach that CAN also reach the target.
+     * Only considers agents with active sessions (from filteredKeys).
+     */
+    private List<String> findReachableVia(
+            @NonNull AgentType callingType,
+            @NonNull AgentType prohibitedTargetType,
+            @NonNull Set<ArtifactKey> availableKeys,
+            @NonNull Map<ArtifactKey, AgentType> sessionAgentTypes
+    ) {
+        List<String> bridges = new ArrayList<>();
+        for (ArtifactKey candidateKey : availableKeys) {
+            AgentType candidateType = sessionAgentTypes.get(candidateKey);
+            if (candidateType == null) continue;
+            // Candidate must be: (1) callable by the caller, and (2) able to call the prohibited target
+            if (topologyProvider.isCommunicationAllowed(callingType, candidateType)
+                    && topologyProvider.isCommunicationAllowed(candidateType, prohibitedTargetType)) {
+                bridges.add(candidateKey.value());
+            }
+        }
+        return bridges;
     }
 
     private @Nullable AgentType resolveAgentType(ArtifactKey sessionKey) {

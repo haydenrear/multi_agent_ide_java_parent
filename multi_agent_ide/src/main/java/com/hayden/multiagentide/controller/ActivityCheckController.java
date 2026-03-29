@@ -4,6 +4,7 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,13 +21,18 @@ public class ActivityCheckController {
 
     private final PermissionGate permissionGate;
 
-    public record ActivityCheckRequest(String nodeId) {}
+    @Schema(description = "Request for a lightweight activity check under a workflow node scope.")
+    public record ActivityCheckRequest(
+            @Schema(description = "ArtifactKey of the root node — pending items from descendant nodes are counted. "
+                    + "If blank, counts all pending items globally.") String nodeId
+    ) {}
 
+    @Schema(description = "Counts of pending items that require controller attention.")
     public record ActivityCheckResponse(
-            int pendingPermissions,
-            int pendingInterrupts,
-            int pendingConversations,
-            boolean hasActivity
+            @Schema(description = "Number of pending tool permission requests") int pendingPermissions,
+            @Schema(description = "Number of pending non-HUMAN_REVIEW interrupts (PAUSE, STOP, etc.)") int pendingInterrupts,
+            @Schema(description = "Number of pending HUMAN_REVIEW interrupts (agent-to-controller conversations)") int pendingConversations,
+            @Schema(description = "True if any count is > 0 — use this for polling loops") boolean hasActivity
     ) {}
 
     @PostMapping("/activity-check")

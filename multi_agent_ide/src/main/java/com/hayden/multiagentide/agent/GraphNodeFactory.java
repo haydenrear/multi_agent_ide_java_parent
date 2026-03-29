@@ -351,7 +351,8 @@ public class GraphNodeFactory {
         String originatingNodeId = request != null ? request.originatingAgentToAgentNodeId() : null;
         String targetNodeId = request != null ? request.targetNodeId() : null;
         var callChain = request != null ? request.callChain() : null;
-        String chatSessionKey = request != null ? request.chatSessionKey() : null;
+        String sourceSessionId = request != null ? request.sourceSessionId() : null;
+        String chatId = request != null && request.chatId() != null ? request.chatId().value() : null;
         return new AgentToAgentConversationNode(
                 artifactKey != null ? artifactKey.value() : newNodeId(),
                 "Agent Call: " + sourceKey + " → " + targetKey,
@@ -370,14 +371,15 @@ public class GraphNodeFactory {
                 originatingNodeId,
                 targetNodeId,
                 callChain != null ? callChain : new ArrayList<>(),
-                chatSessionKey
+                sourceSessionId,
+                chatId
         );
     }
 
     public DataLayerOperationNode dataLayerOperationNode(
             String parentId,
             String operationType,
-            String chatSessionKey,
+            String chatId,
             ArtifactKey artifactKey
     ) {
         Instant now = Instant.now();
@@ -391,7 +393,7 @@ public class GraphNodeFactory {
                 new ConcurrentHashMap<>(),
                 now,
                 now,
-                chatSessionKey,
+                chatId,
                 operationType
         );
     }

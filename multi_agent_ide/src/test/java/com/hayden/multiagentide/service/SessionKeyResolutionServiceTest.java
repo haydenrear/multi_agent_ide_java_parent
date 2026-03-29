@@ -187,7 +187,8 @@ class SessionKeyResolutionServiceTest {
                     .targetAgentKey(targetKey)
                     .targetAgentType(AgentType.PLANNING_AGENT)
                     .callChain(List.of())
-                    .chatSessionKey(null)
+                    .sourceSessionId(null)
+                    .chatId(null)
                     .build();
         }
 

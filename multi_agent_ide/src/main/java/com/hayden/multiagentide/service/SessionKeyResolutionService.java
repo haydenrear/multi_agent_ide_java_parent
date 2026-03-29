@@ -11,7 +11,7 @@ import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
 import com.hayden.multiagentidelib.model.nodes.AgentToAgentConversationNode;
 import com.hayden.multiagentidelib.model.nodes.ExecutionNode;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
-import com.hayden.multiagentidelib.model.nodes.HasChatSessionKey;
+import com.hayden.multiagentidelib.model.nodes.HasChatId;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import lombok.RequiredArgsConstructor;
@@ -298,7 +298,7 @@ public class SessionKeyResolutionService implements EventListener {
     public @Nullable GraphNode resolveNodeBySessionKey(@NonNull String sessionKey) {
         return graphRepository.findAll().stream()
                 .filter(n -> sessionKey.equals(n.nodeId())
-                        || (n instanceof HasChatSessionKey hck && sessionKey.equals(hck.chatSessionKey())))
+                        || (n instanceof HasChatId hck && sessionKey.equals(hck.chatId())))
                 .max(java.util.Comparator.comparing(GraphNode::lastUpdatedAt))
                 .orElse(null);
     }

@@ -5,11 +5,11 @@ package com.hayden.multiagentidelib.model.nodes;
  * The chatSessionKey may differ from the nodeId when sessions are resolved through
  * AiFilterSessionResolver or PromptContext.chatId().
  */
-public interface HasChatSessionKey {
+public interface HasChatId {
 
     /**
      * The chat session key used for LLM communication on this node.
      * May be the same as nodeId, or a child/derived key from session resolution.
      */
-    String chatSessionKey();
+    String chatId();
 }

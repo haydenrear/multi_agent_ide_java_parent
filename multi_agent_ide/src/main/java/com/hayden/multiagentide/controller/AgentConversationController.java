@@ -6,13 +6,11 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.repository.GraphRepository;
-import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.model.nodes.AgentToControllerConversationNode;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
-import com.hayden.multiagentidelib.model.nodes.HasChatSessionKey;
 import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,29 +39,40 @@ public class AgentConversationController {
 
     // ── Request/Response DTOs ────────────────────────────────────────────────
 
+    @Schema(description = "Request to respond to an agent's call_controller justification dialogue.")
     public record RespondRequest(
-            String targetAgentKey,
-            String message,
-            String checklistAction,
-            String interruptId
-    ) {}
+            @Schema(description = "ArtifactKey of the target agent (optional, for routing context)") String targetAgentKey,
+            @Schema(description = "Controller's response message delivered to the blocked agent", requiredMode = Schema.RequiredMode.REQUIRED) String message,
+            @Schema(description = "Checklist action taken by the controller (e.g. 'APPROVE', 'REQUEST_CHANGES')") String checklistAction,
+            @Schema(description = "Interrupt ID of the pending HUMAN_REVIEW interrupt to resolve", requiredMode = Schema.RequiredMode.REQUIRED) String interruptId,
+            @Schema(description = "Whether the agent should respond back via call_controller. "
+                    + "When true (default), a note is prepended telling the agent to use call_controller to reply. "
+                    + "Set false for final approvals that need no further dialogue.", defaultValue = "true") Boolean expectResponse
+    ) {
+        public boolean expectsResponse() {
+            return expectResponse == null || expectResponse;
+        }
+    }
 
+    @Schema(description = "Response from the conversation respond endpoint.")
     public record RespondResponse(
-            String status,
-            String interruptId,
-            String message
+            @Schema(description = "Outcome: 'resolved' on success, 'error' on failure") String status,
+            @Schema(description = "The interrupt ID that was resolved") String interruptId,
+            @Schema(description = "Human-readable result message") String message
     ) {}
 
+    @Schema(description = "Request to list conversations under a workflow node scope.")
     public record ListRequest(
-            String nodeId
+            @Schema(description = "ArtifactKey of the root node — conversations from descendant nodes are included", requiredMode = Schema.RequiredMode.REQUIRED) String nodeId
     ) {}
 
+    @Schema(description = "Summary of an agent-to-controller conversation.")
     public record ConversationSummary(
-            String targetKey,
-            String agentType,
-            String interruptId,
-            String reason,
-            boolean pending
+            @Schema(description = "ArtifactKey of the agent node that initiated the conversation") String targetKey,
+            @Schema(description = "Agent type wire value (e.g. 'discovery-agent', 'ticket-collector')") String agentType,
+            @Schema(description = "Interrupt ID — use this to respond via /respond endpoint") String interruptId,
+            @Schema(description = "Agent's justification reason for calling the controller") String reason,
+            @Schema(description = "True if the conversation is still awaiting a controller response") boolean pending
     ) {}
 
     // ── POST /api/agent-conversations/respond ────────────────────────────────
@@ -91,11 +100,19 @@ public class AgentConversationController {
                     new RespondResponse("error", request.interruptId(), "No pending interrupt found with this ID"));
         }
 
+        // Build the message, prepending response expectation note if needed
+        String resolvedMessage = request.message();
+        if (request.expectsResponse()) {
+            resolvedMessage = "[NOTE: This message was delivered through the call_controller tool. "
+                    + "If you need to respond to the controller, call call_controller again with your response.]\n\n"
+                    + resolvedMessage;
+        }
+
         // Resolve the interrupt with the controller's message
         boolean resolved = permissionGate.resolveInterrupt(
                 request.interruptId(),
                 IPermissionGate.ResolutionType.RESOLVED,
-                request.message(),
+                resolvedMessage,
                 (IPermissionGate.InterruptResult) null
         );
 

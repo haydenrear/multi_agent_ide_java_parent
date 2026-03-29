@@ -56,11 +56,18 @@ public record PromptContext(
         return switch(currentRequest)  {
             case AgentModels.CommitAgentRequest car -> car.chatKey() != null ? car.chatKey() : car.contextId();
             case AgentModels.MergeConflictRequest mcr -> mcr.chatKey() != null ? mcr.chatKey() : mcr.contextId();
-            case AgentModels.AgentToAgentRequest aar -> aar.targetNodeId() != null && !aar.targetNodeId().isBlank()
-                    ? new ArtifactKey(aar.targetNodeId())
-                    : aar.targetAgentKey();
-            case AgentModels.AgentToControllerRequest acr -> acr.sourceAgentKey();
-            case AgentModels.ControllerToAgentRequest car -> car.targetAgentKey();
+            case AgentModels.AgentToAgentRequest aar -> aar.chatId() != null
+                    ? aar.chatId()
+                    : (aar.targetNodeId() != null && !aar.targetNodeId().isBlank()
+                            ? new ArtifactKey(aar.targetNodeId())
+                            : aar.targetAgentKey());
+            case AgentModels.AgentToControllerRequest acr -> {
+                log.error("chatId() called on AgentToControllerRequest — this request routes through the permission gate, not ACP. Returning sourceAgentKey as fallback.");
+                yield acr.sourceAgentKey();
+            }
+            case AgentModels.ControllerToAgentRequest car -> car.chatId() != null
+                    ? car.chatId()
+                    : car.targetAgentKey();
             case AgentModels.AiFilterRequest afr -> afr.chatKey() != null ? afr.chatKey() : afr.contextId();
             case AgentModels.AiPropagatorRequest apr -> apr.chatKey() != null ? apr.chatKey() : apr.contextId();
             case AgentModels.AiTransformerRequest atr -> atr.chatKey() != null ? atr.chatKey() : atr.contextId();

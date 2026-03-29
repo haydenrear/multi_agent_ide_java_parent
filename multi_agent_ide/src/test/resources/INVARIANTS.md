@@ -31,6 +31,12 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | H-INV3 | — | Not yet validated (needs unit test verifying LlmCallDecorators don't modify tcc()) |
 | H-INV4 | — | Not yet validated (needs integration test verifying topology tools in ToolContext) |
 | H-INV5 | — | Not yet validated (needs unit test on decorator ordering) |
+| O-INV1 | — | Not yet validated (needs assertion: A2A request chatId ≠ sourceSessionId) |
+| O-INV2 | — | Not yet validated (needs C2A request chatId test) |
+| O-INV3 | — | Not yet validated (needs log assertion for A2C chatId() call) |
+| O-INV4 | — | Not yet validated (needs chatId on A2A node assertion in existing D1 test) |
+| O-INV5 | PASS (indirect) | Covered by existing F2 test (chatId plumbing verified) |
+| O-INV6 | — | Not yet validated (needs exhaustive switch coverage test) |
 
 ### Trace Timing Gap (A-INV2)
 
@@ -172,7 +178,7 @@ Each invariant listed here should eventually be expanded into its own group of s
 **Search**: `*.graph.md` — track A2A nodes across snapshots.
 
 ### D-INV2. A2A Required Fields (D1, D6)
-**Invariant**: Every A2A detail section has non-null `source`, `target`, `callingNodeId`, `targetNodeId`, `chatSessionKey`. `originatingA2ANodeId` null only for first-level calls.
+**Invariant**: Every A2A detail section has non-null `source`, `target`, `callingNodeId`, `targetNodeId`, `sourceSessionId`, `chatId`. `originatingA2ANodeId` null only for first-level calls.
 **Search**: `*.graph.md` — `### AgentToAgent:` sections.
 
 ### D-INV3. Chained Call Chain Growth (D2)
@@ -232,16 +238,16 @@ Each invariant listed here should eventually be expanded into its own group of s
 ## F. Data Layer Operations
 
 ### F-INV1. DataLayer Node Created and Completed (F1)
-**Invariant**: Every DataLayerOperationNode transitions RUNNING→COMPLETED. operationType and chatSessionKey non-null.
+**Invariant**: Every DataLayerOperationNode transitions RUNNING→COMPLETED. operationType and chatId non-null.
 **Search**: `*.graph.md` — `### DataLayer:` sections.
 
-### F-INV2. chatSessionKey Matches Workflow Session (F2)
-**Invariant**: DataLayerOperationNode.chatSessionKey is a valid `ak:` ULID that appears as a nodeId in the graph.
-**Search**: `*.graph.md` — cross-reference chatSessionKey with NodeId column.
+### F-INV2. chatId Matches Workflow Session (F2)
+**Invariant**: DataLayerOperationNode.chatId is a valid `ak:` ULID that appears as a nodeId in the graph.
+**Search**: `*.graph.md` — cross-reference chatId with NodeId column.
 
-### F-INV3. Parallel Agents Have Distinct chatSessionKeys (F3)
-**Invariant**: When N agents run in parallel, their DataLayerOperationNodes have N distinct chatSessionKey values.
-**Search**: `*.graph.md` — extract chatSessionKeys from DataLayer sections, check uniqueness.
+### F-INV3. Parallel Agents Have Distinct chatIds (F3)
+**Invariant**: When N agents run in parallel, their DataLayerOperationNodes have N distinct chatId values.
+**Search**: `*.graph.md` — extract chatIds from DataLayer sections, check uniqueness.
 
 ---
 
@@ -345,6 +351,43 @@ Each invariant listed here should eventually be expanded into its own group of s
 
 ---
 
+## O. Chat ID Traceability (sourceSessionId / chatId)
+
+The chatId field identifies the target ACP session for LLM routing. The sourceSessionId identifies the calling agent's session header. Previously these were conflated as `chatSessionKey`, which caused calls to route to the caller's session instead of the target's. These invariants ensure chatId is set correctly for every request type and graph node type.
+
+### O-INV1. AgentToAgentRequest chatId Points to Target (O1, D-INV2)
+**Invariant**: `AgentToAgentRequest.chatId()` is non-null and equals `new ArtifactKey(targetNodeId)` when targetNodeId is set, or `targetAgentKey` when targetNodeId is blank. It must NOT equal `sourceAgentKey` or `sourceSessionId`.
+**Search**: Code-level assertion. Trace evidence: `### AgentToAgent:` sections — chatId ≠ sourceSessionId.
+
+### O-INV2. ControllerToAgentRequest chatId Points to Target (O2)
+**Invariant**: `ControllerToAgentRequest.chatId()` is non-null and matches the target agent's ACP session key. Fallback: `targetAgentKey` when chatId not explicitly set.
+**Search**: Code-level assertion on `PromptContext.chatId()` for ControllerToAgentRequest.
+
+### O-INV3. AgentToControllerRequest chatId Logs Error (O3)
+**Invariant**: `PromptContext.chatId()` for `AgentToControllerRequest` logs an error (because A2C routes through the permission gate, not ACP) and returns `sourceAgentKey` as fallback. No ACP call should be made for this request type.
+**Search**: Code-level assertion. Runtime log — error message "chatId() called on AgentToControllerRequest".
+
+### O-INV4. AgentToAgentConversationNode chatId Matches Request chatId (O4, D-INV2)
+**Invariant**: `AgentToAgentConversationNode.chatId()` equals `request.chatId().value()`. `sourceSessionId()` equals `request.sourceSessionId()`. `HasChatId.chatId()` (used by `SessionKeyResolutionService.resolveNodeBySessionKey()`) returns the target session key, enabling lookup by the target's session rather than the caller's.
+**Search**: `*.graph.md` — `### AgentToAgent:` sections. Verify chatId is an `ak:` key different from sourceSessionId.
+
+### O-INV5. DataLayerOperationNode chatId from Request chatKey (O5, F-INV2)
+**Invariant**: `DataLayerOperationNode.chatId()` equals the owning agent's ACP session key, derived from `request.chatKey().value()` in `StartWorkflowRequestDecorator`. For AiFilter/AiPropagator/AiTransformer/CommitAgent/MergeConflict types, this is the parent agent's key.
+**Search**: `*.graph.md` — `### DataLayer:` sections. Cross-reference chatId with parent agent nodeId.
+
+### O-INV6. PromptContext.chatId() Dispatch Table (O1–O6)
+**Invariant**: `PromptContext.chatId()` switch expression covers all request types:
+- `AgentToAgentRequest` → `aar.chatId()` (fallback: targetNodeId/targetAgentKey)
+- `AgentToControllerRequest` → logs error, yields `sourceAgentKey`
+- `ControllerToAgentRequest` → `car.chatId()` (fallback: targetAgentKey)
+- `CommitAgentRequest` → `chatKey()` ?? `contextId()`
+- `MergeConflictRequest` → `chatKey()` ?? `contextId()`
+- `AiFilterRequest/AiPropagatorRequest/AiTransformerRequest` → `chatKey()` ?? `contextId()`
+- Default `AgentRequest` → `contextId()`
+**Search**: Code inspection of `PromptContext.chatId()`. All branches must be exhaustive over the sealed `AgentRequest` hierarchy.
+
+---
+
 ## Coverage: Surface → Invariants
 
 | Surface | Invariants |
@@ -418,3 +461,9 @@ Each invariant listed here should eventually be expanded into its own group of s
 | N6 | — (code-level) |
 | N7 | N-INV1–2 |
 | N8 | — (code-level) |
+| O1 | O-INV1, O-INV6 |
+| O2 | O-INV2, O-INV6 |
+| O3 | O-INV3, O-INV6 |
+| O4 | O-INV4, D-INV2 |
+| O5 | O-INV5, F-INV2 |
+| O6 | O-INV6 |

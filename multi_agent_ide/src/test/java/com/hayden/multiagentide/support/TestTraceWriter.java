@@ -113,7 +113,8 @@ public class TestTraceWriter {
                         sb.append("- callingNodeId: `%s`\n".formatted(a2a.callingNodeId()));
                         sb.append("- originatingA2ANodeId: `%s`\n".formatted(a2a.originatingAgentToAgentNodeId()));
                         sb.append("- targetNodeId: `%s`\n".formatted(a2a.targetNodeId()));
-                        sb.append("- chatSessionKey: `%s`\n".formatted(a2a.chatSessionKey()));
+                        sb.append("- sourceSessionId: `%s`\n".formatted(a2a.sourceSessionId()));
+                        sb.append("- chatId: `%s`\n".formatted(a2a.chatId()));
                         if (a2a.callChain() != null && !a2a.callChain().isEmpty()) {
                             sb.append("- callChain: %s\n".formatted(safeSerialize(a2a.callChain())));
                         }
@@ -121,12 +122,12 @@ public class TestTraceWriter {
                     } else if (node instanceof DataLayerOperationNode dl) {
                         sb.append("### DataLayer: `%s`\n\n".formatted(truncateId(dl.nodeId())));
                         sb.append("- operationType: `%s`\n".formatted(dl.operationType()));
-                        sb.append("- chatSessionKey: `%s`\n".formatted(dl.chatSessionKey()));
+                        sb.append("- chatId: `%s`\n".formatted(dl.chatId()));
                         sb.append("\n");
-                    } else if (node instanceof HasChatSessionKey hc) {
-                        String chatKey = hc.chatSessionKey();
+                    } else if (node instanceof HasChatId hc) {
+                        String chatKey = hc.chatId();
                         if (chatKey != null && !chatKey.isBlank()) {
-                            sb.append("### %s: `%s` — chatSessionKey: `%s`\n\n".formatted(
+                            sb.append("### %s: `%s` — chatId: `%s`\n\n".formatted(
                                     node.getClass().getSimpleName(), truncateId(node.nodeId()), chatKey));
                         }
                     }

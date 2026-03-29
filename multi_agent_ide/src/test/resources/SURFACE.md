@@ -61,6 +61,12 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | H6 | — | **GAP (P0)** |
 | H7 | — | **GAP (P0)** |
 | H8 | — | GAP (P1) |
+| O1 | — | **GAP (P0)** |
+| O2 | — | **GAP (P0)** |
+| O3 | — | **GAP (P0)** |
+| O4 | `callAgent_createsAndCompletesAgentToAgentNode` (partial — needs chatId assertion) | **GAP (P0)** |
+| O5 | `propagator_chatSessionKey_setCorrectly` (renamed, covers chatId plumbing) | COVERED |
+| O6 | — | GAP (P1) |
 
 ---
 
@@ -161,7 +167,7 @@ After human resolves with notes "Please reconsider X", the next LLM call include
 ### D1. Single call_agent — Happy Path (P0)
 Discovery agent calls a collector via call_agent tool. AgentToAgentConversationNode created with status RUNNING, then COMPLETED. Response returned to caller.
 
-**Validates**: Full callAgent flow: validate → build request → decorate → LLM → decorate routing → complete A2A node. callingNodeId, targetNodeId, chatSessionKey all set.
+**Validates**: Full callAgent flow: validate → build request → decorate → LLM → decorate routing → complete A2A node. callingNodeId, targetNodeId, sourceSessionId, chatId all set.
 
 ### D2. Chained Calls — A Calls B Calls C (P0)
 Discovery agent calls collector, which (in its callback) calls orchestrator. Two A2A nodes created. Call chain tracked correctly.
@@ -242,17 +248,17 @@ Agent creates worktree, does no work, worktree is discarded. No artifacts remain
 ## F. Data Layer Operations (Filter / Propagator / Transformer)
 
 ### F1. Data Layer Nodes Created During Workflow (P0)
-Full workflow triggers filter, propagator, or transformer operations. DataLayerOperationNode created with correct operationType and chatSessionKey.
+Full workflow triggers filter, propagator, or transformer operations. DataLayerOperationNode created with correct operationType and chatId.
 
-**Validates**: DataLayerOperationNode lifecycle. chatSessionKey correctly set from request context. Node transitions RUNNING→COMPLETED.
+**Validates**: DataLayerOperationNode lifecycle. chatId correctly set from request context. Node transitions RUNNING→COMPLETED.
 
-### F2. Propagator chatSessionKey Set Correctly (P0)
-Propagator runs during discovery phase. chatSessionKey on the DataLayerOperationNode matches the workflow's session key.
+### F2. Propagator chatId Set Correctly (P0)
+Propagator runs during discovery phase. chatId on the DataLayerOperationNode matches the workflow's session key.
 
-**Validates**: chatSessionKey plumbed from request → startDataLayerOperation → node.
+**Validates**: chatId plumbed from request → startDataLayerOperation → node.
 
-### F3. Parallel Agents — Distinct chatSessionKeys (P0)
-Three parallel discovery agents each trigger propagators. Each DataLayerOperationNode has a distinct chatSessionKey.
+### F3. Parallel Agents — Distinct chatIds (P0)
+Three parallel discovery agents each trigger propagators. Each DataLayerOperationNode has a distinct chatId.
 
 **Validates**: Session isolation for data layer operations. No cross-contamination between parallel agent sessions.
 
@@ -514,6 +520,42 @@ Polling `POST /api/ui/activity-check` with a nodeId returns counts of pending pe
 
 ---
 
+## O. Chat ID Traceability (sourceSessionId / chatId)
+
+The `chatId` identifies the target ACP session where an LLM call gets routed. `sourceSessionId` identifies the calling agent's ACP session header. These two fields were previously conflated as `chatSessionKey`, which caused a bug where the caller's session was used to route calls instead of the target's. Each request type and graph node type resolves chatId differently.
+
+### O1. AgentToAgentRequest — chatId Set from Target (P0)
+`AgentTopologyTools.callAgent()` builds `AgentToAgentRequest` with `chatId` computed from `targetNodeId` (preferred) or `targetAgentKey` (fallback). `sourceSessionId` is the calling agent's session header.
+
+**Validates**: chatId points to the target agent's ACP session, not the caller's. `PromptContext.chatId()` reads `aar.chatId()` directly.
+
+### O2. ControllerToAgentRequest — chatId Set from Target (P0)
+Controller-to-agent requests carry `chatId` pointing to the target agent's ACP session and `sourceSessionId` identifying the controller's session context.
+
+**Validates**: chatId routes the LLM call to the correct agent. `PromptContext.chatId()` reads `car.chatId()` directly, falling back to `targetAgentKey`.
+
+### O3. AgentToControllerRequest — chatId Not Applicable (P0)
+Controller requests route through the permission gate (HUMAN_REVIEW interrupt), not ACP. `PromptContext.chatId()` logs an error if invoked for this request type and returns `sourceAgentKey` as fallback.
+
+**Validates**: No ACP routing for controller-bound requests. Error log fires if code path incorrectly calls chatId().
+
+### O4. AgentToAgentConversationNode — chatId Matches Request (P0)
+`GraphNodeFactory.agentToAgentNode()` populates `chatId` from `request.chatId().value()` and `sourceSessionId` from `request.sourceSessionId()`. `HasChatId.chatId()` returns the target session key for `SessionKeyResolutionService.resolveNodeBySessionKey()`.
+
+**Validates**: Graph node's chatId matches the request's chatId. SessionKeyResolutionService can find the node by the target session, not the source session.
+
+### O5. DataLayerOperationNode — chatId from Request chatKey (P0)
+`StartWorkflowRequestDecorator` extracts `chatKey` from `AiFilterRequest`, `AiPropagatorRequest`, `CommitAgentRequest`, etc. and passes it to `startDataLayerOperation()`. The `chatId` on the node is the parent agent's ACP session key.
+
+**Validates**: DataLayer nodes route to the owning agent's session. `HasChatId.chatId()` returns the correct session for resolution.
+
+### O6. CommitAgentRequest / MergeConflictRequest — chatId via contextId.parent() (P1)
+These request types don't carry an explicit chatId field. `PromptContext.chatId()` resolves via `chatKey()` (which returns `contextId.parent()` — the calling agent's ArtifactKey).
+
+**Validates**: Commit and merge agents share the calling agent's ACP session. Self-call filtering accounts for this shared session.
+
+---
+
 ## Coverage Matrix
 
 | Scenario | Graph | Events | Blackboard | Worktree | Interrupt | A2A | DataLayer |
@@ -545,3 +587,9 @@ Polling `POST /api/ui/activity-check` with a nodeId returns counts of pending pe
 | H6       |       |        |            |          |           |     |           |
 | H7       |       |        |            |          |           |     |           |
 | H8       |       |        |            |          |           |     |           |
+| O1       | X     |        |            |          |           | X   |           |
+| O2       | X     |        |            |          |           |     |           |
+| O3       |       |        |            |          | X         |     |           |
+| O4       | X     |        |            |          |           | X   |           |
+| O5       | X     |        |            |          |           |     | X         |
+| O6       | X     |        |            |          |           |     | X         |

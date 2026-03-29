@@ -23,7 +23,6 @@ import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRep
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.*;
-import com.hayden.multiagentide.topology.CommunicationTopologyConfig;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentide.support.QueuedLlmRunner;
 import com.hayden.multiagentide.support.TestEventListener;
@@ -1744,7 +1743,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             var a2aNode = a2aNodes.getFirst();
             assertThat(a2aNode.targetAgentKey()).isEqualTo(targetKey.value());
             assertThat(a2aNode.targetAgentType()).isEqualTo(AgentType.DISCOVERY_COLLECTOR);
-            assertThat(a2aNode.chatSessionKey()).isNotNull();
+            assertThat(a2aNode.chatId()).isNotNull();
             assertThat(a2aNode.status()).isEqualTo(Events.NodeStatus.COMPLETED);
 
             // Verify startAgentCall and completeAgentCall were called
@@ -1880,7 +1879,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             assertThat(targetKeys).containsExactlyInAnyOrder(target1Key.value(), target2Key.value());
 
             // Both should have chatSessionKey set
-            assertThat(a2aNodes).allMatch(n -> n.chatSessionKey() != null);
+            assertThat(a2aNodes).allMatch(n -> n.chatId() != null);
 
             // Verify two startAgentCall invocations
             verify(workflowGraphService, times(2)).startAgentCall(any(AgentModels.AgentToAgentRequest.class));

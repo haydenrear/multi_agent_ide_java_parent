@@ -8,10 +8,10 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.commitdiffcontext.cdc_utils.SetFromHeader;
 import com.hayden.commitdiffcontext.mcp.ToolCarrier;
 import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
-import com.hayden.multiagentide.gate.PermissionGate;
+
 import com.hayden.multiagentide.service.AgentCommunicationService;
 import com.hayden.multiagentide.service.SessionKeyResolutionService;
-import com.hayden.acp_cdc_ai.permission.IPermissionGate;
+
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
@@ -34,6 +34,7 @@ import org.springframework.util.StringUtils;
 import com.hayden.multiagentide.topology.CommunicationTopologyProvider;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -59,12 +60,7 @@ public class AgentTopologyTools implements ToolCarrier {
     private LlmRunner llmRunner;
     private PromptContextFactory promptContextFactory;
     private EventBus eventBus;
-    private PermissionGate permissionGate;
-
-    @Autowired
-    public void setPermissionGate(PermissionGate permissionGate) {
-        this.permissionGate = permissionGate;
-    }
+    private com.hayden.multiagentide.service.AgentExecutor agentExecutor;
 
     @Autowired
     public void setAgentPlatform(AgentPlatform agentPlatform) {
@@ -91,10 +87,14 @@ public class AgentTopologyTools implements ToolCarrier {
         this.eventBus = eventBus;
     }
 
-    @Tool(name = "list_agents", description = "Lists all available agent sessions that can be communicated with. "
-            + "Returns a JSON array of agents with their keys, types, busy status, and whether the current agent "
-            + "is permitted to call them based on topology rules. Use this to discover which agents are available "
-            + "before calling them with the call_agent tool.")
+    @Autowired
+    public void setAgentExecutor(com.hayden.multiagentide.service.AgentExecutor agentExecutor) {
+        this.agentExecutor = agentExecutor;
+    }
+
+    @Tool(name = "list_agents", description = "Lists all available agent sessions. Returns two sections: "
+            + "(1) agents you CAN call directly, and (2) agents that exist but you CANNOT call due to topology rules, "
+            + "along with which agents can bridge you to them. Use this to discover routing paths before calling agents.")
     public String listAgents(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId
@@ -105,7 +105,44 @@ public class AgentTopologyTools implements ToolCarrier {
         GraphNode callingNode = sessionKeyResolutionService.resolveNodeBySessionKey(sessionId);
         AgentType callingAgentType = callingNode != null ? NodeMappings.agentTypeFromNode(callingNode) : null;
         var agents = agentCommunicationService.listAvailableAgents(sessionId, callingAgentType);
-        return toJson(agents);
+
+        List<AgentCommunicationService.AgentAvailabilityEntry> callable = new ArrayList<>();
+        List<AgentCommunicationService.AgentAvailabilityEntry> prohibited = new ArrayList<>();
+        for (var agent : agents) {
+            if (agent.callableByCurrentAgent()) {
+                callable.add(agent);
+            } else {
+                prohibited.add(agent);
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("## Available agents you CAN call directly\n");
+        if (callable.isEmpty()) {
+            sb.append("(none)\n");
+        } else {
+            for (var a : callable) {
+                sb.append("- ").append(a.agentKey()).append(" (").append(a.agentType()).append(")\n");
+            }
+        }
+
+        sb.append("\n## Available agents you CANNOT call (topology-prohibited)\n");
+        if (prohibited.isEmpty()) {
+            sb.append("(none)\n");
+        } else {
+            for (var a : prohibited) {
+                sb.append("- ").append(a.agentKey()).append(" (").append(a.agentType()).append(")");
+                if (!a.reachableVia().isEmpty()) {
+                    sb.append(" — reachable via: ").append(String.join(", ", a.reachableVia()));
+                }
+                sb.append("\n");
+            }
+            sb.append("\nNOTE: If you need to reach a prohibited agent, contact one of the agents listed in 'reachable via' ");
+            sb.append("and ask them to relay your message. Prefer an agent in your sub-graph (discovery, planning, ticket) ");
+            sb.append("or at the same level of abstraction (orchestrator, collector, dispatcher, dispatched).");
+        }
+
+        return sb.toString();
     }
 
     @Tool(name = "call_agent", description = "Sends a message to another agent and returns their response. "
@@ -199,7 +236,10 @@ public class AgentTopologyTools implements ToolCarrier {
                     .callingNodeId(callingNodeId)
                     .originatingAgentToAgentNodeId(originatingAgentToAgentNodeId)
                     .targetNodeId(targetNodeId)
-                    .chatSessionKey(sessionId)
+                    .sourceSessionId(sessionId)
+                    .chatId(targetNodeId != null && !targetNodeId.isBlank()
+                            ? new ArtifactKey(targetNodeId)
+                            : targetKey)
                     .build();
 
             // 1. Decorate request (StartWorkflowRequestDecorator creates the node here)
@@ -292,6 +332,13 @@ public class AgentTopologyTools implements ToolCarrier {
                 responseText = "Agent responded but returned no content.";
             }
 
+            // Successful agent call — reset controller message budget counter
+            // (agent made forward progress, so consecutive controller calls start fresh)
+            var budgetCounter = conversationMessageCounts.get(sessionId);
+            if (budgetCounter != null) {
+                budgetCounter.set(0);
+            }
+
             // Emit RETURNED event on success
             emitCallEvent(Events.AgentCallEventType.RETURNED, sessionId, callingType, targetAgentKey, targetType,
                     callChain, null, responseText, null, null);
@@ -361,27 +408,6 @@ public class AgentTopologyTools implements ToolCarrier {
                     justificationMessage, null
             );
 
-            // 1. Decorate request
-            AgentModels.AgentToControllerRequest enrichedRequest = decorateRequestResults.decorateRequest(
-                    new DecorateRequestResults.DecorateRequestArgs<>(
-                            request, operationContext,
-                            AgentInterfaces.AGENT_NAME_CONTROLLER_CALL,
-                            AgentInterfaces.ACTION_CONTROLLER_CALL,
-                            AgentInterfaces.METHOD_CALL_CONTROLLER,
-                            lastRequest
-                    ));
-
-            // 2. Build and decorate prompt context
-            BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(operationContext);
-            DecoratorContext decoratorContext = new DecoratorContext(
-                    operationContext,
-                    AgentInterfaces.AGENT_NAME_CONTROLLER_CALL,
-                    AgentInterfaces.ACTION_CONTROLLER_CALL,
-                    AgentInterfaces.METHOD_CALL_CONTROLLER,
-                    lastRequest,
-                    enrichedRequest
-            );
-
             Map<String, Object> templateModel = new java.util.HashMap<>(Map.of(
                     "sourceAgentKey", callingKey.value(),
                     "justificationMessage", justificationMessage
@@ -389,43 +415,26 @@ public class AgentTopologyTools implements ToolCarrier {
             if (callingType != null) {
                 templateModel.put("sourceAgentType", callingType.wireValue());
             }
-            if (enrichedRequest.goal() != null) {
-                templateModel.put("goal", enrichedRequest.goal());
-            }
-
-            PromptContext promptContext = promptContextFactory.build(
-                    AgentType.CONTROLLER_CALL,
-                    enrichedRequest,
-                    lastRequest,
-                    enrichedRequest,
-                    history,
-                    AgentInterfaces.TEMPLATE_COMMUNICATION_CONTROLLER_CALL,
-                    templateModel,
-                    operationContext,
-                    decoratorContext
-            );
-            promptContext = decorateRequestResults.decoratePromptContext(
-                    new DecorateRequestResults.DecoratePromptContextArgs(promptContext, decoratorContext)
-            );
 
             // Emit INITIATED event
             emitCallEvent(Events.AgentCallEventType.INITIATED, sessionId, callingType,
                     "controller", null, List.of(), justificationMessage, null, null, null);
 
-            // 3. Publish interrupt and block until controller responds
+            // Delegate to AgentExecutor: decorates request, builds prompt context,
+            // renders template + prompt contributors, publishes interrupt, blocks until resolved.
             String interruptId = contextId.value();
-            permissionGate.publishInterrupt(
-                    interruptId,
-                    callingNode != null ? callingNode.nodeId() : interruptId,
-                    Events.InterruptType.HUMAN_REVIEW,
-                    justificationMessage
+            String responseText = agentExecutor.controllerExecution(
+                    com.hayden.multiagentide.service.AgentExecutor.ControllerExecutionArgs.builder()
+                            .agentActionMetadata(AgentInterfaces.MultiAgentIdeMetadata.AgentMetadata.CALL_CONTROLLER)
+                            .previousRequest(lastRequest)
+                            .currentRequest(request)
+                            .templateModel(templateModel)
+                            .operationContext(operationContext)
+                            .interruptId(interruptId)
+                            .originNodeId(callingNode != null ? callingNode.nodeId() : interruptId)
+                            .interruptType(Events.InterruptType.HUMAN_REVIEW)
+                            .build()
             );
-
-            IPermissionGate.InterruptResolution resolution = permissionGate.awaitInterruptBlocking(interruptId);
-            String responseText = resolution != null ? resolution.getResolutionNotes() : null;
-            if (responseText == null || responseText.isBlank()) {
-                responseText = "Controller acknowledged but provided no response.";
-            }
 
             // Emit RETURNED event
             emitCallEvent(Events.AgentCallEventType.RETURNED, sessionId, callingType,

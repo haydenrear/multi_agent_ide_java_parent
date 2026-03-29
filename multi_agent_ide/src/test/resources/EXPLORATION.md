@@ -173,6 +173,33 @@ Generated: 2026-03-27
 
 ---
 
+## E15. chatSessionKey → sourceSessionId / chatId Split — Latent Routing Bug
+
+**Where**: `AgentToAgentRequest`, `ControllerToAgentRequest`, `AgentToAgentConversationNode`, `PromptContext.chatId()`, `SessionKeyResolutionService.resolveNodeBySessionKey()`
+**Question**: The previous `chatSessionKey` field conflated two distinct identifiers: the source agent's session (who is calling) and the target ACP session (where the LLM call should route). Were any production calls routing to the wrong session?
+**Why it matters**: This was a real bug. `AgentTopologyTools.callAgent()` set `.chatSessionKey(sessionId)` where `sessionId` was the calling agent's session — meaning `HasChatSessionKey.chatSessionKey()` returned the caller's session, and `SessionKeyResolutionService.resolveNodeBySessionKey()` could match on the wrong node. Additionally, `PromptContext.chatId()` computed the target key from `targetNodeId`/`targetAgentKey` inline, but the value stored on the node and used for resolution was the caller's key.
+**What to look for**:
+1. In test traces (`*.graph.md`), compare old `chatSessionKey` values in `### AgentToAgent:` sections with the `source` field — if they're the same, the bug was active (caller's session stored instead of target's)
+2. In `SessionKeyResolutionService`, `resolveNodeBySessionKey()` would match an A2A node by the *caller's* session key, not the target's — this could cause stale session resolution in chained calls
+3. For `DataLayerOperationNode`, the field was correctly set (parent agent's key = target for data layer calls), so this class was unaffected
+4. Check if `AiFilterSessionResolver` path was affected — it calls `resolveNodeBySessionKey()` and could get the wrong node for A2A contexts
+
+**Status**: INVESTIGATED — Bug confirmed and fixed
+**Finding**: The `chatSessionKey` field was renamed to `sourceSessionId` (caller) and a new `chatId` field (target) was added to `AgentToAgentRequest`, `ControllerToAgentRequest`, and `AgentToAgentConversationNode`. `HasChatSessionKey` was renamed to `HasChatId` with the `chatId()` method returning the target session. `PromptContext.chatId()` now reads the explicit `chatId` field. For `AgentToControllerRequest`, `chatId()` logs an error (A2C routes through permission gate, not ACP). The fix required updating: AgentModels.java, AgentToAgentConversationNode, GraphNodeFactory, AgentTopologyTools, PromptContext, SessionKeyResolutionService, TestTraceWriter, and all test assertions referencing the old field.
+
+---
+
+## E16. PromptContext.chatId() Exhaustive Branch Coverage
+
+**Where**: `PromptContext.chatId()` — switch expression over sealed `AgentRequest` hierarchy
+**Question**: Is every branch of the `chatId()` switch reachable and correct? The switch now has explicit chatId fields for A2A/C2A, an error log for A2C, and fallback-to-contextId for other types. Are there request types that should have explicit chatId handling but don't?
+**Why it matters**: If a new request type is added to the sealed hierarchy and falls through to the default `ar -> ar.contextId()` case, it may route to the wrong session silently. The explicit A2C error log pattern should be applied to any request type where ACP routing is unexpected.
+**What to look for**: Add a unit test that instantiates every concrete `AgentRequest` type and calls `PromptContext.chatId()` — verify the result is the expected ACP target for each type.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
 ## Future Exploration Candidates
 
 - **F-E1**: Data layer operation timing relative to agent completion — do DataLayerOperationNodes always complete before their parent agent completes?
@@ -181,3 +208,5 @@ Generated: 2026-03-27
 - **F-E4**: Graph snapshot consistency — does the same graph state ever appear in two consecutive snapshots (indicating a no-op LLM call)?
 - **F-E5**: ToolContextDecorator sort stability — if two decorators share the same `order()` value, does their relative execution order vary between runs? Could cause non-deterministic tool registration.
 - **F-E6**: Justification prompt template resolution — do all 16 workflow templates actually include `_review_justification.jinja` and their role-specific justification partial? Grep the resolved prompt text in trace data.
+- **F-E7**: chatId correctness in chained A2A calls — when agent A calls B calls C, does each hop's A2A node have the correct chatId pointing to the *next* target, not a stale value from a prior hop? Cross-reference chatId in `### AgentToAgent:` sections across the call chain.
+- **F-E8**: SessionKeyResolutionService behavior after chatId fix — does `resolveNodeBySessionKey()` now correctly find A2A nodes by the target session key? Test with concurrent parallel calls where two A2A nodes target different agents.

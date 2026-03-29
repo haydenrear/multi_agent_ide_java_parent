@@ -131,14 +131,14 @@ public class WorkflowGraphService {
     public DataLayerOperationNode startDataLayerOperation(
             ArtifactKey contextId,
             String operationType,
-            String chatSessionKey
+            String chatId
     ) {
         // Parent is derived from contextId's parent if it exists in the graph
         String parentId = contextId != null
                 ? contextId.parent().map(ArtifactKey::value).filter(graphRepository::exists).orElse(null)
                 : null;
         DataLayerOperationNode node = nodeFactory.dataLayerOperationNode(
-                parentId, operationType, chatSessionKey, contextId);
+                parentId, operationType, chatId, contextId);
         if (parentId != null) {
             computationGraphOrchestrator.addChildNodeAndEmitEvent(parentId, node);
         } else {

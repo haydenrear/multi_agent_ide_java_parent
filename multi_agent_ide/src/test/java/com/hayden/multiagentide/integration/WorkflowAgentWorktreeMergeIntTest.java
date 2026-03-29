@@ -480,10 +480,10 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                     .isNotEmpty();
 
             for (var node : propagatorNodes) {
-                assertThat(node.chatSessionKey())
+                assertThat(node.chatId())
                         .as("AiPropagator DataLayerOperationNode should have chatSessionKey set (parent's key)")
                         .isNotNull();
-                assertThat(node.chatSessionKey())
+                assertThat(node.chatId())
                         .as("chatSessionKey should differ from nodeId (routes to parent session)")
                         .isNotEqualTo(node.nodeId());
             }
@@ -517,7 +517,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
 
             // All propagator nodes should have chatSessionKey set
             for (var node : propagatorNodes) {
-                assertThat(node.chatSessionKey()).isNotNull();
+                assertThat(node.chatId()).isNotNull();
             }
         }
     }

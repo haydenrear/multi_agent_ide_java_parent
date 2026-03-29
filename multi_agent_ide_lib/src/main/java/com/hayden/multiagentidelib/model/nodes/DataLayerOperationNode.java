@@ -25,9 +25,9 @@ public record DataLayerOperationNode(
         Map<String, String> metadata,
         Instant createdAt,
         Instant lastUpdatedAt,
-        String chatSessionKey,
+        String chatId,
         String operationType
-) implements GraphNode, HasChatSessionKey {
+) implements GraphNode, HasChatId {
 
     public DataLayerOperationNode {
         if (nodeId == null || nodeId.isEmpty()) throw new IllegalArgumentException("nodeId required");
