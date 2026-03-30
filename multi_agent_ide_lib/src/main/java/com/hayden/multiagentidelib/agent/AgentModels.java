@@ -2200,6 +2200,11 @@ public interface AgentModels {
     }
 
     private static void appendPrettyMergeDescriptor(StringBuilder builder, String label, MergeDescriptor descriptor) {
+        var serCtx = AgentPretty.ACTIVE_SERIALIZATION_CTX.get();
+        if (serCtx instanceof AgentPretty.AgentSerializationCtx.SkipWorktreeContextSerializationCtx
+                || serCtx instanceof AgentPretty.AgentSerializationCtx.HistoricalRequestSerializationCtx) {
+            return;
+        }
         builder.append(label).append(":\n");
         if (descriptor == null) {
             builder.append("\t(none)\n");
@@ -2255,6 +2260,11 @@ public interface AgentModels {
     }
 
     private static void appendPrettyMergeAggregation(StringBuilder builder, String label, MergeAggregation aggregation) {
+        var serCtx = AgentPretty.ACTIVE_SERIALIZATION_CTX.get();
+        if (serCtx instanceof AgentPretty.AgentSerializationCtx.SkipWorktreeContextSerializationCtx
+                || serCtx instanceof AgentPretty.AgentSerializationCtx.HistoricalRequestSerializationCtx) {
+            return;
+        }
         builder.append(label).append(":\n");
         if (aggregation == null) {
             builder.append("\t(none)\n");
@@ -4911,26 +4921,12 @@ public interface AgentModels {
         @Override
         public String prettyPrint() {
             StringBuilder builder = new StringBuilder("AI Transformer Request\n");
-            if (contextId != null) {
-                builder.append("Context Id: ").append(contextId).append("\n");
-            }
-            if (worktreeContext != null) {
-                builder.append("Worktree Context: ").append(worktreeContext).append("\n");
-            }
-            if (goal != null && !goal.isBlank()) {
-                builder.append("Goal: ").append(goal.trim()).append("\n");
-            }
-            if (controllerId != null && !controllerId.isBlank()) {
-                builder.append("Controller Id: ").append(controllerId.trim()).append("\n");
-            }
-            if (endpointId != null && !endpointId.isBlank()) {
-                builder.append("Endpoint Id: ").append(endpointId.trim()).append("\n");
-            }
-            if (input != null) {
-                builder.append("Input: ")
-                        .append(input.length() > 200 ? input.substring(0, 200) + "..." : input)
-                        .append("\n");
-            }
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Controller Id", controllerId);
+            appendPrettyLine(builder, "Endpoint Id", endpointId);
+            appendPrettyLine(builder, "Input", input != null && input.length() > 200 ? input.substring(0, 200) + "..." : input);
             return builder.toString().trim();
         }
     }
@@ -5026,26 +5022,12 @@ public interface AgentModels {
         @Override
         public String prettyPrint() {
             StringBuilder builder = new StringBuilder("AI Propagator Request\n");
-            if (contextId != null) {
-                builder.append("Context Id: ").append(contextId).append("\n");
-            }
-            if (worktreeContext != null) {
-                builder.append("Worktree Context: ").append(worktreeContext).append("\n");
-            }
-            if (goal != null && !goal.isBlank()) {
-                builder.append("Goal: ").append(goal.trim()).append("\n");
-            }
-            if (sourceName != null && !sourceName.isBlank()) {
-                builder.append("Source Name: ").append(sourceName.trim()).append("\n");
-            }
-            if (sourceNodeId != null && !sourceNodeId.isBlank()) {
-                builder.append("Source Node Id: ").append(sourceNodeId.trim()).append("\n");
-            }
-            if (input != null) {
-                builder.append("Input: ")
-                        .append(input.length() > 200 ? input.substring(0, 200) + "..." : input)
-                        .append("\n");
-            }
+            appendPrettyLine(builder, "Context Id", contextId);
+            appendPrettyLine(builder, "Worktree Context", worktreeContext);
+            appendPrettyLine(builder, "Goal", goal);
+            appendPrettyLine(builder, "Source Name", sourceName);
+            appendPrettyLine(builder, "Source Node Id", sourceNodeId);
+            appendPrettyLine(builder, "Input", input != null && input.length() > 200 ? input.substring(0, 200) + "..." : input);
             return builder.toString().trim();
         }
     }

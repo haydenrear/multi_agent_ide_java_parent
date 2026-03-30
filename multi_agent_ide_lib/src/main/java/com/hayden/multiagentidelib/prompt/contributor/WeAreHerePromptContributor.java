@@ -25,6 +25,29 @@ public class WeAreHerePromptContributor implements PromptContributor {
     private static final String VISITED_MARKER = "[visited]";
 
     /**
+     * Non-workflow request/result types to exclude from execution history.
+     * These are internal routing and tooling requests that clutter the prompt.
+     */
+    private static final Set<Class<?>> NON_WORKFLOW_TYPES = Set.of(
+            AgentModels.CommitAgentRequest.class,
+            AgentModels.AiFilterRequest.class,
+            AgentModels.AiPropagatorRequest.class,
+            AgentModels.AiTransformerRequest.class,
+            AgentModels.MergeConflictRequest.class,
+            AgentModels.AgentToAgentRequest.class,
+            AgentModels.AgentToControllerRequest.class,
+            AgentModels.ControllerToAgentRequest.class,
+            AgentModels.AiPropagatorResult.class,
+            AgentModels.AiFilterResult.class,
+            AgentModels.AiTransformerResult.class,
+            AgentModels.CommitAgentResult.class,
+            AgentModels.MergeConflictResult.class,
+            AgentModels.AgentCallResult.class,
+            AgentModels.ControllerCallResult.class,
+            AgentModels.ControllerResponseResult.class
+    );
+
+    /**
      * Static template with placeholders for dynamic content.
      * Placeholders use Jinja2-style syntax: {{ variable_name }}
      */
@@ -504,6 +527,13 @@ public class WeAreHerePromptContributor implements PromptContributor {
 
         int index = 1;
         for (BlackboardHistory.Entry entry : entries) {
+            // Skip non-workflow entries to reduce prompt clutter
+            if (entry instanceof BlackboardHistory.DefaultEntry defaultEntry
+                    && defaultEntry.inputType() != null
+                    && NON_WORKFLOW_TYPES.contains(defaultEntry.inputType())) {
+                continue;
+            }
+
             String actionName;
             String typeName;
             switch (entry) {
