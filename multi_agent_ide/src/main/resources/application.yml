@@ -228,7 +228,7 @@ logging.level.com.hayden.multiagentide.artifacts: INFO
 multi-agent-ide:
   topology:
     max-call-chain-depth: 5
-    message-budget: 3
+    message-budget: -1
     allowed-communications:
       DISCOVERY_AGENT:
         - DISCOVERY_ORCHESTRATOR
