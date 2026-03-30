@@ -16,7 +16,7 @@ public record CommunicationTopologyConfig(
 ) {
     public CommunicationTopologyConfig {
         if (maxCallChainDepth <= 0) maxCallChainDepth = 5;
-        if (messageBudget <= 0) messageBudget = 3;
+        if (messageBudget == 0) messageBudget = -1;
         if (allowedCommunications == null) allowedCommunications = Map.of();
     }
 

@@ -13,11 +13,15 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
  * Request decorator that registers the input in blackboard history and hides it.
  * Uses order 0 (default) to run after emitActionStarted but before other decorators.
+ *
+ * Skips hideInput for non-workflow results (propagators, filters, transformers, etc.)
+ * to avoid clearing the blackboard before the routing result can be consumed by the planner.
  */
 @Component
 @RequiredArgsConstructor
@@ -25,7 +29,47 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
 
     private static final Logger log = LoggerFactory.getLogger(RegisterAndHideInputResultDecorator.class);
 
+    private static final Set<Class<? extends AgentModels.AgentResult>> NON_WORKFLOW_RESULT_TYPES = Set.of(
+            AgentModels.AiPropagatorResult.class,
+            AgentModels.AiFilterResult.class,
+            AgentModels.AiTransformerResult.class,
+            AgentModels.CommitAgentResult.class,
+            AgentModels.MergeConflictResult.class,
+            AgentModels.AgentCallResult.class,
+            AgentModels.ControllerCallResult.class,
+            AgentModels.ControllerResponseResult.class
+    );
+
+    private static final Set<Class<? extends AgentModels.AgentRouting>> NON_WORKFLOW_ROUTING_TYPES = Set.of(
+            AgentModels.AgentCallRouting.class,
+            AgentModels.ControllerCallRouting.class,
+            AgentModels.ControllerResponseRouting.class
+    );
+
+    private static final Set<Class<? extends AgentModels.AgentRequest>> NON_WORKFLOW_REQUEST_TYPES = Set.of(
+            AgentModels.CommitAgentRequest.class,
+            AgentModels.AiFilterRequest.class,
+            AgentModels.AiPropagatorRequest.class,
+            AgentModels.AiTransformerRequest.class,
+            AgentModels.MergeConflictRequest.class,
+            AgentModels.AgentToAgentRequest.class,
+            AgentModels.AgentToControllerRequest.class,
+            AgentModels.ControllerToAgentRequest.class
+    );
+
     private final BlackboardHistoryService blackboardHistoryService;
+
+    private boolean isNonWorkflowResult(AgentModels.AgentResult result) {
+        return NON_WORKFLOW_RESULT_TYPES.stream().anyMatch(t -> t.isInstance(result));
+    }
+
+    private boolean isNonWorkflowRouting(AgentModels.AgentRouting routing) {
+        return NON_WORKFLOW_ROUTING_TYPES.stream().anyMatch(t -> t.isInstance(routing));
+    }
+
+    private boolean isNonWorkflowRequest(AgentModels.AgentRequest request) {
+        return NON_WORKFLOW_REQUEST_TYPES.stream().anyMatch(t -> t.isInstance(request));
+    }
 
     /**
      * This one had to happen after every other decorator, because if any of
@@ -49,9 +93,13 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
 
         blackboardHistoryService.registerResult(context.operationContext(), context.actionName(), request);
 
-        blackboardHistoryService.hideInput(
-                context.operationContext()
-        );
+        if (!isNonWorkflowResult(request)) {
+            blackboardHistoryService.hideInput(
+                    context.operationContext()
+            );
+        } else {
+            log.info("Skipping hideInput for non-workflow result type: {}", request.getClass().getSimpleName());
+        }
 
         return request;
     }
@@ -79,9 +127,13 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
                 .flatMap(s -> s instanceof HasContextId h ? Stream.of(h) : Stream.empty())
                 .forEach(h -> blackboardHistoryService.registerResult(context.operationContext(), context.actionName(), h));
 
-        blackboardHistoryService.hideInput(
-                context.operationContext()
-        );
+        if (t == null || !isNonWorkflowRouting(t)) {
+            blackboardHistoryService.hideInput(
+                    context.operationContext()
+            );
+        } else {
+            log.info("Skipping hideInput for non-workflow routing type: {}", t.getClass().getSimpleName());
+        }
 
         return t;
     }
@@ -91,9 +143,14 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
         log.info("hideInput (requestResult) — agent={} action={} requestType={}",
                 context.agentName(), context.actionName(),
                 t != null ? t.getClass().getSimpleName() : "(null)");
-        blackboardHistoryService.hideInput(
-                context.operationContext()
-        );
+
+        if (t == null || !isNonWorkflowRequest(t)) {
+            blackboardHistoryService.hideInput(
+                    context.operationContext()
+            );
+        } else {
+            log.info("Skipping hideInput for non-workflow request type: {}", t.getClass().getSimpleName());
+        }
 
         return t;
     }
@@ -105,9 +162,13 @@ public class RegisterAndHideInputResultDecorator implements DispatchedAgentResul
                 t != null ? t.getClass().getSimpleName() : "(null)");
         blackboardHistoryService.registerResult(context.decoratorContext().operationContext(), context.decoratorContext().actionName(), t);
 
-        blackboardHistoryService.hideInput(
-                context.decoratorContext().operationContext()
-        );
+        if (t == null || !isNonWorkflowResult(t)) {
+            blackboardHistoryService.hideInput(
+                    context.decoratorContext().operationContext()
+            );
+        } else {
+            log.info("Skipping hideInput for non-workflow final result type: {}", t.getClass().getSimpleName());
+        }
 
         return t;
     }
