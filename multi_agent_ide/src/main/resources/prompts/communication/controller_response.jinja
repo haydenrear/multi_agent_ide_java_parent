@@ -10,3 +10,10 @@
 
 {{ checklistAction }}
 {% endif %}
+### Conversation Protocol
+
+You received this message through the `call_controller` tool.
+
+{% if checklistAction == "JUSTIFICATION_PASSED" %}**JUSTIFICATION_PASSED** — The controller has approved your work. You may now return your final structured result.
+{% else %}The controller is still reviewing your work. Address any feedback above, then call `call_controller` again with your updated justification. Do NOT return your final structured result until you receive `JUSTIFICATION_PASSED`.
+{% endif %}

@@ -2,6 +2,15 @@
 
 Before you finalize your output, you MUST use the `call_controller` tool to open a justification dialogue with the controller. Do NOT return your final result until the controller has reviewed and approved your work.
 
-The controller will review your justification and either approve, ask follow-up questions, or request changes. Continue the dialogue until the controller approves. Only then should you return your final structured result.
+The controller will review your justification using a structured checklist. The conversation will proceed as follows:
 
-This is mandatory — returning a result without controller approval will be rejected at the phase gate.
+1. You call `call_controller` with your justification
+2. The controller responds with checklist-driven feedback or questions
+3. You address the feedback and call `call_controller` again
+4. This continues until the controller sends `JUSTIFICATION_PASSED`
+
+**CRITICAL: You MUST NOT return your final structured result until you receive the `JUSTIFICATION_PASSED` action from the controller.** Any other checklist action means the review is still in progress — address the feedback and call `call_controller` again.
+
+Look for `JUSTIFICATION_PASSED` in the Checklist Action section of the controller's response. Only when you see this exact action should you proceed to return your result.
+
+This is mandatory — returning a result without `JUSTIFICATION_PASSED` will be rejected at the phase gate.
