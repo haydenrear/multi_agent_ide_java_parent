@@ -27,10 +27,4 @@ The conversation proceeds as follows:
 3. You acknowledge the insights, update your proposed result if needed, and call `call_controller` again
 4. This continues until the controller sends `JUSTIFICATION_PASSED`
 
-**CRITICAL: You MUST NOT return your final structured result until you receive the `JUSTIFICATION_PASSED` action from the controller.** Any other checklist action means the review is still in progress — address the feedback and call `call_controller` again.
-
-Look for `JUSTIFICATION_PASSED` in the Checklist Action section of the controller's response. Only when you see this exact action should you proceed to return your result.
-
-This is mandatory — returning a result without `JUSTIFICATION_PASSED` will be rejected at the phase gate.
-
-**CRITICAL — Output format after JUSTIFICATION_PASSED**: Once you receive `JUSTIFICATION_PASSED`, your very next output MUST be the structured JSON routing result that matches your action's output schema. Do NOT output any text, explanation, or markdown before or after the JSON. The JSON must start with `{` and end with `}`. This applies regardless of how many `call_controller` turns occurred — the controller conversation is a side channel that does not change your routing obligation. You must still return the same routing type your action requires (e.g. OrchestratorRouting, DiscoveryOrchestratorRouting, etc.) with at least one non-null routing field populated.
+Once you receive `JUSTIFICATION_PASSED` from the controller, return your refined structured result. Any other checklist action means the review is still in progress — address the feedback and call `call_controller` again.
