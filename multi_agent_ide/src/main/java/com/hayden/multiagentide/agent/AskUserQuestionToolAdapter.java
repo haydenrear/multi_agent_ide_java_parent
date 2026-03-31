@@ -45,7 +45,7 @@ public class AskUserQuestionToolAdapter implements ToolCarrier {
 					- Use multiSelect: true to allow multiple answers to be selected for a question
 					- If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label
 					""")
-    public String askUserQuestion(
+    public String AskUserQuestionTool(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
             @ToolParam(description = """

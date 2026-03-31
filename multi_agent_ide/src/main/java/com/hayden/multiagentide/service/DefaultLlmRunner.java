@@ -211,7 +211,7 @@ public class DefaultLlmRunner implements LlmRunner {
         return new ToolContext(merged);
     }
 
-    private PromptRunner applyToolCallbacks(PromptRunner promptRunner, ToolCallback[] toolCallbacks) {
+    public static PromptRunner applyToolCallbacks(PromptRunner promptRunner, ToolCallback[] toolCallbacks) {
         PromptRunner updated = promptRunner;
         for (ToolCallback toolCallback : toolCallbacks) {
             updated = updated.withToolObject(new ToolObject(toolCallback));

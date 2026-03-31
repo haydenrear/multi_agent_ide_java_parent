@@ -140,6 +140,9 @@ multi-agent-embabel:
         command: ${ACP_COMMAND:claude-agent-acp}
         args: ${ACP_ARGS:}
         working-directory: ${ACP_WORKING_DIR:}
+        env:
+          MCP_TOOL_TIMEOUT: 900000
+          MCP_TIMEOUT: 900000
       codex:
         transport: stdio
         command: ${ACP_COMMAND:codex-acp}
@@ -153,6 +156,8 @@ multi-agent-embabel:
         working-directory: ${ACP_WORKING_DIR:}
         default-model: openai/gpt-oss-120b
         env:
+          MCP_TOOL_TIMEOUT: 900000
+          MCP_TIMEOUT: 900000
           ANTHROPIC_BASE_URL: https://openrouter.ai/api
           ANTHROPIC_AUTH_TOKEN: ${X_OPENROUTER_API_KEY}
           ANTHROPIC_API_KEY: ""
@@ -166,6 +171,8 @@ multi-agent-embabel:
         working-directory: ${ACP_WORKING_DIR:}
         default-model: qwen3.5:9b
         env:
+          MCP_TOOL_TIMEOUT: 900000
+          MCP_TIMEOUT: 900000
           ANTHROPIC_AUTH_TOKEN: ollama
           ANTHROPIC_BASE_URL: http://localhost:11434
           ANTHROPIC_API_KEY: ""

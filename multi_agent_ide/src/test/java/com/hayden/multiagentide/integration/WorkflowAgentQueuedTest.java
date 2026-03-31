@@ -1699,7 +1699,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                                 .response("Hello from target collector")
                                 .build());
 
-                        String result = agentTopologyTools.callAgent(
+                        String result = agentTopologyTools.call_agent(
                                 contextId, targetKey.value(), "Need your analysis");
                         callResults.add(result);
                     }
@@ -1819,7 +1819,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                         queuedLlmRunner.enqueueNext(AgentModels.AgentCallRouting.builder()
                                 .response("Response from collector")
                                 .build());
-                        String result1 = agentTopologyTools.callAgent(
+                        String result1 = agentTopologyTools.call_agent(
                                 contextId, target1Key.value(), "First call");
                         callResults.add(result1);
 
@@ -1827,7 +1827,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                         queuedLlmRunner.enqueueNext(AgentModels.AgentCallRouting.builder()
                                 .response("Response from orchestrator")
                                 .build());
-                        String result2 = agentTopologyTools.callAgent(
+                        String result2 = agentTopologyTools.call_agent(
                                 contextId, target2Key.value(), "Second call");
                         callResults.add(result2);
                     }
@@ -1922,7 +1922,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                                     .build())
                             .build(),
                     (response, opCtx) -> {
-                        String result = agentTopologyTools.callController(
+                        String result = agentTopologyTools.call_controller(
                                 contextId, "I found a critical design decision that requires your approval.");
                         callResults.add(result);
                     }
@@ -2047,7 +2047,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                         // Make 4 callController calls; first 3 within budget, 4th exceeds
                         for (int i = 0; i < 4; i++) {
                             final int callNum = i + 1;
-                            String result = agentTopologyTools.callController(
+                            String result = agentTopologyTools.call_controller(
                                     contextId, "Call #" + callNum);
                             callResults.add(result);
 
@@ -2169,7 +2169,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                         queuedLlmRunner.enqueueNext(AgentModels.AgentCallRouting.builder()
                                 .response("Response from target")
                                 .build());
-                        agentTopologyTools.callAgent(contextId, targetKey.value(), "Check target fields");
+                        agentTopologyTools.call_agent(contextId, targetKey.value(), "Check target fields");
                     }
             );
 

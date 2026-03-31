@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.acp_tests;
 
 import static com.hayden.multiagentide.acp_tests.AcpChatModelCodexIntegrationTest.TestAgent.TEST_AGENT;
+import static com.hayden.multiagentide.service.DefaultLlmRunner.applyToolCallbacks;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
@@ -70,7 +71,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 @Slf4j
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
 @ActiveProfiles({"claude", "testdocker"})
 @ExtendWith(SpringExtension.class)
 @TestPropertySource(properties = {"spring.ai.mcp.server.stdio=false"})
@@ -196,8 +197,29 @@ class AcpChatModelCodexIntegrationTest {
             if (fileSystemTools != null)
                 c = c.withToolObject(fileSystemTools);
 
-            if (agentTopologyTools != null)
-                c = c.withToolObject(new ToolObject(agentTopologyTools));
+            if (agentTopologyTools != null) {
+                ToolAbstraction tool = ToolAbstraction.fromToolCarrier(agentTopologyTools);
+
+                c = switch (tool) {
+                    case ToolAbstraction.SpringToolCallback value ->
+                            c.withToolObject(new ToolObject(value.toolCallback()));
+                    case ToolAbstraction.SpringToolCallbackProvider value ->
+                            applyToolCallbacks(c, value.toolCallbackProvider().getToolCallbacks());
+                    case ToolAbstraction.EmbabelTool value ->
+                            c.withTool(value.tool());
+                    case ToolAbstraction.EmbabelToolObject value ->
+                            c.withToolObject(value.toolObject());
+                    case ToolAbstraction.EmbabelToolGroup value ->
+                            c.withToolGroup(value.toolGroup());
+                    case ToolAbstraction.EmbabelToolGroupRequirement value ->
+                            c.withToolGroup(value.requirement());
+                    case ToolAbstraction.ToolGroupStrings value ->
+                            c.withToolGroups(value.toolGroups());
+                    case ToolAbstraction.SkillReference skillReference ->
+//                      we're not using the tool, we do a custom prompt contributor
+                            c;
+                };
+            }
 
             return c.createObject(input.request, ResultValue.class);
         }
@@ -386,9 +408,7 @@ class AcpChatModelCodexIntegrationTest {
                     .orElseThrow(() -> new IllegalStateException("Agent not found: " + TEST_AGENT));
 
             RequestValue v1 = new RequestValue(
-                    "Do you have access to a tool called 'call_controller'? " +
-                    "Also check for 'list_agents' and 'call_agent'. " +
-                    "List all available tool names you can see.");
+                    "Can you call the list_agents tool?");
             AgentProcess process = agentPlatform.runAgentFrom(
                     thisAgent,
                     processOptions,

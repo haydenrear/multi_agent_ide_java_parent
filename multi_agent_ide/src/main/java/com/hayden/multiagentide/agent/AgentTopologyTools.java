@@ -24,6 +24,7 @@ import com.hayden.multiagentidelib.prompt.PromptContextFactory;
 import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
@@ -95,13 +96,14 @@ public class AgentTopologyTools implements ToolCarrier {
         this.agentExecutor = agentExecutor;
     }
 
+    @SneakyThrows
     @Tool(name = "list_agents", description = "Lists all available agent sessions. Returns two sections: "
             + "(1) agents you CAN call directly, and (2) agents that exist but you CANNOT call due to topology rules, "
             + "along with which agents can bridge you to them. Use this to discover routing paths before calling agents.")
     @McpTool(name = "list_agents", description = "Lists all available agent sessions. Returns two sections: "
             + "(1) agents you CAN call directly, and (2) agents that exist but you CANNOT call due to topology rules, "
             + "along with which agents can bridge you to them. Use this to discover routing paths before calling agents.")
-    public String listAgents(
+    public String list_agents(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId
     ) {
@@ -159,7 +161,7 @@ public class AgentTopologyTools implements ToolCarrier {
             + "Use list_agents first to discover available agents. The target agent must be available and "
             + "communication must be permitted by topology rules. Call chain tracking and loop detection "
             + "are handled automatically.")
-    public String callAgent(
+    public String call_agent(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
             @ToolParam(description = "The artifact key of the target agent to call (e.g. ak:01KJ...)")
@@ -376,7 +378,7 @@ public class AgentTopologyTools implements ToolCarrier {
             + "(human operator) and blocks until they respond. Use this when you need approval, clarification, or "
             + "feedback from the controller before proceeding. The controller will see your justification and can "
             + "approve, reject, or provide guidance.")
-    public String callController(
+    public String call_controller(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,
             @ToolParam(description = "The justification message explaining why you need controller approval or feedback")

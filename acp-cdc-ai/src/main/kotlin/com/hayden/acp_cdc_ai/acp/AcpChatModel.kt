@@ -53,6 +53,7 @@ import org.springframework.ai.mcp.AsyncMcpToolCallback
 import org.springframework.ai.mcp.SyncMcpToolCallback
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
@@ -87,6 +88,9 @@ class AcpChatModel(
     @Autowired
     @Lazy
     private lateinit var eventBus: EventBus
+
+    @Value("\${server.port:8080}")
+    lateinit var mcpServerPort: Integer
 
     companion object AcpChatModel {
 
@@ -456,7 +460,7 @@ class AcpChatModel(
             // Only add the local MCP server if it's available
 
             if (this.mcpProperties.didEnableSelf()) {
-                mcpSyncServers.add(McpServer.Http("agent-tools", "http://localhost:8080/mcp", toolHeaders))
+                mcpSyncServers.add(McpServer.Http("agent-tools", $"http://localhost:${mcpServerPort}/mcp", toolHeaders))
             }
 
 

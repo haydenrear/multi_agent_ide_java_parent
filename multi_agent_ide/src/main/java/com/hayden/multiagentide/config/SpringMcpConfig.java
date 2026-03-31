@@ -50,6 +50,7 @@ import org.springframework.web.servlet.function.ServerResponse;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Configuration
@@ -136,6 +137,8 @@ public class SpringMcpConfig {
         }
         serverBuilder.serverInfo(serverInfo);
 
+        int numTools = 0;
+
         // Tools
         if (serverProperties.getCapabilities().isTool()) {
             log.info("Enable tools capabilities, notification: "
@@ -145,9 +148,12 @@ public class SpringMcpConfig {
             List<McpServerFeatures.SyncToolSpecification> toolSpecifications = new ArrayList<>(
                     tools.stream().flatMap(List::stream).toList());
 
+
             if (!CollectionUtils.isEmpty(toolSpecifications)) {
-                serverBuilder.tools(toolSpecifications);
-                log.info("Registered tools: " + toolSpecifications.size());
+                var filtered = toolSpecifications.stream().filter(Predicate.not(st -> toolCallbackProvider.stream().anyMatch(tcp -> Arrays.stream(tcp.getToolCallbacks()).anyMatch(tc -> st.tool().name().equals(tc.getToolDefinition().name())))))
+                                .toList();
+                numTools += filtered.size();
+                serverBuilder.tools(filtered);
             }
         }
 
@@ -226,15 +232,21 @@ public class SpringMcpConfig {
 
         McpSyncServer built = serverBuilder.build();
 
-        toolCallbackProvider
-                .forEach(t -> Arrays.stream(t.getToolCallbacks())
-                        .forEach(tcp -> {
+        var providers = toolCallbackProvider
+                .stream().flatMap(t -> Arrays.stream(t.getToolCallbacks())
+                        .map(tcp -> {
                             McpServerFeatures.SyncToolSpecification syncToolSpecification = McpToolUtils.toSyncToolSpecification(tcp);
                             built.addTool(new McpServerFeatures.SyncToolSpecification(
                                     syncToolSpecification.tool(),
                                     syncToolSpecification.call(),
                                     wrapToolCallWithInjection(t, syncToolSpecification)));
-                        }));
+                            return tcp;
+                        }))
+                .toList();
+
+        numTools += providers.size();
+
+        log.info("Registered {} tool callback providers!", numTools);
 
         return built;
     }
