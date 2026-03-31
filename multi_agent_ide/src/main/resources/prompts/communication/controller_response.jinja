@@ -14,6 +14,6 @@
 
 You received this message through the `call_controller` tool.
 
-{% if checklistAction == "JUSTIFICATION_PASSED" %}**JUSTIFICATION_PASSED** — The controller has approved your work. You may now return your final structured result.
+{% if checklistAction == "JUSTIFICATION_PASSED" or checklistAction == "APPROVED" %}**{{ checklistAction }}** — The controller has approved your work. Do NOT call `call_controller` again. Return your final structured JSON result now as your text output. Do not wrap it in markdown code fences. Do not output any explanation before or after the JSON.
 {% else %}The controller is still reviewing your work. Address any feedback above, then call `call_controller` again with your updated justification. Do NOT return your final structured result until you receive `JUSTIFICATION_PASSED`.
 {% endif %}
