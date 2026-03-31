@@ -51,6 +51,7 @@ spring:
         enabled: false
         type: sync
         stdio: false
+        request-timeout: 90m
   docker:
     compose:
       file: file:{{PROJ_DIR}}/src/main/resources/docker/docker-compose.yml
