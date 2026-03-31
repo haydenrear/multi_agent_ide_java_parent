@@ -297,7 +297,7 @@ public class PropagatorRegistrationService {
                         AiFilterTool.SessionMode.PER_INVOCATION,
                         null
                 ))
-                .activate(true)
+                .activate(false)
                 .build();
     }
 
