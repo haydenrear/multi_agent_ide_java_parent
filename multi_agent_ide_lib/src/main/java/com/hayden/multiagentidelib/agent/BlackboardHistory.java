@@ -90,7 +90,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
      * utility agents, etc. Prompt contributors that only apply to workflow
      * actions (curation, worktree context, workflow position) should skip when this returns true.
      */
-    public static boolean isNonWorkflowRequest(@Nullable AgentModels.AgentRequest request) {
+    public static boolean isNonWorkflowRequest(AgentModels.AgentRequest request) {
         if (request == null) return true;
         return request instanceof AgentModels.CommitAgentRequest
                 || request instanceof AgentModels.MergeConflictRequest
@@ -677,6 +677,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             case Events.AgentCallCompletedEvent ignored -> buildTargets(event.nodeId(), null);
             case Events.AgentCallEvent callEvent ->
                     buildTargets(callEvent.callerSessionId(), callEvent.targetSessionId());
+            case Events.PromptReceivedEvent ignored -> buildTargets(event.nodeId(), null);
         };
     }
 

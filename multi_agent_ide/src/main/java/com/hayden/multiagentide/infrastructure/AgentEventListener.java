@@ -193,6 +193,11 @@ public class AgentEventListener implements EventListener {
                         agentCallEvent.eventId(), agentCallEvent.callEventType(),
                         agentCallEvent.callerAgentType(), agentCallEvent.targetAgentType());
             }
+            case Events.PromptReceivedEvent promptReceivedEvent -> {
+                log.debug("Prompt received: agent={} template={} promptLen={}",
+                        promptReceivedEvent.agentType(), promptReceivedEvent.templateName(),
+                        promptReceivedEvent.assembledPrompt() != null ? promptReceivedEvent.assembledPrompt().length() : 0);
+            }
         }
     }
 

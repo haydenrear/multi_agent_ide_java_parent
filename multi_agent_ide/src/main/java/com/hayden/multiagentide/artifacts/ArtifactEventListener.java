@@ -115,6 +115,7 @@ public class ArtifactEventListener implements EventListener {
             case Events.AgentCallStartedEvent agentCallStartedEvent -> handleEventArtifact(agentCallStartedEvent);
             case Events.AgentCallCompletedEvent agentCallCompletedEvent -> handleEventArtifact(agentCallCompletedEvent);
             case Events.AgentCallEvent agentCallEvent -> handleEventArtifact(agentCallEvent);
+            case Events.PromptReceivedEvent promptReceivedEvent -> handleEventArtifact(promptReceivedEvent);
         }
     }
 
@@ -175,6 +176,7 @@ public class ArtifactEventListener implements EventListener {
             case Events.AgentCallStartedEvent ignored -> true;
             case Events.AgentCallCompletedEvent ignored -> true;
             case Events.AgentCallEvent ignored -> true;
+            case Events.PromptReceivedEvent ignored -> true;
         };
     }
 

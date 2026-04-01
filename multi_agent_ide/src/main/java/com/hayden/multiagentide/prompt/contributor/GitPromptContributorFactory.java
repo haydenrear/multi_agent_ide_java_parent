@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.prompt.contributor;
 
 import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
@@ -30,6 +31,10 @@ public class GitPromptContributorFactory implements PromptContributorFactory {
     @Override
     public List<PromptContributor> create(PromptContext context) {
         if (context == null) {
+            return List.of();
+        }
+
+        if (BlackboardHistory.isNonWorkflowRequest(context.currentRequest())) {
             return List.of();
         }
 

@@ -579,6 +579,13 @@ public interface Events {
                         line("targetSessionId", e.targetSessionId()),
                         line("callerAgentType", e.callerAgentType()),
                         line("targetAgentType", e.targetAgentType()));
+                case PromptReceivedEvent e -> formatEvent("Prompt Received Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("agentType", e.agentType()),
+                        line("templateName", e.templateName()),
+                        block("assembledPrompt", e.assembledPrompt()));
             };
         }
 
@@ -1810,6 +1817,24 @@ public interface Events {
         @Override
         public String eventType() {
             return "AGENT_CALL";
+        }
+    }
+
+    /**
+     * Event emitted when a fully assembled prompt is about to be sent to the LLM.
+     * Captures the complete prompt text (template + all prompt contributors) for observability.
+     */
+    record PromptReceivedEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String agentType,
+            String templateName,
+            String assembledPrompt
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "PROMPT_RECEIVED";
         }
     }
 }

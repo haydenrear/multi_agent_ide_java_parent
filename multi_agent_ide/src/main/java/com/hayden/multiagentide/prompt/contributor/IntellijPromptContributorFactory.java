@@ -2,6 +2,7 @@ package com.hayden.multiagentide.prompt.contributor;
 
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.multiagentidelib.prompt.PromptContext;
@@ -48,7 +49,7 @@ public class IntellijPromptContributorFactory implements PromptContributorFactor
             return List.of();
         }
 
-        if (isExcludedRequestType(context)) {
+        if (BlackboardHistory.isNonWorkflowRequest(context.currentRequest())) {
             return List.of();
         }
 
@@ -58,17 +59,6 @@ public class IntellijPromptContributorFactory implements PromptContributorFactor
                 .orElseGet(List::of);
     }
 
-    private static boolean isExcludedRequestType(PromptContext context) {
-        if (context.currentRequest() == null) {
-            return false;
-        }
-        return context.currentRequest() instanceof AgentModels.AiFilterRequest
-                || context.currentRequest() instanceof AgentModels.AiPropagatorRequest
-                || context.currentRequest() instanceof AgentModels.AiTransformerRequest
-                || context.currentRequest() instanceof AgentModels.AgentToAgentRequest
-                || context.currentRequest() instanceof AgentModels.AgentToControllerRequest
-                || context.currentRequest() instanceof AgentModels.ControllerToAgentRequest;
-    }
 
     private Optional<MainWorktreeContext> resolveMainWorktree(PromptContext context) {
         return Optional.ofNullable(context.currentRequest())

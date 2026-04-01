@@ -11,6 +11,7 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.AgentInterfaces.MultiAgentIdeMetadata.AgentMetadata.AgentActionMetadata;
+import com.hayden.multiagentide.agent.decorator.prompt.LlmCallDecorator;
 import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
 import com.hayden.multiagentide.embabel.EmbabelUtil;
 import com.hayden.multiagentide.filter.prompt.FilteredPromptContributorAdapter;
@@ -83,6 +84,7 @@ public class AgentExecutor {
     private final AgentPlatform agentPlatform;
     private final EventBus eventBus;
     private final GraphRepository graphRepository;
+    private final List<LlmCallDecorator> llmCallDecorators;
 
     public <T extends AgentModels.AgentRequest, U extends AgentModels.AgentRouting, V extends AgentModels.AgentResult> U run(
             AgentExecutorArgs<T, U, V, U> args
@@ -170,6 +172,12 @@ public class AgentExecutor {
 
         // 3. Assemble prompt: rendered template + prompt contributors
         String enrichedPrompt = assemblePrompt(promptContext, args.templateModel(), context);
+
+        // 3b. Run LLM call decorators for side effects (e.g. PromptReceivedEvent emission)
+        var llmCallContext = new LlmCallDecorator.LlmCallContext<>(promptContext, ToolContext.empty(), null, args.templateModel(), context);
+        for (var decorator : llmCallDecorators) {
+            llmCallContext = decorator.decorate(llmCallContext);
+        }
 
         // 4. Publish interrupt (with interruptibleContext on origin node) and block
         return interruptService.publishAndAwaitControllerInterrupt(
@@ -296,10 +304,11 @@ public class AgentExecutor {
 
         String resolvedMessage = assemblePrompt(promptContext, templateModel, operationContext);
 
-        log.info("Controller response rendered for {} — checklistAction={} length={} text:\n{}",
-                args.originNodeId(), args.checklistAction(),
-                resolvedMessage != null ? resolvedMessage.length() : 0,
-                resolvedMessage);
+        // 7b. Run LLM call decorators for side effects (e.g. PromptReceivedEvent emission)
+        var llmCallContext = new LlmCallDecorator.LlmCallContext<>(promptContext, ToolContext.empty(), null, templateModel, operationContext);
+        for (var decorator : llmCallDecorators) {
+            llmCallContext = decorator.decorate(llmCallContext);
+        }
 
         // 8. Resolve the interrupt with the fully rendered text
         boolean resolved = permissionGate.resolveInterrupt(

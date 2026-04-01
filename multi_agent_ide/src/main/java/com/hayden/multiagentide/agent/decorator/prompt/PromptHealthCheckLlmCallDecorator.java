@@ -2,6 +2,8 @@ package com.hayden.multiagentide.agent.decorator.prompt;
 
 import com.embabel.common.textio.template.CompiledTemplate;
 import com.embabel.common.textio.template.TemplateRenderer;
+import com.hayden.acp_cdc_ai.acp.events.EventBus;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.filter.prompt.FilteredPromptContributorAdapter;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.propagation.service.PropagationExecutionService;
@@ -16,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -42,6 +45,9 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
     @Autowired
     @Lazy
     private PropagationExecutionService propagationExecutionService;
+
+    @Autowired
+    private EventBus eventBus;
 
     /**
      * Per-sourceNodeId cache of the last prompt content hash seen.
@@ -99,6 +105,16 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
                 return context;
             }
             lastPromptHashByNode.put(cacheKey, promptHash);
+
+            // Emit PromptReceivedEvent before any propagators run
+            eventBus.publish(new Events.PromptReceivedEvent(
+                    java.util.UUID.randomUUID().toString(),
+                    Instant.now(),
+                    sourceNodeId != null ? sourceNodeId : "",
+                    sourceName,
+                    promptContext.templateName(),
+                    assembledPrompt
+            ));
 
             // Wrap the assembled prompt so the health-check LLM knows it is analysing
             // a prompt, not executing a workflow task.  Using --- start / --- end

@@ -140,6 +140,10 @@ public class CliEventFormatter {
                         (e.callEventType() != null ? e.callEventType().name() : "")
                                 + " caller=" + summarize(normalizedArgs, e.callerSessionId())
                                 + " target=" + summarize(normalizedArgs, e.targetSessionId()));
+                case Events.PromptReceivedEvent e -> format(normalizedArgs, "PROMPT_RECEIVED", e,
+                        "agent=" + summarize(normalizedArgs, e.agentType())
+                                + " template=" + summarize(normalizedArgs, e.templateName())
+                                + " prompt=" + summarize(normalizedArgs, e.assembledPrompt()));
             };
     }
 
