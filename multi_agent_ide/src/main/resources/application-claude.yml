@@ -19,6 +19,18 @@ llm:
       ai-filter:
         model: claude-haiku-4-5
         provider: claude
+      orchestrator-collector:
+        model: claude-sonnet-4-5
+        provider: claude
+      discovery-collector:
+        model: claude-sonnet-4-5
+        provider: claude
+      planning-collector:
+        model: claude-sonnet-4-5
+        provider: claude
+      ticket-collector:
+        model: claude-sonnet-4-5
+        provider: claude
     by-template: {}
 
 acp.mcp:
