@@ -3,6 +3,7 @@ package com.hayden.multiagentide.prompt.contributor;
 import com.google.common.collect.Lists;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
@@ -38,6 +39,10 @@ public class WorktreeSandboxPromptContributorFactory implements PromptContributo
     @Override
     public List<PromptContributor> create(PromptContext context) {
         if (context == null) {
+            return List.of();
+        }
+
+        if (BlackboardHistory.isNonWorkflowRequest(context.currentRequest())) {
             return List.of();
         }
 

@@ -20,28 +20,28 @@ llm:
         model: claude-haiku-4-5
         provider: claude
       orchestrator:
-        model: claude-sonnet-4-5
+        model: claude-sonnet-4-6
         provider: claude
       discovery-orchestrator:
-        model: claude-sonnet-4-5
+        model: claude-sonnet-4-6
         provider: claude
       planning-orchestrator:
-        model: claude-sonnet-4-5
+        model: claude-sonnet-4-6
         provider: claude
       ticket-orchestrator:
-        model: claude-sonnet-4-5
+        model: claude-sonnet-4-6
         provider: claude
       orchestrator-collector:
-        model: claude-sonnet-4-5
+        model: claude-sonnet-4-6
         provider: claude
       discovery-collector:
-        model: claude-sonnet-4-5
+        model: claude-sonnet-4-6
         provider: claude
       planning-collector:
-        model: claude-sonnet-4-5
+        model: claude-sonnet-4-6
         provider: claude
       ticket-collector:
-        model: claude-sonnet-4-5
+        model: claude-sonnet-4-6
         provider: claude
     by-template: {}
 

@@ -389,6 +389,9 @@ public class WeAreHerePromptContributor implements PromptContributor {
 
     @Override
     public String contribute(PromptContext context) {
+        if (BlackboardHistory.isNonWorkflowRequest(context.currentRequest())) {
+            return "";
+        }
         Map<String, Object> runtimeArgs = buildRuntimeArgs(context);
         return render(TEMPLATE, runtimeArgs);
     }

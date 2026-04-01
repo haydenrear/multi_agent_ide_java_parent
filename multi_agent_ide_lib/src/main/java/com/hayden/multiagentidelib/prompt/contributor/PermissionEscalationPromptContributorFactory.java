@@ -1,6 +1,7 @@
 package com.hayden.multiagentidelib.prompt.contributor;
 
 import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContributor;
 import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
@@ -29,6 +30,10 @@ public class PermissionEscalationPromptContributorFactory implements PromptContr
     @Override
     public List<PromptContributor> create(PromptContext context) {
         if (context == null || context.currentRequest() == null) {
+            return List.of();
+        }
+
+        if (BlackboardHistory.isNonWorkflowRequest(context.currentRequest())) {
             return List.of();
         }
 

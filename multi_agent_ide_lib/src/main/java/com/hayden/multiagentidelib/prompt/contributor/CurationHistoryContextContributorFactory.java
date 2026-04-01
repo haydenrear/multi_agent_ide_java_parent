@@ -234,7 +234,7 @@ public class CurationHistoryContextContributorFactory implements PromptContribut
             return List.of();
         }
 
-        if (context.currentRequest() instanceof AgentModels.CommitAgentRequest)
+        if (BlackboardHistory.isNonWorkflowRequest(context.currentRequest()))
             return List.of();
 
         var bh = context.blackboardHistory();

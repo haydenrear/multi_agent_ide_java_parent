@@ -20,7 +20,7 @@ import java.util.Set;
  * if the agent can route to the Context Manager. The mapping is based on analyzing
  * which Routing record types contain a ContextManagerRoutingRequest field:</p>
 */
-@Component
+// @Component
 public class RouteToContextManagerPromptContributorFactory implements PromptContributorFactory {
 
     /**
@@ -74,17 +74,17 @@ public class RouteToContextManagerPromptContributorFactory implements PromptCont
 
         private static final String TEMPLATE = """
                 ## Context Manager Routing Option
-    
+
                 You have the ability to route to the **Context Manager** agent. The Context Manager has
                 access to tools that can query and retrieve the shared state across all agents in the
                 workflow. This includes the blackboard history, artifact store, and execution traces
                 from previous agent invocations.
-    
+
                 ### When to Route to Context Manager
-    
+
                 Route to Context Manager by populating `contextManagerRequest` in your routing response when
                 you need more context from a previous agent's execution:
-    
+
                 - **Missing execution details** - You need to understand what a previous agent discovered,
                   decided, or produced, but that information was not passed forward in the request
                 - **Incomplete handoff** - The upstream agent's results are truncated or summarized, and
@@ -93,15 +93,15 @@ public class RouteToContextManagerPromptContributorFactory implements PromptCont
                   discovery findings while in planning, or planning decisions while executing tickets)
                 - **Artifact retrieval** - You need to access artifacts, curations, or intermediate results
                   that were produced but not included in your current request
-    
+
                 ### Context Manager Capabilities
-    
+
                 The Context Manager can:
                 1. Query the blackboard history to retrieve previous agent requests and results
                 2. Access the artifact store to find curations, code maps, and other persisted data
                 3. Trace the execution path to understand how the workflow reached the current state
                 4. Reconstruct context from multiple sources and consolidate it for your use
-    
+
                 ### Important
 
                 - Only route to Context Manager when you genuinely need specific missing context from another agent chat/history

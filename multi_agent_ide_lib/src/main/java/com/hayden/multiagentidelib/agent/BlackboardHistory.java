@@ -85,6 +85,23 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         };
     }
 
+    /**
+     * Returns true if the request is a non-workflow request type — controller conversations,
+     * utility agents, etc. Prompt contributors that only apply to workflow
+     * actions (curation, worktree context, workflow position) should skip when this returns true.
+     */
+    public static boolean isNonWorkflowRequest(@Nullable AgentModels.AgentRequest request) {
+        if (request == null) return true;
+        return request instanceof AgentModels.CommitAgentRequest
+                || request instanceof AgentModels.MergeConflictRequest
+                || request instanceof AgentModels.AiFilterRequest
+                || request instanceof AgentModels.AiPropagatorRequest
+                || request instanceof AgentModels.AiTransformerRequest
+                || request instanceof AgentModels.AgentToAgentRequest
+                || request instanceof AgentModels.AgentToControllerRequest
+                || request instanceof AgentModels.ControllerToAgentRequest;
+    }
+
     public static AgentModels.@Nullable AgentRequest findLastNonContextRequest(BlackboardHistory history) {
         AgentModels.AgentRequest lastRequest = findLastRequest(
                 history,
