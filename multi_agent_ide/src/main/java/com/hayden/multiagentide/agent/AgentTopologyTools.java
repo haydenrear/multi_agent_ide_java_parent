@@ -477,21 +477,8 @@ public class AgentTopologyTools implements ToolCarrier {
     }
 
     private OperationContext resolveOperationContext(ArtifactKey key) {
-        if (agentPlatform == null) {
-            return null;
-        }
-
-        ArtifactKey searchThrough = key;
-        while (searchThrough != null) {
-            OperationContext ctx = java.util.Optional.ofNullable(agentPlatform.getAgentProcess(searchThrough.value()))
-                    .map(process -> AgentInterfaces.buildOpContext(process, AgentInterfaces.AGENT_NAME_AGENT_CALL))
-                    .orElse(null);
-            if (ctx != null) {
-                return ctx;
-            }
-            searchThrough = searchThrough.parent().orElse(null);
-        }
-        return null;
+        return com.hayden.multiagentide.embabel.EmbabelUtil.resolveOperationContext(
+                agentPlatform, key, AgentInterfaces.AGENT_NAME_AGENT_CALL);
     }
 
     private void emitCallEvent(

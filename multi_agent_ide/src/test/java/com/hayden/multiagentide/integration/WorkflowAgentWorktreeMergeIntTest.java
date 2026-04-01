@@ -1,7 +1,9 @@
 package com.hayden.multiagentide.integration;
 
+import com.embabel.agent.api.annotation.support.ActionQosProvider;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.api.common.PlannerType;
+import com.embabel.agent.core.ActionQos;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.agent.core.ProcessOptions;
@@ -17,7 +19,11 @@ import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import com.hayden.multiagentide.propagation.repository.PropagationItemRepository;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
+import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
+import com.hayden.multiagentide.propagation.service.AutoAiPropagatorBootstrap;
+import com.hayden.multiagentide.filter.service.LayerHierarchyBootstrap;
+import com.hayden.multiagentide.propagation.service.PropagatorRegistrationService;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.GitWorktreeService;
@@ -42,6 +48,7 @@ import com.hayden.utilitymodule.git.RepoUtil;
 import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +62,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -128,6 +136,10 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
     @Autowired
     private PropagationRecordRepository propagationRecordRepository;
     @Autowired
+    private AutoAiPropagatorBootstrap autoAiPropagatorBootstrap;
+    @Autowired
+    private LayerHierarchyBootstrap layerHierarchyBootstrap;
+    @Autowired
     private TransformationRecordRepository transformationRecordRepository;
     @Autowired
     private TransformerRegistrationRepository transformerRegistrationRepository;
@@ -168,6 +180,8 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
 
     private Path sourceRepo;
     private Path submoduleRepo;
+    @Autowired
+    private PropagatorRegistrationService propagatorRegistrationService;
 
     @TestConfiguration
     static class TestConfig {
@@ -186,6 +200,16 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         TestEventListener testEventListener() {
             return new TestEventListener();
         }
+
+        @Bean
+        ActionQosProvider manager() {
+            return new ActionQosProvider() {
+                @Override
+                public @NonNull ActionQos provideActionQos(@NonNull Method method, @NonNull Object instance) {
+                    return new ActionQos(1, 50, 5, 60000, false);
+                }
+            };
+        }
     }
 
     @BeforeEach
@@ -194,8 +218,15 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.clear();
         graphRepository.clear();
         worktreeRepository.clear();
-
-
+        propagationRecordRepository.deleteAll();
+        propagationItemRepository.deleteAll();
+        propagatorRegistrationRepository.deleteAll();
+        layerRepository.deleteAll();
+        layerHierarchyBootstrap.seedLayersIfAbsent();
+        autoAiPropagatorBootstrap.seedAutoAiPropagators();
+        for (PropagatorRegistrationEntity entity : propagatorRegistrationRepository.findAll()) {
+            propagatorRegistrationService.enableAiPropagator(entity);
+        }
 
         Mockito.when(embabelToolObjectRegistry.tool(anyString()))
                         .thenReturn(Optional.empty());

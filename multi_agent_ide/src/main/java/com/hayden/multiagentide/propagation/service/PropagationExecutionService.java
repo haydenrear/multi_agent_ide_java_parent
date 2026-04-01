@@ -350,24 +350,8 @@ public class PropagationExecutionService {
     }
 
     private OperationContext resolveOperationContext(OperationContext operationContext, ArtifactKey key) {
-        if (operationContext != null) {
-            return operationContext;
-        }
-        if (key != null) {
-            Optional<OperationContext> fromKey = tryGetOpContext(key);
-            if (fromKey.isPresent()) {
-                return fromKey.get();
-            }
-        }
-        return null;
-    }
-
-    private Optional<OperationContext> tryGetOpContext(ArtifactKey key) {
-        if (key == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(agentPlatform.getAgentProcess(key.value()))
-                .map(process -> AgentInterfaces.buildOpContext(process, AI_PROPAGATOR_AGENT_NAME));
+        return com.hayden.multiagentide.embabel.EmbabelUtil.resolveOperationContext(
+                agentPlatform, operationContext, key, AI_PROPAGATOR_AGENT_NAME);
     }
 
     private void emitNodeError(String message, ArtifactKey key) {

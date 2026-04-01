@@ -8,12 +8,14 @@ import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
 import com.hayden.multiagentidelib.propagation.model.layer.DefaultPropagationContext;
 import lombok.Builder;
+import lombok.With;
 
 import java.time.Instant;
 import java.util.Map;
 
 @Builder(toBuilder = true)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@With
 public record TextPropagator(
         String id,
         String name,

@@ -7,11 +7,13 @@ import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
 import com.hayden.multiagentidelib.propagation.model.layer.AiPropagatorContext;
 import lombok.Builder;
+import lombok.With;
 
 import java.time.Instant;
 
 @Builder(toBuilder = true)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@With
 public record AiTextPropagator(
         String id,
         String name,

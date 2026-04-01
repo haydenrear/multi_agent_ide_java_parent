@@ -326,17 +326,8 @@ public class TransformerExecutionService {
     }
 
     private OperationContext resolveOperationContext(ArtifactKey key) {
-        ArtifactKey searchThrough = key;
-        while (searchThrough != null) {
-            OperationContext ctx = Optional.ofNullable(agentPlatform.getAgentProcess(searchThrough.value()))
-                    .map(process -> AgentInterfaces.buildOpContext(process, AI_TRANSFORMER_AGENT_NAME))
-                    .orElse(null);
-            if (ctx != null) {
-                return ctx;
-            }
-            searchThrough = searchThrough.parent().orElse(null);
-        }
-        return null;
+        return com.hayden.multiagentide.embabel.EmbabelUtil.resolveOperationContext(
+                agentPlatform, key, AI_TRANSFORMER_AGENT_NAME);
     }
 
     private String toJson(Object value) {

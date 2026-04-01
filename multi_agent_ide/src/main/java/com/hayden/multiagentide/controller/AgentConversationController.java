@@ -1,11 +1,10 @@
 package com.hayden.multiagentide.controller;
 
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
-import com.hayden.acp_cdc_ai.acp.events.EventBus;
-import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.repository.GraphRepository;
+import com.hayden.multiagentide.service.AgentExecutor;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
 import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
@@ -21,10 +20,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/agent-conversations")
@@ -35,7 +32,7 @@ public class AgentConversationController {
 
     private final PermissionGate permissionGate;
     private final GraphRepository graphRepository;
-    private final EventBus eventBus;
+    private final AgentExecutor agentExecutor;
 
     // ── Request/Response DTOs ────────────────────────────────────────────────
 
@@ -100,44 +97,22 @@ public class AgentConversationController {
                     new RespondResponse("error", request.interruptId(), "No pending interrupt found with this ID"));
         }
 
-        // Build the message, prepending response expectation note if needed
-        String resolvedMessage = request.message();
-        if (request.expectsResponse()) {
-            resolvedMessage = "[NOTE: This message was delivered through the call_controller tool. "
-                    + "If you need to respond to the controller, call call_controller again with your response.]\n\n"
-                    + resolvedMessage;
-        }
-
-        // Resolve the interrupt with the controller's message
-        boolean resolved = permissionGate.resolveInterrupt(
-                request.interruptId(),
-                IPermissionGate.ResolutionType.RESOLVED,
-                resolvedMessage,
-                (IPermissionGate.InterruptResult) null
+        // Delegate all execution logic to AgentExecutor
+        AgentExecutor.ControllerResponseResult result = agentExecutor.controllerResponseExecution(
+                AgentExecutor.ControllerResponseArgs.builder()
+                        .interruptId(request.interruptId())
+                        .originNodeId(pending.getOriginNodeId())
+                        .message(request.message())
+                        .checklistAction(request.checklistAction())
+                        .expectResponse(request.expectsResponse())
+                        .targetAgentKey(request.targetAgentKey())
+                        .build()
         );
 
-        if (!resolved) {
+        if (!result.resolved()) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    new RespondResponse("error", request.interruptId(), "Failed to resolve interrupt"));
+                    new RespondResponse("error", request.interruptId(), result.errorMessage()));
         }
-
-        // Emit event for observability
-        eventBus.publish(new Events.AgentCallEvent(
-                UUID.randomUUID().toString(),
-                Instant.now(),
-                pending.getOriginNodeId(),
-                Events.AgentCallEventType.RETURNED,
-                "controller",
-                null,
-                pending.getOriginNodeId(),
-                null,
-                List.of(),
-                null,
-                null,
-                request.message(),
-                null,
-                request.checklistAction()
-        ));
 
         return ResponseEntity.ok(new RespondResponse("resolved", request.interruptId(), "Response delivered to agent"));
     }

@@ -26,4 +26,6 @@ public sealed interface Propagator<I, O, CTX extends FilterContext> extends BiFu
     int priority();
     Instant createdAt();
     Instant updatedAt();
+
+    Propagator<I, O, CTX> withStatus(FilterEnums.PolicyStatus status);
 }

@@ -59,9 +59,19 @@ public class PropagatorController {
     }
 
     @PostMapping("/registrations/{registrationId}/deactivate")
-    @Operation(summary = "Deactivate a propagator registration")
+    @Operation(summary = "Deactivate a propagator registration",
+            description = "Sets the propagator status to INACTIVE so it no longer fires on matching events. "
+                    + "The registration is preserved and can be re-activated later.")
     public ResponseEntity<DeactivatePropagatorResponse> deactivate(@PathVariable String registrationId) {
         return ResponseEntity.ok(registrationService.deactivate(registrationId));
+    }
+
+    @PostMapping("/registrations/{registrationId}/activate")
+    @Operation(summary = "Activate a propagator registration",
+            description = "Sets the propagator status to ACTIVE so it fires on matching events at its bound layers. "
+                    + "Auto-bootstrapped propagators start INACTIVE and must be explicitly activated.")
+    public ResponseEntity<ActivatePropagatorResponse> activate(@PathVariable String registrationId) {
+        return ResponseEntity.ok(registrationService.activate(registrationId));
     }
 
     @PutMapping("/registrations/{registrationId}/layers")

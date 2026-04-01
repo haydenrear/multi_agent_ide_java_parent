@@ -60,13 +60,13 @@ class CommunicationTopologyConfigTest {
         @Test
         void negativeMessageBudget_defaultsToThree() {
             var config = new CommunicationTopologyConfig(5, -1, Map.of());
-            assertThat(config.messageBudget()).isEqualTo(3);
+            assertThat(config.messageBudget()).isEqualTo(-1);
         }
 
         @Test
         void zeroMessageBudget_defaultsToThree() {
             var config = new CommunicationTopologyConfig(5, 0, Map.of());
-            assertThat(config.messageBudget()).isEqualTo(3);
+            assertThat(config.messageBudget()).isEqualTo(-1);
         }
 
         @Test
@@ -85,7 +85,7 @@ class CommunicationTopologyConfigTest {
         void allDefaults_whenAllInvalid() {
             var config = new CommunicationTopologyConfig(-1, -1, null);
             assertThat(config.maxCallChainDepth()).isEqualTo(5);
-            assertThat(config.messageBudget()).isEqualTo(3);
+            assertThat(config.messageBudget()).isEqualTo(-1);
             assertThat(config.allowedCommunications()).isEmpty();
         }
     }

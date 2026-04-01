@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.propagation.service;
 
+import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
@@ -23,5 +24,17 @@ public class AutoAiPropagatorBootstrap {
     public void seedAutoAiPropagators() {
         int upserted = propagatorRegistrationService.ensureAutoAiPropagatorsRegistered();
         log.info("Ensured {} auto AI propagator registrations.", upserted);
+    }
+
+    @Transactional
+    public void enableAiPropagator(String registrationId) {
+        var upserted = propagatorRegistrationService.enableAiPropagator(registrationId);
+        log.info("Ensured {} auto AI propagator registrations enabled.", upserted == null ? 0 : 1);
+    }
+
+    @Transactional
+    public void disableAiPropagator(String registrationId) {
+        var upserted = propagatorRegistrationService.disableAiPropagator(registrationId);
+        log.info("Ensured {} auto AI propagator registrations disabled.", upserted == null ? 0 : 1);
     }
 }

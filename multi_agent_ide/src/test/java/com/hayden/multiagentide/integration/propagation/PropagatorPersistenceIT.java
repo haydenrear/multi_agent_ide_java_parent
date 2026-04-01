@@ -12,6 +12,7 @@ import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEnt
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
 import com.hayden.multiagentide.propagation.service.AutoAiPropagatorBootstrap;
 import com.hayden.multiagentide.propagation.service.PropagatorAttachableCatalogService;
+import com.hayden.multiagentide.propagation.service.PropagatorRegistrationService;
 import com.hayden.multiagentidelib.propagation.model.PropagationItemStatus;
 import com.hayden.multiagentidelib.propagation.model.PropagationResolutionType;
 import jakarta.persistence.EntityManager;
@@ -61,6 +62,8 @@ class PropagatorPersistenceIT {
     private AutoAiPropagatorBootstrap autoAiPropagatorBootstrap;
     @Autowired
     private PropagatorAttachableCatalogService attachableCatalogService;
+    @Autowired
+    private PropagatorRegistrationService propagatorRegistrationService;
 
     @BeforeEach
     void setUp() {
@@ -74,6 +77,11 @@ class PropagatorPersistenceIT {
     @Test
     void startupBootstrap_registersAutoAiPropagatorsForEveryAttachableStage() {
         autoAiPropagatorBootstrap.seedAutoAiPropagators();
+
+        // Auto propagators are registered as INACTIVE at startup; activate them for testing
+        for (PropagatorRegistrationEntity entity : propagatorRegistrationRepository.findAll()) {
+            propagatorRegistrationService.enableAiPropagator(entity);
+        }
 
         int expectedCount = attachableCatalogService.readAttachableTargets().actions().stream()
                 .mapToInt(action -> action.stages().size())

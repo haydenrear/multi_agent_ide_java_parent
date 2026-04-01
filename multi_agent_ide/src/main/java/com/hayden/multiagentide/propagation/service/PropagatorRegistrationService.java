@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.propagation.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.propagation.controller.dto.*;
@@ -9,6 +10,8 @@ import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
 import com.hayden.multiagentidelib.propagation.model.*;
 import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
 import com.hayden.multiagentidelib.propagation.model.layer.AiPropagatorContext;
+import com.hayden.utilitymodule.stream.StreamUtil;
+import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -75,13 +78,21 @@ public class PropagatorRegistrationService {
     }
 
     @Transactional
-    public DeactivatePropagatorResponse deactivate(String registrationId) {
-        return repository.findByRegistrationId(registrationId)
+    public ActivatePropagatorResponse activate(String registrationId) {
+        return Optional.ofNullable(enableAiPropagator(registrationId))
                 .map(entity -> {
-                    entity.setStatus(FilterEnums.PolicyStatus.INACTIVE.name());
-                    entity.setDeactivatedAt(Instant.now());
-                    repository.save(entity);
-                    return DeactivatePropagatorResponse.builder().ok(true).registrationId(registrationId).status(entity.getStatus()).message("Propagator deactivated").build();
+                    return ActivatePropagatorResponse.builder().ok(true)
+                            .registrationId(registrationId).status(entity.getStatus()).message("Propagator deactivated").build();
+                })
+               .orElseGet(() -> ActivatePropagatorResponse.builder().ok(false).registrationId(registrationId).message("Propagator not found").build());
+    }
+
+    @Transactional
+    public DeactivatePropagatorResponse deactivate(String registrationId) {
+        return Optional.ofNullable(disableAiPropagator(registrationId))
+                .map(entity -> {
+                    return DeactivatePropagatorResponse.builder().ok(true)
+                            .registrationId(registrationId).status(entity.getStatus()).message("Propagator deactivated").build();
                 })
                 .orElseGet(() -> DeactivatePropagatorResponse.builder().ok(false).registrationId(registrationId).message("Propagator not found").build());
     }
@@ -167,6 +178,54 @@ public class PropagatorRegistrationService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
+    }
+
+    private PropagatorRegistrationEntity disableRegistration(PropagatorRegistrationEntity existing) {
+        try {
+            var enabled = StreamUtil.toStream(objectMapper.readValue(existing.getLayerBindingsJson(), new TypeReference<List<PropagatorLayerBinding>>() {}))
+                    .map(plb -> plb.toBuilder()
+                            .enabled(false)
+                            .build())
+                    .toList();
+
+            existing.setLayerBindingsJson(objectMapper.writeValueAsString(enabled));
+            existing.setStatus(FilterEnums.PolicyStatus.INACTIVE.name());
+
+
+            var propagator = objectMapper.readValue(existing.getPropagatorJson(), new TypeReference<Propagator<?,?,?>>() {})
+                    .withStatus(FilterEnums.PolicyStatus.INACTIVE);
+
+            existing.setPropagatorJson(objectMapper.writeValueAsString(propagator));
+
+            return repository.save(existing);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to save auto AI propagator registration", e);
+        }
+    }
+
+    private PropagatorRegistrationEntity enableRegistration(PropagatorRegistrationEntity existing) {
+        try {
+            var enabled = StreamUtil.toStream(objectMapper.readValue(existing.getLayerBindingsJson(), new TypeReference<List<PropagatorLayerBinding>>() {}))
+                    .map(plb -> {
+                        return plb.toBuilder()
+                                .enabled(true)
+                                .build();
+                    })
+                    .toList();
+
+            existing.setLayerBindingsJson(objectMapper.writeValueAsString(enabled));
+            existing.setStatus(FilterEnums.PolicyStatus.ACTIVE.name());
+            existing.setActivatedAt(Instant.now());
+
+            var propagator = objectMapper.readValue(existing.getPropagatorJson(), new TypeReference<Propagator<?,?,?>>() {})
+                    .withStatus(FilterEnums.PolicyStatus.ACTIVE);
+
+            existing.setPropagatorJson(objectMapper.writeValueAsString(propagator));
+
+            return repository.save(existing);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to save auto AI propagator registration", e);
+        }
     }
 
     private void saveRegistration(String registrationId,
@@ -307,5 +366,33 @@ public class PropagatorRegistrationService {
 
     private String autoName(String layerId, String stage) {
         return "auto-ai-propagator-" + layerId.replace('/', '-') + "-" + stage.toLowerCase();
+    }
+
+    @Transactional
+    public PropagatorRegistrationEntity disableAiPropagator(PropagatorRegistrationEntity found) {
+        return disableRegistration(found);
+    }
+
+    @Transactional
+    public @Nullable PropagatorRegistrationEntity disableAiPropagator(String registrationId) {
+        var found = this.repository.findByRegistrationId(registrationId);
+
+        return found.map(this::disableAiPropagator).orElse(null);
+
+    }
+
+    @Transactional
+    public PropagatorRegistrationEntity enableAiPropagator(PropagatorRegistrationEntity found) {
+        return enableRegistration(found);
+    }
+
+    @Transactional
+    public PropagatorRegistrationEntity enableAiPropagator(String registrationId) {
+        var found = this.repository.findByRegistrationId(registrationId);
+
+        if (found.isEmpty())
+            return null;
+
+        return enableAiPropagator(found.get());
     }
 }
