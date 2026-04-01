@@ -3,7 +3,7 @@
 Invariants validated against markdown trace data (`*.md`, `*.graph.md`, `*.events.md`, `*.blackboard.md`).
 Each invariant references the SURFACE.md scenarios it applies to.
 
-## Validation Run: 2026-03-27
+## Validation Run: 2026-03-31
 
 | Invariant | Status | Notes |
 |-----------|--------|-------|
@@ -18,11 +18,11 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | G9 | PASS | Event timestamps non-decreasing |
 | G10 | PASS | Blackboard history grows monotonically |
 | A-INV2 | KNOWN GAP | Final snapshot taken BEFORE result decorator completes nodes — see Trace Timing below |
-| C-INV1 | PASS (refined) | Some tests use `InterruptStatusEvent` RESOLVED instead of `ResolveInterruptEvent` |
+| C-INV1 | PASS (refined) | Some tests use `InterruptStatusEvent` RESOLVED instead of `ResolveInterruptEvent`. callController/controllerResponse paths now also emit InterruptStatusEvent via publishInterruptWithContext fix |
 | D-INV1–2 | PASS | A2A nodes complete correctly, required fields all non-null |
 | J-INV2 | PASS | AgentCallStarted/Completed events paired correctly |
 | J4 | PASS | Exactly 1 GoalCompletedEvent per workflow |
-| N-INV1 | PASS | callController publishes HUMAN_REVIEW interrupt, agent blocks until resolved |
+| N-INV1 | PASS (refined) | callController publishes HUMAN_REVIEW interrupt via InterruptService.publishAndAwaitControllerInterrupt, sets interruptibleContext on origin node, emits InterruptStatusEvent(RESOLVED) on resolve |
 | N-INV2 | PASS | callController returns controller's response text after resolution |
 | N-INV3 | PASS | 4th call (budget=3) returns ERROR, only 3 INITIATED events emitted |
 | N-INV4 | PASS | INITIATED and RETURNED AgentCallEvents emitted with target="controller" |
@@ -37,6 +37,14 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | O-INV4 | — | Not yet validated (needs chatId on A2A node assertion in existing D1 test) |
 | O-INV5 | PASS (indirect) | Covered by existing F2 test (chatId plumbing verified) |
 | O-INV6 | — | Not yet validated (needs exhaustive switch coverage test) |
+| P-INV1 | PASS | controllerResponseExecution resolves interrupt, agent receives rendered text with checklistAction |
+| P-INV2 | — | Not yet validated (needs test with missing OperationContext) |
+| P-INV3 | — | Not yet validated (needs test with missing AgentToControllerRequest) |
+| P-INV4 | PASS | AgentCallEvent(RETURNED) emitted with checklistAction after controllerResponseExecution |
+| P-INV5 | PASS | Key hierarchy: interruptKey.parent() = agent session, contextId = interruptKey.createChild() |
+| Q-INV1 | PASS (indirect) | PropagatorPersistenceIT + WorkflowAgentQueuedTest setUp: enable after seed, entity ACTIVE |
+| Q-INV2 | — | Not yet validated (needs dedicated deactivate + discovery assertion) |
+| Q-INV3 | PASS (indirect) | Tests fail without explicit activation — confirms auto-bootstrap defaults to INACTIVE |
 
 ### Trace Timing Gap (A-INV2)
 
@@ -388,6 +396,57 @@ The chatId field identifies the target ACP session for LLM routing. The sourceSe
 
 ---
 
+## P. Controller Response Execution
+
+### P-INV1. controllerResponseExecution Resolves Interrupt with Rendered Template (P1)
+**Invariant**: `controllerResponseExecution` builds a `ControllerToAgentRequest`, runs it through the full decoration pipeline (decorateRequest → build PromptContext → decoratePromptContext → assemblePrompt), and resolves the interrupt with the rendered text. The resolved text contains the controller's message, checklistAction, and "Do NOT call" instruction from the template.
+**Search**: Test assertion — callResults contains rendered template text with expected sections.
+
+### P-INV2. controllerResponseExecution Error on Missing OperationContext (P1)
+**Invariant**: When `EmbabelUtil.resolveOperationContext()` returns null (e.g., workflow completed), `controllerResponseExecution` returns `ControllerResponseResult.error()` with descriptive message. Interrupt is NOT resolved.
+**Search**: Test assertion — `resolved() == false`, interrupt still pending.
+
+### P-INV3. controllerResponseExecution Error on Missing AgentToControllerRequest (P1)
+**Invariant**: When `BlackboardHistory.getLastFromHistory(opCtx, AgentToControllerRequest.class)` returns null, `controllerResponseExecution` returns `ControllerResponseResult.error()`. Interrupt is NOT resolved.
+**Search**: Test assertion — `resolved() == false`, error message references missing request.
+
+### P-INV4. AgentCallEvent(RETURNED) Emitted with checklistAction (P1)
+**Invariant**: After successful `controllerResponseExecution`, an `AgentCallEvent` with `callEventType=RETURNED` and `callerSessionId="controller"` is emitted. The event carries `checklistAction` matching the input arg.
+**Search**: `*.events.md` — AgentCallEvent with target="controller" and RETURNED type. Test assertion on event fields.
+
+### P-INV5. Key Hierarchy Derivation (P1)
+**Invariant**: `controllerResponseExecution` derives keys as:
+- `interruptKey = new ArtifactKey(args.interruptId())`
+- `contextId = interruptKey.createChild()` (new child under the conversation)
+- `agentChatId = interruptKey.parent()` (the agent's session key — target of this response)
+The `ControllerToAgentRequest.chatId` points to the agent's session, not the controller's.
+**Search**: Test assertion — `interruptKey.parent().isPresent()`, chatId resolves to agent session.
+
+---
+
+## Q. Propagator Activation Lifecycle
+
+### Q-INV1. Triple-Write Consistency on Enable (Q1)
+**Invariant**: `enableAiPropagator` writes three locations atomically:
+1. `entity.status` = `ACTIVE`
+2. `layerBindingsJson[*].enabled` = `true` (all bindings)
+3. `propagatorJson.status` = `ACTIVE`
+Also sets `entity.activatedAt` to current timestamp.
+**Search**: Code-level assertion after calling `enableAiPropagator`. Deserialize layerBindingsJson and propagatorJson to verify all fields.
+
+### Q-INV2. Triple-Write Consistency on Disable (Q2)
+**Invariant**: `disableAiPropagator` writes three locations:
+1. `entity.status` = `INACTIVE`
+2. `layerBindingsJson[*].enabled` = `false` (all bindings)
+3. `propagatorJson.status` = `INACTIVE`
+**Search**: Code-level assertion after calling `disableAiPropagator`.
+
+### Q-INV3. Auto-Bootstrap INACTIVE Default (Q3)
+**Invariant**: After `AutoAiPropagatorBootstrap.seedAutoAiPropagators()`, all entities have `status=INACTIVE`. `PropagatorDiscoveryService.getActivePropagatorsByLayer()` returns empty for any layer.
+**Search**: PropagatorPersistenceIT — assert INACTIVE status after bootstrap, then assert ACTIVE after explicit enable.
+
+---
+
 ## Coverage: Surface → Invariants
 
 | Surface | Invariants |
@@ -467,3 +526,9 @@ The chatId field identifies the target ACP session for LLM routing. The sourceSe
 | O4 | O-INV4, D-INV2 |
 | O5 | O-INV5, F-INV2 |
 | O6 | O-INV6 |
+| P1 | P-INV1, P-INV4, P-INV5 |
+| P2 | P-INV2 |
+| P3 | P-INV3 |
+| Q1 | Q-INV1 |
+| Q2 | Q-INV2 |
+| Q3 | Q-INV3 |

@@ -114,7 +114,8 @@ public class QueuedLlmRunner implements LlmRunner {
             String requestType,
             Object decoratedRequest,
             String responseType,
-            Object response
+            Object response,
+            Map<String, Object> templateModel
     ) {}
 
     /**
@@ -231,7 +232,8 @@ public class QueuedLlmRunner implements LlmRunner {
                 decoratedRequest != null ? decoratedRequest.getClass().getSimpleName() : "null",
                 decoratedRequest,
                 response.getClass().getSimpleName(),
-                response
+                response,
+                model
         );
         callRecords.add(record);
         appendToLog(record);
@@ -268,6 +270,13 @@ public class QueuedLlmRunner implements LlmRunner {
                 sb.append("### Decorated Request (`%s`)\n\n".formatted(record.requestType()));
                 sb.append("```json\n");
                 sb.append(safeSerialize(record.decoratedRequest()));
+                sb.append("\n```\n\n");
+            }
+
+            if (record.templateModel() != null && !record.templateModel().isEmpty()) {
+                sb.append("### Template Model\n\n");
+                sb.append("```json\n");
+                sb.append(safeSerialize(record.templateModel()));
                 sb.append("\n```\n\n");
             }
 

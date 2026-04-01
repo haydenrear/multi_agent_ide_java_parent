@@ -172,13 +172,22 @@ public class AgentTopologyTools implements ToolCarrier {
             String message
     ) {
         if (!StringUtils.hasText(sessionId)) {
-            return "ERROR: Missing session id.";
+            String errorMsg = "ERROR: Missing session id.";
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, null,
+                    targetAgentKey, null, List.of(), message, null, errorMsg, null);
+            return errorMsg;
         }
         if (!StringUtils.hasText(targetAgentKey)) {
-            return "ERROR: Missing target agent key.";
+            String errorMsg = "ERROR: Missing target agent key.";
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, null,
+                    targetAgentKey, null, List.of(), message, null, errorMsg, null);
+            return errorMsg;
         }
         if (!StringUtils.hasText(message)) {
-            return "ERROR: Message cannot be empty.";
+            String errorMsg = "ERROR: Message cannot be empty.";
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, null,
+                    targetAgentKey, null, List.of(), null, null, errorMsg, null);
+            return errorMsg;
         }
 
         ArtifactKey callingKey;
@@ -186,12 +195,18 @@ public class AgentTopologyTools implements ToolCarrier {
         try {
             callingKey = new ArtifactKey(sessionId);
         } catch (IllegalArgumentException e) {
-            return "ERROR: Invalid session ID - not your fault - propagate up the chain from agent topology tools callAgent function.";
+            String errorMsg = "ERROR: Invalid session ID - not your fault - propagate up the chain from agent topology tools callAgent function.";
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, null,
+                    targetAgentKey, null, List.of(), message, null, errorMsg, null);
+            return errorMsg;
         }
         try {
             targetKey = new ArtifactKey(targetAgentKey);
         } catch (IllegalArgumentException e) {
-            return "ERROR: Invalid target agent key format.";
+            String errorMsg = "ERROR: Invalid target agent key format.";
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, null,
+                    targetAgentKey, null, List.of(), message, null, errorMsg, null);
+            return errorMsg;
         }
 
         // Resolve the calling agent's graph node (by nodeId or chatSessionKey)
@@ -388,38 +403,50 @@ public class AgentTopologyTools implements ToolCarrier {
         log.info("call_controller START — sessionId={} justification={}",
                 sessionId, justificationMessage != null ? justificationMessage.substring(0, Math.min(200, justificationMessage.length())) : "null");
         if (!StringUtils.hasText(sessionId)) {
-            return "ERROR: Missing session id.";
+            String errorMsg = "ERROR: Missing session id.";
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, null,
+                    "controller", null, List.of(), justificationMessage, null, errorMsg, null);
+            return errorMsg;
         }
         if (!StringUtils.hasText(justificationMessage)) {
-            return "ERROR: Justification message cannot be empty.";
+            String errorMsg = "ERROR: Justification message cannot be empty.";
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, null,
+                    "controller", null, List.of(), null, null, errorMsg, null);
+            return errorMsg;
         }
 
         ArtifactKey callingKey;
         try {
             callingKey = new ArtifactKey(sessionId);
         } catch (IllegalArgumentException e) {
-            return "ERROR: Invalid session ID.";
+            String errorMsg = "ERROR: Invalid session ID.";
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, null,
+                    "controller", null, List.of(), justificationMessage, null, errorMsg, null);
+            return errorMsg;
         }
 
         GraphNode callingNode = sessionKeyResolutionService.resolveNodeBySessionKey(sessionId);
         AgentType callingType = callingNode != null ? NodeMappings.agentTypeFromNode(callingNode) : null;
 
-        // Message budget check (FR-017)
-        int budget = topologyProvider.messageBudget();
-        if (budget > 0) {
-            int count = conversationMessageCounts
-                    .computeIfAbsent(sessionId, k -> new AtomicInteger(0))
-                    .incrementAndGet();
-            if (count > budget) {
-                log.warn("Message budget exceeded for session {}: {} > {}", sessionId, count, budget);
-                return "ERROR: Message budget exceeded (%d/%d). Escalating to user — please wait for human input."
-                        .formatted(count, budget);
-            }
-        }
+        // Message budget check (FR-017) — disabled, budget should not limit controller calls
+        // int budget = topologyProvider.messageBudget();
+        // if (budget > 0) {
+        //     int count = conversationMessageCounts
+        //             .computeIfAbsent(sessionId, k -> new AtomicInteger(0))
+        //             .incrementAndGet();
+        //     if (count > budget) {
+        //         log.warn("Message budget exceeded for session {}: {} > {}", sessionId, count, budget);
+        //         return "ERROR: Message budget exceeded (%d/%d). Escalating to user — please wait for human input."
+        //                 .formatted(count, budget);
+        //     }
+        // }
 
         OperationContext operationContext = resolveOperationContext(callingKey);
         if (operationContext == null) {
-            return "ERROR: Could not resolve operation context for calling agent.";
+            String errorMsg = "ERROR: Could not resolve operation context for calling agent.";
+            emitCallEvent(Events.AgentCallEventType.ERROR, sessionId, callingType,
+                    "controller", null, List.of(), justificationMessage, null, errorMsg, null);
+            return errorMsg;
         }
 
         try {

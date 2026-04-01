@@ -4,7 +4,7 @@ Test scenarios derived from code analysis of the workflow agent system.
 Each scenario targets a distinct code path, branch, or failure mode.
 Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = nice-to-have).
 
-## Coverage Status (2026-03-27)
+## Coverage Status (2026-03-31)
 
 | Scenario | Covered By | Status |
 |----------|-----------|--------|
@@ -67,6 +67,12 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | O4 | `callAgent_createsAndCompletesAgentToAgentNode` (partial — needs chatId assertion) | **GAP (P0)** |
 | O5 | `propagator_chatSessionKey_setCorrectly` (renamed, covers chatId plumbing) | COVERED |
 | O6 | — | GAP (P1) |
+| P1 | `controllerResponse_rendersTemplateAndResolvesInterrupt` | COVERED |
+| P2 | — | **GAP (P1)** |
+| P3 | — | **GAP (P1)** |
+| Q1 | — | **GAP (P1)** |
+| Q2 | — | **GAP (P1)** |
+| Q3 | — | GAP (P2) |
 
 ---
 
@@ -556,6 +562,48 @@ These request types don't carry an explicit chatId field. `PromptContext.chatId(
 
 ---
 
+## P. Controller Response Execution (AgentExecutor)
+
+The controller response path (`AgentExecutor.controllerResponseExecution`) processes the controller's side of the justification dialogue. Instead of calling the LLM, it runs the full decoration pipeline (request → prompt context → template + prompt contributors), renders the controller's message through the `communication/controller_response` template, and resolves the pending HUMAN_REVIEW interrupt with the rendered text. This is the mirror of `controllerExecution` (agent → controller) and `callController` (agent-side blocking).
+
+### P1. controllerResponseExecution — Happy Path (P0)
+Agent calls `call_controller`. Controller resolves via `controllerResponseExecution` with message and checklistAction. Agent receives rendered template text including checklistAction, "Do NOT call" instruction, and controller message. Workflow completes.
+
+**Validates**: Full pipeline: derive key hierarchy from interruptId → resolve OperationContext → build ControllerToAgentRequest → decorate → render template + contributors → resolve interrupt → emit AgentCallEvent(RETURNED). interruptKey.parent() = agent's session key. contextId = interruptKey.createChild().
+
+### P2. controllerResponseExecution — Missing OperationContext (P1)
+`controllerResponseExecution` called with an originNodeId that has no OperationContext (e.g., workflow already completed/cleaned up). Returns error without resolving interrupt.
+
+**Validates**: Error path. Interrupt remains pending. No NPE. Error message includes originNodeId.
+
+### P3. controllerResponseExecution — Missing AgentToControllerRequest in Blackboard (P1)
+`controllerResponseExecution` called but no `AgentToControllerRequest` found in blackboard history. Returns error without resolving.
+
+**Validates**: Guard clause for missing originating request. Interrupt remains pending. Error message explains the issue.
+
+---
+
+## Q. Propagator Activation Lifecycle
+
+Auto-bootstrapped propagators register as INACTIVE at startup (`activate(false)` in `AutoAiPropagatorBootstrap`). Activation/deactivation operates on both the entity status AND the individual layer binding `enabled` flags AND the propagator JSON status field. The `PropagatorController` exposes activate/deactivate endpoints.
+
+### Q1. Enable Propagator — Sets Entity + Bindings + JSON Status (P1)
+`enableAiPropagator` sets entity status to ACTIVE, all layer bindings `enabled=true`, propagator JSON `status=ACTIVE`, and `activatedAt` timestamp.
+
+**Validates**: Triple-write consistency: entity.status, layerBindingsJson[*].enabled, propagatorJson.status all agree. Discovery service finds the propagator after activation.
+
+### Q2. Disable Propagator — Sets Entity + Bindings + JSON Status (P1)
+`disableAiPropagator` sets entity status to INACTIVE, all layer bindings `enabled=false`, propagator JSON `status=INACTIVE`.
+
+**Validates**: Same triple-write consistency. Discovery service does NOT find the propagator after deactivation.
+
+### Q3. Auto-Bootstrap Starts INACTIVE (P2)
+`AutoAiPropagatorBootstrap.seedAutoAiPropagators()` creates all auto-propagators with INACTIVE status. Tests must explicitly activate them.
+
+**Validates**: `activate(false)` in `autoRegistrationRequest()`. Entity status = INACTIVE after bootstrap. No propagators fire until explicitly activated.
+
+---
+
 ## Coverage Matrix
 
 | Scenario | Graph | Events | Blackboard | Worktree | Interrupt | A2A | DataLayer |
@@ -593,3 +641,9 @@ These request types don't carry an explicit chatId field. `PromptContext.chatId(
 | O4       | X     |        |            |          |           | X   |           |
 | O5       | X     |        |            |          |           |     | X         |
 | O6       | X     |        |            |          |           |     | X         |
+| P1       |       | X      | X          |          | X         |     |           |
+| P2       |       |        |            |          | X         |     |           |
+| P3       |       |        | X          |          |           |     |           |
+| Q1       |       |        |            |          |           |     | X         |
+| Q2       |       |        |            |          |           |     | X         |
+| Q3       |       |        |            |          |           |     | X         |

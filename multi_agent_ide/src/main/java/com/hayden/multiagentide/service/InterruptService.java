@@ -4,8 +4,10 @@ import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.tools.ToolContextDecorator;
+import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
+import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
@@ -52,6 +54,7 @@ public class InterruptService {
     private final PromptContextFactory promptContextFactory;
     private final List<PromptContextDecorator> promptContextDecorators;
     private final List<ToolContextDecorator> toolContextDecorators;
+    private final GraphRepository graphRepository;
 
     /**
      * Handle review interrupt using Jinja templates and PromptContext.
@@ -174,6 +177,86 @@ public class InterruptService {
         return resolveInterruptHumanAgent(request, originNodeId);
     }
 
+    /**
+     * Sets interruptibleContext on the origin node and publishes the interrupt.
+     * Does NOT block — use {@link #publishAndAwaitInterrupt} if you need to wait for resolution.
+     */
+    public void publishInterruptWithContext(
+            String interruptId,
+            String originNodeId,
+            Events.InterruptType interruptType,
+            String reason
+    ) {
+        GraphNode originNode = graphRepository.findById(originNodeId).orElse(null);
+        if (originNode instanceof Interruptible interruptible
+                && interruptible.interruptibleContext() == null) {
+            var interruptContext = new InterruptContext(
+                    interruptType,
+                    InterruptContext.InterruptStatus.REQUESTED,
+                    reason,
+                    originNodeId,
+                    originNodeId,
+                    interruptId,
+                    null
+            );
+            GraphNode updated = interruptible.withInterruptibleContext(interruptContext);
+            graphRepository.save(updated);
+        } else if (originNode instanceof Interruptible interruptible
+                && interruptible.interruptibleContext().status() != InterruptContext.InterruptStatus.REQUESTED) {
+            String truncatedContext = interruptible.interruptibleContext().toString();
+            if (truncatedContext.length() > 200) {
+                truncatedContext = truncatedContext.substring(0, 200) + "...";
+            }
+            log.error("publishInterruptWithContext called on node {} with unexpected interruptibleContext "
+                    + "status {} (expected null or REQUESTED): {}",
+                    originNodeId, interruptible.interruptibleContext().status(), truncatedContext);
+        }
+        permissionGate.publishInterrupt(interruptId, originNodeId, interruptType, reason);
+    }
+
+    /**
+     * Publishes an interrupt with proper interruptibleContext on the origin node,
+     * then blocks until the interrupt is resolved and returns the resolution text.
+     * <p>
+     * Unlike calling {@code permissionGate.publishInterrupt()} directly, this method ensures
+     * the origin node's {@link InterruptContext} is set to REQUESTED so that
+     * {@code resolveInterrupt()} can later emit {@code InterruptStatusEvent(RESOLVED)}.
+     *
+     * @param defaultMessage fallback message if the resolution has no notes
+     */
+    public String publishAndAwaitInterrupt(
+            String interruptId,
+            String originNodeId,
+            Events.InterruptType interruptType,
+            String reason,
+            String defaultMessage
+    ) {
+        publishInterruptWithContext(interruptId, originNodeId, interruptType, reason);
+
+        IPermissionGate.InterruptResolution resolution = permissionGate.awaitInterruptBlocking(interruptId);
+        String responseText = resolution != null ? resolution.getResolutionNotes() : null;
+        if (responseText == null || responseText.isBlank()) {
+            responseText = defaultMessage;
+        }
+        return responseText;
+    }
+
+    /**
+     * Controller-specific convenience: publishes a HUMAN_REVIEW interrupt and blocks
+     * until the controller responds.
+     */
+    public String publishAndAwaitControllerInterrupt(
+            String interruptId,
+            String originNodeId,
+            Events.InterruptType interruptType,
+            String reason
+    ) {
+        return publishAndAwaitInterrupt(
+                interruptId, originNodeId, interruptType, reason,
+                "Controller acknowledged but provided no response."
+        );
+    }
+
     private PermissionGate.InterruptResolution resolveInterruptHumanAgent(
             @jakarta.annotation.Nullable AgentModels.InterruptRequest request,
             @jakarta.annotation.Nullable GraphNode originNode
@@ -187,15 +270,9 @@ public class InterruptService {
         if (interruptId.isBlank()) {
             return permissionGate.invalidInterrupt(INTERRUPT_ID_NOT_FOUND);
         }
-        permissionGate.publishInterrupt(
-                interruptId,
-                originNode != null ? originNode.nodeId() : interruptId,
-                request.type(),
-                reviewContent
-        );
-        PermissionGate.InterruptResolution resolution =
-                permissionGate.awaitInterruptBlocking(interruptId);
-        return resolution;
+        String originNodeId = originNode != null ? originNode.nodeId() : interruptId;
+        publishInterruptWithContext(interruptId, originNodeId, request.type(), reviewContent);
+        return permissionGate.awaitInterruptBlocking(interruptId);
     }
 
     private String resolveInterruptFeedback(
@@ -221,12 +298,8 @@ public class InterruptService {
                 if (result.interruptId().isBlank()) {
                     yield result.reviewContent();
                 }
-                permissionGate.publishInterrupt(
-                        result.interruptId(),
-                        originNode != null ? originNode.nodeId() : result.interruptId(),
-                        request.type(),
-                        result.reviewContent()
-                );
+                String agentOriginNodeId = originNode != null ? originNode.nodeId() : result.interruptId();
+                publishInterruptWithContext(result.interruptId(), agentOriginNodeId, request.type(), result.reviewContent());
                 AgentModels.ReviewAgentResult reviewResult =
                         runInterruptAgentReview(context, promptContext, result, request);
                 String feedback = reviewResult != null ? reviewResult.output() : "";

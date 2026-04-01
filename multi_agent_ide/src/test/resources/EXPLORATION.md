@@ -3,7 +3,7 @@
 Entry points for discovering things we didn't know we didn't know in the test trace data.
 Each entry point describes where to look, what question to ask, and what a finding might lead to.
 
-Generated: 2026-03-27
+Generated: 2026-03-31
 
 ## How to Use
 
@@ -200,6 +200,39 @@ Generated: 2026-03-27
 
 ---
 
+## E17. controllerResponseExecution assemblePrompt Output Quality
+
+**Where**: `controllerResponse_rendersTemplateAndResolvesInterrupt.md` trace, `controllerResponse_rendersTemplateAndResolvesInterrupt.events.md`
+**Question**: Does the `assemblePrompt` method in `AgentExecutor` produce the same quality output as `DefaultLlmRunner`? Specifically: are all prompt contributors resolved? Is the template rendered with all model variables? Does the `--- start/end` section formatting match what an LLM would see?
+**Why it matters**: `assemblePrompt` is a parallel prompt rendering path that doesn't go through the normal LLM runner. If a prompt contributor throws or is missing, the controller's response to the agent will be degraded compared to what an LLM-based flow would produce. The `log.debug` catch in the contributor loop means failures are silent.
+**What to look for**: Compare the rendered text in the test's `callResults` with the equivalent template output from a normal LLM call. Check if FilterPropertiesDecorator, PromptHealthCheckLlmCallDecorator-equivalent logic is included or skipped.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E18. Propagator Triple-Write Atomicity Under Concurrent Access
+
+**Where**: `PropagatorRegistrationService.enableRegistration()` and `disableRegistration()`
+**Question**: The enable/disable methods read `layerBindingsJson`, deserialize, modify, re-serialize, and save. If two requests hit activate/deactivate concurrently for the same registration, could one overwrite the other's changes? Is the `@Transactional` annotation sufficient for atomicity here?
+**Why it matters**: The JSON blob rewrite pattern (read-modify-write) is inherently prone to lost updates. With the current design (no optimistic locking, no `@Version` on entity), two concurrent enables could produce inconsistent state.
+**What to look for**: Check if `PropagatorRegistrationEntity` has `@Version`. Check if the transaction isolation level is sufficient to prevent lost updates. Consider if `SELECT FOR UPDATE` (pessimistic locking) is needed.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E19. controllerResponseExecution Template Existence
+
+**Where**: `AgentExecutor.renderTemplate()` — `renderer.compileLoadedTemplate(promptContext.templateName())`
+**Question**: Does the `communication/controller_response` template actually exist in the template registry? If not, `renderTemplate` catches the exception, returns null, and `assemblePrompt` falls through to the goal extraction fallback. Is this the correct behavior, or should a missing template be a hard error?
+**Why it matters**: If the template is missing, the agent receives only the raw prompt contributor text (or the justification message fallback), not a properly formatted controller response. This would be a silent degradation.
+**What to look for**: Verify `communication/controller_response` exists in the Jinja template directory. Check the test trace for evidence of successful template rendering vs. fallback.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
 ## Future Exploration Candidates
 
 - **F-E1**: Data layer operation timing relative to agent completion — do DataLayerOperationNodes always complete before their parent agent completes?
@@ -210,3 +243,6 @@ Generated: 2026-03-27
 - **F-E6**: Justification prompt template resolution — do all 16 workflow templates actually include `_review_justification.jinja` and their role-specific justification partial? Grep the resolved prompt text in trace data.
 - **F-E7**: chatId correctness in chained A2A calls — when agent A calls B calls C, does each hop's A2A node have the correct chatId pointing to the *next* target, not a stale value from a prior hop? Cross-reference chatId in `### AgentToAgent:` sections across the call chain.
 - **F-E8**: SessionKeyResolutionService behavior after chatId fix — does `resolveNodeBySessionKey()` now correctly find A2A nodes by the target session key? Test with concurrent parallel calls where two A2A nodes target different agents.
+- **F-E9**: Layer binding entity extraction impact — the current JSON blob pattern for layer bindings means enable/disable must deserialize, modify, and re-serialize the entire blob. With the planned `LayerBindingEntity` extraction (see `tickets/data-layer-filter/layer-binding-entities.md`), each binding gets its own row with direct SQL updates. Explore whether current tests cover the edge case where a registration has zero bindings.
+- **F-E10**: `AgentExecutor.assemblePrompt` vs `DefaultLlmRunner` prompt assembly divergence — `assemblePrompt` uses `PromptContributorService` (Spring bean), so new `PromptContributor` beans auto-included. Risk limited to `LlmCallDecorator`-level concerns (FilterPropertiesDecorator, etc.) which are NOT applied in controller response path by design.
+- **F-E11**: ~~`publishInterrupt()` does not set `interruptibleContext` on origin node~~ — **FIXED**: Added `InterruptService.publishInterruptWithContext()` which sets `interruptibleContext` on the origin node (if null) before publishing. All three call sites in InterruptService now use this method. Both `callController_happyPath` and `controllerResponse` tests now emit `InterruptStatusEvent(RESOLVED)`. Guard: only sets context if null (won't overwrite existing), logs error if existing context has unexpected non-REQUESTED status.
