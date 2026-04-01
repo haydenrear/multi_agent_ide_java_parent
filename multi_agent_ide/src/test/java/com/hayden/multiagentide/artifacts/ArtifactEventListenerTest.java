@@ -109,7 +109,8 @@ class ArtifactEventListenerTest {
                     Instant.now(),
                     "orchestrator-1",
                     "Completed successfully",
-                    AgentModels.OrchestratorCollectorResult.builder().build()
+                    AgentModels.OrchestratorCollectorResult.builder().build(),
+                    null
             );
             
             assertThat(listener.isInterestedIn(event)).isTrue();
@@ -329,7 +330,8 @@ class ArtifactEventListenerTest {
                     Instant.now(),
                     "workflow-run-1",
                     "Completed",
-                    AgentModels.OrchestratorCollectorResult.builder().build()
+                    AgentModels.OrchestratorCollectorResult.builder().build(),
+                    null
             );
             
             listener.onEvent(event);
@@ -345,7 +347,8 @@ class ArtifactEventListenerTest {
                     Instant.now(),
                     "unknown-workflow",
                     "Completed",
-                    AgentModels.OrchestratorCollectorResult.builder().build()
+                    AgentModels.OrchestratorCollectorResult.builder().build(),
+                    null
             );
             
             // Should not throw, just log warning
@@ -370,7 +373,8 @@ class ArtifactEventListenerTest {
                     Instant.now(),
                     "workflow-123",
                     "Done",
-                    AgentModels.OrchestratorCollectorResult.builder().build()
+                    AgentModels.OrchestratorCollectorResult.builder().build(),
+                    null
             );
             
             listener.onEvent(event);
@@ -433,7 +437,8 @@ class ArtifactEventListenerTest {
                     Instant.now(),
                     "workflow-full-test",
                     "Success",
-                    AgentModels.OrchestratorCollectorResult.builder().build()
+                    AgentModels.OrchestratorCollectorResult.builder().build(),
+                    null
             );
             listener.onEvent(completion);
             

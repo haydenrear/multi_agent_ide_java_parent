@@ -158,6 +158,7 @@ class AiFilterSessionResolverTest {
                 Instant.now(),
                 root.value(),
                 "wf-1",
+                null,
                 null
         ));
 

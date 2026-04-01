@@ -34,24 +34,8 @@ public class SandboxResolver {
     private final WorktreeRepository worktreeRepository;
 
     public WorktreeSandboxContext resolveSandboxContext(DecoratorContext context) {
-
-        if (context.agentRequest() instanceof AgentModels.AgentRequest req) {
-            var s = resolveFromAgentRequest(req, context);
-            if (s != null)
-                return s;
-        }
-
-        WorktreeSandboxContext sandboxContext = null;
-
-        if (context.lastRequest() instanceof AgentModels.AgentRequest lastRequest
-                && lastRequest.worktreeContext() != null) {
-            sandboxContext = lastRequest.worktreeContext();
-        }
-
-        if (sandboxContext == null) {
-            sandboxContext = resolveFromOrchestratorNode(context.operationContext());
-        }
-        return sandboxContext;
+        // Single worktree for entire goal — always resolve from orchestrator node.
+        return resolveFromOrchestratorNode(context.operationContext());
     }
 
     public String resolveOrchestratorNode(OperationContext context) {
@@ -129,79 +113,4 @@ public class SandboxResolver {
         return new WorktreeSandboxContext(mainContext, submodules);
     }
 
-    /**
-     * Retrieve the worktree sandbox context from which we will branch from.
-     * @param req
-     * @param context
-     * @return
-     */
-    private WorktreeSandboxContext resolveFromAgentRequest(AgentModels.AgentRequest req, DecoratorContext context) {
-        switch(req) {
-            case AgentModels.ResultsRequest resultsRequest -> {
-            }
-            case AgentModels.TicketAgentRequests ticketAgentRequests -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.PlanningAgentRequests planningAgentRequests -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.DiscoveryAgentRequests discoveryAgentRequests -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.OrchestratorCollectorRequest orchestratorCollectorRequest -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.OrchestratorRequest orchestratorRequest -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.DiscoveryOrchestratorRequest discoveryOrchestratorRequest -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.PlanningOrchestratorRequest planningOrchestratorRequest -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.TicketOrchestratorRequest ticketOrchestratorRequest -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.DiscoveryCollectorRequest discoveryCollectorRequest -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.PlanningCollectorRequest planningCollectorRequest -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.TicketCollectorRequest ticketCollectorRequest -> {
-                return resolveFromOrchestratorNode(context.operationContext());
-            }
-            case AgentModels.AiFilterRequest aiFilterRequest -> {
-            }
-            case AgentModels.AiPropagatorRequest aiPropagatorRequest -> {
-            }
-            case AgentModels.AiTransformerRequest aiTransformerRequest -> {
-            }
-            case AgentModels.DiscoveryAgentRequest discoveryAgentRequest -> {
-            }
-            case AgentModels.TicketAgentRequest ticketAgentRequest -> {
-            }
-            case AgentModels.PlanningAgentRequest planningAgentRequest -> {
-            }
-            case AgentModels.CommitAgentRequest commitAgentRequest -> {
-            }
-            case AgentModels.ContextManagerRequest contextManagerRequest -> {
-            }
-            case AgentModels.ContextManagerRoutingRequest contextManagerRoutingRequest -> {
-            }
-            case AgentModels.InterruptRequest interruptRequest -> {
-            }
-            case AgentModels.MergeConflictRequest mergeConflictRequest -> {
-            }
-            case AgentModels.AgentToAgentRequest ignored -> {
-            }
-            case AgentModels.AgentToControllerRequest ignored -> {
-            }
-            case AgentModels.ControllerToAgentRequest ignored -> {
-            }
-        }
-
-        return null;
-    }
 }

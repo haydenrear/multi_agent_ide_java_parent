@@ -35,10 +35,14 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | D9 | — | GAP (P2) |
 | E1 | `fullWorkflow_realMerges_changesReachSource` | COVERED |
 | E2 | `discoveryPhase_twoAgents_bothMergeSuccessfully` | COVERED |
-| E3 | `discoveryPhase_twoAgents_conflictDetected` | COVERED |
+| E3 | `discoveryPhase_twoAgents_lastWriteWins` | COVERED |
 | E4 | `fullWorkflow_withSubmoduleChanges_propagateToSource` | COVERED |
-| E5 | — | GAP (P2) |
-| E6 | — | GAP (P2) |
+| E5 | — | REMOVED (no merge machinery) |
+| E6 | — | REMOVED (no merge machinery) |
+| E7 | `ticketPhase_fiveTickets_sharedWorktreeCarriesAllChanges` | COVERED |
+| E8 | — | GAP (P1) |
+| R1 | `fullWorkflow_realMerges_changesReachSource` (GoalCompletedEvent.worktreePath assertion) | COVERED |
+| R2 | — | **GAP (P1)** |
 | F1 | `dataLayerOperationNodes_createdDuringWorkflow` | COVERED |
 | F2 | `propagator_chatSessionKey_setCorrectly` | COVERED |
 | F3 | `parallelAgents_propagatorNodes_distinctChatKeys` | COVERED |
@@ -217,37 +221,39 @@ Only the calling agent's session exists. list_agents returns empty list.
 
 ---
 
-## E. Worktree Merge Operations
+## E. Shared Worktree Operations (Single-Worktree Model)
 
-### E1. Full Workflow — Changes Reach Source (P0)
-Real git worktrees created. Agent commits to child worktree. Merge child→trunk succeeds. Final merge to source repo succeeds. Source repo contains agent's changes.
+One worktree is created at goal start on the orchestrator node and shared unchanged by all agents across all phases. No branching, no merging between agents. The controller handles merge-to-source after GoalCompletedEvent.
 
-**Validates**: End-to-end worktree flow. Git operations succeed. No orphaned branches.
+### E1. Full Workflow — Agent Changes in Shared Worktree (P0)
+Real git worktree created on orchestrator node. Agents across discovery, planning, and ticket phases all commit to the same worktree. GoalCompletedEvent carries the worktree path.
 
-### E2. Two Parallel Agents — Both Merge Successfully (P0)
-Two discovery agents each work on different files in their own worktrees. Both merge to trunk without conflict.
+**Validates**: End-to-end single-worktree flow. All phase agents share one worktree. Changes accumulate across phases. GoalCompletedEvent.worktreePath non-null.
 
-**Validates**: Parallel worktree isolation. Merge order doesn't matter when no conflicts. Both agents' changes present in trunk.
+### E2. Two Parallel Agents — Both Changes in Shared Worktree (P0)
+Two discovery agents each work on different files in the same shared worktree. Both agents' changes present after workflow.
 
-### E3. Two Parallel Agents — Merge Conflict (P0)
-Two agents modify the same file. First merge succeeds, second merge detects conflict. MergeAggregation.conflicted populated.
+**Validates**: No worktree isolation between parallel agents. Sequential commits to same branch. Both files present.
 
-**Validates**: Conflict detection works. MergePhaseCompletedEvent has conflict info. Workflow receives conflict data for LLM handling.
+### E3. Two Parallel Agents — Same File Last Write Wins (P0)
+Two agents write to the same file in the shared worktree. Second agent's commit overwrites the first. No merge conflict.
 
-### E4. Submodule Changes Propagate to Source (P1)
-Agent modifies files in a submodule worktree. Changes merge through submodule→main worktree→source.
+**Validates**: No merge machinery. Last write wins in shared worktree. No MergePhaseCompletedEvent emitted.
 
-**Validates**: Submodule pointer update after merge. Source repo's submodule reference updated. Leaves-first merge order for submodules.
+### E4. Submodule Changes in Shared Worktree (P1)
+Agent modifies files in a submodule within the shared worktree. Changes are in the worktree for controller to handle.
 
-### E5. Merge Conflict in Submodule (P2)
-Two agents modify the same file in the same submodule. Conflict detected at submodule level.
+**Validates**: Submodule worktree context passed through. Agent can commit to submodule within shared worktree.
 
-**Validates**: Submodule conflict handling differs from main repo conflict. ensureMergeConflictsCaptured works for submodules.
+### E7. Five Ticket Agents — All Changes Accumulate (P0)
+Five ticket agents each commit a distinct file to the shared worktree. All five files present after workflow.
 
-### E6. Worktree Created and Discarded (P2)
-Agent creates worktree, does no work, worktree is discarded. No artifacts remain.
+**Validates**: Shared worktree scales to many agents. No data loss across sequential ticket agents. GoalCompletedEvent carries worktree path.
 
-**Validates**: Cleanup path. No orphaned git worktrees on disk.
+### E8. SandboxResolver Always Resolves from Orchestrator Node (P1)
+SandboxResolver.resolveSandboxContext always delegates to resolveFromOrchestratorNode. No request-type-specific branching.
+
+**Validates**: Simplified resolver. All agent types get the same worktree context from orchestrator node.
 
 ---
 
@@ -604,6 +610,22 @@ Auto-bootstrapped propagators register as INACTIVE at startup (`activate(false)`
 
 ---
 
+## R. GoalCompletedEvent Worktree Path
+
+GoalCompletedEvent now carries a `worktreePath` field so the controller knows where agent work resides after goal completion. The controller uses this to handle merge-to-source.
+
+### R1. GoalCompletedEvent Carries Worktree Path (P0)
+After workflow completes, GoalCompletedEvent has non-null `worktreePath` pointing to the shared worktree directory.
+
+**Validates**: EmitActionCompletedResultDecorator resolves worktree path from request context (or via SandboxResolver fallback). Path is a valid filesystem path.
+
+### R2. GoalCompletedEvent worktreePath Matches Orchestrator Worktree (P1)
+The worktreePath in GoalCompletedEvent matches the MainWorktreeContext.worktreePath from the orchestrator node's worktree context.
+
+**Validates**: No path drift between orchestrator worktree creation and goal completion. Same worktree referenced throughout.
+
+---
+
 ## Coverage Matrix
 
 | Scenario | Graph | Events | Blackboard | Worktree | Interrupt | A2A | DataLayer |
@@ -621,6 +643,9 @@ Auto-bootstrapped propagators register as INACTIVE at startup (`activate(false)`
 | E1       | X     | X      |            | X        |           |     |           |
 | E2       | X     | X      |            | X        |           |     |           |
 | E3       | X     | X      |            | X        |           |     |           |
+| E7       | X     | X      |            | X        |           |     |           |
+| R1       |       | X      |            | X        |           |     |           |
+| R2       |       |        |            | X        |           |     |           |
 | F1       | X     |        |            |          |           |     | X         |
 | F2       | X     |        |            |          |           |     | X         |
 | F3       | X     |        |            |          |           |     | X         |

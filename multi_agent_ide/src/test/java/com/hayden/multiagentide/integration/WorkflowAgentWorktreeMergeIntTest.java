@@ -312,34 +312,29 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
             assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
             queuedLlmRunner.assertAllConsumed();
 
-            // Verify agent-committed files reached the source repo via final merge
-            assertThat(Files.readString(sourceRepo.resolve("discovery-output.md")))
+            // Resolve the worktree path from the GoalCompletedEvent
+            Path worktreePath = resolveWorktreePathFromGoalCompleted();
+
+            // Verify agent-committed files are in the shared worktree (not source repo — controller handles merge)
+            assertThat(Files.readString(worktreePath.resolve("discovery-output.md")))
                     .contains("discovery findings");
-            assertThat(Files.readString(sourceRepo.resolve("planning-output.md")))
+            assertThat(Files.readString(worktreePath.resolve("planning-output.md")))
                     .contains("planning results");
-            assertThat(Files.readString(sourceRepo.resolve("ticket-output.md")))
+            assertThat(Files.readString(worktreePath.resolve("ticket-output.md")))
                     .contains("ticket implementation");
 
-            assertClean(sourceRepo);
+            assertClean(worktreePath);
 
-            // Verify merge events were emitted
-            var mergeStarted = testEventListener.eventsOfType(Events.MergePhaseStartedEvent.class);
-            var mergeCompleted = testEventListener.eventsOfType(Events.MergePhaseCompletedEvent.class);
-            assertThat(mergeStarted).isNotEmpty();
-            assertThat(mergeCompleted).isNotEmpty();
-
-            // All merge phases should have succeeded
-            assertThat(mergeCompleted).allMatch(Events.MergePhaseCompletedEvent::successful);
+            // Verify GoalCompletedEvent was emitted with worktree path
+            var goalCompleted = testEventListener.eventsOfType(Events.GoalCompletedEvent.class);
+            assertThat(goalCompleted).hasSize(1);
+            assertThat(goalCompleted.getFirst().worktreePath()).isNotNull();
         }
 
         @Test
         @DisplayName("Full workflow with submodule changes — propagate to source")
         void fullWorkflow_withSubmoduleChanges_propagateToSource() throws Exception {
             setLogFile("fullWorkflow_withSubmoduleChanges_propagateToSource");
-            String initialSubmodulePointer = gitSubmodulePointer(sourceRepo, "libs/test-sub");
-            int initialSubmodulePathCommitCount = gitRevisionCountForPath(sourceRepo, "libs/test-sub");
-            Path sourceSubPath = sourceRepo.resolve("libs/test-sub");
-            String initialSourceSubmoduleHead = gitOutput(sourceSubPath, "git", "rev-parse", "HEAD").trim();
 
             var contextId = seedOrchestratorWithRealWorktree();
             queuedLlmRunner.setThread(contextId.value());
@@ -355,26 +350,26 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
             assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
             queuedLlmRunner.assertAllConsumed();
 
-            // Verify main repo changes
-            assertThat(Files.readString(sourceRepo.resolve("discovery-output.md")))
+            // Resolve the worktree path — changes live there, not in source repo
+            Path worktreePath = resolveWorktreePathFromGoalCompleted();
+
+            // Verify main worktree changes
+            assertThat(Files.readString(worktreePath.resolve("discovery-output.md")))
                     .contains("discovery findings");
 
-            // Verify submodule changes propagated to source
-            assertThat(Files.readString(sourceSubPath.resolve("lib.txt")))
-                    .contains("updated by discovery agent");
+            // Verify submodule changes are in the worktree's submodule
+            Path worktreeSubPath = worktreePath.resolve("libs/test-sub");
+            if (Files.exists(worktreeSubPath)) {
+                assertThat(Files.readString(worktreeSubPath.resolve("lib.txt")))
+                        .contains("updated by discovery agent");
+            }
 
-            // Verify submodule pointer in source superproject advanced and points to
-            // the same commit as the checked-out source submodule.
-            String finalSubmodulePointer = gitSubmodulePointer(sourceRepo, "libs/test-sub");
-            String sourceSubmoduleHead = gitOutput(sourceSubPath, "git", "rev-parse", "HEAD").trim();
-            int finalSubmodulePathCommitCount = gitRevisionCountForPath(sourceRepo, "libs/test-sub");
+            assertClean(worktreePath);
 
-            assertThat(finalSubmodulePointer).isNotEqualTo(initialSubmodulePointer);
-            assertThat(finalSubmodulePathCommitCount).isGreaterThan(initialSubmodulePathCommitCount);
-            assertThat(finalSubmodulePointer).isEqualTo(sourceSubmoduleHead);
-            assertThat(sourceSubmoduleHead).isNotEqualTo(initialSourceSubmoduleHead);
-
-            assertClean(sourceRepo);
+            // Verify GoalCompletedEvent carries the worktree path
+            var goalCompleted = testEventListener.eventsOfType(Events.GoalCompletedEvent.class);
+            assertThat(goalCompleted).hasSize(1);
+            assertThat(goalCompleted.getFirst().worktreePath()).isNotNull();
         }
     }
 
@@ -399,27 +394,27 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
             assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
             queuedLlmRunner.assertAllConsumed();
 
-            // Verify both agent files reached source
-            assertThat(Files.readString(sourceRepo.resolve("agent1-findings.md")))
+            // Resolve the worktree path — both agents share the same worktree
+            Path worktreePath = resolveWorktreePathFromGoalCompleted();
+
+            // Verify both agent files are in the shared worktree
+            assertThat(Files.readString(worktreePath.resolve("agent1-findings.md")))
                     .contains("agent 1 findings");
-            assertThat(Files.readString(sourceRepo.resolve("agent2-findings.md")))
+            assertThat(Files.readString(worktreePath.resolve("agent2-findings.md")))
                     .contains("agent 2 findings");
 
-            assertClean(sourceRepo);
+            assertClean(worktreePath);
 
-            // Verify child→trunk merge events
-            var childToTrunkCompleted = testEventListener.eventsOfType(
-                    Events.MergePhaseCompletedEvent.class,
-                    e -> "CHILD_TO_TRUNK".equals(e.mergeDirection())
-            );
-            assertThat(childToTrunkCompleted).isNotEmpty();
-            assertThat(childToTrunkCompleted).allMatch(Events.MergePhaseCompletedEvent::successful);
+            // Verify GoalCompletedEvent carries the worktree path
+            var goalCompleted = testEventListener.eventsOfType(Events.GoalCompletedEvent.class);
+            assertThat(goalCompleted).hasSize(1);
+            assertThat(goalCompleted.getFirst().worktreePath()).isNotNull();
         }
 
         @Test
-        @DisplayName("Two discovery agents editing same file — conflict detected")
-        void discoveryPhase_twoAgents_conflictDetected() {
-            setLogFile("discoveryPhase_twoAgents_conflictDetected");
+        @DisplayName("Two discovery agents editing same file — last write wins in shared worktree")
+        void discoveryPhase_twoAgents_lastWriteWins() throws Exception {
+            setLogFile("discoveryPhase_twoAgents_lastWriteWins");
             var contextId = seedOrchestratorWithRealWorktree();
             queuedLlmRunner.setThread(contextId.value());
 
@@ -431,15 +426,66 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                     Map.of("it", new AgentModels.OrchestratorRequest(contextId, "Discover features", "DISCOVERY"))
             );
 
-            // Workflow may still complete (conflict is captured, not necessarily fatal)
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
             queuedLlmRunner.assertAllConsumed();
 
-            // Verify conflict was detected in child→trunk merge phase
-            var childToTrunkCompleted = testEventListener.eventsOfType(
-                    Events.MergePhaseCompletedEvent.class,
-                    e -> "CHILD_TO_TRUNK".equals(e.mergeDirection())
+            // With a single shared worktree, both agents write to the same file sequentially.
+            // The second agent's commit overwrites the first — no merge conflict, last write wins.
+            Path worktreePath = resolveWorktreePathFromGoalCompleted();
+            assertThat(Files.readString(worktreePath.resolve("shared-findings.md")))
+                    .contains("Agent 2 wrote completely different content");
+
+            // No merge events — merging is removed in single-worktree model
+            var mergeCompleted = testEventListener.eventsOfType(Events.MergePhaseCompletedEvent.class);
+            assertThat(mergeCompleted).isEmpty();
+
+            assertClean(worktreePath);
+        }
+    }
+
+    @Nested
+    class SharedWorktreeAcrossTickets {
+
+        @Test
+        @DisplayName("Five ticket agents each commit a file — all five present in shared worktree")
+        void ticketPhase_fiveTickets_sharedWorktreeCarriesAllChanges() throws Exception {
+            setLogFile("ticketPhase_fiveTickets_sharedWorktreeCarriesAllChanges");
+            var contextId = seedOrchestratorWithRealWorktree();
+            queuedLlmRunner.setThread(contextId.value());
+
+            // Discovery + planning with minimal work, then 5-ticket dispatch
+            initialOrchestratorToDiscovery("Multi-ticket test");
+            discoveryOnlyWithWork("Multi-ticket test", "discovery-output.md", "# Discovery\n\ndiscovery findings");
+            planningOnlyWithWork("Multi-ticket test", "planning-output.md", "# Planning\n\nplanning results");
+            ticketsWithFiveAgents("Multi-ticket test");
+            finalOrchestratorCollector();
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId.value()).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(contextId, "Multi-ticket test", "DISCOVERY"))
             );
-            assertThat(childToTrunkCompleted).isNotEmpty();
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            Path worktreePath = resolveWorktreePathFromGoalCompleted();
+
+            // All five ticket agent files must be present in the single shared worktree
+            for (int i = 1; i <= 5; i++) {
+                String fileName = "ticket-%d-output.md".formatted(i);
+                assertThat(worktreePath.resolve(fileName))
+                        .as("File from ticket agent %d should exist in shared worktree", i)
+                        .exists();
+                assertThat(Files.readString(worktreePath.resolve(fileName)))
+                        .contains("ticket %d implementation".formatted(i));
+            }
+
+            assertClean(worktreePath);
+
+            var goalCompleted = testEventListener.eventsOfType(Events.GoalCompletedEvent.class);
+            assertThat(goalCompleted).hasSize(1);
+            assertThat(goalCompleted.getFirst().worktreePath()).isNotNull();
         }
     }
 
@@ -697,6 +743,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
+        // Agent 1 — writes to shared file
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(
@@ -705,10 +752,13 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                                 .output("Agent 1 findings")
                                 .build())
                         .build(),
-                (response, ctx) -> simulateAgentWork(ctx, "shared-findings.md", "Agent 1 wrote this content")
+                (BiConsumer<AgentModels.DiscoveryAgentRouting, OperationContext>)
+                        (response, ctx) -> simulateAgentWork(ctx, "shared-findings.md", "Agent 1 wrote this content")
         );
+
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
+        // Agent 2 — overwrites same file in shared worktree
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(
                 AgentModels.DiscoveryAgentRouting.builder()
@@ -721,14 +771,8 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         );
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-
-        enqueueMergeConflictResult();
-
         // Dispatch routing → collector
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-
         queuedLlmRunner.enqueue(AgentModels.DiscoveryAgentDispatchRouting.builder()
                 .collectorRequest(AgentModels.DiscoveryCollectorRequest.builder()
                         .goal(goal)
@@ -737,11 +781,11 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
-        // Collector advances (even though there was a conflict — the routing LLM decides what to do)
+        // Collector advances
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.DiscoveryCollectorRouting.builder()
                 .collectorResult(AgentModels.DiscoveryCollectorResult.builder()
-                        .consolidatedOutput("Discovery complete with conflicts")
+                        .consolidatedOutput("Discovery complete")
                         .build())
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
@@ -931,8 +975,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         );
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
 
-//        enqueueMergeConflictResults(3);
-
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.TicketAgentDispatchRouting.builder()
                 .ticketCollectorRequest(AgentModels.TicketCollectorRequest.builder()
@@ -951,6 +993,64 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
     }
 
+    private void ticketsWithFiveAgents(String goal) {
+        // Ticket orchestrator dispatches 5 ticket agent requests
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+        queuedLlmRunner.enqueue(AgentModels.TicketOrchestratorRouting.builder()
+                .agentRequests(AgentModels.TicketAgentRequests.builder()
+                        .requests(List.of(
+                                AgentModels.TicketAgentRequest.builder().ticketDetails(goal).ticketDetailsFilePath("ticket-1.md").build(),
+                                AgentModels.TicketAgentRequest.builder().ticketDetails(goal).ticketDetailsFilePath("ticket-2.md").build(),
+                                AgentModels.TicketAgentRequest.builder().ticketDetails(goal).ticketDetailsFilePath("ticket-3.md").build(),
+                                AgentModels.TicketAgentRequest.builder().ticketDetails(goal).ticketDetailsFilePath("ticket-4.md").build(),
+                                AgentModels.TicketAgentRequest.builder().ticketDetails(goal).ticketDetailsFilePath("ticket-5.md").build()
+                        ))
+                        .build())
+                .build());
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+
+        // Each ticket agent commits a unique file to the shared worktree
+        for (int i = 1; i <= 5; i++) {
+            String fileName = "ticket-%d-output.md".formatted(i);
+            String content = "# Ticket %d\n\nticket %d implementation".formatted(i, i);
+
+            queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+            if (i == 1) {
+                // First agent gets an extra propagator result (matches single-ticket pattern)
+                queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+            }
+            queuedLlmRunner.enqueue(
+                    AgentModels.TicketAgentRouting.builder()
+                            .agentResult(AgentModels.TicketAgentResult.builder()
+                                    .output("Ticket %d output".formatted(i))
+                                    .build())
+                            .build(),
+                    (BiConsumer<AgentModels.TicketAgentRouting, OperationContext>)
+                            (response, ctx) -> simulateAgentWork(ctx, fileName, content)
+            );
+            queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+        }
+
+        // Dispatch routing → collector
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+        queuedLlmRunner.enqueue(AgentModels.TicketAgentDispatchRouting.builder()
+                .ticketCollectorRequest(AgentModels.TicketCollectorRequest.builder()
+                        .goal(goal)
+                        .ticketResults("ticket-results")
+                        .build())
+                .build());
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+
+        // Collector completes
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+        queuedLlmRunner.enqueue(AgentModels.TicketCollectorRouting.builder()
+                .collectorResult(AgentModels.TicketCollectorResult.builder()
+                        .consolidatedOutput("All 5 tickets complete")
+                        .build())
+                .build());
+        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
+    }
+
     private void finalOrchestratorCollector() {
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
         queuedLlmRunner.enqueue(AgentModels.OrchestratorCollectorRouting.builder()
@@ -959,66 +1059,6 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
                         .build())
                 .build());
         queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-    }
-
-    /**
-     * Enqueue a successful CommitAgentResult for auto-commit scenarios
-     * where worktrees may have uncommitted changes (e.g. dirty submodule pointers).
-     */
-    private void enqueueAutoCommitResult() {
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-        queuedLlmRunner.enqueue(AgentModels.CommitAgentResult.builder()
-                .successful(true)
-                .output("Auto-committed changes")
-                .commitMetadata(List.of())
-                .notes(List.of())
-                .build());
-        queuedLlmRunner.enqueue(AgentModels.AiPropagatorResult.builder().build());
-    }
-
-    private void enqueueMergeConflictResults(int count) {
-        for (int i = 0; i < count; i++) {
-            enqueueMergeConflictResult();
-        }
-    }
-
-    private void enqueueMergeConflictResult() {
-        queuedLlmRunner.enqueue(
-                AgentModels.MergeConflictResult.builder()
-                        .successful(true)
-                        .output("Merge conflict validation complete.")
-                        .resolvedConflictFiles(List.of())
-                        .notes(List.of("No further conflict action required"))
-                        .build(),
-                (m, s) -> {
-                        worktreeRepository.findAll()
-                                        .forEach(mwt -> {
-                                            try {
-                                                if (mwt instanceof MainWorktreeContext wt) {
-                                                    addAndCommit(wt.worktreePath());
-                                                    StreamUtil.toStream(wt.submoduleWorktrees()).forEach(r -> addAndCommit(r.worktreePath()));
-                                                }
-                                            } catch (
-                                                    Exception e) {
-                                                log.error("Error committing", e);
-                                            }
-                                        });
-
-                });
-    }
-
-    private static void addAndCommit(Path repoPath) {
-        try {
-            RepoUtil.runGitCommand(repoPath, List.of("add", "."));
-        } catch (Exception e) {
-            log.error("", e);
-        }
-
-        try {
-            RepoUtil.runGitCommand(repoPath, List.of("commit", "-m", "okay"));
-        } catch (Exception e) {
-            log.error("", e);
-        }
     }
 
     // ========================================================================
@@ -1102,6 +1142,18 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
 
         var history = com.hayden.multiagentidelib.agent.BlackboardHistory.getEntireBlackboardHistory(context);
         return BlackboardHistory.findLastWorkflowRequest(history);
+    }
+
+    // ========================================================================
+    // Worktree path resolution from GoalCompletedEvent
+    // ========================================================================
+
+    private Path resolveWorktreePathFromGoalCompleted() {
+        var goalCompleted = testEventListener.eventsOfType(Events.GoalCompletedEvent.class);
+        assertThat(goalCompleted).as("GoalCompletedEvent should have been emitted").isNotEmpty();
+        String worktreePathStr = goalCompleted.getFirst().worktreePath();
+        assertThat(worktreePathStr).as("GoalCompletedEvent should carry worktree path").isNotNull();
+        return Path.of(worktreePathStr);
     }
 
     // ========================================================================

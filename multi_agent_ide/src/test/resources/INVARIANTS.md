@@ -3,7 +3,7 @@
 Invariants validated against markdown trace data (`*.md`, `*.graph.md`, `*.events.md`, `*.blackboard.md`).
 Each invariant references the SURFACE.md scenarios it applies to.
 
-## Validation Run: 2026-03-31
+## Validation Run: 2026-04-01
 
 | Invariant | Status | Notes |
 |-----------|--------|-------|
@@ -219,27 +219,35 @@ Each invariant listed here should eventually be expanded into its own group of s
 
 ---
 
-## E. Worktree Merge
+## E. Shared Worktree (Single-Worktree Model)
 
-### E-INV1. Changes Reach Source (E1)
-**Invariant**: After final merge to source, source repo contains files committed by agents.
-**Search**: Git assertion — file exists in source HEAD.
+### E-INV1. Agent Changes in Shared Worktree (E1)
+**Invariant**: After workflow completes, the shared worktree (not source repo) contains files committed by all agents across all phases.
+**Search**: Git assertion — files exist in worktree HEAD. GoalCompletedEvent.worktreePath points to this worktree.
 
-### E-INV2. Parallel Merges Non-Conflicting (E2)
-**Invariant**: When two agents modify different files, both merges succeed. MergeAggregation.conflicted is empty.
-**Search**: Test assertion. `*.events.md` — MergePhaseCompletedEvent with success=true.
+### E-INV2. Parallel Agents Share Worktree (E2)
+**Invariant**: When two agents modify different files, both files are present in the shared worktree. No MergePhaseCompletedEvent emitted.
+**Search**: Test assertion — both files exist. `*.events.md` — zero MergePhaseCompletedEvent.
 
-### E-INV3. Conflict Detection (E3)
-**Invariant**: When two agents modify same file, exactly one merge fails. MergeAggregation.conflicted has 1 entry. MergePhaseCompletedEvent has conflict info.
-**Search**: Test assertion + `*.events.md`.
+### E-INV3. Same File Last Write Wins (E3)
+**Invariant**: When two agents write the same file in the shared worktree, the second agent's content overwrites the first. No merge conflict. No MergePhaseCompletedEvent.
+**Search**: Test assertion — file contains second agent's content. `*.events.md` — zero MergePhaseCompletedEvent.
 
-### E-INV4. Submodule Pointer Updated (E4)
-**Invariant**: After submodule merge, source repo's submodule pointer references the merged commit.
-**Search**: Git assertion — `git submodule status` in source.
+### E-INV4. Submodule Changes in Shared Worktree (E4)
+**Invariant**: After workflow with submodule changes, the shared worktree contains submodule modifications. Source repo is untouched — controller handles merge.
+**Search**: Git assertion — submodule file in worktree contains agent changes.
 
-### E-INV5. MergePhaseStarted/Completed Pairing (E1–E5, J5)
-**Invariant**: Every MergePhaseStartedEvent has matching MergePhaseCompletedEvent.
-**Search**: `*.events.md` — pair by nodeId and phase.
+### E-INV5. Five Agent Accumulation (E7)
+**Invariant**: When N ticket agents each commit a distinct file, all N files are present in the shared worktree after workflow completes.
+**Search**: Test assertion — all N files exist with correct content.
+
+### E-INV6. SandboxResolver Always Uses Orchestrator Node (E8)
+**Invariant**: `SandboxResolver.resolveSandboxContext()` always delegates to `resolveFromOrchestratorNode()`. No request-type-specific branching logic.
+**Search**: Code-level assertion — single method call.
+
+### E-INV7. No Merge Events in Single-Worktree Model (E1–E7)
+**Invariant**: No MergePhaseStartedEvent or MergePhaseCompletedEvent emitted in any test. Merge decorators are deleted.
+**Search**: `*.events.md` — zero merge events across all worktree tests.
 
 ---
 
@@ -447,6 +455,22 @@ Also sets `entity.activatedAt` to current timestamp.
 
 ---
 
+## R. GoalCompletedEvent Worktree Path
+
+### R-INV1. GoalCompletedEvent Has worktreePath (R1)
+**Invariant**: Every GoalCompletedEvent emitted by `EmitActionCompletedResultDecorator` has a non-null `worktreePath` field pointing to the shared worktree directory.
+**Search**: `*.events.md` — GoalCompletedEvent has worktreePath field. Test assertion in WorkflowAgentWorktreeMergeIntTest.
+
+### R-INV2. worktreePath Matches Orchestrator Worktree (R2)
+**Invariant**: The `worktreePath` in GoalCompletedEvent equals the `MainWorktreeContext.worktreePath()` from the orchestrator node's worktree context.
+**Search**: Test assertion — compare GoalCompletedEvent.worktreePath with worktree context from orchestrator node in GraphRepository.
+
+### R-INV3. worktreePath Resolution Fallback (R1)
+**Invariant**: If the decorator's `agentRequest` doesn't carry a worktree context (e.g., not an `AgentModels.AgentRequest`), the `SandboxResolver.resolveFromOrchestratorNode()` fallback is used to resolve the worktree path.
+**Search**: Code-level assertion in EmitActionCompletedResultDecorator.
+
+---
+
 ## Coverage: Surface → Invariants
 
 | Surface | Invariants |
@@ -476,12 +500,14 @@ Also sets `entity.activatedAt` to current timestamp.
 | D7 | D-INV1 (partial) |
 | D8 | D-INV8–9 |
 | D9 | D-INV8 |
-| E1 | G1–G10, E-INV1, E-INV5 |
-| E2 | G1–G10, E-INV2, E-INV5 |
-| E3 | G1–G10, E-INV3, E-INV5 |
+| E1 | G1–G10, E-INV1, E-INV7, R-INV1 |
+| E2 | G1–G10, E-INV2, E-INV7 |
+| E3 | G1–G10, E-INV3, E-INV7 |
 | E4 | G1–G10, E-INV4 |
-| E5 | E-INV3 |
-| E6 | — |
+| E7 | G1–G10, E-INV5, E-INV7, R-INV1 |
+| E8 | E-INV6 |
+| R1 | R-INV1 |
+| R2 | R-INV2 |
 | F1 | G1–G10, F-INV1 |
 | F2 | G1–G10, F-INV1–2 |
 | F3 | G1–G10, F-INV1–3 |

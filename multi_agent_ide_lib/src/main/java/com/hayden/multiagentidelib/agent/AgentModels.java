@@ -6,8 +6,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import com.hayden.acp_cdc_ai.acp.filter.Instruction;
-import com.hayden.multiagentidelib.model.MergeResult;
-import com.hayden.multiagentidelib.model.merge.AgentMergeStatus;
 import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentidelib.propagation.model.PropagationOutput;
 import com.hayden.multiagentidelib.template.ConsolidationTemplate;
@@ -15,8 +13,6 @@ import com.hayden.multiagentidelib.template.DelegationTemplate;
 import com.hayden.multiagentidelib.template.DiscoveryReport;
 import com.hayden.multiagentidelib.template.MemoryReference;
 import com.hayden.multiagentidelib.template.PlanningTicket;
-import com.hayden.multiagentidelib.model.merge.MergeAggregation;
-import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
 import com.hayden.multiagentidelib.model.merge.WorktreeCommitMetadata;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
@@ -317,38 +313,14 @@ public interface AgentModels {
     // by the conversational topology controller conference (Story 7).
 
     /**
-     * Marker for models that carry a merge descriptor.
-     */
-    interface HasMergeDescriptor {
-        MergeDescriptor mergeDescriptor();
-    }
-
-    /**
-     * Marker for models that carry merge aggregation state.
-     */
-    interface HasMergeAggregation {
-        MergeAggregation mergeAggregation();
-    }
-
-    /**
-     * Interface for agent results containers that can have merge aggregation.
+     * Interface for agent results containers.
      * Implemented by TicketAgentResults, PlanningAgentResults, and DiscoveryAgentResults.
      */
-    sealed interface ResultsRequest extends AgentRequest, HasMergeAggregation
+    sealed interface ResultsRequest extends AgentRequest
         permits
             DiscoveryAgentResults,
             PlanningAgentResults,
             TicketAgentResults {
-
-        /**
-         * The merge aggregation after child→trunk merges.
-         */
-        MergeAggregation mergeAggregation();
-
-        /**
-         * Return a copy with merge aggregation set.
-         */
-        <T extends ResultsRequest> T withMergeAggregation(MergeAggregation aggregation);
 
         /**
          * Get the list of child agent results.
@@ -1086,8 +1058,6 @@ public interface AgentModels {
             DiscoveryReport report,
             @JsonPropertyDescription("Human-readable summary output.")
             String output,
-            @JsonPropertyDescription("Merge descriptor from trunk→child merge. Relevant only when code changes were produced and merge metadata exists.")
-            MergeDescriptor mergeDescriptor,
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
@@ -1108,12 +1078,8 @@ public interface AgentModels {
                     .build();
         }
 
-        public DiscoveryAgentResult(ArtifactKey contextId, DiscoveryReport report, String output, MergeDescriptor mergeDescriptor) {
-            this(contextId, report, output, mergeDescriptor, null);
-        }
-
         public DiscoveryAgentResult(String output) {
-            this(null, null, output, null, null);
+            this(null, null, output, null);
         }
 
         @Override
@@ -1143,8 +1109,6 @@ public interface AgentModels {
             List<PlanningTicket> tickets,
             @JsonPropertyDescription("Human-readable summary output.")
             String output,
-            @JsonPropertyDescription("Merge descriptor from trunk→child merge. Relevant only when code changes were produced and merge metadata exists.")
-            MergeDescriptor mergeDescriptor,
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
@@ -1169,12 +1133,8 @@ public interface AgentModels {
                     .build();
         }
 
-        public PlanningAgentResult(ArtifactKey contextId, List<PlanningTicket> tickets, String output, MergeDescriptor mergeDescriptor) {
-            this(contextId, tickets, output, mergeDescriptor, null);
-        }
-
         public PlanningAgentResult(String output) {
-            this(null, null, output, null, null);
+            this(null, null, output, null);
         }
 
         @Override
@@ -1222,40 +1182,12 @@ public interface AgentModels {
             List<MemoryReference> memoryReferences,
             @JsonPropertyDescription("Human-readable summary output.")
             String output,
-            @JsonPropertyDescription("Merge descriptor from trunk→child merge. Relevant only when code changes were produced and merge metadata exists.")
-            MergeDescriptor mergeDescriptor,
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext
     ) implements AgentResult {
-        public TicketAgentResult(
-                ArtifactKey contextId,
-                String ticketId,
-                String implementationSummary,
-                List<String> filesModified,
-                List<String> testResults,
-                List<String> commits,
-                String verificationStatus,
-                List<MemoryReference> memoryReferences,
-                String output,
-                MergeDescriptor mergeDescriptor
-        ) {
-            this(
-                    contextId,
-                    ticketId,
-                    implementationSummary,
-                    filesModified,
-                    testResults,
-                    commits,
-                    verificationStatus,
-                    memoryReferences,
-                    output,
-                    mergeDescriptor,
-                    null
-            );
-        }
 
         public TicketAgentResult(String output) {
-            this(null, null, null, null, null, null, null, null, output, null, null);
+            this(null, null, null, null, null, null, null, null, output, null);
         }
 
         @Override
@@ -2015,10 +1947,6 @@ public interface AgentModels {
         appendPrettyWorktreeContext(builder, label, value);
     }
 
-    private static void appendPrettyLine(StringBuilder builder, String label, MergeDescriptor value) {
-        appendPrettyMergeDescriptor(builder, label, value);
-    }
-
     private static void appendPrettyLine(StringBuilder builder, String label, Map<String, String> value) {
         appendPrettyMap(builder, label, value);
     }
@@ -2145,162 +2073,6 @@ public interface AgentModels {
             builder.append("\t\t\tMain Worktree Id: ").append(submodule.mainWorktreeId()).append("\n");
             appendPrettyMap(builder, "\t\t\tMetadata", submodule.metadata());
         }
-    }
-
-    private static void appendPrettyMergeResult(StringBuilder builder, String label, MergeResult mergeResult) {
-        builder.append(label).append(":\n");
-        if (mergeResult == null) {
-            builder.append("\t(none)\n");
-            return;
-        }
-        builder.append("\tMerge Id: ").append(mergeResult.mergeId()).append("\n");
-        builder.append("\tChild Worktree Id: ").append(mergeResult.childWorktreeId()).append("\n");
-        builder.append("\tParent Worktree Id: ").append(mergeResult.parentWorktreeId()).append("\n");
-        builder.append("\tChild Worktree Path: ").append(mergeResult.childWorktreePath()).append("\n");
-        builder.append("\tParent Worktree Path: ").append(mergeResult.parentWorktreePath()).append("\n");
-        builder.append("\tSuccessful: ").append(mergeResult.successful()).append("\n");
-        builder.append("\tMerge Commit Hash: ").append(mergeResult.mergeCommitHash()).append("\n");
-        builder.append("\tMerge Message: ").append(mergeResult.mergeMessage()).append("\n");
-        builder.append("\tMerged At: ").append(mergeResult.mergedAt()).append("\n");
-        builder.append("\tConflicts:\n");
-        if (mergeResult.conflicts() == null || mergeResult.conflicts().isEmpty()) {
-            builder.append("\t\t(none)\n");
-        } else {
-            int index = 1;
-            for (var conflict : mergeResult.conflicts()) {
-                builder.append("\t\t").append(index++).append(". ");
-                if (conflict == null) {
-                    builder.append("(none)\n");
-                    continue;
-                }
-                builder.append("file=").append(conflict.filePath())
-                        .append(", type=").append(conflict.conflictType())
-                        .append(", submodulePath=").append(conflict.submodulePath())
-                        .append("\n");
-            }
-        }
-        builder.append("\tSubmodule Pointer Updates:\n");
-        if (mergeResult.submoduleUpdates() == null || mergeResult.submoduleUpdates().isEmpty()) {
-            builder.append("\t\t(none)\n");
-            return;
-        }
-        int index = 1;
-        for (var update : mergeResult.submoduleUpdates()) {
-            builder.append("\t\t").append(index++).append(". ");
-            if (update == null) {
-                builder.append("(none)\n");
-                continue;
-            }
-            builder.append("submodule=").append(update.submoduleName())
-                    .append(", old=").append(update.oldCommitHash())
-                    .append(", new=").append(update.newCommitHash())
-                    .append(", requiresResolution=").append(update.requiresResolution())
-                    .append("\n");
-        }
-    }
-
-    private static void appendPrettyMergeDescriptor(StringBuilder builder, String label, MergeDescriptor descriptor) {
-        var serCtx = AgentPretty.ACTIVE_SERIALIZATION_CTX.get();
-        if (serCtx instanceof AgentPretty.AgentSerializationCtx.SkipWorktreeContextSerializationCtx
-                || serCtx instanceof AgentPretty.AgentSerializationCtx.HistoricalRequestSerializationCtx) {
-            return;
-        }
-        builder.append(label).append(":\n");
-        if (descriptor == null) {
-            builder.append("\t(none)\n");
-            return;
-        }
-        builder.append("\tDirection: ").append(descriptor.mergeDirection()).append("\n");
-        builder.append("\tSuccessful: ").append(descriptor.successful()).append("\n");
-        appendPrettyText(builder, "\tError Message", descriptor.errorMessage());
-        builder.append("\tConflict Files:\n");
-        if (descriptor.conflictFiles() == null || descriptor.conflictFiles().isEmpty()) {
-            builder.append("\t\t(none)\n");
-        } else {
-            for (String conflict : descriptor.conflictFiles()) {
-                builder.append("\t\t- ").append(conflict).append("\n");
-            }
-        }
-        builder.append("\tPre-Merge Auto Commits:\n");
-        if (descriptor.commitMetadata() == null || descriptor.commitMetadata().isEmpty()) {
-            builder.append("\t\t(none)\n");
-        } else {
-            int commitIndex = 1;
-            for (WorktreeCommitMetadata commitMetadata : descriptor.commitMetadata()) {
-                builder.append("\t\t").append(commitIndex++).append(". ");
-                if (commitMetadata == null) {
-                    builder.append("(none)\n");
-                    continue;
-                }
-                builder.append("worktreeId=").append(commitMetadata.worktreeId())
-                        .append(", commit=").append(commitMetadata.commitHash())
-                        .append(", message=").append(commitMetadata.commitMessage())
-                        .append("\n");
-            }
-        }
-        appendPrettyMergeResult(builder, "\tMain Worktree Merge Result", descriptor.mainWorktreeMergeResult());
-        builder.append("\tSubmodule Merge Results:\n");
-        if (descriptor.submoduleMergeResults() == null || descriptor.submoduleMergeResults().isEmpty()) {
-            builder.append("\t\t(none)\n");
-            return;
-        }
-        int index = 1;
-        for (var result : descriptor.submoduleMergeResults()) {
-            builder.append("\t\t").append(index++).append(".\n");
-            if (result == null) {
-                builder.append("\t\t\t(none)\n");
-                continue;
-            }
-            builder.append("\t\t\tSubmodule Name: ").append(result.submoduleName()).append("\n");
-            builder.append("\t\t\tChild Worktree Path: ").append(result.childWorktreePath()).append("\n");
-            builder.append("\t\t\tParent Worktree Path: ").append(result.parentWorktreePath()).append("\n");
-            builder.append("\t\t\tPointer Updated: ").append(result.pointerUpdated()).append("\n");
-            appendPrettyMergeResult(builder, "\t\t\tMerge Result", result.mergeResult());
-        }
-    }
-
-    private static void appendPrettyMergeAggregation(StringBuilder builder, String label, MergeAggregation aggregation) {
-        var serCtx = AgentPretty.ACTIVE_SERIALIZATION_CTX.get();
-        if (serCtx instanceof AgentPretty.AgentSerializationCtx.SkipWorktreeContextSerializationCtx
-                || serCtx instanceof AgentPretty.AgentSerializationCtx.HistoricalRequestSerializationCtx) {
-            return;
-        }
-        builder.append(label).append(":\n");
-        if (aggregation == null) {
-            builder.append("\t(none)\n");
-            return;
-        }
-        builder.append("\tMerged:\n");
-        appendPrettyMergeStatuses(builder, aggregation.merged());
-        builder.append("\tPending:\n");
-        appendPrettyMergeStatuses(builder, aggregation.pending());
-        builder.append("\tConflicted:\n");
-        if (aggregation.conflicted() == null) {
-            builder.append("\t\t(none)\n");
-        } else {
-            appendPrettyMergeStatus(builder, aggregation.conflicted(), 2);
-        }
-    }
-
-    private static void appendPrettyMergeStatuses(StringBuilder builder, List<AgentMergeStatus> statuses) {
-        if (statuses == null || statuses.isEmpty()) {
-            builder.append("\t\t(none)\n");
-            return;
-        }
-        for (AgentMergeStatus status : statuses) {
-            appendPrettyMergeStatus(builder, status, 2);
-        }
-    }
-
-    private static void appendPrettyMergeStatus(StringBuilder builder, AgentMergeStatus status, int tabDepth) {
-        String indent = "\t".repeat(tabDepth);
-        if (status == null) {
-            builder.append(indent).append("- (none)\n");
-            return;
-        }
-        builder.append(indent).append("- Agent Result Id: ").append(status.agentResultId()).append("\n");
-        appendPrettyWorktreeContext(builder, indent + "  Worktree Context", status.worktreeContext());
-        appendPrettyMergeDescriptor(builder, indent + "  Merge Descriptor", status.mergeDescriptor());
     }
 
     static String serializeResults(List<? extends AgentResult> results) {
@@ -2715,10 +2487,8 @@ public interface AgentModels {
             UpstreamContext.PlanningCollectorContext planningCuration,
             @JsonPropertyDescription("Curated ticket context from ticket collector.")
             @SkipPropertyFilter
-            UpstreamContext.TicketCollectorContext ticketCuration,
-            @JsonPropertyDescription("Merge descriptor from final merge to source repository.")
-            MergeDescriptor mergeDescriptor
-    ) implements AgentRequest, HasMergeDescriptor {
+            UpstreamContext.TicketCollectorContext ticketCuration
+    ) implements AgentRequest {
         @Override
         public List<Artifact.AgentModel> children() {
             List<Artifact.AgentModel> children = new ArrayList<>();
@@ -2750,7 +2520,7 @@ public interface AgentModels {
         }
 
         public OrchestratorCollectorRequest(String goal, String phase) {
-            this(null, null, goal, phase, null, null, null, null);
+            this(null, null, goal, phase, null, null, null);
         }
 
         @Override
@@ -2778,7 +2548,6 @@ public interface AgentModels {
             appendPrettyContext(builder, "Discovery Curation", discoveryCuration);
             appendPrettyContext(builder, "Planning Curation", planningCuration);
             appendPrettyContext(builder, "Ticket Curation", ticketCuration);
-            appendPrettyLine(builder, "Merge Descriptor", mergeDescriptor);
             return builder.toString().trim();
         }
     }
@@ -4650,9 +4419,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext,
             @JsonPropertyDescription("Planning agent results to consolidate.")
-            List<PlanningAgentResult> planningAgentResults,
-            @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
-            MergeAggregation mergeAggregation
+            List<PlanningAgentResult> planningAgentResults
     ) implements ResultsRequest {
 
         @Override
@@ -4701,14 +4468,8 @@ public interface AgentModels {
             StringBuilder builder = new StringBuilder("Planning Agent Results\n");
             appendPrettyLine(builder, "Context Id", contextId);
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
-            appendPrettyMergeAggregation(builder, "Merge Aggregation", mergeAggregation);
             appendPrettyText(builder, "Planning Agent Results", AgentModels.serializeResults(planningAgentResults));
             return builder.toString().trim();
-        }
-
-        @Override
-        public ResultsRequest withMergeAggregation(MergeAggregation aggregation) {
-            return this.toBuilder().mergeAggregation(aggregation).build();
         }
 
         @Override
@@ -4728,9 +4489,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext,
             @JsonPropertyDescription("Ticket agent results to consolidate.")
-            List<TicketAgentResult> ticketAgentResults,
-            @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
-            MergeAggregation mergeAggregation
+            List<TicketAgentResult> ticketAgentResults
     ) implements ResultsRequest {
 
         @Override
@@ -4779,14 +4538,8 @@ public interface AgentModels {
             StringBuilder builder = new StringBuilder("Ticket Agent Results\n");
             appendPrettyLine(builder, "Context Id", contextId);
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
-            appendPrettyMergeAggregation(builder, "Merge Aggregation", mergeAggregation);
             appendPrettyText(builder, "Ticket Agent Results", AgentModels.serializeResults(ticketAgentResults));
             return builder.toString().trim();
-        }
-
-        @Override
-        public ResultsRequest withMergeAggregation(MergeAggregation aggregation) {
-            return this.toBuilder().mergeAggregation(aggregation).build();
         }
 
         @Override
@@ -4806,9 +4559,7 @@ public interface AgentModels {
             @SkipPropertyFilter
             WorktreeSandboxContext worktreeContext,
             @JsonPropertyDescription("Discovery agent results to consolidate.")
-            List<DiscoveryAgentResult> result,
-            @JsonPropertyDescription("Merge aggregation from child→trunk merges.")
-            MergeAggregation mergeAggregation
+            List<DiscoveryAgentResult> result
     ) implements ResultsRequest {
 
         @Override
@@ -4857,14 +4608,8 @@ public interface AgentModels {
             StringBuilder builder = new StringBuilder("Discovery Agent Results\n");
             appendPrettyLine(builder, "Context Id", contextId);
             appendPrettyLine(builder, "Worktree Context", worktreeContext);
-            appendPrettyMergeAggregation(builder, "Merge Aggregation", mergeAggregation);
             appendPrettyText(builder, "Discovery Agent Results", AgentModels.serializeResults(result));
             return builder.toString().trim();
-        }
-
-        @Override
-        public ResultsRequest withMergeAggregation(MergeAggregation aggregation) {
-            return this.toBuilder().mergeAggregation(aggregation).build();
         }
 
         @Override

@@ -3,7 +3,7 @@
 Entry points for discovering things we didn't know we didn't know in the test trace data.
 Each entry point describes where to look, what question to ask, and what a finding might lead to.
 
-Generated: 2026-03-31
+Generated: 2026-04-01
 
 ## How to Use
 
@@ -21,8 +21,8 @@ Generated: 2026-03-31
 **Why it matters**: NodeErrorEvents with message "Skipping trunk->child merge: child and trunk worktree are the same" appear in ALL tests (12+ per test), including `fullWorkflow_discoveryToPlanningSingleAgentsToCompletion`. If these are expected (mocked worktree behavior), they're noise. If they mask real errors, we need filtering.
 **What to look for**: NodeErrorEvent messages that are NOT "Skipping trunk->child merge" — those would be real errors.
 
-**Status**: INVESTIGATED
-**Finding**: All NodeErrorEvents across happy path tests are "Skipping trunk->child merge" from the mocked worktree service. These are benign — the mock stubs return a `MergeDescriptor` with the same worktree path for child and trunk, triggering the skip. NOT masking real errors. However, the error count inflates the "errors" column in any trace summary. Consider adding a `NodeErrorEvent.severity` field or filtering known-benign messages in TestTraceWriter.
+**Status**: INVESTIGATED (updated 2026-04-01)
+**Finding**: Post single-worktree refactor, NodeErrorEvents have changed character. Old messages ("Skipping trunk->child merge") no longer appear. New pattern: "Could not resolve propagation layer for action response: agent= action= method= canonical=" — 3 instances per test (e.g., ticketPhase_fiveTickets has Events 178, 325, 596). The empty agent/action fields suggest the error fires for decorator-emitted result types where no propagation layer is registered (expected in test — QueuedLlmRunner doesn't register all layers). One instance (Event 596) correctly identifies `agent=ticket-routing action=ticket-collector-routing-branch`. These are benign in test context but could mask real routing issues in production if propagation layers are misconfigured.
 
 ---
 
@@ -233,6 +233,51 @@ Generated: 2026-03-31
 
 ---
 
+## E20. GoalCompletedEvent worktreePath Resolution Path in Production
+
+**Where**: `EmitActionCompletedResultDecorator.decorate(AgentResult)` — the `if/else` branch that resolves `worktreePath`
+**Question**: In production (non-test) workflows, does `context.agentRequest()` always resolve as `AgentModels.AgentRequest` with a populated `worktreeContext`? Or does the SandboxResolver fallback fire? If the fallback fires, is the path consistent with the primary path?
+**Why it matters**: The decorator has two resolution paths: (1) cast `agentRequest()` to `AgentModels.AgentRequest` and read `worktreeContext().mainWorktree().worktreePath()`, or (2) fall back to `SandboxResolver.resolveFromOrchestratorNode()`. If these produce different paths (e.g., `file:///` URI vs raw path), downstream controller code could break.
+**What to look for**: Set breakpoint at `EmitActionCompletedResultDecorator:116`. Check which branch fires in a live workflow. Compare the `worktreePath` value format between the two branches.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E21. Shared Worktree Concurrent Write Safety
+
+**Where**: `ticketPhase_fiveTickets_sharedWorktreeCarriesAllChanges` trace — event timing between ticket agents
+**Question**: The 5-ticket test runs agents sequentially (QueuedLlmRunner dequeues in order). In production, could two agents write to the same worktree simultaneously? If so, do git operations (add, commit) have atomic guarantees, or could a partial commit corrupt the worktree?
+**Why it matters**: The single-worktree model assumes sequential access, but the Embabel framework might dispatch parallel agents to the same worktree in production. Git index locking would cause one agent's commit to fail with "fatal: Unable to create index.lock".
+**What to look for**: Check if `TicketDispatchAgent` dispatches sequentially or in parallel. If parallel, check for `index.lock` errors in runtime logs during multi-ticket workflows.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E22. MergePhaseCompletedEvent Ghost in Old Test Traces
+
+**Where**: `ticketPhase_twoTickets_sharedWorktreeCarriesChanges.events.md` — 5 instances of `MergePhaseCompletedEvent`
+**Question**: This test trace still contains `MergePhaseCompletedEvent` entries from a pre-refactor run (timestamps ~04:19 vs newer tests at ~05:45). Is the trace stale, or does the two-ticket test still emit merge events through some code path we missed?
+**Why it matters**: E-INV7 states "No MergePhaseCompletedEvent in any single-worktree test". If this trace is current, the invariant is violated for the two-ticket case.
+**What to look for**: Re-run `ticketPhase_twoTickets_sharedWorktreeCarriesChanges` and check whether MergePhaseCompletedEvent appears in the fresh trace.
+
+**Status**: PARTIALLY INVESTIGATED
+**Finding**: The trace timestamps (04:19) predate the single-worktree refactor run (05:44–05:48). This is a stale trace from the previous test run. The test was not re-run after the refactor because it existed before the changes. The 5-ticket test (new, post-refactor) has 0 MergePhaseCompletedEvents, confirming E-INV7. To fully close, re-run the two-ticket test and verify.
+
+---
+
+## E23. EmitActionCompletedResultDecorator Unsubscribe Timing in Single-Worktree Model
+
+**Where**: `EmitActionCompletedResultDecorator.decorate(AgentRouting)` — the `BlackboardHistory.unsubscribe()` calls
+**Question**: The routing decorator unsubscribes from the event bus when it sees a non-null `agentResult()` or `collectorResult()`. In the single-worktree model, does the unsubscription timing change? Are there cases where unsubscription happens too early (before GoalCompletedEvent) or too late (leaking subscriptions)?
+**Why it matters**: If unsubscription fires before `decorate(AgentResult)` emits GoalCompletedEvent, the goal completion listener might miss the event. The `InterruptRequest` guard (line 57-59) prevents unsubscription during interrupt, but there may be other timing edge cases.
+**What to look for**: In the 5-ticket trace, verify that GoalCompletedEvent (Event 641) fires AFTER the last `BlackboardHistory.unsubscribe` call. Check if any events are dropped after unsubscription.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
 ## Future Exploration Candidates
 
 - **F-E1**: Data layer operation timing relative to agent completion — do DataLayerOperationNodes always complete before their parent agent completes?
@@ -246,3 +291,6 @@ Generated: 2026-03-31
 - **F-E9**: Layer binding entity extraction impact — the current JSON blob pattern for layer bindings means enable/disable must deserialize, modify, and re-serialize the entire blob. With the planned `LayerBindingEntity` extraction (see `tickets/data-layer-filter/layer-binding-entities.md`), each binding gets its own row with direct SQL updates. Explore whether current tests cover the edge case where a registration has zero bindings.
 - **F-E10**: `AgentExecutor.assemblePrompt` vs `DefaultLlmRunner` prompt assembly divergence — `assemblePrompt` uses `PromptContributorService` (Spring bean), so new `PromptContributor` beans auto-included. Risk limited to `LlmCallDecorator`-level concerns (FilterPropertiesDecorator, etc.) which are NOT applied in controller response path by design.
 - **F-E11**: ~~`publishInterrupt()` does not set `interruptibleContext` on origin node~~ — **FIXED**: Added `InterruptService.publishInterruptWithContext()` which sets `interruptibleContext` on the origin node (if null) before publishing. All three call sites in InterruptService now use this method. Both `callController_happyPath` and `controllerResponse` tests now emit `InterruptStatusEvent(RESOLVED)`. Guard: only sets context if null (won't overwrite existing), logs error if existing context has unexpected non-REQUESTED status.
+- **F-E12**: Worktree cleanup after GoalCompletedEvent — who deletes the shared worktree? The controller receives `worktreePath` but there's no explicit cleanup lifecycle. If the controller crashes before merge-to-source, the worktree becomes an orphan on disk. Explore whether `ExecutionScopeService.completeExecution()` triggers cleanup or if it's left to the controller.
+- **F-E13**: `worktreePath` format consistency — GoalCompletedEvent.worktreePath is a raw path string (`/var/folders/...`) while `MainWorktreeContext.worktreePath` is a `file:///` URI. Are downstream consumers prepared for both formats? The `EmitActionCompletedResultDecorator` calls `Path::toString` which strips the URI scheme.
+- **F-E14**: Single-worktree model under loopback — when `planningCollector_loopsBackToDiscovery` triggers a second discovery phase, does the same shared worktree carry forward? Or does the second discovery phase create a new worktree? The current tests don't cover loopback + worktree interaction.

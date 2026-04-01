@@ -376,8 +376,7 @@ public class CliEventFormatter {
                             + " goal=" + summarize(args, r.goal())
                             + " summary=" + summary;
             case AgentModels.ResultsRequest r ->
-                    "ResultsRequest mergeAggregation=" + summarize(args, r.mergeAggregation())
-                            + " results=" + countOf(r.childResults())
+                    "ResultsRequest results=" + countOf(r.childResults())
                             + " summary=" + summary;
             case AgentModels.InterruptRequest r -> "InterruptRequest summary=" + summary;
             case AgentModels.AiFilterRequest aiFilterRequest ->

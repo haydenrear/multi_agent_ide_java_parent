@@ -320,7 +320,8 @@ public interface Events {
                         line("timestamp", e.timestamp()),
                         line("orchestratorNodeId", e.orchestratorNodeId()),
                         line("workflowId", e.workflowId()),
-                        line("model", summarizeObject(e.model())));
+                        line("model", summarizeObject(e.model())),
+                        line("worktreePath", e.worktreePath()));
                 case WorktreeCreatedEvent e -> formatEvent("Worktree Created Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
@@ -1033,8 +1034,14 @@ public interface Events {
             Instant timestamp,
             String orchestratorNodeId,
             String workflowId,
-            Artifact.AgentModel model
+            Artifact.AgentModel model,
+            String worktreePath
     ) implements Events.GraphEvent {
+
+        public GoalCompletedEvent(String eventId, Instant timestamp, String orchestratorNodeId, String workflowId, Artifact.AgentModel model) {
+            this(eventId, timestamp, orchestratorNodeId, workflowId, model, "");
+        }
+
         @Override
         public String nodeId() {
             return orchestratorNodeId;

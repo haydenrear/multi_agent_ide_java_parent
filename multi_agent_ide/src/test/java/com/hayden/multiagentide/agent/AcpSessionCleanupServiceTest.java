@@ -187,7 +187,8 @@ class AcpSessionCleanupServiceTest {
                 Instant.now(),
                 rootKey.value(),
                 "workflow-1",
-                result
+                result,
+                null
         );
 
         cleanupService.onEvent(event);
@@ -228,7 +229,8 @@ class AcpSessionCleanupServiceTest {
                 Instant.now(),
                 rootKey1.value(),
                 "workflow-1",
-                result
+                result,
+                null
         );
 
         cleanupService.onEvent(event);
@@ -271,7 +273,8 @@ class AcpSessionCleanupServiceTest {
                 Instant.now(),
                 root.value(),
                 "workflow-1",
-                result
+                result,
+                null
         );
 
         cleanupService.onEvent(event);
@@ -300,7 +303,8 @@ class AcpSessionCleanupServiceTest {
                 Instant.now(),
                 rootKey.value(),
                 "workflow-1",
-                result
+                result,
+                null
         );
 
         cleanupService.onEvent(event);
@@ -340,7 +344,7 @@ class AcpSessionCleanupServiceTest {
         var actionEvent = new Events.ActionCompletedEvent(
                 "id", Instant.now(), "node", "agent", "action", "type", null);
         var goalEvent = new Events.GoalCompletedEvent(
-                "id", Instant.now(), "node", "workflow", null);
+                "id", Instant.now(), "node", "workflow", null, null);
         var otherEvent = new Events.NodeAddedEvent(
                 "id", Instant.now(), "node", "title", Events.NodeType.ORCHESTRATOR, "parent");
 

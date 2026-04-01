@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
+import com.hayden.multiagentide.agent.decorator.request.SandboxResolver;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
@@ -13,6 +14,12 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class WorktreeContextResultDecorator implements DispatchedAgentResultDecorator, ResultDecorator, FinalResultDecorator {
+
+    private final SandboxResolver sandboxResolver;
+
+    public WorktreeContextResultDecorator(SandboxResolver sandboxResolver) {
+        this.sandboxResolver = sandboxResolver;
+    }
 
     @Override
     public int order() {

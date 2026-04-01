@@ -321,7 +321,7 @@ class SessionKeyResolutionServiceTest {
         @Test
         void isInterestedIn_goalCompletedEvent() {
             assertThat(service.isInterestedIn(new Events.GoalCompletedEvent(
-                    "e1", Instant.now(), "node1", "wf1", null
+                    "e1", Instant.now(), "node1", "wf1", null, null
             ))).isTrue();
         }
 
@@ -342,13 +342,13 @@ class SessionKeyResolutionServiceTest {
         @Test
         void onEvent_nullNodeId_noException() {
             // Should not throw
-            service.onEvent(new Events.GoalCompletedEvent("e1", Instant.now(), null, "wf1", null));
+            service.onEvent(new Events.GoalCompletedEvent("e1", Instant.now(), null, "wf1", null, null));
             service.onEvent(new Events.ActionCompletedEvent("e1", Instant.now(), null, "agent", "action", "SUCCESS", null));
         }
 
         @Test
         void onEvent_blankNodeId_noException() {
-            service.onEvent(new Events.GoalCompletedEvent("e1", Instant.now(), "", "wf1", null));
+            service.onEvent(new Events.GoalCompletedEvent("e1", Instant.now(), "", "wf1", null, null));
             service.onEvent(new Events.ActionCompletedEvent("e1", Instant.now(), "  ", "agent", "action", "SUCCESS", null));
         }
     }

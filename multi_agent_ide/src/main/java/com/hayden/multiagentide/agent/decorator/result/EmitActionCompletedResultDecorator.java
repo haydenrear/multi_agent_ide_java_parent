@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.hayden.multiagentide.agent.decorator.request.SandboxResolver;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
 import com.hayden.multiagentide.embabel.EmbabelUtil;
@@ -15,7 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -28,6 +31,7 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
 
 
     private final ExecutionScopeService exec;
+    private final SandboxResolver sandboxResolver;
 
     private EventBus eventBus;
 
@@ -108,12 +112,26 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
         ));
 
         if (t instanceof AgentModels.OrchestratorCollectorResult res) {
+            String worktreePath;
+            if (context.agentRequest() instanceof AgentModels.AgentRequest agentReq
+                    && agentReq.worktreeContext() != null
+                    && agentReq.worktreeContext().mainWorktree() != null
+                    && agentReq.worktreeContext().mainWorktree().worktreePath() != null) {
+                worktreePath = agentReq.worktreeContext().mainWorktree().worktreePath().toString();
+            } else {
+                worktreePath = Optional.ofNullable(sandboxResolver.resolveFromOrchestratorNode(context.operationContext()))
+                        .flatMap(wt -> Optional.ofNullable(wt.mainWorktree()))
+                        .flatMap(wt -> Optional.ofNullable(wt.worktreePath()))
+                        .map(Path::toString)
+                        .orElse(null);
+            }
             eventBus.publish(new Events.GoalCompletedEvent(
                     UUID.randomUUID().toString(),
                     Instant.now(),
                     nodeId,
                     EmbabelUtil.extractWorkflowRunId(context.operationContext()),
-                    res
+                    res,
+                    worktreePath
             ));
 
 //          make sure this happens last
@@ -163,4 +181,5 @@ public class EmitActionCompletedResultDecorator implements FinalResultDecorator,
         String contextId = options.getContextIdString();
         return contextId != null ? contextId : "unknown";
     }
+
 }

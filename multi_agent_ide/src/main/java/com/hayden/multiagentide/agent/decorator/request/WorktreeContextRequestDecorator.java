@@ -87,6 +87,8 @@ public class WorktreeContextRequestDecorator implements RequestDecorator, Dispat
             return request;
         }
         return switch (request) {
+            // Dispatch requests: pass the same worktree to collection and each child request.
+            // No branching — all agents share the single orchestrator worktree.
             case AgentModels.DiscoveryAgentRequests r ->
                     worktreeService.attachWorktreesToDiscoveryRequests(r.toBuilder().worktreeContext(worktreeContext).build(), request.contextId().value());
             case AgentModels.PlanningAgentRequests r ->

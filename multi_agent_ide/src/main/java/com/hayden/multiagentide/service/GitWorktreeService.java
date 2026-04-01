@@ -956,28 +956,12 @@ public class GitWorktreeService implements WorktreeService {
             AgentModels.DiscoveryAgentRequests input,
             String nodeId
     ) {
-        if (input == null || input.requests() == null || input.requests().isEmpty()) {
-            return input;
-        }
-        WorktreeSandboxContext parentContext = input.worktreeContext();
-        if (parentContext == null || parentContext.mainWorktree() == null) {
-            return input;
-        }
-        // Ensure submodule commits exist on remotes before cloning new worktrees.
-        pushSubmoduleCommitsToRemote(
-                parentContext.mainWorktree().worktreePath(),
-                parentContext.mainWorktree().derivedBranch(),
-                nodeId);
         List<AgentModels.DiscoveryAgentRequest> updated = new ArrayList<>();
-        int index = 0;
         for (AgentModels.DiscoveryAgentRequest request : input.requests()) {
             if (request == null) {
                 continue;
             }
-            index++;
-            String branchName = "discovery-" + index + "-" + shortId(nodeId);
-            WorktreeSandboxContext child = branchSandboxContext(parentContext, branchName, nodeId);
-            updated.add(child != null ? request.toBuilder().worktreeContext(child).build() : request);
+            updated.add(request.toBuilder().worktreeContext(input.worktreeContext()).build());
         }
         return input.toBuilder().requests(updated).build();
     }
@@ -986,28 +970,12 @@ public class GitWorktreeService implements WorktreeService {
             AgentModels.PlanningAgentRequests input,
             String nodeId
     ) {
-        if (input == null || input.requests() == null || input.requests().isEmpty()) {
-            return input;
-        }
-        WorktreeSandboxContext parentContext = input.worktreeContext();
-        if (parentContext == null || parentContext.mainWorktree() == null) {
-            return input;
-        }
-        // Ensure submodule commits exist on remotes before cloning new worktrees.
-        pushSubmoduleCommitsToRemote(
-                parentContext.mainWorktree().worktreePath(),
-                parentContext.mainWorktree().derivedBranch(),
-                nodeId);
-        List<AgentModels.PlanningAgentRequest> updated = new ArrayList<>();
-        int index = 0;
-        for (AgentModels.PlanningAgentRequest request : input.requests()) {
+        var updated = new ArrayList<AgentModels.PlanningAgentRequest>();
+        for (var request : input.requests()) {
             if (request == null) {
                 continue;
             }
-            index++;
-            String branchName = "planning-" + index + "-" + shortId(nodeId);
-            WorktreeSandboxContext child = branchSandboxContext(parentContext, branchName, nodeId);
-            updated.add(child != null ? request.toBuilder().worktreeContext(child).build() : request);
+            updated.add(request.toBuilder().worktreeContext(input.worktreeContext()).build());
         }
         return input.toBuilder().requests(updated).build();
     }
@@ -1016,28 +984,12 @@ public class GitWorktreeService implements WorktreeService {
             AgentModels.TicketAgentRequests input,
             String nodeId
     ) {
-        if (input == null || input.requests() == null || input.requests().isEmpty()) {
-            return input;
-        }
-        WorktreeSandboxContext parentContext = input.worktreeContext();
-        if (parentContext == null || parentContext.mainWorktree() == null) {
-            return input;
-        }
-        // Ensure submodule commits exist on remotes before cloning new worktrees.
-        pushSubmoduleCommitsToRemote(
-                parentContext.mainWorktree().worktreePath(),
-                parentContext.mainWorktree().derivedBranch(),
-                nodeId);
-        List<AgentModels.TicketAgentRequest> updated = new ArrayList<>();
-        int index = 0;
-        for (AgentModels.TicketAgentRequest request : input.requests()) {
+        var updated = new ArrayList<AgentModels.TicketAgentRequest>();
+        for (var request : input.requests()) {
             if (request == null) {
                 continue;
             }
-            index++;
-            String branchName = "ticket-" + index + "-" + shortId(nodeId);
-            WorktreeSandboxContext child = branchSandboxContext(parentContext, branchName, nodeId);
-            updated.add(request.toBuilder().worktreeContext(child).build());
+            updated.add(request.toBuilder().worktreeContext(input.worktreeContext()).build());
         }
         return input.toBuilder().requests(updated).build();
     }

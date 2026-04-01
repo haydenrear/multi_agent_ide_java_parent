@@ -332,25 +332,9 @@ public class GitMergeService {
     }
 
     private WorktreeSandboxContext resolveChildWorktreeFromMergeDescriptor(AgentModels.AgentResult result) {
-        MergeDescriptor descriptor = switch (result) {
-            case AgentModels.TicketAgentResult r -> r.mergeDescriptor();
-            case AgentModels.PlanningAgentResult r -> r.mergeDescriptor();
-            case AgentModels.DiscoveryAgentResult r -> r.mergeDescriptor();
-            default -> null;
-        };
-
-        if (descriptor == null) {
-            return null;
-        }
-
-        String childMainWorktreeId = resolveChildWorktreeId(descriptor, descriptor.mainWorktreeMergeResult());
-        if (childMainWorktreeId == null || childMainWorktreeId.isBlank()) {
-            return null;
-        }
-
-        return gitWorktreeService.getMainWorktree(childMainWorktreeId)
-                .map(main -> new WorktreeSandboxContext(main, resolveChildSubmoduleWorktrees(descriptor)))
-                .orElse(null);
+        // MergeDescriptor fields have been removed from agent result records;
+        // worktree context resolution now relies solely on the result's own worktreeContext().
+        return null;
     }
 
     private List<SubmoduleWorktreeContext> resolveChildSubmoduleWorktrees(MergeDescriptor descriptor) {
