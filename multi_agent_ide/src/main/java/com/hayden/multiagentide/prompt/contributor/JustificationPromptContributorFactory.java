@@ -44,6 +44,18 @@ public class JustificationPromptContributorFactory implements PromptContributorF
             return List.of();
         }
 
+        // Only include justification guidance when we have an active checklist action
+        // that is NOT a terminal approval. When checklistAction is null/missing or is
+        // JUSTIFICATION_PASSED/APPROVED, the agent should return its result, not justify.
+        if (request instanceof AgentModels.ControllerToAgentRequest cta) {
+            if (cta.checklistAction() == null
+                    || cta.checklistAction().actionType() == null
+                    || "JUSTIFICATION_PASSED".equals(cta.checklistAction().actionType())
+                    || "APPROVED".equals(cta.checklistAction().actionType())) {
+                return List.of();
+            }
+        }
+
         AgentType agentType = resolveSourceAgentType(request);
         String template = selectTemplate(agentType);
 
