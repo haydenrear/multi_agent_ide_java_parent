@@ -187,20 +187,28 @@ class AcpChatModel(
             // waiting for compaction to finish so the LLM can complete its response with the
             // compacted context.
             if (isSessionCompacting(generations)) {
-                log.info("ACP session compaction detected for {} — waiting 30s then re-issuing prompt",
+                log.info("ACP session compaction detected for {} — polling until compaction completes",
                     sessionContext.chatModelKey)
                 eventBus.publish(
                     Events.CompactionEvent.of(
-                        "ACP session compacting for ${sessionContext.chatModelKey.value} — prompt will be re-issued after 30s wait",
+                        "ACP session compacting for ${sessionContext.chatModelKey.value} — polling until complete",
                         sessionContext.chatModelKey
                     )
                 )
-                Thread.sleep(30_000)
-                generations.clear()
-                doPerformPrompt(session, content, sessionContext, memoryId, generations)
+                val continueContent = listOf(ContentBlock.Text("Please continue."))
+                val maxPolls = 12
+                var pollCount = 0
+                while (isSessionCompacting(generations) && pollCount < maxPolls) {
+                    pollCount++
+                    log.info("Compaction poll {}/{} for {} — waiting 10s",
+                        pollCount, maxPolls, sessionContext.chatModelKey)
+                    Thread.sleep(10_000)
+                    generations.clear()
+                    doPerformPrompt(session, continueContent, sessionContext, memoryId, generations)
+                }
                 if (isSessionCompacting(generations)) {
-                    log.info("ACP session still compacting after retry for {} — resetting session and re-issuing",
-                        sessionContext.chatModelKey)
+                    log.info("ACP session still compacting after {} polls for {} — resetting session and re-issuing full prompt",
+                        maxPolls, sessionContext.chatModelKey)
                     session.resetSession()
                     generations.clear()
                     doPerformPrompt(session, content, sessionContext, memoryId, generations)

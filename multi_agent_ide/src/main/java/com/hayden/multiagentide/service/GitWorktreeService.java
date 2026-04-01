@@ -86,6 +86,7 @@ public class GitWorktreeService implements WorktreeService {
             Files.createDirectories(worktreePath);
             performSubmoduleClone(repositoryUrl, baseBranch, derivedBranch, worktreePath);
             List<String> submodulePaths = initializeSubmodule(worktreePath, derivedBranch);
+            checkoutNewBranch(worktreePath, derivedBranch, derivedBranch);
 
 //            we pass in the baseBranch of the parent here because when we clone the
 //            submodules it puts it in a detached head. So we do a checkout -b ...
@@ -1090,6 +1091,19 @@ public class GitWorktreeService implements WorktreeService {
         return false;
     }
 
+    private static void doPerformCheckout(Git subGit, String branchName, String key) {
+        try {
+            subGit.checkout().setName(branchName).setCreateBranch(true).call();
+        } catch (Exception checkoutEx) {
+            // Branch may already exist, try switching to it
+            try {
+                subGit.checkout().setName(branchName).call();
+            } catch (Exception switchEx) {
+                log.warn("Could not fix detached HEAD for submodule {}: {}", key, switchEx.getMessage());
+            }
+        }
+    }
+
     private void fixDetachedHeadSubmodules(Path worktreePath, String derivedBranch) {
         try (var git = openGit(worktreePath)) {
             Map<String, SubmoduleStatus> submodules = git.submoduleStatus().call();
@@ -1106,16 +1120,7 @@ public class GitWorktreeService implements WorktreeService {
                     // Detached HEAD - create or checkout a branch from current commit
                     String branchName = derivedBranch;
                     log.info("Fixing detached HEAD in submodule {} by checking out branch {}", entry.getKey(), branchName);
-                    try {
-                        subGit.checkout().setName(branchName).setCreateBranch(true).call();
-                    } catch (Exception checkoutEx) {
-                        // Branch may already exist, try switching to it
-                        try {
-                            subGit.checkout().setName(branchName).call();
-                        } catch (Exception switchEx) {
-                            log.warn("Could not fix detached HEAD for submodule {}: {}", entry.getKey(), switchEx.getMessage());
-                        }
-                    }
+                    doPerformCheckout(subGit, branchName, entry.getKey());
                 }
             }
         } catch (Exception e) {
@@ -1749,6 +1754,8 @@ public class GitWorktreeService implements WorktreeService {
                 }
             }
             checkout.call();
+        } catch (Exception e) {
+            log.error("Error doing checkout new branch...", e);
         }
 
         RepoUtil.runGitCommand(repoPath, List.of("submodule", "foreach", "--recursive", "git checkout -b %s || true".formatted(newBranchName)));
