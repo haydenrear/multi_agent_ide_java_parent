@@ -19,6 +19,18 @@ llm:
       ai-filter:
         model: claude-haiku-4-5
         provider: claude
+      orchestrator:
+        model: claude-sonnet-4-5
+        provider: claude
+      discovery-orchestrator:
+        model: claude-sonnet-4-5
+        provider: claude
+      planning-orchestrator:
+        model: claude-sonnet-4-5
+        provider: claude
+      ticket-orchestrator:
+        model: claude-sonnet-4-5
+        provider: claude
       orchestrator-collector:
         model: claude-sonnet-4-5
         provider: claude

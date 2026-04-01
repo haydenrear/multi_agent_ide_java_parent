@@ -224,6 +224,26 @@ class AcpChatModel(
 
         generations.addAll(session.flushWindows(memoryId))
 
+        // If generations are empty (null getResult() upstream), retry with "Please continue."
+        if (generations.isEmpty() || generations.all { it.output == null || it.output.text.isNullOrBlank() }) {
+            val maxNullRetries = 5
+            var nullRetryCount = 0
+            val continueMsg = listOf(ContentBlock.Text("Please continue."))
+            while ((generations.isEmpty() || generations.all { it.output == null || it.output.text.isNullOrBlank() }) && nullRetryCount < maxNullRetries) {
+                nullRetryCount++
+                log.warn("ACP returned null/empty result for {} — retry {}/{} with 'Please continue.'",
+                    sessionContext.chatModelKey, nullRetryCount, maxNullRetries)
+                Thread.sleep(5_000)
+                generations.clear()
+                doPerformPrompt(session, continueMsg, sessionContext, memoryId, generations)
+                generations.addAll(session.flushWindows(memoryId))
+            }
+            if (generations.isEmpty() || generations.all { it.output == null || it.output.text.isNullOrBlank() }) {
+                log.error("ACP still returning null/empty after {} retries for {} — returning empty response",
+                    maxNullRetries, sessionContext.chatModelKey)
+            }
+        }
+
         val unparsedToolCall = detectUnparsedToolCallInLastMessage(generations)
         if (unparsedToolCall != null) {
             val err = "ACP returned unparsed tool call as final structured output: $unparsedToolCall"
