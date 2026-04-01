@@ -296,6 +296,11 @@ public class AgentExecutor {
 
         String resolvedMessage = assemblePrompt(promptContext, templateModel, operationContext);
 
+        log.info("Controller response rendered for {} — checklistAction={} length={} text:\n{}",
+                args.originNodeId(), args.checklistAction(),
+                resolvedMessage != null ? resolvedMessage.length() : 0,
+                resolvedMessage);
+
         // 8. Resolve the interrupt with the fully rendered text
         boolean resolved = permissionGate.resolveInterrupt(
                 args.interruptId(),
