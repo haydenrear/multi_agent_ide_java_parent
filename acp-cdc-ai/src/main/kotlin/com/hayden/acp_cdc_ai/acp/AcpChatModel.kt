@@ -95,6 +95,10 @@ class AcpChatModel(
     @Value("\${server.port:8080}")
     lateinit var mcpServerPort: Integer
 
+    // Tracks the hash of the last prompt sent per session routing key.
+    // If the same hash arrives again, it's a retry from the upstream structured output parser.
+    private val lastPromptHashPerSession = ConcurrentHashMap<String, String>()
+
     companion object AcpChatModel {
 
         const val MCP_SESSION_HEADER: String = "X-AG-UI-SESSION"
@@ -134,10 +138,21 @@ class AcpChatModel(
         val hasSession = sessionExists(resolvedCall)
         val sessionContext = getOrCreateSession(resolvedCall, chatRequest)
         val messages = resolveToSendMessages(chatRequest, hasSession)
+        val builtPrompt = Prompt.builder().messages(messages).chatOptions(chatRequest.options).build()
+
+        // Detect retry: same prompt content sent to the same session again
+        val sessionKey = sessionContext.chatModelKey.value
+        val promptHash = MessageDigest.getInstance("SHA-256")
+            .digest(formatPromptMessages(builtPrompt).toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        val previousHash = lastPromptHashPerSession.put(sessionKey, promptHash)
+        val isRetry = hasSession && previousHash == promptHash
+
         return invokeChat(
-            Prompt.builder().messages(messages).chatOptions(chatRequest.options).build(),
+            builtPrompt,
             sessionContext,
-            memoryId
+            memoryId,
+            isRetry
         )
     }
 
@@ -177,11 +192,23 @@ class AcpChatModel(
     fun invokeChat(
         messages: Prompt,
         sessionContext: AcpSessionManager.AcpSessionContext,
-        memoryId: Any?
+        memoryId: Any?,
+        isRetry: Boolean = false
     ): ChatResponse = runBlocking {
         val session = sessionContext
         val generations = mutableListOf<Generation>()
-        val content = listOf(ContentBlock.Text(formatPromptMessages(messages)))
+
+        // If the session already existed before this call, this is a retry from the
+        // upstream structured output parser.  The ACP session already has the full prompt
+        // context — re-sending it causes the session to grow and compact.  Just send
+        // CONTINUE to nudge the agent to finish its response.
+        val content = if (isRetry) {
+            log.info("Retry detected for {} — sending CONTINUE instead of full prompt",
+                sessionContext.chatModelKey)
+            listOf(ContentBlock.Text(CONTINUE))
+        } else {
+            listOf(ContentBlock.Text(formatPromptMessages(messages)))
+        }
 
         try {
             doPerformPrompt(session, content, sessionContext, memoryId, generations)
@@ -199,6 +226,13 @@ class AcpChatModel(
 
 
         generations.addAll(session.flushWindows(memoryId))
+
+        // Filter out generations that are just compaction markers — they are not real output
+        // and would bypass the null/empty retry handler below.
+        generations.removeAll { g ->
+            val text = runCatching { g.output.text }.getOrNull()?.trim()
+            text?.lowercase()?.contains("compacting...") ?: false || text == "..." || text?.lowercase()?.contains("compaction completed") ?: false
+        }
 
         // If generations are empty (null getResult() upstream), retry with "Please continue."
         if (generations.isEmpty() || generations.all { it.output == null || it.output.text.isNullOrBlank() }) {
@@ -245,6 +279,20 @@ class AcpChatModel(
             return@runBlocking toChatResponse(retryGenerations)
         }
 
+        // If the response contains a '{' but is not valid JSON, the agent likely got
+        // truncated mid-response.  Send lightweight "please continue" instead of
+        // returning incomplete output (which causes the caller to do a full prompt
+        // retry with compaction overhead).
+        val incompleteJsonResult = handleIncompleteJson(generations, session, sessionContext, memoryId)
+        if (incompleteJsonResult != null) {
+            return@runBlocking incompleteJsonResult
+        }
+
+        // Strip markdown code fences (```json ... ```) and leading prose before JSON.
+        // Agents sometimes wrap their JSON response in markdown formatting which the
+        // upstream structured output parser cannot handle.
+        sanitizeGenerationText(generations)
+
         toChatResponse(generations)
     }
 
@@ -254,35 +302,129 @@ class AcpChatModel(
         session: AcpSessionManager.AcpSessionContext,
         memoryId: Any?
     ) {
-        if (isSessionCompacting(generations)) {
-            log.info(
-                "ACP session compaction detected for {} — polling until compaction completes",
+        if (!isSessionCompacting(generations)) {
+            return
+        }
+
+        log.info(
+            "ACP session compaction detected for {} — polling until compaction completes",
+            sessionContext.chatModelKey
+        )
+        eventBus.publish(
+            Events.CompactionEvent.of(
+                "ACP session compacting for ${sessionContext.chatModelKey.value} — polling until complete",
                 sessionContext.chatModelKey
             )
-            eventBus.publish(
-                Events.CompactionEvent.of(
-                    "ACP session compacting for ${sessionContext.chatModelKey.value} — polling until complete",
-                    sessionContext.chatModelKey
-                )
+        )
+        val continueContent = listOf(ContentBlock.Text(CONTINUE))
+        val maxPolls = 20
+        var pollCount = 0
+
+        // Keep polling until we get a response that is NOT a compaction marker.
+        // The session needs time to finish compacting before it can produce real output.
+        while (pollCount < maxPolls) {
+            pollCount++
+            log.info(
+                "Compaction poll {}/{} for {} — waiting 10s",
+                pollCount, maxPolls, sessionContext.chatModelKey
             )
-            val continueContent = listOf(ContentBlock.Text(CONTINUE))
-            val maxPolls = 12
-            var pollCount = 0
-            while (isSessionCompacting(generations) && pollCount < maxPolls) {
-                pollCount++
-                log.info(
-                    "Compaction poll {}/{} for {} — waiting 10s",
-                    pollCount, maxPolls, sessionContext.chatModelKey
-                )
-                withContext(Dispatchers.IO) {
-                    Thread.sleep(10_000)
+            withContext(Dispatchers.IO) {
+                Thread.sleep(10_000)
+            }
+            generations.clear()
+            doPerformPrompt(session, continueContent, sessionContext, memoryId, generations)
+            generations.addAll(session.flushWindows(memoryId))
+
+            if (!isSessionCompacting(generations)) {
+                log.info("Compaction completed after {} polls for {}", pollCount, sessionContext.chatModelKey)
+                return
+            }
+        }
+
+        // Still compacting after max polls — clear so downstream null/empty handler
+        // sends lightweight CONTINUE instead of returning "Compacting..." text.
+        log.warn("Compaction still active after {} polls for {} — clearing for downstream retry",
+            maxPolls, sessionContext.chatModelKey)
+        generations.clear()
+    }
+
+    /**
+     * Detects incomplete JSON in the agent's response and sends "please continue" to get the
+     * agent to finish, rather than returning the truncated output (which causes the upstream
+     * structured output parser to do a full prompt retry with compaction overhead).
+     *
+     * Returns a ChatResponse if the incomplete JSON was recovered, or null if the response
+     * was not incomplete JSON (caller should proceed normally).
+     */
+    private suspend fun handleIncompleteJson(
+        generations: MutableList<Generation>,
+        session: AcpSessionManager.AcpSessionContext,
+        sessionContext: AcpSessionManager.AcpSessionContext,
+        memoryId: Any?
+    ): ChatResponse? {
+        val rawText = generations
+            .mapNotNull { runCatching { it.output.text }.getOrNull() }
+            .joinToString("")
+            .trim()
+
+        // Strip markdown fences before checking for incomplete JSON
+        val combinedText = stripMarkdownCodeFences(rawText) ?: rawText
+
+        if (combinedText.isEmpty() || !combinedText.contains("{")) {
+            return null
+        }
+
+        // Try to extract a complete JSON object — if it parses, no incomplete JSON
+        val trailingJson = extractTrailingJsonObject(combinedText)
+        if (trailingJson != null) {
+            try {
+                objectMapper.readTree(trailingJson)
+                return null // Valid JSON — not incomplete
+            } catch (_: Exception) {
+                // extractTrailingJsonObject found balanced braces but content isn't valid JSON
+            }
+        }
+
+        // Has a '{' but no complete JSON object — agent was truncated
+        val maxContinueRetries = 5
+        var continueCount = 0
+        val continueMsg = listOf(ContentBlock.Text(CONTINUE))
+
+        while (continueCount < maxContinueRetries) {
+            continueCount++
+            log.warn("Incomplete JSON detected for {} — sending continue {}/{}",
+                sessionContext.chatModelKey, continueCount, maxContinueRetries)
+
+            val retryGenerations = mutableListOf<Generation>()
+            doPerformPrompt(session, continueMsg, sessionContext, memoryId, retryGenerations)
+            retryGenerations.addAll(session.flushWindows(memoryId))
+
+            // Combine all text so far (original + all continuations), stripping fences
+            val allRaw = (generations + retryGenerations)
+                .mapNotNull { runCatching { it.output.text }.getOrNull() }
+                .joinToString("")
+                .trim()
+            val allText = stripMarkdownCodeFences(allRaw) ?: allRaw
+
+            val json = extractTrailingJsonObject(allText)
+            if (json != null) {
+                try {
+                    objectMapper.readTree(json)
+                    log.info("Incomplete JSON recovered after {} continue(s) for {}",
+                        continueCount, sessionContext.chatModelKey)
+                    generations.addAll(retryGenerations)
+                    return toChatResponse(generations)
+                } catch (_: Exception) {
+                    // Still not valid — keep trying
                 }
-                generations.clear()
-                doPerformPrompt(session, continueContent, sessionContext, memoryId, generations)
             }
 
-            log.info("Handled session compaction event.")
+            generations.addAll(retryGenerations)
         }
+
+        log.warn("Incomplete JSON not recovered after {} continues for {} — returning as-is",
+            maxContinueRetries, sessionContext.chatModelKey)
+        return null
     }
 
     /**
@@ -292,15 +434,71 @@ class AcpChatModel(
      * a compaction marker ("Compacting..." or is just "...") it means the session compacted and
      * ended the stream before producing actual output.
      */
+    /**
+     * Returns true when the session is still compacting: the combined generation text
+     * contains "compacting..." but does NOT have a "compaction completed" after the
+     * last "compacting...".
+     */
     private fun isSessionCompacting(generations: List<Generation>): Boolean {
-        val lastText = generations
-            .asReversed()
+        val combined = generations
             .mapNotNull { runCatching { it.output.text }.getOrNull() }
-            .firstOrNull { it.isNotBlank() }
-            ?: return false
-        val firstBrace = Regex("\\{").find(lastText)
-        val hasJsonObject = firstBrace != null
-        return !hasJsonObject && (lastText.contains("Compacting...") || lastText.trim() == "...")
+            .joinToString("")
+            .lowercase()
+
+        val lastCompacting = combined.lastIndexOf("compacting...")
+        if (lastCompacting < 0) {
+            return false
+        }
+
+        // Check if "compaction completed" appears after the last "compacting..."
+        val completedAfter = combined.indexOf("compaction completed", lastCompacting)
+        return completedAfter < 0
+    }
+
+    /**
+     * Strips markdown code fences and leading prose from generation text so the upstream
+     * structured output parser receives clean JSON.  Agents sometimes emit responses like:
+     *   "I need to clarify...\n\n```json\n{...}\n```"
+     * This extracts the JSON content from inside the fence, or strips leading prose before
+     * the first '{' if no fence is present.
+     */
+    private fun sanitizeGenerationText(generations: MutableList<Generation>) {
+        val combinedText = generations
+            .mapNotNull { runCatching { it.output.text }.getOrNull() }
+            .joinToString("")
+
+        val stripped = stripMarkdownCodeFences(combinedText)
+        if (stripped != null && stripped != combinedText) {
+            log.info("Stripped markdown code fences / leading prose from LLM response")
+            generations.clear()
+            generations.add(Generation(AssistantMessage(stripped)))
+        }
+    }
+
+    /**
+     * If the text contains a markdown code fence (```json ... ``` or ``` ... ```),
+     * extracts the content inside the fence.  If no fence but there's leading prose
+     * before a '{', strips the prose.  Returns null if no transformation needed.
+     */
+    private fun stripMarkdownCodeFences(text: String): String? {
+        // Match ```json\n...\n``` or ```\n...\n```
+        val fencePattern = Regex("```(?:json)?\\s*\\n([\\s\\S]*?)\\n?```")
+        val fenceMatch = fencePattern.find(text)
+        if (fenceMatch != null) {
+            return fenceMatch.groupValues[1].trim()
+        }
+
+        // No fence — check for leading prose before first '{'
+        val firstBrace = text.indexOf('{')
+        if (firstBrace > 0) {
+            val leading = text.substring(0, firstBrace).trim()
+            // Only strip if there's actual prose (not just whitespace)
+            if (leading.isNotEmpty() && !leading.startsWith("{")) {
+                return text.substring(firstBrace)
+            }
+        }
+
+        return null
     }
 
     private suspend fun doPerformPrompt(
