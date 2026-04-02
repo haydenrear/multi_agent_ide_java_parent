@@ -84,6 +84,14 @@ fun parseGenerationsFromAcpEvent(event: Event, sessionContext: AcpSessionManager
 //                TODO:
                 mutableListOf()
             }
+            is SessionUpdate.UsageUpdate -> {
+//                TODO:
+                mutableListOf()
+            }
+            is SessionUpdate.UnknownSessionUpdate -> {
+//                TODO:
+                mutableListOf()
+            }
         }
     } else {
         emptyList()

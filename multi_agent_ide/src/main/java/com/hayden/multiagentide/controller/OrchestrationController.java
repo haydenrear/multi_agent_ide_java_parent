@@ -85,7 +85,7 @@ public class OrchestrationController {
     @Schema(description = "Request to start a new goal execution.")
     public record StartGoalRequest(
             @NotBlank @Schema(description = "Natural-language goal description — the instruction given to the agent") String goal,
-            @NotBlank @Schema(description = "Git repository URL the agent will operate on") String repositoryUrl,
+            @NotBlank @Schema(description = "Git repository URL the agent will operate on - only local paths accepted to local git repository") String repositoryUrl,
             @Schema(description = "Base branch for the goal (optional; defaults to main/master)") String baseBranch,
             @Schema(description = "Human-readable title for this goal run") String title,
             @Schema(description = "Optional tags for filtering/grouping runs") List<String> tags
