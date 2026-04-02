@@ -14,6 +14,7 @@ import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.propagation.model.PropagatorMatchOn;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -110,7 +112,12 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
             eventBus.publish(new Events.PromptReceivedEvent(
                     java.util.UUID.randomUUID().toString(),
                     Instant.now(),
-                    sourceNodeId != null ? sourceNodeId : "",
+                    Optional.ofNullable(context.promptContext())
+                            .flatMap(pc -> Optional.ofNullable(pc.currentContextId()))
+                            .flatMap(c -> Optional.of(c.createChild()))
+                            .flatMap(s -> Optional.ofNullable(s.value()))
+                            .filter(StringUtils::isNotBlank)
+                            .orElse(""),
                     sourceName,
                     promptContext.templateName(),
                     assembledPrompt

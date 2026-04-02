@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.reactor.flux
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.io.asSink
 import kotlinx.io.asSource
 import kotlinx.io.buffered
@@ -66,6 +67,8 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.readLines
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
+
+private const val CONTINUE = "Please continue and return structured response."
 
 /**
  * ACP-backed ChatModel implementation using the agentclientprotocol SDK.
@@ -186,34 +189,7 @@ class AcpChatModel(
             // the session waits for the next user message.  Re-issue the same prompt after
             // waiting for compaction to finish so the LLM can complete its response with the
             // compacted context.
-            if (isSessionCompacting(generations)) {
-                log.info("ACP session compaction detected for {} — polling until compaction completes",
-                    sessionContext.chatModelKey)
-                eventBus.publish(
-                    Events.CompactionEvent.of(
-                        "ACP session compacting for ${sessionContext.chatModelKey.value} — polling until complete",
-                        sessionContext.chatModelKey
-                    )
-                )
-                val continueContent = listOf(ContentBlock.Text("Please continue."))
-                val maxPolls = 12
-                var pollCount = 0
-                while (isSessionCompacting(generations) && pollCount < maxPolls) {
-                    pollCount++
-                    log.info("Compaction poll {}/{} for {} — waiting 10s",
-                        pollCount, maxPolls, sessionContext.chatModelKey)
-                    Thread.sleep(10_000)
-                    generations.clear()
-                    doPerformPrompt(session, continueContent, sessionContext, memoryId, generations)
-                }
-                if (isSessionCompacting(generations)) {
-                    log.info("ACP session still compacting after {} polls for {} — resetting session and re-issuing full prompt",
-                        maxPolls, sessionContext.chatModelKey)
-                    session.resetSession()
-                    generations.clear()
-                    doPerformPrompt(session, content, sessionContext, memoryId, generations)
-                }
-            }
+            handleCompactingSession(generations, sessionContext, session, memoryId)
         } catch (e: JsonRpcException) {
             if (e.message?.contains("Prompt is too long") == true) {
                 session.resetSession()
@@ -228,7 +204,7 @@ class AcpChatModel(
         if (generations.isEmpty() || generations.all { it.output == null || it.output.text.isNullOrBlank() }) {
             val maxNullRetries = 5
             var nullRetryCount = 0
-            val continueMsg = listOf(ContentBlock.Text("Please continue."))
+            val continueMsg = listOf(ContentBlock.Text(CONTINUE))
             while ((generations.isEmpty() || generations.all { it.output == null || it.output.text.isNullOrBlank() }) && nullRetryCount < maxNullRetries) {
                 nullRetryCount++
                 log.warn("ACP returned null/empty result for {} — retry {}/{} with 'Please continue.'",
@@ -270,6 +246,43 @@ class AcpChatModel(
         }
 
         toChatResponse(generations)
+    }
+
+    private suspend fun handleCompactingSession(
+        generations: MutableList<Generation>,
+        sessionContext: AcpSessionManager.AcpSessionContext,
+        session: AcpSessionManager.AcpSessionContext,
+        memoryId: Any?
+    ) {
+        if (isSessionCompacting(generations)) {
+            log.info(
+                "ACP session compaction detected for {} — polling until compaction completes",
+                sessionContext.chatModelKey
+            )
+            eventBus.publish(
+                Events.CompactionEvent.of(
+                    "ACP session compacting for ${sessionContext.chatModelKey.value} — polling until complete",
+                    sessionContext.chatModelKey
+                )
+            )
+            val continueContent = listOf(ContentBlock.Text(CONTINUE))
+            val maxPolls = 12
+            var pollCount = 0
+            while (isSessionCompacting(generations) && pollCount < maxPolls) {
+                pollCount++
+                log.info(
+                    "Compaction poll {}/{} for {} — waiting 10s",
+                    pollCount, maxPolls, sessionContext.chatModelKey
+                )
+                withContext(Dispatchers.IO) {
+                    Thread.sleep(10_000)
+                }
+                generations.clear()
+                doPerformPrompt(session, continueContent, sessionContext, memoryId, generations)
+            }
+
+            log.info("Handled session compaction event.")
+        }
     }
 
     /**
