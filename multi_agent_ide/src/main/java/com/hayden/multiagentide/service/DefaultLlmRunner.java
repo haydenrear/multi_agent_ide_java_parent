@@ -70,44 +70,38 @@ public class DefaultLlmRunner implements LlmRunner {
                 .withFirstAvailableLlmOf("acp-chat-model", encodedAcpOptions)
                 .withPromptElements(promptElements.toArray(ContextualPromptElement[]::new));
 
-        var llmCallContext = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, null, model, context);
+        aiQuery = applyToolContext(aiQuery, toolContext);
+
+        var aiQueryWithTemplate = aiQuery
+                .creating(responseClass);
+
+        var llmCallContext = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, aiQueryWithTemplate, model, context);
 
         for (var l : llmCallDecorators) {
             llmCallContext = l.decorate(llmCallContext);
         }
 
-        log.info("Applying tool context for agentType={} template={}: tools={}",
-                promptContext.agentType(),
-                promptContext.templateName(),
-                llmCallContext.tcc() != null ? llmCallContext.tcc().tools().stream()
-                        .map(t -> t.getClass().getSimpleName() + ":" + switch (t) {
-                            case ToolAbstraction.EmbabelToolObject o -> o.toolObject().getClass().getSimpleName();
-                            case ToolAbstraction.SpringToolCallback s -> s.toolCallback().getToolDefinition().name();
-                            case ToolAbstraction.SpringToolCallbackProvider p -> "provider";
-                            case ToolAbstraction.EmbabelTool e -> e.tool().toString();
-                            case ToolAbstraction.EmbabelToolGroup g -> "group";
-                            case ToolAbstraction.EmbabelToolGroupRequirement r -> "requirement";
-                            case ToolAbstraction.ToolGroupStrings s -> "strings";
-                            case ToolAbstraction.SkillReference sr -> "skill";
-                        }).toList() : "null");
-        aiQuery = applyToolContext(aiQuery, llmCallContext.tcc());
-
-        var aiQueryWithTemplate = aiQuery
-                .creating(responseClass);
-
-        var llmCallContextAfter = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, aiQueryWithTemplate, model, context);
-
-        for (var l : llmCallDecorators) {
-            llmCallContextAfter = l.decorate(llmCallContextAfter);
+        // Re-apply tools from decorated context — decorators may have added tools
+        // that were not present in the original toolContext
+        ToolContext decoratedTcc = llmCallContext.tcc();
+        if (!decoratedTcc.tools().equals(toolContext.tools())) {
+            var reapplied = applyToolContext(
+                    context.ai()
+                            .withFirstAvailableLlmOf("acp-chat-model", encodedAcpOptions)
+                            .withPromptElements(promptElements.toArray(ContextualPromptElement[]::new)),
+                    decoratedTcc);
+            llmCallContext = llmCallContext.toBuilder()
+                    .templateOperations(reapplied.creating(responseClass))
+                    .build();
         }
 
         // Execute and return
-        ObjectCreator<T> tObjectCreator = llmCallContextAfter
+        ObjectCreator<T> tObjectCreator = llmCallContext
                 .templateOperations();
 
         T result = tObjectCreator
                 .fromTemplate(templateName, model);
-        
+
         return result;
     }
 
