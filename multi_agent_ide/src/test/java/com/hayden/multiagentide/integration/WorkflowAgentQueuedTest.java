@@ -345,7 +345,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Paused task", "DISCOVERY"))
             ));
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> t.getType() == Events.InterruptType.PAUSE && Objects.equals(t.getReason(), "User requested pause will continue")));
 
@@ -364,7 +364,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     "",
                     (IPermissionGate.InterruptResult) null);
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(res::isDone);
 
             var result = res.get();
@@ -429,7 +429,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             ));
 
             // Wait for the interrupt to be published
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
                                  && Objects.equals(t.getReason(), "Please review the proposed architecture")));
@@ -468,7 +468,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     (IPermissionGate.InterruptResult) null);
 
             // Workflow should now complete
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             var result = workflowFuture.get();
@@ -519,7 +519,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             ));
 
             // Wait for the interrupt to appear
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
                                  && Objects.equals(t.getReason(), "Review before proceeding")));
@@ -552,7 +552,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             permissionGate.resolveInterrupt(interruptId, IPermissionGate.ResolutionType.APPROVED, "Approved after checks",
                     (IPermissionGate.InterruptResult) null);
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             assertThat(workflowFuture.get()).isNotNull();
@@ -586,7 +586,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Feedback task", "DISCOVERY"))
             ));
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
                                     && Objects.equals(t.getReason(), "Needs human sign-off")));
@@ -603,7 +603,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     "Approved with note: use event sourcing pattern",
                     (IPermissionGate.InterruptResult) null);
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
         }
 
@@ -634,7 +634,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Feedback task", "DISCOVERY"))
             ));
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
                                  && Objects.equals(t.getReason(), "Needs human sign-off")));
@@ -651,7 +651,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     "Approved with note: use event sourcing pattern",
                     (IPermissionGate.InterruptResult) null);
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             var result = workflowFuture.get();
@@ -1186,7 +1186,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             ));
 
             // Wait for the interrupt to be published
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
                                  && Objects.equals(t.getReason(), "Discovery agent needs human review")));
@@ -1202,7 +1202,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     "Proceed with discovery",
                     (IPermissionGate.InterruptResult) null);
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             var result = workflowFuture.get();
@@ -1310,7 +1310,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Collector interrupt test", "DISCOVERY"))
             ));
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> Objects.equals(t.getReason(), "Collector needs human review before consolidating")));
 
@@ -1324,7 +1324,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     "Proceed",
                     (IPermissionGate.InterruptResult) null);
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             var result = workflowFuture.get();
@@ -1420,7 +1420,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Dispatch interrupt test", "DISCOVERY"))
             ));
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> Objects.equals(t.getReason(), "Planning dispatch needs review before collecting")));
 
@@ -1434,7 +1434,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     "Proceed to collector",
                     (IPermissionGate.InterruptResult) null);
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             var result = workflowFuture.get();
@@ -1484,7 +1484,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Final collector interrupt test", "DISCOVERY"))
             ));
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> Objects.equals(t.getReason(), "Final collector wants review before wrapping up")));
 
@@ -1498,7 +1498,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     "Wrap it up",
                     (IPermissionGate.InterruptResult) null);
 
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             var result = workflowFuture.get();
@@ -1944,7 +1944,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             ));
 
             // Wait for the HUMAN_REVIEW interrupt from callController
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
                                  && t.getReason() != null
@@ -1970,7 +1970,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     (IPermissionGate.InterruptResult) null);
 
             // Workflow should complete
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             var output = workflowFuture.get();
@@ -2076,7 +2076,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             // Resolve interrupts as they arrive (up to 3 — the budget)
             for (int i = 0; i < 3; i++) {
                 final int callNum = i + 1;
-                await().atMost(Duration.ofSeconds(300))
+                await().atMost(Duration.ofSeconds(30))
                         .until(() -> permissionGate.isInterruptPending(
                                 t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
                                      && t.getReason() != null
@@ -2096,7 +2096,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             }
 
             // Workflow should complete (4th call returns error immediately, no blocking)
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             var output = workflowFuture.get();
@@ -2272,7 +2272,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             ));
 
             // Wait for the HUMAN_REVIEW interrupt
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(() -> permissionGate.isInterruptPending(
                             t -> t.getType() == Events.InterruptType.HUMAN_REVIEW
                                  && t.getReason() != null
@@ -2300,7 +2300,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                     .isTrue();
 
             // Workflow should complete
-            await().atMost(Duration.ofSeconds(300))
+            await().atMost(Duration.ofSeconds(30))
                     .until(workflowFuture::isDone);
 
             var output = workflowFuture.get();

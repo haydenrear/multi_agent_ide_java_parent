@@ -1,0 +1,13 @@
+<configuration>
+    <appender name="MULTI_AGENT_IDE_VALIDATION" class="ch.qos.logback.core.FileAppender">
+        <file>{{PARENT_DIR}}/multi-agent-ide-validation.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="MULTI_AGENT_IDE_VALIDATION" />
+    </root>
+</configuration>

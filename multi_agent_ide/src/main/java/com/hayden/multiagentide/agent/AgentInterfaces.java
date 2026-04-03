@@ -72,8 +72,14 @@ public interface AgentInterfaces {
                     String template,
                     Class<T> requestType,
                     Class<U> routingType,
-                    Class<V> resultType
-            ) { }
+                    Class<V> resultType,
+                    ErrorTemplates errorTemplates
+            ) {
+                public AgentActionMetadata(AgentType agentType, String agentName, String actionName, String methodName, String template,
+                                           Class<T> requestType, Class<U> routingType, Class<V> resultType) {
+                    this(agentType, agentName, actionName, methodName, template, requestType, routingType, resultType, null);
+                }
+            }
 
             // ── WorkflowAgent LLM-calling actions ──
             AgentActionMetadata<AgentModels.ContextManagerRequest, AgentModels.ContextManagerResultRouting, AgentModels.AgentResult>

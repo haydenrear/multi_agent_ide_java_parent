@@ -333,6 +333,70 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         return List.copyOf(this.history.entries());
     }
 
+    /**
+     * Records an error descriptor as a blackboard history entry.
+     * The actionName comes from the ErrorDescriptor variant's actionName field.
+     */
+    public synchronized void addError(ErrorDescriptor errorDescriptor) {
+        String actionName = switch (errorDescriptor) {
+            case ErrorDescriptor.NoError _ -> "no-error";
+            case ErrorDescriptor.CompactionError e -> e.actionName();
+            case ErrorDescriptor.ParseError e -> e.actionName();
+            case ErrorDescriptor.TimeoutError e -> e.actionName();
+            case ErrorDescriptor.UnparsedToolCallError e -> e.actionName();
+        };
+        this.history = this.history.withEntry(actionName, errorDescriptor);
+    }
+
+    /**
+     * Returns the most recent ErrorDescriptor from history, or null if none.
+     */
+    public synchronized ErrorDescriptor errorType() {
+        if (history == null || history.entries() == null) {
+            return null;
+        }
+        List<Entry> entries = history.entries();
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            Entry entry = entries.get(i);
+            if (entry == null) continue;
+            Object input = switch (entry) {
+                case DefaultEntry de -> de.input();
+                case MessageEntry _ -> null;
+            };
+            if (input instanceof ErrorDescriptor ed) {
+                return ed;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the compaction status based on CompactionError entries in history.
+     */
+    public synchronized ErrorDescriptor.CompactionStatus compactionStatus() {
+        long count = errorCount(ErrorDescriptor.CompactionError.class);
+        if (count == 0) return ErrorDescriptor.CompactionStatus.NONE;
+        if (count == 1) return ErrorDescriptor.CompactionStatus.FIRST;
+        return ErrorDescriptor.CompactionStatus.MULTIPLE;
+    }
+
+    /**
+     * Counts errors of a specific ErrorDescriptor type in history.
+     */
+    public synchronized long errorCount(Class<? extends ErrorDescriptor> errorType) {
+        if (history == null || history.entries() == null) {
+            return 0;
+        }
+        return history.entries().stream()
+                .filter(entry -> entry != null)
+                .map(entry -> switch (entry) {
+                    case DefaultEntry de -> de.input();
+                    case MessageEntry _ -> null;
+                })
+                .filter(input -> input != null && errorType.isInstance(input))
+                .count();
+    }
+
     public record StringMessage(ArtifactKey contextId, String message) implements HasContextId {}
 
     public record DefaultEntry(

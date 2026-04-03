@@ -5,6 +5,7 @@ import com.embabel.agent.api.common.OperationContext;
 import com.hayden.multiagentidelib.agent.*;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import org.jspecify.annotations.Nullable;
 import lombok.Builder;
 import lombok.With;
 import lombok.extern.slf4j.Slf4j;
@@ -35,21 +36,22 @@ public record PromptContext(
         OperationContext operationContext,
         String agentName,
         String actionName,
-        String methodName
+        String methodName,
+        @Nullable ErrorDescriptor errorDescriptor
 ) {
 
     public PromptContext(AgentType agentType, ArtifactKey currentContextId, BlackboardHistory blackboardHistory, AgentModels.AgentRequest previousRequest, AgentModels.AgentRequest currentRequest,
                          Map<String, Object> metadata, String templateName, Map<String, Object> modelWithFeedback, String modelName, OperationContext operationContext,
                          DecoratorContext decoratorContext) {
         this(agentType, currentContextId, blackboardHistory, previousRequest, currentRequest, metadata, new ArrayList<>(), templateName, Artifact.HashContext.defaultHashContext(), modelWithFeedback, modelName, operationContext,
-                decoratorContext.agentName(), decoratorContext.actionName(), decoratorContext.methodName());
+                decoratorContext.agentName(), decoratorContext.actionName(), decoratorContext.methodName(), null);
     }
 
     public PromptContext(AgentType agentType, ArtifactKey currentContextId, BlackboardHistory blackboardHistory, AgentModels.AgentRequest previousRequest, AgentModels.AgentRequest currentRequest,
                          Map<String, Object> metadata, String templateName, Map<String, Object> modelWithFeedback, String modelName, OperationContext operationContext,
                          String agentName, String actionName, String methodName) {
         this(agentType, currentContextId, blackboardHistory, previousRequest, currentRequest, metadata, new ArrayList<>(), templateName, Artifact.HashContext.defaultHashContext(), modelWithFeedback, modelName, operationContext,
-                agentName, actionName, methodName);
+                agentName, actionName, methodName, null);
     }
 
     public ArtifactKey chatId() {
