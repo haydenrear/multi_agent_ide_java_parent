@@ -70,25 +70,19 @@ public class DefaultLlmRunner implements LlmRunner {
                 .withFirstAvailableLlmOf("acp-chat-model", encodedAcpOptions)
                 .withPromptElements(promptElements.toArray(ContextualPromptElement[]::new));
 
-        var llmCallContext = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, null, model, context);
+        aiQuery = applyToolContext(aiQuery, toolContext);
+
+        var aiQueryWithTemplate = aiQuery
+                .creating(responseClass);
+
+        var llmCallContext = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, aiQueryWithTemplate, model, context);
 
         for (var l : llmCallDecorators) {
             llmCallContext = l.decorate(llmCallContext);
         }
 
-        aiQuery = applyToolContext(aiQuery, llmCallContext.tcc());
-
-        var aiQueryWithTemplate = aiQuery
-                .creating(responseClass);
-
-        var llmCallContextAfter = new LlmCallDecorator.LlmCallContext<>(promptContext, toolContext, aiQueryWithTemplate, model, context);
-
-        for (var l : llmCallDecorators) {
-            llmCallContextAfter = l.decorate(llmCallContextAfter);
-        }
-
         // Execute and return
-        ObjectCreator<T> tObjectCreator = llmCallContextAfter
+        ObjectCreator<T> tObjectCreator = llmCallContext
                 .templateOperations();
 
         T result = tObjectCreator
