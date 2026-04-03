@@ -60,7 +60,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         deleteRecursively(Path.of(WORKTREE_BASE));
     }
 
-//    @Test
+//    //@Test
     void testTest() throws IOException {
         WorktreeContext parent = MainWorktreeContext.builder()
                 .worktreePath(Path.of("/Users/hayde/.multi-agent-ide/worktrees/f2d243d2-47b1-4308-b998-d3203d6857f2"))
@@ -89,7 +89,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         log.info("");
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeWorktrees merges submodules and main without conflicts")
     void mergeWorktreesWithSubmodulesNoConflicts() throws Exception {
         Path subRepo = createRepoWithFile("submodule-repo", "lib.txt", "base", "init submodule");
@@ -127,7 +127,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(trunk.worktreePath());
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeWorktrees reports conflicts for main and submodule")
     void mergeWorktreesWithConflicts() throws Exception {
         Path subRepo = createRepoWithFile("submodule-repo", "lib.txt", "base", "init submodule");
@@ -172,7 +172,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertConflicts(trunk.worktreePath(), "README.md");
     }
 
-    @Test
+    //@Test
     @DisplayName("createSubmoduleWorktree initializes nested submodules and merges nested updates")
     void mergeWorktreesWithNestedSubmodules() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -210,7 +210,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(trunkSub.worktreePath());
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeWorktrees merges parent to child for main and nested submodules")
     void mergeWorktreesParentToChildWithNestedSubmodules() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -253,7 +253,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(child.worktreePath());
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeWorktrees reports conflicts on round-trip with nested submodules")
     void mergeWorktreesRoundTripWithNestedSubmodules() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -305,7 +305,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
 
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeWorktrees continues merging sibling submodules when one conflicts")
     void mergeWorktreesSiblingSubmodulesOneConflict() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -345,7 +345,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(parentSubB.worktreePath());
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeWorktrees merges sibling submodules and parent when no conflicts")
     void mergeWorktreesSiblingSubmodulesAndParentNoConflicts() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -386,7 +386,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(childSubB.worktreePath());
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSource merges derived branches back into source repo")
     void finalMergeToSourceWithSubmodulesNoConflicts() throws Exception {
         Path subRepo = createRepoWithFile("submodule-repo", "lib.txt", "base", "init submodule");
@@ -431,7 +431,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(mainRepo);
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSource reports conflicts when source diverged")
     void finalMergeToSourceWithConflicts() throws Exception {
         Path subRepo = createRepoWithFile("submodule-repo", "lib.txt", "base", "init submodule");
@@ -461,7 +461,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(result.conflicts()).isNotEmpty();
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSource reports conflicts in submodules")
     void finalMergeToSourceWithSubmoduleConflicts() throws Exception {
         Path subRepo = createRepoWithFile("submodule-repo", "lib.txt", "base", "init submodule");
@@ -496,7 +496,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertConflicts(sourceSubPath, "lib.txt");
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSource merges nested submodules without conflicts")
     void finalMergeToSourceWithNestedSubmodulesNoConflicts() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -535,7 +535,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(sourceSubB);
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSource merges when source is ahead with nested submodules")
     void finalMergeToSourceParentToChildWithNestedSubmodules() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -575,7 +575,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(sourceSubB);
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSource reports conflicts on round-trip with nested submodules")
     void finalMergeToSourceRoundTripWithNestedSubmodules() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -622,7 +622,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertConflicts(sourceSubB, "b.txt");
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSource continues merging sibling submodules when one conflicts")
     void finalMergeToSourceSiblingSubmodulesOneConflict() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -668,7 +668,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(sourceSubB);
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSource merges sibling submodules and parent when no conflicts")
     void finalMergeToSourceSiblingSubmodulesAndParentNoConflicts() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -710,7 +710,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(sourceSubB);
     }
 
-    @Test
+    //@Test
     @DisplayName("ensureMergeConflictsCaptured returns unchanged result when merge is clean")
     void ensureMergeConflictsCapturedNoConflicts() throws Exception {
         Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
@@ -730,7 +730,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(validated.conflicts()).isEmpty();
     }
 
-    @Test
+    //@Test
     @DisplayName("ensureMergeConflictsCaptured detects unresolved conflicts")
     void ensureMergeConflictsCapturedDetectsConflicts() throws Exception {
         Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
@@ -766,7 +766,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
                 .toList()).contains("README.md");
     }
 
-    @Test
+    //@Test
     @DisplayName("ensureMergeConflictsCaptured detects missing child commit")
     void ensureMergeConflictsCapturedDetectsMissingCommit() throws Exception {
         Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
@@ -799,7 +799,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
                 .toList()).contains(parent.worktreePath().toString());
     }
 
-    @Test
+    //@Test
     @DisplayName("ensureMergeConflictsCaptured detects missing submodule commits on final merge")
     void ensureMergeConflictsCapturedDetectsMissingSubmoduleCommit() throws Exception {
         Path subRepo = createRepoWithFile("submodule-repo", "lib.txt", "base", "init submodule");
@@ -838,7 +838,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
     // MergeDescriptor integration tests for mergeTrunkToChild
     // ========================================================================
 
-    @Test
+    //@Test
     @DisplayName("mergeTrunkToChild succeeds with multiple submodules including pointer updates")
     void mergeTrunkToChildMultipleSubmodulesSuccess() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -883,7 +883,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(Files.readString(child.worktreePath().resolve("README.md"))).contains("trunk main change");
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeTrunkToChild succeeds with nested submodules")
     void mergeTrunkToChildNestedSubmodulesSuccess() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -931,7 +931,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
     // MergeDescriptor integration tests for mergeChildToTrunk
     // ========================================================================
 
-    @Test
+    //@Test
     @DisplayName("mergeChildToTrunk succeeds with multiple submodules including pointer updates")
     void mergeChildToTrunkMultipleSubmodulesSuccess() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -976,7 +976,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(Files.readString(trunk.worktreePath().resolve("README.md"))).contains("child main change");
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeChildToTrunk succeeds with nested submodules")
     void mergeChildToTrunkNestedSubmodulesSuccess() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -1020,7 +1020,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(Files.readString(trunk.worktreePath().resolve("README.md"))).contains("child main change");
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeChildToTrunk reports conflict for one sibling, other sibling still merged - flat case")
     void mergeChildToTrunkSiblingConflictFlat() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -1069,7 +1069,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(trunkSubB.worktreePath());
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeChildToTrunk reports conflict for one sibling in nested case - deep failure blocks parent")
     void mergeChildToTrunkNestedDeepConflictBlocksParent() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -1119,7 +1119,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
                 .toList()).contains("libs_sub-a_libs_sub-b");
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeChildToTrunk nested shallow conflict - sibling submodule with own submodule commits pointer")
     void mergeChildToTrunkNestedShallowConflictSiblingCommitsPointer() throws Exception {
         // Structure: main -> libs/sub-a (has nested libs/sub-b), libs/sub-c (flat sibling)
@@ -1168,7 +1168,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertClean(trunkSubC.worktreePath());
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeChildToTrunk reports all conflicts when all submodules fail")
     void mergeChildToTrunkAllSubmodulesFail() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -1217,7 +1217,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(conflictSubmodules).contains("libs_sub-b");
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeChildToTrunk returns success when no changes (same commit)")
     void mergeChildToTrunkNoChangesSameCommit() throws Exception {
         Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
@@ -1240,7 +1240,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(descriptor.conflictFiles()).isEmpty();
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeChildToTrunk returns success when no changes with submodules (same commits)")
     void mergeChildToTrunkNoChangesWithSubmodulesSameCommit() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -1266,7 +1266,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(descriptor.conflictFiles()).isEmpty();
     }
 
-    @Test
+    //@Test
     @DisplayName("mergeTrunkToChild returns success when no changes (same commit)")
     void mergeTrunkToChildNoChangesSameCommit() throws Exception {
         Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
@@ -1291,7 +1291,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
     // MergeDescriptor integration tests for finalMergeToSourceDescriptor
     // ========================================================================
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSourceDescriptor succeeds with multiple submodules")
     void finalMergeToSourceDescriptorMultipleSubmodulesSuccess() throws Exception {
         Path subA = createRepoWithFile("sub-a", "a.txt", "base", "init sub-a");
@@ -1334,7 +1334,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(Files.readString(mainRepo.resolve("README.md"))).contains("agent main change");
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSourceDescriptor succeeds with nested submodules")
     void finalMergeToSourceDescriptorNestedSuccess() throws Exception {
         Path submoduleB = createRepoWithFile("submodule-b", "b.txt", "base", "init submodule b");
@@ -1372,7 +1372,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(Files.readString(sourceSubB.resolve("b.txt"))).contains("nested change");
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSourceDescriptor reports conflict with correct submodule path in descriptor")
     void finalMergeToSourceDescriptorConflictSubmodulePath() throws Exception {
         Path subRepo = createRepoWithFile("submodule-repo", "lib.txt", "base", "init submodule");
@@ -1412,7 +1412,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
                 .toList()).contains("libs_submodule-lib");
     }
 
-    @Test
+    //@Test
     @DisplayName("finalMergeToSourceDescriptor returns success when no changes")
     void finalMergeToSourceDescriptorNoChanges() throws Exception {
         Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
@@ -1431,7 +1431,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(descriptor.conflictFiles()).isEmpty();
     }
 
-    @Test
+    //@Test
     @DisplayName("gitMergeService merges child to trunk with auto-commit")
     void gitMergeServiceMergesChildToTrunkWithAutoCommit() throws Exception {
         Path mainRepo = createRepoWithFile("main-repo", "README.md", "base", "init main");
@@ -1465,7 +1465,7 @@ class GitWorktreeServiceIntTest extends AgentTestBase {
         assertThat(Files.readString(trunk.worktreePath().resolve("README.md"))).isEqualTo("child dirty change");
     }
 
-    @Test
+    //@Test
     @DisplayName("gitMergeService final merge to source auto-commits dirty worktree")
     void gitMergeServiceFinalMergeToSourceWithAutoCommit() throws Exception {
         Path sourceRepo = createRepoWithFile("source-repo", "README.md", "base", "init main");

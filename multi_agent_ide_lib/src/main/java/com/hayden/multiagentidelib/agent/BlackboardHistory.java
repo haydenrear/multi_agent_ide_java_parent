@@ -719,11 +719,11 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             case Events.ArtifactEvent artifactEvent ->
                     new ArrayList<>();
             case Events.ChatSessionCreatedEvent chatSessionCreatedEvent ->
-                    new ArrayList<>();
+                    buildTargets(chatSessionCreatedEvent.nodeId(), chatSessionCreatedEvent.chatModelId().value());
             case Events.ChatSessionClosedEvent chatSessionClosedEvent ->
-                    new ArrayList<>();
-            case Events.ChatSessionResetEvent chatSessionResetEvent ->
-                    new ArrayList<>();
+                    buildTargets(chatSessionClosedEvent.nodeId(), chatSessionClosedEvent.sessionId());
+            case Events.ChatSessionResetEvent chatEvent ->
+                    buildTargets(chatEvent.nodeId(), chatEvent.sessionId());
             case Events.AiFilterSessionEvent aiFilterSessionEvent ->
                     buildTargets(aiFilterSessionEvent.nodeId(), null);
             case Events.TuiInteractionGraphEvent tuiInteractionGraphEvent ->

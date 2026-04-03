@@ -42,5 +42,5 @@ tasks.test {
 }
 
 tasks.compileJava {
-    dependsOn("processYmlFiles")
+    dependsOn("processYmlFiles", "processXmlFiles")
 }

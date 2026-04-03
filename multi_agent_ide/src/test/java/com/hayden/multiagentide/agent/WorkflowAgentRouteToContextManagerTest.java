@@ -2,6 +2,7 @@ package com.hayden.multiagentide.agent;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentProcess;
+import com.hayden.multiagentide.service.AgentExecutor;
 import com.hayden.multiagentide.service.InterruptService;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.agent.*;
@@ -34,6 +35,7 @@ class WorkflowAgentRouteToContextManagerTest {
         LlmRunner llmRunner = mock(LlmRunner.class);
         ContextManagerTools contextManagerTools = mock(ContextManagerTools.class);
         BlackboardHistoryService blackboardHistoryService = new BlackboardHistoryService(new ArrayList<>());
+        AgentExecutor agentExecutor = mock(AgentExecutor.class);
 
         AgentInterfaces.WorkflowAgent workflowAgent = new AgentInterfaces.WorkflowAgent(
                 workflowGraphService,
@@ -41,7 +43,8 @@ class WorkflowAgentRouteToContextManagerTest {
                 promptContextFactory,
                 llmRunner,
                 contextManagerTools,
-                blackboardHistoryService
+                blackboardHistoryService,
+                agentExecutor
         );
 
         OperationContext context = mock(OperationContext.class);

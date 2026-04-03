@@ -12,6 +12,7 @@ plugins {
     id("com.hayden.git")
     id("com.hayden.mcp")
     id("com.hayden.java-conventions")
+    id("com.hayden.paths")
 }
 
 description = "utilitymodule"
@@ -34,4 +35,8 @@ dependencies {
 //    annotationProcessor(project(":inject_fields"))
 //    testAnnotationProcessor(project(":inject_fields"))
 //    api(project(":inject_fields"))
+}
+
+tasks.compileJava {
+    dependsOn("processYmlFiles", "processXmlFiles")
 }

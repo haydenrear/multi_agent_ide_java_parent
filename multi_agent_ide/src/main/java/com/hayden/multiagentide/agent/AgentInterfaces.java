@@ -22,6 +22,7 @@ import com.hayden.multiagentide.agent.decorator.request.ResultsRequestDecorator;
 import com.hayden.multiagentide.agent.decorator.result.DispatchedAgentResultDecorator;
 import com.hayden.multiagentide.agent.decorator.result.FinalResultDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
+import com.hayden.multiagentide.service.AgentExecutor;
 import com.hayden.multiagentidelib.agent.*;
 import com.hayden.multiagentidelib.events.DegenerateLoopException;
 import com.hayden.multiagentide.filter.service.FilterExecutionService;
@@ -533,6 +534,7 @@ public interface AgentInterfaces {
         private final LlmRunner llmRunner;
         private final ContextManagerTools contextManagerTools;
         private final BlackboardHistoryService blackboardHistoryService;
+        private final AgentExecutor agentExecutor;
 
         @Autowired(required = false)
         private List<ResultDecorator> resultDecorators = new ArrayList<>();
@@ -614,63 +616,20 @@ public interface AgentInterfaces {
                     .build()
                     .addRequest(lastRequest);
 
-            request = decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_CONTEXT_MANAGER_STUCK,
-                    METHOD_HANDLE_STUCK,
-                    lastRequest
-            );
-
-            Map<String, Object> model = new HashMap<>(Map.of(
-                    "reason",
-                    loopSummary));
-
-            Optional.ofNullable(request.goal())
-                            .ifPresent(g -> model.put("goal", g));
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.CONTEXT_MANAGER,
-                    request,
-                    lastRequest,
-                    request,
-                    context,
-                    ACTION_CONTEXT_MANAGER_STUCK,
-                    METHOD_HANDLE_STUCK,
-                    TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
-                    model
-            );
-
-            AgentModels.ContextManagerResultRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.CONTEXT_MANAGER,
-                            request,
-                            lastRequest,
-                            request,
-                            context,
-                            ACTION_CONTEXT_MANAGER_STUCK,
-                            METHOD_HANDLE_STUCK,
-                            TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
-                            ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools))
-                    ),
-                    AgentModels.ContextManagerResultRouting.class,
-                    context
-            );
-
-            routing = decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_CONTEXT_MANAGER_STUCK,
-                    METHOD_HANDLE_STUCK,
-                    lastRequest
-            );
+            AgentModels.ContextManagerResultRouting routing = agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.ContextManagerRequest, AgentModels.ContextManagerResultRouting, AgentModels.AgentResult, AgentModels.ContextManagerResultRouting>builder()
+                            .responseClazz(AgentModels.ContextManagerResultRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.CONTEXT_MANAGER_STUCK)
+                            .previousRequest(lastRequest)
+                            .currentRequest(request)
+                            .templateModelProducer(a -> {
+                                var m = new HashMap<String, Object>(Map.of("reason", loopSummary));
+                                Optional.ofNullable(a.enrichedRequest().goal()).ifPresent(g -> m.put("goal", g));
+                                return m;
+                            })
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools)))
+                            .build());
 
             if (agentProcess != null) {
                 agentProcess.addObject(routing);
@@ -764,65 +723,20 @@ public interface AgentInterfaces {
 
             AgentModels.AgentRequest lastRequest = BlackboardHistory.findLastNonContextRequest(history);
 
-            request = decorateRequest(
-                    request,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_CONTEXT_MANAGER,
-                    METHOD_CONTEXT_MANAGER,
-                    lastRequest
-            );
-
-            Map<String, Object> model = new HashMap<>(Map.of(
-                    "reason",
-                    loopSummary));
-
-            Optional.ofNullable(request.goal())
-                    .ifPresent(g -> model.put("goal", g));
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.CONTEXT_MANAGER,
-                    request,
-                    lastRequest,
-                    request,
-                    context,
-                    ACTION_CONTEXT_MANAGER,
-                    METHOD_CONTEXT_MANAGER,
-                    TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
-                    model
-            );
-
-            AgentModels.ContextManagerResultRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.CONTEXT_MANAGER,
-                            request,
-                            lastRequest,
-                            request,
-                            context,
-                            ACTION_CONTEXT_MANAGER,
-                            METHOD_CONTEXT_MANAGER,
-                            TEMPLATE_WORKFLOW_CONTEXT_MANAGER,
-                            ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools))
-                    ),
-                    AgentModels.ContextManagerResultRouting.class,
-                    context
-            );
-
-            routing = decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_CONTEXT_MANAGER,
-                    METHOD_CONTEXT_MANAGER,
-                    lastRequest
-            );
-
-            return routing;
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.ContextManagerRequest, AgentModels.ContextManagerResultRouting, AgentModels.AgentResult, AgentModels.ContextManagerResultRouting>builder()
+                            .responseClazz(AgentModels.ContextManagerResultRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.CONTEXT_MANAGER_REQUEST)
+                            .previousRequest(lastRequest)
+                            .currentRequest(request)
+                            .templateModelProducer(a -> {
+                                var m = new HashMap<String, Object>(Map.of("reason", loopSummary));
+                                Optional.ofNullable(a.enrichedRequest().goal()).ifPresent(g -> m.put("goal", g));
+                                return m;
+                            })
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.of(ToolAbstraction.fromToolCarrier(contextManagerTools)))
+                            .build());
         }
 
         @Action(canRerun = true)
@@ -833,62 +747,21 @@ public interface AgentInterfaces {
             AgentModels.AgentRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.AgentRequest.class);
 
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_ORCHESTRATOR,
-                    METHOD_COORDINATE_WORKFLOW,
-                    lastRequest
-            );
-            var model = new HashMap<String, Object>();
-
-            Optional.ofNullable(input.goal())
-                    .ifPresent(g -> model.put("goal", g));
-            Optional.ofNullable(input.phase())
-                    .ifPresent(g -> model.put("phase", g));
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.ORCHESTRATOR,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_ORCHESTRATOR,
-                    METHOD_COORDINATE_WORKFLOW,
-                    TEMPLATE_WORKFLOW_ORCHESTRATOR,
-                    model
-            );
-
-            AgentModels.OrchestratorRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_ORCHESTRATOR,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.ORCHESTRATOR,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_ORCHESTRATOR,
-                            METHOD_COORDINATE_WORKFLOW,
-                            TEMPLATE_WORKFLOW_ORCHESTRATOR,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.OrchestratorRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_ORCHESTRATOR,
-                    METHOD_COORDINATE_WORKFLOW,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.OrchestratorRequest, AgentModels.OrchestratorRouting, AgentModels.AgentResult, AgentModels.OrchestratorRouting>builder()
+                            .responseClazz(AgentModels.OrchestratorRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.COORDINATE_WORKFLOW)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> {
+                                var m = new HashMap<String, Object>();
+                                Optional.ofNullable(a.enrichedRequest().goal()).ifPresent(g -> m.put("goal", g));
+                                Optional.ofNullable(a.enrichedRequest().phase()).ifPresent(g -> m.put("phase", g));
+                                return m;
+                            })
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
 
         /**
@@ -1293,62 +1166,21 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_ORCHESTRATOR_COLLECTOR,
-                    METHOD_CONSOLIDATE_WORKFLOW_OUTPUTS,
-                    lastRequest
-            );
-            var model = new HashMap<String, Object>();
-
-            Optional.ofNullable(input.goal())
-                    .ifPresent(g -> model.put("goal", g));
-            Optional.ofNullable(input.phase())
-                    .ifPresent(g -> model.put("phase", g));
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.ORCHESTRATOR_COLLECTOR,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_ORCHESTRATOR_COLLECTOR,
-                    METHOD_CONSOLIDATE_WORKFLOW_OUTPUTS,
-                    TEMPLATE_WORKFLOW_ORCHESTRATOR_COLLECTOR,
-                    model
-            );
-
-            AgentModels.OrchestratorCollectorRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_ORCHESTRATOR_COLLECTOR,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.ORCHESTRATOR_COLLECTOR,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_ORCHESTRATOR_COLLECTOR,
-                            METHOD_CONSOLIDATE_WORKFLOW_OUTPUTS,
-                            TEMPLATE_WORKFLOW_ORCHESTRATOR_COLLECTOR,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.OrchestratorCollectorRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_ORCHESTRATOR_COLLECTOR,
-                    METHOD_CONSOLIDATE_WORKFLOW_OUTPUTS,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.OrchestratorCollectorRequest, AgentModels.OrchestratorCollectorRouting, AgentModels.OrchestratorCollectorResult, AgentModels.OrchestratorCollectorRouting>builder()
+                            .responseClazz(AgentModels.OrchestratorCollectorRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.CONSOLIDATE_WORKFLOW_OUTPUTS)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> {
+                                var m = new HashMap<String, Object>();
+                                Optional.ofNullable(a.enrichedRequest().goal()).ifPresent(g -> m.put("goal", g));
+                                Optional.ofNullable(a.enrichedRequest().phase()).ifPresent(g -> m.put("phase", g));
+                                return m;
+                            })
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
 
         @Action(canRerun = true)
@@ -1366,60 +1198,18 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_COLLECTOR,
-                    METHOD_CONSOLIDATE_DISCOVERY_FINDINGS,
-                    lastRequest
-            );
-            Map<String, Object> model = Map.of(
-                    "goal", Optional.ofNullable(input.goal()).orElse(""),
-                    "discoveryResults", Optional.ofNullable(input.discoveryResults()).orElse("")
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.DISCOVERY_COLLECTOR,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_DISCOVERY_COLLECTOR,
-                    METHOD_CONSOLIDATE_DISCOVERY_FINDINGS,
-                    TEMPLATE_WORKFLOW_DISCOVERY_COLLECTOR,
-                    model
-            );
-
-            AgentModels.DiscoveryCollectorRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_DISCOVERY_COLLECTOR,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.DISCOVERY_COLLECTOR,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_DISCOVERY_COLLECTOR,
-                            METHOD_CONSOLIDATE_DISCOVERY_FINDINGS,
-                            TEMPLATE_WORKFLOW_DISCOVERY_COLLECTOR,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.DiscoveryCollectorRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_COLLECTOR,
-                    METHOD_CONSOLIDATE_DISCOVERY_FINDINGS,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.DiscoveryCollectorRequest, AgentModels.DiscoveryCollectorRouting, AgentModels.DiscoveryCollectorResult, AgentModels.DiscoveryCollectorRouting>builder()
+                            .responseClazz(AgentModels.DiscoveryCollectorRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.CONSOLIDATE_DISCOVERY_FINDINGS)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> Map.of(
+                                    "goal", Optional.ofNullable(a.enrichedRequest().goal()).orElse(""),
+                                    "discoveryResults", Optional.ofNullable(a.enrichedRequest().discoveryResults()).orElse("")))
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
 
         @Action(canRerun = true)
@@ -1437,60 +1227,18 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_COLLECTOR,
-                    METHOD_CONSOLIDATE_PLANS_INTO_TICKETS,
-                    lastRequest
-            );
-            Map<String, Object> model = Map.of(
-                    "goal", Optional.ofNullable(input.goal()).orElse(""),
-                    "planningResults", Optional.ofNullable(input.planningResults()).orElse("")
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.PLANNING_COLLECTOR,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_PLANNING_COLLECTOR,
-                    METHOD_CONSOLIDATE_PLANS_INTO_TICKETS,
-                    TEMPLATE_WORKFLOW_PLANNING_COLLECTOR,
-                    model
-            );
-
-            AgentModels.PlanningCollectorRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_PLANNING_COLLECTOR,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.PLANNING_COLLECTOR,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_PLANNING_COLLECTOR,
-                            METHOD_CONSOLIDATE_PLANS_INTO_TICKETS,
-                            TEMPLATE_WORKFLOW_PLANNING_COLLECTOR,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.PlanningCollectorRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_COLLECTOR,
-                    METHOD_CONSOLIDATE_PLANS_INTO_TICKETS,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.PlanningCollectorRequest, AgentModels.PlanningCollectorRouting, AgentModels.PlanningCollectorResult, AgentModels.PlanningCollectorRouting>builder()
+                            .responseClazz(AgentModels.PlanningCollectorRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.CONSOLIDATE_PLANS_INTO_TICKETS)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> Map.of(
+                                    "goal", Optional.ofNullable(a.enrichedRequest().goal()).orElse(""),
+                                    "planningResults", Optional.ofNullable(a.enrichedRequest().planningResults()).orElse("")))
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
 
         @Action(canRerun = true)
@@ -1508,60 +1256,18 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_COLLECTOR,
-                    METHOD_CONSOLIDATE_TICKET_RESULTS,
-                    lastRequest
-            );
-            Map<String, Object> model = Map.of(
-                    "goal", Optional.ofNullable(input.goal()).orElse(""),
-                    "ticketResults", input.ticketResults()
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.TICKET_COLLECTOR,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_TICKET_COLLECTOR,
-                    METHOD_CONSOLIDATE_TICKET_RESULTS,
-                    TEMPLATE_WORKFLOW_TICKET_COLLECTOR,
-                    model
-            );
-
-            AgentModels.TicketCollectorRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_TICKET_COLLECTOR,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.TICKET_COLLECTOR,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_TICKET_COLLECTOR,
-                            METHOD_CONSOLIDATE_TICKET_RESULTS,
-                            TEMPLATE_WORKFLOW_TICKET_COLLECTOR,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.TicketCollectorRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_COLLECTOR,
-                    METHOD_CONSOLIDATE_TICKET_RESULTS,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.TicketCollectorRequest, AgentModels.TicketCollectorRouting, AgentModels.TicketCollectorResult, AgentModels.TicketCollectorRouting>builder()
+                            .responseClazz(AgentModels.TicketCollectorRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.CONSOLIDATE_TICKET_RESULTS)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> Map.of(
+                                    "goal", Optional.ofNullable(a.enrichedRequest().goal()).orElse(""),
+                                    "ticketResults", a.enrichedRequest().ticketResults()))
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
 
 
@@ -1580,58 +1286,16 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_ORCHESTRATOR,
-                    METHOD_KICK_OFF_ANY_NUMBER_OF_AGENTS_FOR_CODE_SEARCH,
-                    lastRequest
-            );
-            var model = new HashMap<String, Object>();
-            model.put("goal", input.goal());
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.DISCOVERY_ORCHESTRATOR,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_DISCOVERY_ORCHESTRATOR,
-                    METHOD_KICK_OFF_ANY_NUMBER_OF_AGENTS_FOR_CODE_SEARCH,
-                    TEMPLATE_WORKFLOW_DISCOVERY_ORCHESTRATOR,
-                    model
-            );
-
-            AgentModels.DiscoveryOrchestratorRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_DISCOVERY_ORCHESTRATOR,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.DISCOVERY_ORCHESTRATOR,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_DISCOVERY_ORCHESTRATOR,
-                            METHOD_KICK_OFF_ANY_NUMBER_OF_AGENTS_FOR_CODE_SEARCH,
-                            TEMPLATE_WORKFLOW_DISCOVERY_ORCHESTRATOR,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.DiscoveryOrchestratorRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_ORCHESTRATOR,
-                    METHOD_KICK_OFF_ANY_NUMBER_OF_AGENTS_FOR_CODE_SEARCH,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.DiscoveryOrchestratorRequest, AgentModels.DiscoveryOrchestratorRouting, AgentModels.DiscoveryOrchestratorResult, AgentModels.DiscoveryOrchestratorRouting>builder()
+                            .responseClazz(AgentModels.DiscoveryOrchestratorRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.KICK_OFF_DISCOVERY_AGENTS)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> Map.of("goal", a.enrichedRequest().goal()))
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
 
         @Action(canRerun = true)
@@ -1642,124 +1306,14 @@ public interface AgentInterfaces {
             AgentModels.DiscoveryOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
+                throw AgentInterfaces.degenerateLoop(eventBus, context,
                         "Discovery dispatch request not found - cannot dispatch discovery agents.",
                         METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
                         AgentModels.DiscoveryAgentRequests.class,
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_DISPATCH,
-                    METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
-                    lastRequest
-            );
-            String goal = resolveDiscoveryGoal(context, input);
-            List<AgentModels.DiscoveryAgentResult> discoveryResults = new ArrayList<>();
-            var discoveryDispatchAgent = context.agentPlatform().agents()
-                    .stream().filter(a -> Objects.equals(a.getName(), AgentInterfaces.WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT))
-                    .findAny().orElse(null);
-            log.info("dispatchDiscoveryAgentRequests: container contextId={} | requestCount={}",
-                    input.contextId() != null ? input.contextId().value() : "null",
-                    input.requests() != null ? input.requests().size() : 0);
-            int idx = 0;
-            for (AgentModels.DiscoveryAgentRequest request : input.requests()) {
-                if (request == null) {
-                    continue;
-                }
-
-                log.info("dispatchDiscoveryAgentRequests: DISPATCHING child[{}] | childContextId={} | subdomain={}",
-                        idx, request.contextId() != null ? request.contextId().value() : "null",
-                        request.subdomainFocus());
-                idx++;
-
-                context.addObject(input);
-
-                AgentModels.DiscoveryAgentRouting response = runSubProcess(
-                        context,
-                        request,
-                        discoveryDispatchAgent,
-                        AgentModels.DiscoveryAgentRouting.class
-                );
-
-                if (response.interruptRequest() != null) {
-//                  has to route to interrupt request, without llm.
-                    return AgentModels.DiscoveryAgentDispatchRouting.builder()
-                            .agentInterruptRequest(response.interruptRequest())
-                            .build();
-                }
-
-                if (response.agentResult() != null)
-                    discoveryResults.add(response.agentResult());
-            }
-
-            var d = AgentModels.DiscoveryAgentResults.builder()
-                    .result(discoveryResults)
-                    .worktreeContext(input.worktreeContext())
-                    .build();
-
-            // Decorate with ResultsRequestDecorator chain (Phase 2: child→trunk merge)
-            d = DecorateRequestResults.decorateResultsRequest(
-                    d,
-                    context,
-                    resultsRequestDecorators,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_DISPATCH,
-                    METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
-                    lastRequest
-            );
-
-            Map<String, Object> model = Map.of(
-                    "goal",
-                    goal,
-                    "discoveryResults",
-                    d.prettyPrint(new AgentPretty.AgentSerializationCtx.CollectorSerialization())
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.DISCOVERY_AGENT_DISPATCH,
-                    d,
-                    lastRequest,
-                    d,
-                    context,
-                    ACTION_DISCOVERY_DISPATCH,
-                    METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
-                    TEMPLATE_WORKFLOW_DISCOVERY_DISPATCH,
-                    model
-            );
-
-            AgentModels.DiscoveryAgentDispatchRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_DISCOVERY_DISPATCH,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.DISCOVERY_AGENT_DISPATCH,
-                            d,
-                            lastRequest,
-                            d,
-                            context,
-                            ACTION_DISCOVERY_DISPATCH,
-                            METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
-                            TEMPLATE_WORKFLOW_DISCOVERY_DISPATCH,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.DiscoveryAgentDispatchRouting.class,
-                    context
-            );
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_DISPATCH,
-                    METHOD_DISPATCH_DISCOVERY_AGENT_REQUESTS,
-                    lastRequest
-            );
+            return agentExecutor.runDiscoveryDispatch(input, context, lastRequest);
         }
 
         @Action(canRerun = true)
@@ -1777,62 +1331,21 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_ORCHESTRATOR,
-                    METHOD_DECOMPOSE_PLAN_AND_CREATE_WORK_ITEMS,
-                    lastRequest
-            );
-            var model = new HashMap<String, Object>();
-
-
-            Optional.ofNullable(input.goal())
-                    .ifPresent(p -> model.put("goal", p));
-            model.put("phase", "PLANNING");
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.PLANNING_ORCHESTRATOR,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_PLANNING_ORCHESTRATOR,
-                    METHOD_DECOMPOSE_PLAN_AND_CREATE_WORK_ITEMS,
-                    TEMPLATE_WORKFLOW_PLANNING_ORCHESTRATOR,
-                    model
-            );
-
-            AgentModels.PlanningOrchestratorRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_PLANNING_ORCHESTRATOR,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.PLANNING_ORCHESTRATOR,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_PLANNING_ORCHESTRATOR,
-                            METHOD_DECOMPOSE_PLAN_AND_CREATE_WORK_ITEMS,
-                            TEMPLATE_WORKFLOW_PLANNING_ORCHESTRATOR,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.PlanningOrchestratorRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_ORCHESTRATOR,
-                    METHOD_DECOMPOSE_PLAN_AND_CREATE_WORK_ITEMS,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.PlanningOrchestratorRequest, AgentModels.PlanningOrchestratorRouting, AgentModels.PlanningOrchestratorResult, AgentModels.PlanningOrchestratorRouting>builder()
+                            .responseClazz(AgentModels.PlanningOrchestratorRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.DECOMPOSE_PLAN)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> {
+                                var m = new HashMap<String, Object>();
+                                Optional.ofNullable(a.enrichedRequest().goal()).ifPresent(p -> m.put("goal", p));
+                                m.put("phase", "PLANNING");
+                                return m;
+                            })
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
 
         @Action(canRerun = true)
@@ -1843,117 +1356,14 @@ public interface AgentInterfaces {
             AgentModels.PlanningOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.PlanningOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
+                throw AgentInterfaces.degenerateLoop(eventBus, context,
                         "Planning dispatch request not found - cannot dispatch planning agents.",
                         METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
                         AgentModels.PlanningAgentRequests.class,
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_DISPATCH,
-                    METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
-                    lastRequest
-            );
-
-            String goal = input.goal();
-
-            var planningDispatchAgent = context.agentPlatform().agents()
-                    .stream().filter(a -> Objects.equals(a.getName(), AgentInterfaces.WORKFLOW_PLANNING_DISPATCH_SUBAGENT))
-                    .findAny().orElse(null);
-
-            List<AgentModels.PlanningAgentResult> planningResults = new ArrayList<>();
-
-            for (AgentModels.PlanningAgentRequest request : input.requests()) {
-                if (request == null) {
-                    continue;
-                }
-
-                context.addObject(input);
-
-                AgentModels.PlanningAgentRouting response = runSubProcess(
-                        context,
-                        request,
-                        planningDispatchAgent,
-                        AgentModels.PlanningAgentRouting.class
-                );
-
-                if (response.interruptRequest() != null)
-                    return AgentModels.PlanningAgentDispatchRouting.builder()
-                            .agentInterruptRequest(response.interruptRequest())
-                            .build();
-
-                if (response.agentResult() != null)
-                    planningResults.add(response.agentResult());
-            }
-
-            AgentModels.PlanningAgentResults planningAgentResults = AgentModels.PlanningAgentResults.builder()
-                    .planningAgentResults(planningResults)
-                    .worktreeContext(input.worktreeContext())
-                    .build();
-
-            // Decorate with ResultsRequestDecorator chain (Phase 2: child→trunk merge)
-            planningAgentResults = DecorateRequestResults.decorateResultsRequest(
-                    planningAgentResults,
-                    context,
-                    resultsRequestDecorators,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_DISPATCH,
-                    METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
-                    lastRequest
-            );
-
-            Map<String, Object> model = new HashMap<>();
-
-            Optional.ofNullable(goal)
-                    .ifPresent(g -> model.put("goal", g));
-            model.put("planningResults", planningAgentResults.prettyPrint(new AgentPretty.AgentSerializationCtx.CollectorSerialization()));
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.PLANNING_AGENT_DISPATCH,
-                    planningAgentResults,
-                    lastRequest,
-                    planningAgentResults,
-                    context,
-                    ACTION_PLANNING_DISPATCH,
-                    METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
-                    TEMPLATE_WORKFLOW_PLANNING_DISPATCH,
-                    model
-            );
-
-            AgentModels.PlanningAgentDispatchRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_PLANNING_DISPATCH,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.PLANNING_AGENT_DISPATCH,
-                            planningAgentResults,
-                            lastRequest,
-                            planningAgentResults,
-                            context,
-                            ACTION_PLANNING_DISPATCH,
-                            METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
-                            TEMPLATE_WORKFLOW_PLANNING_DISPATCH,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.PlanningAgentDispatchRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_DISPATCH,
-                    METHOD_DISPATCH_PLANNING_AGENT_REQUESTS,
-                    lastRequest
-            );
+            return agentExecutor.runPlanningDispatch(input, context, lastRequest);
         }
 
         @Action(canRerun = true)
@@ -2002,57 +1412,16 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_ORCHESTRATOR,
-                    METHOD_ORCHESTRATE_TICKET_EXECUTION,
-                    lastRequest
-            );
-            Map<String, Object> model = Map.of("goal", input.goal());
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.TICKET_ORCHESTRATOR,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_TICKET_ORCHESTRATOR,
-                    METHOD_ORCHESTRATE_TICKET_EXECUTION,
-                    TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR,
-                    model
-            );
-
-            AgentModels.TicketOrchestratorRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.TICKET_ORCHESTRATOR,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_TICKET_ORCHESTRATOR,
-                            METHOD_ORCHESTRATE_TICKET_EXECUTION,
-                            TEMPLATE_WORKFLOW_TICKET_ORCHESTRATOR,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.TicketOrchestratorRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_ORCHESTRATOR,
-                    METHOD_ORCHESTRATE_TICKET_EXECUTION,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.TicketOrchestratorRequest, AgentModels.TicketOrchestratorRouting, AgentModels.TicketOrchestratorResult, AgentModels.TicketOrchestratorRouting>builder()
+                            .responseClazz(AgentModels.TicketOrchestratorRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.ORCHESTRATE_TICKET_EXECUTION)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> Map.of("goal", a.enrichedRequest().goal()))
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
 
         @Action(canRerun = true)
@@ -2063,120 +1432,14 @@ public interface AgentInterfaces {
             AgentModels.TicketOrchestratorRequest lastRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.TicketOrchestratorRequest.class);
             if (lastRequest == null) {
-                throw AgentInterfaces.degenerateLoop(eventBus, context, 
+                throw AgentInterfaces.degenerateLoop(eventBus, context,
                         "Ticket dispatch request not found - cannot dispatch ticket agents.",
                         METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
                         AgentModels.TicketAgentRequests.class,
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_DISPATCH,
-                    METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
-                    lastRequest
-            );
-
-            String goal =  Optional.ofNullable(input.goal())
-                    .or(() -> Optional.ofNullable(lastRequest.goal()))
-                    .orElse("");
-
-            List<AgentModels.TicketAgentResult> ticketResults = new ArrayList<>();
-
-            var ticketDispatchAgent = context.agentPlatform().agents()
-                    .stream().filter(a -> Objects.equals(a.getName(), AgentInterfaces.WORKFLOW_TICKET_DISPATCH_SUBAGENT))
-                    .findAny().orElse(null);
-
-            for (AgentModels.TicketAgentRequest request : input.requests()) {
-                if (request == null) {
-                    continue;
-                }
-
-                context.addObject(input);
-
-                AgentModels.TicketAgentRouting agentResult = runSubProcess(
-                        context,
-                        request,
-                        ticketDispatchAgent,
-                        AgentModels.TicketAgentRouting.class
-                );
-
-                if (agentResult.interruptRequest() != null)
-                    return AgentModels.TicketAgentDispatchRouting.builder()
-                            .agentInterruptRequest(agentResult.interruptRequest())
-                            .build();
-
-                if (agentResult.agentResult() != null)
-                    ticketResults.add(agentResult.agentResult());
-            }
-
-            var ticketAgentResults = AgentModels.TicketAgentResults.builder()
-                    .ticketAgentResults(ticketResults)
-                    .worktreeContext(input.worktreeContext())
-                    .build();
-
-            // Decorate with ResultsRequestDecorator chain (Phase 2: child→trunk merge)
-            ticketAgentResults = DecorateRequestResults.decorateResultsRequest(
-                    ticketAgentResults,
-                    context,
-                    resultsRequestDecorators,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_DISPATCH,
-                    METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
-                    lastRequest
-            );
-
-            Map<String, Object> model = Map.of(
-                    "goal",
-                    goal,
-                    "ticketResults",
-                    ticketAgentResults.prettyPrint(new AgentPretty.AgentSerializationCtx.CollectorSerialization())
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.TICKET_AGENT_DISPATCH,
-                    ticketAgentResults,
-                    lastRequest,
-                    ticketAgentResults,
-                    context,
-                    ACTION_TICKET_DISPATCH,
-                    METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
-                    TEMPLATE_WORKFLOW_TICKET_DISPATCH,
-                    model
-            );
-
-            AgentModels.TicketAgentDispatchRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_TICKET_DISPATCH,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.TICKET_AGENT_DISPATCH,
-                            ticketAgentResults,
-                            lastRequest,
-                            ticketAgentResults,
-                            context,
-                            ACTION_TICKET_DISPATCH,
-                            METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
-                            TEMPLATE_WORKFLOW_TICKET_DISPATCH,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.TicketAgentDispatchRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_DISPATCH,
-                    METHOD_DISPATCH_TICKET_AGENT_REQUESTS,
-                    lastRequest
-            );
+            return agentExecutor.runTicketDispatch(input, context, lastRequest);
         }
 
         @Action(canRerun = true)
@@ -2341,44 +1604,6 @@ public interface AgentInterfaces {
             );
         }
 
-        private <T> T runSubProcess(
-                ActionContext context,
-                Object request,
-                com.embabel.agent.core.Agent agent,
-                Class<T> outputClass
-        ) {
-            if (request == null) {
-                return null;
-            }
-            try {
-                context.addObject(request);
-                T result = context.asSubProcess(outputClass, agent);
-                context.hide(result);
-                return result;
-            } catch (Exception e) {
-                eventBus.publish(Events.NodeErrorEvent.err("Error when running %s: %s"
-                        .formatted(outputClass, request), new ArtifactKey(context.getAgentProcess().getId())));
-                return null;
-            }
-        }
-
-        private static String resolveDiscoveryGoal(
-                ActionContext context,
-                AgentModels.DiscoveryAgentRequests input
-        ) {
-            String resolved = input != null
-                    ? input.prettyPrint(new AgentPretty.AgentSerializationCtx.GoalResolutionSerialization())
-                    : "";
-            if (resolved != null && !resolved.isBlank()) {
-                return resolved;
-            }
-            AgentModels.DiscoveryOrchestratorRequest orchestratorRequest =
-                    BlackboardHistory.getLastFromHistory(context, AgentModels.DiscoveryOrchestratorRequest.class);
-            return firstNonBlank(
-                    orchestratorRequest != null ? orchestratorRequest.goal() : null,
-                    resolveRootGoal(context));
-        }
-
         private static String resolveRootGoal(ActionContext context) {
             AgentModels.OrchestratorRequest rootRequest =
                     BlackboardHistory.getLastFromHistory(context, AgentModels.OrchestratorRequest.class);
@@ -2407,85 +1632,14 @@ public interface AgentInterfaces {
     @RequiredArgsConstructor
     class TicketDispatchSubagent implements AgentInterfaces {
         private final EventBus eventBus;
-        private final PromptContextFactory promptContextFactory;
-        private final InterruptService interruptService;
-        private final LlmRunner llmRunner;
-        private final WorkflowGraphService workflowGraphService;
-        private final BlackboardHistoryService blackboardHistoryService;
+        private final AgentExecutor agentExecutor;
 
-        @Autowired(required = false)
-        private List<DispatchedAgentResultDecorator> resultDecorators;
-
-        @Autowired(required = false)
-        private List<DispatchedAgentRequestDecorator> requestDecorators;
-
-        @Autowired(required = false)
-        private List<PromptContextDecorator> promptContextDecorators;
-
-        @Autowired(required = false)
-        private List<ToolContextDecorator> toolContextDecorators;
-
-        private ToolContext buildToolContext(
-                AgentType agentType,
-                AgentModels.AgentRequest contextRequest,
-                AgentModels.AgentRequest previousRequest,
-                AgentModels.AgentRequest currentRequest,
-                OperationContext context,
-                String actionName,
-                String methodName,
-                String templateName,
-                ToolContext toolContext
-        ) {
-            return DecorateRequestResults.decorateToolContext(
-                    toolContext,
-                    currentRequest,
-                    previousRequest,
-                    context,
-                    toolContextDecorators,
-                    multiAgentAgentName(),
-                    actionName,
-                    methodName
-            );
-        }
 
         @Override
         public String multiAgentAgentName() {
             return WORKFLOW_TICKET_DISPATCH_SUBAGENT;
         }
 
-        private PromptContext buildPromptContext(
-                AgentType agentType,
-                AgentModels.AgentRequest contextRequest,
-                AgentModels.AgentRequest previousRequest,
-                AgentModels.AgentRequest currentRequest,
-                OperationContext context,
-                String actionName,
-                String methodName,
-                String templateName,
-                Map<String, Object> model
-        ) {
-            BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
-
-            DecoratorContext decoratorContext = new DecoratorContext(
-                    context, multiAgentAgentName(), actionName, methodName, previousRequest, currentRequest
-            );
-            PromptContext promptContext = promptContextFactory.build(
-                    agentType,
-                    contextRequest,
-                    previousRequest,
-                    currentRequest,
-                    history,
-                    templateName,
-                    model,
-                    context,
-                    decoratorContext
-            );
-            return decoratePromptContext(
-                    promptContext,
-                    promptContextDecorators,
-                    decoratorContext
-            );
-        }
 
         @Action
         @AchievesGoal(description = "Handle context agent request")
@@ -2504,61 +1658,18 @@ public interface AgentInterfaces {
                 );
             }
 
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_AGENT,
-                    METHOD_RUN_TICKET_AGENT,
-                    lastRequest
-            );
-
-            Map<String, Object> model = Map.of(
-                    "ticketDetails", input.ticketDetails() != null ? input.ticketDetails() : "",
-                    "ticketDetailsFilePath", input.ticketDetailsFilePath() != null ? input.ticketDetailsFilePath() : ""
-            );
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.TICKET_AGENT,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_TICKET_AGENT,
-                    METHOD_RUN_TICKET_AGENT,
-                    TEMPLATE_WORKFLOW_TICKET_AGENT,
-                    model
-            );
-
-            AgentModels.TicketAgentRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_TICKET_AGENT,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.TICKET_AGENT,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_TICKET_AGENT,
-                            METHOD_RUN_TICKET_AGENT,
-                            TEMPLATE_WORKFLOW_TICKET_AGENT,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.TicketAgentRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_TICKET_AGENT,
-                    METHOD_RUN_TICKET_AGENT,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.TicketAgentRequest, AgentModels.TicketAgentRouting, AgentModels.TicketAgentResult, AgentModels.TicketAgentRouting>builder()
+                            .responseClazz(AgentModels.TicketAgentRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.RUN_TICKET_AGENT)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> Map.of(
+                                    "ticketDetails", a.enrichedRequest().ticketDetails() != null ? a.enrichedRequest().ticketDetails() : "",
+                                    "ticketDetailsFilePath", a.enrichedRequest().ticketDetailsFilePath() != null ? a.enrichedRequest().ticketDetailsFilePath() : ""))
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
     }
 
@@ -2570,84 +1681,11 @@ public interface AgentInterfaces {
     class PlanningDispatchSubagent implements AgentInterfaces {
 
         private final EventBus eventBus;
-        private final PromptContextFactory promptContextFactory;
-        private final RequestEnrichment requestEnrichment;
-        private final InterruptService interruptService;
-        private final LlmRunner llmRunner;
-        private final WorkflowGraphService workflowGraphService;
-        private final BlackboardHistoryService blackboardHistoryService;
-
-        @Autowired(required = false)
-        private List<DispatchedAgentResultDecorator> resultDecorators;
-
-        @Autowired(required = false)
-        private List<DispatchedAgentRequestDecorator> requestDecorators;
-
-        @Autowired(required = false)
-        private List<PromptContextDecorator> promptContextDecorators;
-
-        @Autowired(required = false)
-        private List<ToolContextDecorator> toolContextDecorators;
-
-        private ToolContext buildToolContext(
-                AgentType agentType,
-                AgentModels.AgentRequest contextRequest,
-                AgentModels.AgentRequest previousRequest,
-                AgentModels.AgentRequest currentRequest,
-                OperationContext context,
-                String actionName,
-                String methodName,
-                String templateName,
-                ToolContext toolContext
-        ) {
-            return DecorateRequestResults.decorateToolContext(
-                    toolContext,
-                    currentRequest,
-                    previousRequest,
-                    context,
-                    toolContextDecorators,
-                    multiAgentAgentName(),
-                    actionName,
-                    methodName
-            );
-        }
+        private final AgentExecutor agentExecutor;
 
         @Override
         public String multiAgentAgentName() {
             return WORKFLOW_PLANNING_DISPATCH_SUBAGENT;
-        }
-
-        private PromptContext buildPromptContext(
-                AgentType agentType,
-                AgentModels.AgentRequest contextRequest,
-                AgentModels.AgentRequest previousRequest,
-                AgentModels.AgentRequest currentRequest,
-                OperationContext context,
-                String actionName,
-                String methodName,
-                String templateName,
-                Map<String, Object> model
-        ) {
-            BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
-            DecoratorContext decoratorContext = new DecoratorContext(
-                    context, multiAgentAgentName(), actionName, methodName, previousRequest, currentRequest
-            );
-            PromptContext promptContext = promptContextFactory.build(
-                    agentType,
-                    contextRequest,
-                    previousRequest,
-                    currentRequest,
-                    history,
-                    templateName,
-                    model,
-                    context,
-                    decoratorContext
-            );
-            return decoratePromptContext(
-                    promptContext,
-                    promptContextDecorators,
-                    decoratorContext
-            );
         }
 
         @Action(canRerun = true)
@@ -2666,58 +1704,16 @@ public interface AgentInterfaces {
                         1
                 );
             }
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_AGENT,
-                    METHOD_RUN_PLANNING_AGENT,
-                    lastRequest
-            );
-
-            Map<String, Object> model = Map.of("goal", input.goal());
-
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.PLANNING_AGENT,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_PLANNING_AGENT,
-                    METHOD_RUN_PLANNING_AGENT,
-                    TEMPLATE_WORKFLOW_PLANNING_AGENT,
-                    model
-            );
-
-            AgentModels.PlanningAgentRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_PLANNING_AGENT,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.PLANNING_AGENT,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_PLANNING_AGENT,
-                            METHOD_RUN_PLANNING_AGENT,
-                            TEMPLATE_WORKFLOW_PLANNING_AGENT,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.PlanningAgentRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_PLANNING_AGENT,
-                    METHOD_RUN_PLANNING_AGENT,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.PlanningAgentRequest, AgentModels.PlanningAgentRouting, AgentModels.PlanningAgentResult, AgentModels.PlanningAgentRouting>builder()
+                            .responseClazz(AgentModels.PlanningAgentRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.RUN_PLANNING_AGENT)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> Map.of("goal", a.enrichedRequest().goal()))
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
     }
 
@@ -2729,84 +1725,13 @@ public interface AgentInterfaces {
     class DiscoveryDispatchSubagent implements AgentInterfaces {
 
         private final EventBus eventBus;
-        private final PromptContextFactory promptContextFactory;
-        private final InterruptService interruptService;
-        private final LlmRunner llmRunner;
-        private final WorkflowGraphService workflowGraphService;
-        private final BlackboardHistoryService blackboardHistoryService;
-
-        @Autowired(required = false)
-        private List<DispatchedAgentResultDecorator> resultDecorators;
-
-        @Autowired(required = false)
-        private List<DispatchedAgentRequestDecorator> requestDecorators;
-
-        @Autowired(required = false)
-        private List<PromptContextDecorator> promptContextDecorators;
-
-        @Autowired(required = false)
-        private List<ToolContextDecorator> toolContextDecorators;
-
-        private ToolContext buildToolContext(
-                AgentType agentType,
-                AgentModels.AgentRequest contextRequest,
-                AgentModels.AgentRequest previousRequest,
-                AgentModels.AgentRequest currentRequest,
-                OperationContext context,
-                String actionName,
-                String methodName,
-                String templateName,
-                ToolContext toolContext
-        ) {
-            return DecorateRequestResults.decorateToolContext(
-                    toolContext,
-                    currentRequest,
-                    previousRequest,
-                    context,
-                    toolContextDecorators,
-                    multiAgentAgentName(),
-                    actionName,
-                    methodName
-            );
-        }
+        private final AgentExecutor agentExecutor;
 
         @Override
         public String multiAgentAgentName() {
             return WORKFLOW_DISCOVERY_DISPATCH_SUBAGENT;
         }
 
-        private PromptContext buildPromptContext(
-                AgentType agentType,
-                AgentModels.AgentRequest contextRequest,
-                AgentModels.AgentRequest previousRequest,
-                AgentModels.AgentRequest currentRequest,
-                OperationContext context,
-                String actionName,
-                String methodName,
-                String templateName,
-                Map<String, Object> model
-        ) {
-            BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
-            DecoratorContext decoratorContext = new DecoratorContext(
-                    context, multiAgentAgentName(), actionName, methodName, previousRequest, currentRequest
-            );
-            PromptContext promptContext = promptContextFactory.build(
-                    agentType,
-                    contextRequest,
-                    previousRequest,
-                    currentRequest,
-                    history,
-                    templateName,
-                    model,
-                    context,
-                    decoratorContext
-            );
-            return decoratePromptContext(
-                    promptContext,
-                    promptContextDecorators,
-                    decoratorContext
-            );
-        }
 
         @Action
         @AchievesGoal(description = "Handle context agent request")
@@ -2825,146 +1750,26 @@ public interface AgentInterfaces {
                 );
             }
 
-            input = decorateRequest(
-                    input,
-                    context,
-                    requestDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_AGENT,
-                    METHOD_RUN_DISCOVERY_AGENT,
-                    lastRequest
-            );
-
-            Map<String, Object> model = Map.of(
-                    "goal", input.goal(),
-                    "subdomainFocus", input.subdomainFocus()
-            );
-
             org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DiscoveryDispatchSubagent.class);
             log.info("runDiscoveryAgent: input contextId={} | lastRequest(container) contextId={} | subdomain={}",
                     input.contextId() != null ? input.contextId().value() : "null",
                     lastRequest.contextId() != null ? lastRequest.contextId().value() : "null",
                     input.subdomainFocus());
 
-            PromptContext promptContext = buildPromptContext(
-                    AgentType.DISCOVERY_AGENT,
-                    input,
-                    lastRequest,
-                    input,
-                    context,
-                    ACTION_DISCOVERY_AGENT,
-                    METHOD_RUN_DISCOVERY_AGENT,
-                    TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
-                    model
-            );
-
-            log.info("runDiscoveryAgent: promptContext.currentRequest().contextId()={}",
-                    promptContext.currentRequest() != null && promptContext.currentRequest().contextId() != null
-                            ? promptContext.currentRequest().contextId().value() : "null");
-
-            AgentModels.DiscoveryAgentRouting routing = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
-                    promptContext,
-                    model,
-                    buildToolContext(
-                            AgentType.DISCOVERY_AGENT,
-                            input,
-                            lastRequest,
-                            input,
-                            context,
-                            ACTION_DISCOVERY_AGENT,
-                            METHOD_RUN_DISCOVERY_AGENT,
-                            TEMPLATE_WORKFLOW_DISCOVERY_AGENT,
-                            ToolContext.empty()
-                    ),
-                    AgentModels.DiscoveryAgentRouting.class,
-                    context
-            );
-
-            return decorateRouting(
-                    routing,
-                    context,
-                    resultDecorators,
-                    multiAgentAgentName(),
-                    ACTION_DISCOVERY_AGENT,
-                    METHOD_RUN_DISCOVERY_AGENT,
-                    lastRequest
-            );
+            return agentExecutor.run(
+                    AgentExecutor.AgentExecutorArgs.<AgentModels.DiscoveryAgentRequest, AgentModels.DiscoveryAgentRouting, AgentModels.DiscoveryAgentResult, AgentModels.DiscoveryAgentRouting>builder()
+                            .responseClazz(AgentModels.DiscoveryAgentRouting.class)
+                            .agentActionMetadata(MultiAgentIdeMetadata.AgentMetadata.RUN_DISCOVERY_AGENT)
+                            .previousRequest(lastRequest)
+                            .currentRequest(input)
+                            .templateModelProducer(a -> Map.of(
+                                    "goal", a.enrichedRequest().goal(),
+                                    "subdomainFocus", a.enrichedRequest().subdomainFocus()))
+                            .operationContext(context)
+                            .baseToolContext(ToolContext.empty())
+                            .build());
         }
 
-    }
-
-    /**
-     * Decorates a ResultsRequest (TicketAgentResults, PlanningAgentResults, DiscoveryAgentResults)
-     * using the provided ResultsRequestDecorator chain.
-     * 
-     * Used for Phase 2 of the worktree merge flow: merging child agent worktrees
-     * back to the parent (trunk) worktree before routing decisions.
-     * 
-     * @param resultsRequest The results request to decorate
-     * @param context The operation context
-     * @param decorators The list of decorators to apply
-     * @param agentName The agent name for context
-     * @param actionName The action name for context
-     * @param methodName The method name for context
-     * @param lastRequest The last request for context
-     * @return The decorated results request
-     */
-    static <T extends AgentModels.ResultsRequest> T decorateResultsRequest(
-            T resultsRequest,
-            OperationContext context,
-            List<? extends ResultsRequestDecorator> decorators,
-            List<? extends RequestDecorator> r,
-            String agentName,
-            String actionName,
-            String methodName,
-            AgentModels.AgentRequest lastRequest
-    ) {
-        if (resultsRequest == null || decorators == null || decorators.isEmpty()) {
-            return resultsRequest;
-        }
-        DecoratorContext decoratorContext = new DecoratorContext(
-                context, agentName, actionName, methodName, lastRequest, resultsRequest
-        );
-        // Sort decorators by order (lower values first)
-        List<? extends ResultsRequestDecorator> sortedDecorators = decorators.stream()
-                .filter(d -> d != null)
-                .sorted(Comparator.comparingInt(ResultsRequestDecorator::order))
-                .toList();
-        T decorated = resultsRequest;
-        for (ResultsRequestDecorator decorator : sortedDecorators) {
-            decorated = decorator.decorate(decorated, decoratorContext);
-        }
-        List<? extends RequestDecorator> sortedRequest = r.stream()
-                .filter(d -> d != null)
-                .sorted(Comparator.comparingInt(RequestDecorator::order))
-                .filter(c -> !(c instanceof ResultsRequestDecorator))
-                .toList();
-        for (RequestDecorator decorator : sortedRequest) {
-            decorated = decorator.decorate(decorated, decoratorContext);
-        }
-        return decorated;
-    }
-
-    static String renderReturnRoute(
-            AgentModels.OrchestratorCollectorRequest orchestratorCollector,
-            AgentModels.DiscoveryCollectorRequest discoveryCollector,
-            AgentModels.PlanningCollectorRequest planningCollector,
-            AgentModels.TicketCollectorRequest ticketCollector
-    ) {
-        if (orchestratorCollector != null) {
-            return "orchestratorCollectorRequest(goal=" + orchestratorCollector.goal() + ", phase=" + orchestratorCollector.phase() + ")";
-        }
-        if (discoveryCollector != null) {
-            return "discoveryCollectorRequest(goal=" + discoveryCollector.goal() + ")";
-        }
-        if (planningCollector != null) {
-            return "planningCollectorRequest(goal=" + planningCollector.goal() + ")";
-        }
-        if (ticketCollector != null) {
-            return "ticketCollectorRequest(goal=" + ticketCollector.goal() + ")";
-        }
-        return RETURN_ROUTE_NONE;
     }
 
 }

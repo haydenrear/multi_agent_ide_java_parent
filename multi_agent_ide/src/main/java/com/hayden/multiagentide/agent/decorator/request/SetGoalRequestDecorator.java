@@ -97,12 +97,6 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                                         case AgentModels.TicketAgentRequest ctx -> {
                                             return new GoalState(ctx, "");
                                         }
-                                        case AgentModels.CommitAgentRequest ctx -> {
-                                            return new GoalState(ctx, ctx.goal());
-                                        }
-                                        case AgentModels.MergeConflictRequest ctx -> {
-                                            return new GoalState(ctx, ctx.goal());
-                                        }
                                         case AgentModels.TicketAgentRequests ctx -> {
                                             return new GoalState(ctx, ctx.goal());
                                         }
@@ -111,6 +105,12 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                                         }
                                         case AgentModels.TicketOrchestratorRequest ctx -> {
                                             return new GoalState(ctx, ctx.goal());
+                                        }
+                                        case AgentModels.CommitAgentRequest ctx -> {
+                                            return null;
+                                        }
+                                        case AgentModels.MergeConflictRequest ctx -> {
+                                            return null;
                                         }
                                         case AgentModels.AiFilterRequest aiFilterRequest -> {
                                             return null;
@@ -137,6 +137,7 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
                                 .toList());
 
         goal = goal.stream()
+                .distinct()
                 .collect(Collectors.groupingBy(s -> s.goal))
                 .values()
                 .stream()
@@ -150,7 +151,7 @@ public class SetGoalRequestDecorator implements DispatchedAgentRequestDecorator 
             String[] split = goal.getLast().goal.split("# Original Goal");
             String s = split[0];
 
-            if (s.isEmpty() && split.length == 2)
+            if (StringUtils.isEmpty(s) && split.length == 2)
                 s = split[1];
 
             var g = """

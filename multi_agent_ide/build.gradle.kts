@@ -152,5 +152,67 @@ tasks.test {
         exclude("**/acp_tests/**", "**/integration/**", "**/perf/**", "**/cli/**")
     }
 
-    dependsOn("processYmlFiles")
+    dependsOn("processYmlFiles", "processXmlFiles")
 }
+
+tasks.register("multiAgentIdeLibTest") {
+    description = "Run unit tests for multi_agent_ide and its dependency modules"
+    group = "verification"
+
+    dependsOn(
+        ":multi_agent_ide_java_parent:multi_agent_ide_lib:test",
+        "processYmlFiles",
+        "processXmlFiles"
+    )
+}
+
+tasks.register("utilityModuleTest") {
+    description = "Run unit tests for multi_agent_ide and its dependency modules"
+    group = "verification"
+
+    dependsOn(
+        ":multi_agent_ide_java_parent:utilitymodule:test",
+        "processYmlFiles",
+        "processXmlFiles"
+    )
+}
+
+tasks.register("acpCdcAiTest") {
+    description = "Run unit tests for multi_agent_ide and its dependency modules"
+    group = "verification"
+
+    dependsOn(
+        ":multi_agent_ide_java_parent:acp-cdc-ai:test",
+        "processYmlFiles",
+        "processXmlFiles"
+    )
+}
+
+tasks.register<Test>("unitTest") {
+    exclude("**/acp_tests/**", "**/integration/**", "**/perf/**", "**/cli/**")
+    dependsOn(
+        "acpCdcAiTest",
+        "utilityModuleTest",
+        "multiAgentIdeLibTest"
+    )
+}
+
+tasks.register<Test>("integrationTest") {
+    description = "Run integration tests for multi_agent_ide"
+    group = "verification"
+
+    classpath = tasks.test.get().classpath
+    testClassesDirs = tasks.test.get().testClassesDirs
+
+    include("**/integration/**")
+
+    dependsOn("processYmlFiles", "processXmlFiles")
+}
+
+tasks.register("integrationTestAndUnitTest") {
+    dependsOn(
+        "integrationTest",
+        "unitTest",
+    )
+}
+
