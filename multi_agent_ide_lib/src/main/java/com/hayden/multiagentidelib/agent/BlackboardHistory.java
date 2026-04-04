@@ -742,6 +742,12 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             case Events.AgentCallEvent callEvent ->
                     buildTargets(callEvent.callerSessionId(), callEvent.targetSessionId());
             case Events.PromptReceivedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.AgentExecutorStartEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.AgentExecutorCompleteEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.NullResultEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.IncompleteJsonEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.UnparsedToolCallEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.TimeoutEvent e -> buildTargets(e.nodeId(), e.sessionKey());
         };
     }
 

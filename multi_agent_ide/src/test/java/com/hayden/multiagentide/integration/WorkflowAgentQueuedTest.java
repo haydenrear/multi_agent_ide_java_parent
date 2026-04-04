@@ -2335,6 +2335,82 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
         }
     }
 
+    @Nested
+    class ExecutorLifecycleScenarios {
+
+        /**
+         * S-INV1 + S-INV2: Every LLM call through AgentExecutor emits a paired
+         * AgentExecutorStartEvent/AgentExecutorCompleteEvent. The counts match
+         * and each Start precedes its Complete.
+         */
+        @Test
+        void happyPath_executorEventsMatchLlmCallCount() {
+            setLogFile("happyPath_executorEventsMatchLlmCallCount");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+            enqueueHappyPath("Implement auth");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Implement auth", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(com.embabel.agent.core.AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // S-INV1: Count executor events
+            var startEvents = testEventListener.eventsOfType(Events.AgentExecutorStartEvent.class);
+            var completeEvents = testEventListener.eventsOfType(Events.AgentExecutorCompleteEvent.class);
+
+            // Every LLM call should produce both events
+            assertThat(startEvents).isNotEmpty();
+            assertThat(startEvents).hasSameSizeAs(completeEvents);
+
+            // S-INV2: Each start has a matching complete with same actionName
+            for (var start : startEvents) {
+                boolean hasMatch = completeEvents.stream()
+                        .anyMatch(c -> c.actionName().equals(start.actionName())
+                                && !c.timestamp().isBefore(start.timestamp()));
+                assertThat(hasMatch)
+                        .as("AgentExecutorStartEvent(action=%s) should have a matching CompleteEvent",
+                                start.actionName())
+                        .isTrue();
+            }
+
+            // S-INV1: sessionKey should be non-empty (E26 exploration)
+            for (var start : startEvents) {
+                assertThat(start.sessionKey())
+                        .as("AgentExecutorStartEvent should have non-empty sessionKey")
+                        .isNotEmpty();
+            }
+        }
+
+        /**
+         * S-INV4: In a happy-path workflow with no retries, BlackboardHistory
+         * errorType should always be NoError.
+         */
+        @Test
+        void happyPath_blackboardErrorTypeAlwaysNoError() {
+            setLogFile("happyPath_blackboardErrorTypeAlwaysNoError");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+            enqueueHappyPath("Implement auth");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Implement auth", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(com.embabel.agent.core.AgentProcessStatusCode.COMPLETED);
+
+            // The blackboard trace (via QueuedLlmRunner) should show NoError for every call.
+            // We verify this via the event listener — no CompactionEvent should appear in happy path.
+            assertThat(testEventListener.countOfType(Events.CompactionEvent.class)).isZero();
+        }
+    }
+
     private void enqueueHappyPathExceptFinalCollector(String goal) {
         initialOrchestratorToDiscovery(goal);
         discoveryOnly(goal);

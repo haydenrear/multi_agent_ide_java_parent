@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.skills
 
+
 import com.embabel.agent.skills.Skills
 import org.springframework.stereotype.Component
 

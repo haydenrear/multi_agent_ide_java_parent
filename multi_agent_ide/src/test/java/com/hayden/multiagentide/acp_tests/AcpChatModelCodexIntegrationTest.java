@@ -14,7 +14,7 @@ import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.annotation.support.AgentMetadataReader;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.api.common.PlannerType;
-import com.embabel.agent.api.common.ToolObject;
+import com.embabel.agent.api.tool.ToolObject;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.IoBinding;

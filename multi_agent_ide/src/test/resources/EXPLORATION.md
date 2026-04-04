@@ -278,6 +278,50 @@ Generated: 2026-04-01
 
 ---
 
+## E24. AgentExecutorStartEvent/CompleteEvent Count vs LLM Call Count
+
+**Where**: `*.events.md` — grep for `AGENT_EXECUTOR_START` and `AGENT_EXECUTOR_COMPLETE`
+**Question**: Do the executor lifecycle events fire exactly once per LLM call? Are there extra starts without completes (indicating a failed LLM call that didn't emit the complete event)?
+**Why it matters**: If `AgentExecutor.run()` throws after emitting `AgentExecutorStartEvent` but before `AgentExecutorCompleteEvent`, the AcpRetryEventListener will hold stale retry state for that session. The complete event is emitted after `llmRunner.runWithTemplate()` returns — if the runner throws, no complete event fires.
+**What to look for**: Count START events. Count COMPLETE events. If START > COMPLETE, identify which actionName is missing its COMPLETE. Check if the missing complete is from a retry scenario or a real failure.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E25. BlackboardHistory.errorType() in Normal Workflow
+
+**Where**: `*.blackboard.md` — check for error descriptor trace data (once added)
+**Question**: In a normal happy-path workflow with no retries, is `errorType()` always `NoError`? Or do transient errors get classified and cleared?
+**Why it matters**: If `addError()` is called during normal flow (e.g., a decorator misclassifies something), the retry-aware prompt contributors would inject error-recovery context into a non-error situation, degrading prompt quality.
+**What to look for**: After adding error descriptor tracing to the blackboard dump, check that all happy-path calls show `errorType: NoError`.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E26. AgentExecutor.run() sessionKey Derivation from PromptContext.chatId()
+
+**Where**: `AgentExecutor.run()` line 154 — `promptContext.chatId() != null ? promptContext.chatId().value() : ""`
+**Question**: Are there cases where `PromptContext.chatId()` returns null, causing `sessionKey = ""`? If so, the `AgentExecutorStartEvent` carries an empty sessionKey, making it impossible for `AcpRetryEventListener` to correlate with a session.
+**Why it matters**: The AcpRetryEventListener indexes by sessionKey. An empty key would either miss the session entirely or collide with other empty-key sessions.
+**What to look for**: In trace data, grep for `AgentExecutorStartEvent` with empty `sessionKey`. Cross-reference with the request type — `AgentToControllerRequest.chatId()` logs an error and returns `sourceAgentKey` fallback, so A2C flows should still have a non-empty sessionKey.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E27. ActionRetryListenerImpl CompactionEvent Emission Timing
+
+**Where**: `ActionRetryListenerImpl.waitForCompaction()` — emits `CompactionEvent` then polls
+**Question**: The `CompactionEvent` is emitted at the start of `waitForCompaction()`, before the polling loop. `AcpRetryEventListener` handles this by recording compaction on the session. But the polling loop can block for up to 200 seconds (20 × 10s). During this time, other events may fire. Is the session state consistent during this blocking period?
+**Why it matters**: If another `AgentExecutorStartEvent` fires during the compaction wait (from a different action on the same session), it would clear the retry state while compaction is still pending.
+**What to look for**: In trace data for scenarios with actual compaction, check if any `AGENT_EXECUTOR_START` events fire between the `CompactionEvent` and the next `AGENT_EXECUTOR_COMPLETE`. This would indicate a race condition.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
 ## Future Exploration Candidates
 
 - **F-E1**: Data layer operation timing relative to agent completion — do DataLayerOperationNodes always complete before their parent agent completes?

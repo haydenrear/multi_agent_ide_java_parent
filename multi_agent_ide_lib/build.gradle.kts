@@ -6,6 +6,7 @@ plugins {
     id("com.hayden.paths")
     id("com.hayden.no-main-class")
     id("com.hayden.ai")
+    id("com.hayden.git")
 }
 
 group = "com.hayden"
@@ -22,7 +23,6 @@ dependencies {
     implementation(project(":commit-diff-model"))
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("com.jayway.jsonpath:json-path:2.9.0")
-    implementation("com.embabel.agent:embabel-agent-skills:0.3.2")
 }
 
 

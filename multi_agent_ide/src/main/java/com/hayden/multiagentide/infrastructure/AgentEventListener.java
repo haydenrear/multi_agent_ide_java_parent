@@ -198,6 +198,24 @@ public class AgentEventListener implements EventListener {
                         promptReceivedEvent.agentType(), promptReceivedEvent.templateName(),
                         promptReceivedEvent.assembledPrompt() != null ? promptReceivedEvent.assembledPrompt().length() : 0);
             }
+            case Events.AgentExecutorStartEvent e -> {
+                log.debug("Agent executor start: action={} session={}", e.actionName(), e.sessionKey());
+            }
+            case Events.AgentExecutorCompleteEvent e -> {
+                log.debug("Agent executor complete: action={} session={}", e.actionName(), e.sessionKey());
+            }
+            case Events.NullResultEvent e -> {
+                log.warn("Null result: session={} retry={}/{}", e.sessionKey(), e.retryCount(), e.maxRetries());
+            }
+            case Events.IncompleteJsonEvent e -> {
+                log.warn("Incomplete JSON: session={} retry={}", e.sessionKey(), e.retryCount());
+            }
+            case Events.UnparsedToolCallEvent e -> {
+                log.warn("Unparsed tool call: session={} text={}", e.sessionKey(), e.toolCallText());
+            }
+            case Events.TimeoutEvent e -> {
+                log.warn("Timeout: session={} retry={} detail={}", e.sessionKey(), e.retryCount(), e.detail());
+            }
         }
     }
 

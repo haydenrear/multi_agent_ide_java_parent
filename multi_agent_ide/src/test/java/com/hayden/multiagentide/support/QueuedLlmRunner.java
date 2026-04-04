@@ -330,6 +330,11 @@ public class QueuedLlmRunner implements LlmRunner {
             StringBuilder sb = new StringBuilder();
             sb.append("## Call %d: `%s`\n\n".formatted(record.callIndex(), record.templateName()));
             sb.append("History entries: `%d`\n\n".formatted(entries.size()));
+            if (history != null) {
+                sb.append("- errorType: `%s`\n".formatted(
+                        history.errorType() != null ? history.errorType().getClass().getSimpleName() : "null"));
+                sb.append("- compactionStatus: `%s`\n\n".formatted(history.compactionStatus()));
+            }
             if (entries.isEmpty()) {
                 sb.append("- (none)\n\n");
             } else {

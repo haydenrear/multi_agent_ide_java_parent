@@ -45,6 +45,12 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | Q-INV1 | PASS (indirect) | PropagatorPersistenceIT + WorkflowAgentQueuedTest setUp: enable after seed, entity ACTIVE |
 | Q-INV2 | — | Not yet validated (needs dedicated deactivate + discovery assertion) |
 | Q-INV3 | PASS (indirect) | Tests fail without explicit activation — confirms auto-bootstrap defaults to INACTIVE |
+| S-INV1 | — | Not yet validated (needs event count in trace data) |
+| S-INV2 | — | Not yet validated (needs event pairing assertion) |
+| S-INV3 | PASS | 15 unit tests in ActionRetryListenerImplTest |
+| S-INV4 | — | Not yet validated (needs blackboard error descriptor in trace) |
+| S-INV5 | PASS (indirect) | No DegenerateLoopException in any integration test since Phase 3 |
+| S-INV6 | PASS | 22 unit tests in AcpSessionRetryContextTest + AcpRetryEventListenerTest |
 
 ### Trace Timing Gap (A-INV2)
 
@@ -471,6 +477,34 @@ Also sets `entity.activatedAt` to current timestamp.
 
 ---
 
+## S. AgentExecutor / Retry Infrastructure
+
+### S-INV1. AgentExecutorStartEvent Count Matches LLM Call Count (S1)
+**Invariant**: The number of `AgentExecutorStartEvent` entries in `*.events.md` equals the number of LLM calls (i.e., `## After Call N:` sections in `*.graph.md`). Each start event has a matching `AgentExecutorCompleteEvent`.
+**Search**: `*.events.md` — count `AGENT_EXECUTOR_START` and `AGENT_EXECUTOR_COMPLETE` events. Compare with call count.
+
+### S-INV2. AgentExecutorStart/Complete Pairing (S2)
+**Invariant**: Every `AgentExecutorStartEvent` with a given `sessionKey` + `actionName` has exactly one matching `AgentExecutorCompleteEvent` with the same `sessionKey` + `actionName` in non-retry scenarios. Events appear in temporal order: Start before Complete.
+**Search**: `*.events.md` — pair by sessionKey + actionName, verify temporal ordering.
+
+### S-INV3. ActionRetryListener Error Classification (S3)
+**Invariant**: `ActionRetryListenerImpl.classify()` maps throwables to ErrorDescriptor variants deterministically: CompactionException → CompactionError, "compacting"/"prompt too long" → CompactionError, TimeoutException/"timeout" → TimeoutError, "tool call" → UnparsedToolCallError, JsonParseException/"parse" → ParseError, unknown → ParseError (fallback). Classification order matters: "tool call" checked before "parse" to prevent "Unparsed" matching "parse".
+**Search**: Unit test coverage in `ActionRetryListenerImplTest` (15 tests).
+
+### S-INV4. ErrorDescriptor Persisted on BlackboardHistory (S4)
+**Invariant**: After `ActionRetryListener.onActionRetry()` fires, `BlackboardHistory.errorType()` returns the classified `ErrorDescriptor`. `compactionStatus()` returns the compaction progression (NONE → FIRST → MULTIPLE). Calling `addError(NoError)` resets errorType but preserves history entries.
+**Search**: `*.blackboard.md` — error descriptor info in trace. Unit test assertions.
+
+### S-INV5. Container Request Decorated Before Dispatch Iteration (S5)
+**Invariant**: In `runDiscoveryDispatch`, `runPlanningDispatch`, `runTicketDispatch`, the container request (e.g., `DiscoveryAgentRequests`) is decorated via `requestResultsDecorator.decorateRequest()` before the loop iterating child requests. This ensures `WorktreeContextRequestDecorator` has access to worktree context.
+**Search**: No `DegenerateLoopException` in any dispatch-phase test. Integration test for dispatch with worktree.
+
+### S-INV6. AcpSessionRetryContext Lifecycle (S6)
+**Invariant**: `AcpRetryEventListener` creates context on `ChatSessionCreatedEvent`, clears on `AgentExecutorStartEvent`, records compaction on `CompactionEvent` (NONE→SINGLE→MULTIPLE), clears on `AgentExecutorCompleteEvent`, removes on `ChatSessionClosedEvent`. `isRetry()` true only when retryCount > 0 AND errorCategory ≠ NONE.
+**Search**: Unit test coverage in `AcpSessionRetryContextTest` (13 tests) + `AcpRetryEventListenerTest` (9 tests).
+
+---
+
 ## Coverage: Surface → Invariants
 
 | Surface | Invariants |
@@ -558,3 +592,9 @@ Also sets `entity.activatedAt` to current timestamp.
 | Q1 | Q-INV1 |
 | Q2 | Q-INV2 |
 | Q3 | Q-INV3 |
+| S1 | S-INV1, G9 |
+| S2 | S-INV2 |
+| S3 | S-INV3 |
+| S4 | S-INV4 |
+| S5 | S-INV5, E-INV1 |
+| S6 | S-INV6 |

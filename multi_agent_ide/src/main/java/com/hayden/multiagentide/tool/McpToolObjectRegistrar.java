@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.tool;
 
 import com.agentclientprotocol.model.McpServer;
-import com.embabel.agent.api.common.ToolObject;
+import com.embabel.agent.api.tool.ToolObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.config.McpProperties;
 import com.hayden.acp_cdc_ai.mcp.RequiredProtocolProperties;

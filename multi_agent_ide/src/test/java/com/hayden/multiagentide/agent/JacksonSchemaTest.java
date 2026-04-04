@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.agent;
 
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter;
+import com.embabel.common.ai.converters.JacksonPropertyFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.SkipPropertyFilter;
@@ -15,7 +16,7 @@ public class JacksonSchemaTest {
         var f = new FilteringJacksonOutputConverter<>(
                 AgentModels.ContextManagerResultRouting.class,
                 new ObjectMapper(),
-                new FilteringJacksonOutputConverter.JacksonPropertyFilter.SkipAnnotation(SkipPropertyFilter.class));
+                new JacksonPropertyFilter.SkipAnnotation(SkipPropertyFilter.class));
 
         var schema = f.getJsonSchema();
 
@@ -24,7 +25,7 @@ public class JacksonSchemaTest {
         var o = new FilteringJacksonOutputConverter<>(
                 AgentModels.OrchestratorRouting.class,
                 new ObjectMapper(),
-                new FilteringJacksonOutputConverter.JacksonPropertyFilter.SkipAnnotation(SkipPropertyFilter.class));
+                new JacksonPropertyFilter.SkipAnnotation(SkipPropertyFilter.class));
 
         schema = o.getJsonSchema();
 

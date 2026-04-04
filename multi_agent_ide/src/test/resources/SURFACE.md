@@ -77,6 +77,12 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | Q1 | — | **GAP (P1)** |
 | Q2 | — | **GAP (P1)** |
 | Q3 | — | GAP (P2) |
+| S1 | `fullWorkflow_discoveryToPlanningSingleAgentsToCompletion` (implicit — executor events emitted) | COVERED (trace) |
+| S2 | — | **GAP (P0)** |
+| S3 | `ActionRetryListenerImplTest` (unit only) | COVERED (unit) |
+| S4 | — | **GAP (P1)** |
+| S5 | — | **GAP (P1)** |
+| S6 | `AcpSessionRetryContextTest`, `AcpRetryEventListenerTest` (unit only) | COVERED (unit) |
 
 ---
 
@@ -626,6 +632,42 @@ The worktreePath in GoalCompletedEvent matches the MainWorktreeContext.worktreeP
 
 ---
 
+## S. AgentExecutor Centralization / Retry Infrastructure
+
+All agent LLM calls now route through `AgentExecutor.run()`, which emits lifecycle events, builds template models from the decorated request, and provides the hook point for `ActionRetryListener` to classify errors into `ErrorDescriptor` variants on `BlackboardHistory`.
+
+### S1. AgentExecutorStartEvent/CompleteEvent Emitted Per LLM Call (P0)
+Every `AgentExecutor.run()` call emits `AgentExecutorStartEvent` before the LLM call and `AgentExecutorCompleteEvent` after success. Events carry `sessionKey`, `nodeId`, and `actionName`.
+
+**Validates**: Lifecycle events bracket every LLM call. Event count matches LLM call count. sessionKey derived from `PromptContext.chatId()`.
+
+### S2. AgentExecutorStartEvent/CompleteEvent Pairing (P0)
+Every `AgentExecutorStartEvent` has a matching `AgentExecutorCompleteEvent` in the event stream (assuming no retry/failure). The `sessionKey` and `actionName` fields match.
+
+**Validates**: No orphaned start events. No phantom completions. Events paired by sessionKey + actionName.
+
+### S3. ActionRetryListener Error Classification (P0)
+When the Embabel retry framework fires `onActionRetry`, the `ActionRetryListenerImpl` classifies the throwable into the correct `ErrorDescriptor` variant and records it on `BlackboardHistory`. Classification order: CompactionException → compacting/prompt-too-long message → TimeoutException → "tool call" → "parse" → fallback ParseError.
+
+**Validates**: Unit-tested classification (15 tests in `ActionRetryListenerImplTest`). Error recorded on BlackboardHistory. CompactionStatus progression (NONE→FIRST→MULTIPLE).
+
+### S4. ErrorDescriptor on BlackboardHistory After Retry (P1)
+After `ActionRetryListener` fires, `BlackboardHistory.errorType()` returns the classified error. `compactionStatus()` returns the compaction progression. These are queryable by downstream prompt contributors and AgentExecutor.
+
+**Validates**: `addError()` stores descriptor. `errorType()` returns last error. `compactionStatus()` tracks progression.
+
+### S5. Container Request Decoration in Dispatch Methods (P1)
+`runDiscoveryDispatch`, `runPlanningDispatch`, and `runTicketDispatch` in `AgentExecutor` decorate the container request (e.g., `DiscoveryAgentRequests`) before iterating child requests. This ensures `WorktreeContextRequestDecorator` can set worktree context.
+
+**Validates**: No `DegenerateLoopException: No worktree was provided` during dispatch. Worktree context available to child requests.
+
+### S6. AcpSessionRetryContext Lifecycle (P1)
+`AcpRetryEventListener` maintains per-session retry state. Session created on `ChatSessionCreatedEvent`, cleared on `AgentExecutorStartEvent`, compaction recorded on `CompactionEvent`, cleared on `AgentExecutorCompleteEvent`, removed on `ChatSessionClosedEvent`.
+
+**Validates**: Unit-tested (22 tests across `AcpSessionRetryContextTest` and `AcpRetryEventListenerTest`). Session lifecycle correct. CompactionStatus progression matches ErrorDescriptor.
+
+---
+
 ## Coverage Matrix
 
 | Scenario | Graph | Events | Blackboard | Worktree | Interrupt | A2A | DataLayer |
@@ -672,3 +714,9 @@ The worktreePath in GoalCompletedEvent matches the MainWorktreeContext.worktreeP
 | Q1       |       |        |            |          |           |     | X         |
 | Q2       |       |        |            |          |           |     | X         |
 | Q3       |       |        |            |          |           |     | X         |
+| S1       |       | X      | X          |          |           |     |           |
+| S2       |       | X      |            |          |           |     |           |
+| S3       |       |        | X          |          |           |     |           |
+| S4       |       |        | X          |          |           |     |           |
+| S5       | X     |        |            | X        |           |     |           |
+| S6       |       | X      |            |          |           |     |           |

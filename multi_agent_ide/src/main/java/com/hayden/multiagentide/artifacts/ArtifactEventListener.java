@@ -116,6 +116,18 @@ public class ArtifactEventListener implements EventListener {
             case Events.AgentCallCompletedEvent agentCallCompletedEvent -> handleEventArtifact(agentCallCompletedEvent);
             case Events.AgentCallEvent agentCallEvent -> handleEventArtifact(agentCallEvent);
             case Events.PromptReceivedEvent promptReceivedEvent -> handleEventArtifact(promptReceivedEvent);
+            case Events.AgentExecutorStartEvent ignored -> {
+            }
+            case Events.AgentExecutorCompleteEvent ignored -> {
+            }
+            case Events.NullResultEvent ignored -> {
+            }
+            case Events.IncompleteJsonEvent ignored -> {
+            }
+            case Events.UnparsedToolCallEvent ignored -> {
+            }
+            case Events.TimeoutEvent ignored -> {
+            }
         }
     }
 
@@ -177,6 +189,12 @@ public class ArtifactEventListener implements EventListener {
             case Events.AgentCallCompletedEvent ignored -> true;
             case Events.AgentCallEvent ignored -> true;
             case Events.PromptReceivedEvent ignored -> true;
+            case Events.AgentExecutorStartEvent ignored -> false;
+            case Events.AgentExecutorCompleteEvent ignored -> false;
+            case Events.NullResultEvent ignored -> false;
+            case Events.IncompleteJsonEvent ignored -> false;
+            case Events.UnparsedToolCallEvent ignored -> false;
+            case Events.TimeoutEvent ignored -> false;
         };
     }
 

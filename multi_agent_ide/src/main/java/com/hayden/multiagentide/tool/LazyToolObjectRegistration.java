@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.tool;
 
 import com.agentclientprotocol.model.McpServer;
-import com.embabel.agent.api.common.ToolObject;
+import com.embabel.agent.api.tool.ToolObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.utilitymodule.MapFunctions;
 import io.modelcontextprotocol.client.McpClient;

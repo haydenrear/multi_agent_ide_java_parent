@@ -153,6 +153,18 @@ public class SaveGraphEventToGraphRepositoryListener implements EventListener {
             }
             case Events.PromptReceivedEvent ignored -> {
             }
+            case Events.AgentExecutorStartEvent ignored -> {
+            }
+            case Events.AgentExecutorCompleteEvent ignored -> {
+            }
+            case Events.NullResultEvent ignored -> {
+            }
+            case Events.IncompleteJsonEvent ignored -> {
+            }
+            case Events.UnparsedToolCallEvent ignored -> {
+            }
+            case Events.TimeoutEvent ignored -> {
+            }
         }
     }
 

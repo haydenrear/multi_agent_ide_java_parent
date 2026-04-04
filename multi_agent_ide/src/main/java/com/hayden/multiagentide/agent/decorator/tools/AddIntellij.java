@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.agent.decorator.tools;
 
-import com.embabel.agent.api.common.ToolObject;
+import com.embabel.agent.api.tool.ToolObject;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;

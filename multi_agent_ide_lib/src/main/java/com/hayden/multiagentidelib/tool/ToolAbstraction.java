@@ -1,7 +1,7 @@
 package com.hayden.multiagentidelib.tool;
 
-import com.embabel.agent.api.common.ToolObject;
 import com.embabel.agent.api.tool.Tool;
+import com.embabel.agent.api.tool.ToolObject;
 import com.embabel.agent.core.ToolGroup;
 import com.embabel.agent.core.ToolGroupRequirement;
 import com.hayden.commitdiffcontext.mcp.ToolCarrier;

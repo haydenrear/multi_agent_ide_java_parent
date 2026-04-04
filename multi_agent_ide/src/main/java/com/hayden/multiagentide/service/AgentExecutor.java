@@ -150,13 +150,26 @@ public class AgentExecutor {
                 )
         );
 
-        // 5. Call LLM
+        // 5. Emit executor start event
+        String sessionKey = promptContext.chatId() != null ? promptContext.chatId().value() : "";
+        String nodeId = promptContext.currentContextId() != null
+                ? promptContext.currentContextId().value() : "";
+        eventBus.publish(new Events.AgentExecutorStartEvent(
+                java.util.UUID.randomUUID().toString(), java.time.Instant.now(),
+                nodeId, sessionKey, meta.actionName()));
+
+        // 6. Call LLM
         U result = llmRunner.runWithTemplate(
                 meta.template(), promptContext, templateModel, toolContext,
                 args.responseClazz(), context
         );
 
-        // 5. Decorate result
+        // 7. Emit executor complete event
+        eventBus.publish(new Events.AgentExecutorCompleteEvent(
+                java.util.UUID.randomUUID().toString(), java.time.Instant.now(),
+                nodeId, sessionKey, meta.actionName()));
+
+        // 8. Decorate result
         DecorateRequestResults.DecorateRoutingArgs<U> uDecorateRoutingArgs = new DecorateRequestResults.DecorateRoutingArgs<U>(
                 result, context, meta.agentName(),
                 meta.actionName(), meta.methodName(), args.previousRequest()

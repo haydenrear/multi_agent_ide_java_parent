@@ -144,6 +144,18 @@ public class CliEventFormatter {
                         "agent=" + summarize(normalizedArgs, e.agentType())
                                 + " template=" + summarize(normalizedArgs, e.templateName())
                                 + " prompt=" + summarize(normalizedArgs, e.assembledPrompt()));
+                case Events.AgentExecutorStartEvent e -> format(normalizedArgs, "EXECUTOR", e,
+                        "action=" + summarize(normalizedArgs, e.actionName()) + " session=" + summarize(normalizedArgs, e.sessionKey()));
+                case Events.AgentExecutorCompleteEvent e -> format(normalizedArgs, "EXECUTOR", e,
+                        "action=" + summarize(normalizedArgs, e.actionName()) + " session=" + summarize(normalizedArgs, e.sessionKey()));
+                case Events.NullResultEvent e -> format(normalizedArgs, "NULL_RESULT", e,
+                        "session=" + summarize(normalizedArgs, e.sessionKey()) + " retry=" + e.retryCount() + "/" + e.maxRetries());
+                case Events.IncompleteJsonEvent e -> format(normalizedArgs, "INCOMPLETE_JSON", e,
+                        "session=" + summarize(normalizedArgs, e.sessionKey()) + " retry=" + e.retryCount());
+                case Events.UnparsedToolCallEvent e -> format(normalizedArgs, "UNPARSED_TOOL_CALL", e,
+                        "session=" + summarize(normalizedArgs, e.sessionKey()) + " text=" + summarize(normalizedArgs, e.toolCallText()));
+                case Events.TimeoutEvent e -> format(normalizedArgs, "TIMEOUT", e,
+                        "session=" + summarize(normalizedArgs, e.sessionKey()) + " retry=" + e.retryCount());
             };
     }
 

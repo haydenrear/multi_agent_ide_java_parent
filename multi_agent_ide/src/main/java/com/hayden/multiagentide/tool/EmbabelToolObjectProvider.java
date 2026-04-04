@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.tool;
 
-import com.embabel.agent.api.common.ToolObject;
+import com.embabel.agent.api.tool.ToolObject;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.tool.ToolCallback;
 

@@ -161,7 +161,14 @@ public interface Events {
             @JsonSubTypes.Type(value = TransformationEvent.class, name = "TRANSFORMATION"),
             @JsonSubTypes.Type(value = AgentCallStartedEvent.class, name = "AGENT_CALL_STARTED"),
             @JsonSubTypes.Type(value = AgentCallCompletedEvent.class, name = "AGENT_CALL_COMPLETED"),
-            @JsonSubTypes.Type(value = AgentCallEvent.class, name = "AGENT_CALL")
+            @JsonSubTypes.Type(value = AgentCallEvent.class, name = "AGENT_CALL"),
+            @JsonSubTypes.Type(value = AgentExecutorStartEvent.class, name = "AGENT_EXECUTOR_START"),
+            @JsonSubTypes.Type(value = AgentExecutorCompleteEvent.class, name = "AGENT_EXECUTOR_COMPLETE"),
+            @JsonSubTypes.Type(value = PromptReceivedEvent.class, name = "PROMPT_RECEIVED"),
+            @JsonSubTypes.Type(value = NullResultEvent.class, name = "NULL_RESULT"),
+            @JsonSubTypes.Type(value = IncompleteJsonEvent.class, name = "INCOMPLETE_JSON"),
+            @JsonSubTypes.Type(value = UnparsedToolCallEvent.class, name = "UNPARSED_TOOL_CALL"),
+            @JsonSubTypes.Type(value = TimeoutEvent.class, name = "TIMEOUT")
     })
     sealed interface GraphEvent extends FilteredObject, HasContextId {
 
@@ -586,6 +593,45 @@ public interface Events {
                         line("agentType", e.agentType()),
                         line("templateName", e.templateName()),
                         block("assembledPrompt", e.assembledPrompt()));
+                case AgentExecutorStartEvent e -> formatEvent("Agent Executor Start Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionKey", e.sessionKey()),
+                        line("actionName", e.actionName()));
+                case AgentExecutorCompleteEvent e -> formatEvent("Agent Executor Complete Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionKey", e.sessionKey()),
+                        line("actionName", e.actionName()));
+                case NullResultEvent e -> formatEvent("Null Result Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionKey", e.sessionKey()),
+                        line("retryCount", e.retryCount()),
+                        line("maxRetries", e.maxRetries()));
+                case IncompleteJsonEvent e -> formatEvent("Incomplete JSON Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionKey", e.sessionKey()),
+                        line("retryCount", e.retryCount()),
+                        block("rawFragment", e.rawFragment()));
+                case UnparsedToolCallEvent e -> formatEvent("Unparsed Tool Call Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionKey", e.sessionKey()),
+                        block("toolCallText", e.toolCallText()));
+                case TimeoutEvent e -> formatEvent("Timeout Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionKey", e.sessionKey()),
+                        line("retryCount", e.retryCount()),
+                        block("detail", e.detail()));
             };
         }
 
@@ -1821,6 +1867,40 @@ public interface Events {
     }
 
     /**
+     * Emitted before the LLM call in AgentExecutor.run(). Signals a new executor attempt.
+     * Used by AcpRetryEventListener to bracket retry state.
+     */
+    record AgentExecutorStartEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String sessionKey,
+            String actionName
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "AGENT_EXECUTOR_START";
+        }
+    }
+
+    /**
+     * Emitted after a successful LLM call in AgentExecutor.run(). Signals executor success.
+     * Used by AcpRetryEventListener to clear retry state.
+     */
+    record AgentExecutorCompleteEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String sessionKey,
+            String actionName
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "AGENT_EXECUTOR_COMPLETE";
+        }
+    }
+
+    /**
      * Event emitted when a fully assembled prompt is about to be sent to the LLM.
      * Captures the complete prompt text (template + all prompt contributors) for observability.
      */
@@ -1835,6 +1915,80 @@ public interface Events {
         @Override
         public String eventType() {
             return "PROMPT_RECEIVED";
+        }
+    }
+
+    /**
+     * Emitted when the ACP session returns a null or empty result and a retry
+     * loop is entered (or exhausted).
+     */
+    @Builder
+    record NullResultEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String sessionKey,
+            int retryCount,
+            int maxRetries
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "NULL_RESULT";
+        }
+    }
+
+    /**
+     * Emitted when the ACP response contains an opening '{' but no complete
+     * JSON object — the agent was likely truncated mid-response.
+     */
+    @Builder
+    record IncompleteJsonEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String sessionKey,
+            int retryCount,
+            String rawFragment
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "INCOMPLETE_JSON";
+        }
+    }
+
+    /**
+     * Emitted when the ACP response is an unparsed tool call returned as
+     * final structured output instead of an actual response.
+     */
+    @Builder
+    record UnparsedToolCallEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String sessionKey,
+            String toolCallText
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "UNPARSED_TOOL_CALL";
+        }
+    }
+
+    /**
+     * Emitted when an ACP session or executor call times out.
+     */
+    @Builder
+    record TimeoutEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String sessionKey,
+            int retryCount,
+            String detail
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "TIMEOUT";
         }
     }
 }

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.embabel.agent.api.common.ContextualPromptElement;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.api.common.PromptRunner;
-import com.embabel.agent.api.common.ToolObject;
+import com.embabel.agent.api.tool.ToolObject;
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.multiagentide.agent.AskUserQuestionToolAdapter;
 import com.hayden.multiagentide.agent.decorator.prompt.LlmCallDecorator;
@@ -45,7 +45,7 @@ public class DefaultLlmRunner implements LlmRunner {
     private final AskUserQuestionToolAdapter askUserQuestionToolAdapter;
     private final ObjectMapper objectMapper;
     private final LlmModelSelectionProperties modelSelectionProperties;
-    private final ObjectProvider<PromptContributorService> promptContributorServiceProvider;
+    private final PromptContributorService promptContributorService;
 
     @Autowired(required = false)
     private List<LlmCallDecorator> llmCallDecorators = new ArrayList<>();
@@ -60,7 +60,6 @@ public class DefaultLlmRunner implements LlmRunner {
             OperationContext context
     ) {
         String encodedAcpOptions = resolveEncodedAcpOptions(promptContext);
-        PromptContributorService promptContributorService = promptContributorServiceProvider.getIfAvailable();
         List<ContextualPromptElement> promptElements = promptContributorService == null
                 ? promptContext.promptContributors()
                 : promptContributorService.getContributors(promptContext);
@@ -82,7 +81,7 @@ public class DefaultLlmRunner implements LlmRunner {
         }
 
         // Execute and return
-        ObjectCreator<T> tObjectCreator = llmCallContext
+        var tObjectCreator = llmCallContext
                 .templateOperations();
 
         T result = tObjectCreator
