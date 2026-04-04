@@ -54,6 +54,10 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | S-INV7 | PASS | Happy-path traces show `errorType: null` (no error recorded). Retry traces show correct variant. `isRetry` check handles both null and NoError as non-retry |
 | S-INV8 | PASS | `happyPath_noRetryFilteringOccurs` (S-INV8a: no filtering). 6 retry tests complete successfully after error+retry (S-INV8b: retry filtering active). S-INV8c validated via code inspection |
 | S-INV10 | PASS (indirect) | controllerResponse test uses assemblePrompt path via PromptContributorService |
+| S-INV11 | — | Not yet validated (needs integration trace verification) |
+| S-INV12 | PASS (unit) | Unit tests in ActionRetryListenerImplTest cover session scoping, chain detection |
+| S-INV13 | PASS (unit) | Unit test: errorContext_accumulatesAcrossMultipleStartsAndErrors |
+| S-INV14 | PASS (unit) | Unit tests: errorType_withSessionKey_* (4 tests) |
 
 ### Trace Timing Gap (A-INV2)
 
@@ -522,6 +526,30 @@ Also sets `entity.activatedAt` to current timestamp.
 **Invariant**: `PromptContributorService.assemblePrompt()` is the sole prompt assembly implementation. Both `AgentExecutor.assemblePrompt()` and `PromptHealthCheckLlmCallDecorator` delegate to it. The method: (1) renders template via `OperationContext.agentPlatform()`, (2) calls `getContributors()` (which applies retry filtering), (3) unwraps `PromptContributorAdapter`s, (4) concatenates with `--- start/end [name]` delimiters, (5) falls back to goal extraction or justification message if empty.
 **Search**: Code-level: `AgentExecutor.assemblePrompt()` calls `contributorService.assemblePrompt()`. `PromptHealthCheckLlmCallDecorator` calls `promptContributorService.assemblePrompt()`.
 
+### S-INV11. requestContextId Stable Across Retries, nodeId Unique Per Attempt (S11)
+**Invariant**: `AgentExecutorStartEvent.requestContextId()` equals `promptContext.currentContextId().value()` — the agentRequest's contextId, unchanged across retries. `AgentExecutorStartEvent.nodeId()` equals `requestContextId.createChild().value()` — unique per `AgentExecutor.run()` invocation. `AgentExecutorCompleteEvent.startNodeId()` equals the corresponding start event's `nodeId()`.
+**Search**: `*.events.md` — in retry scenarios, two START events have the same `requestContextId` but different `nodeId`. The COMPLETE event's `startNodeId` matches the second START's `nodeId`.
+
+### S-INV12. Retry Sequence Boundary Correctness (S12)
+**Invariant**: `findFirstUnmatchedStartIndex(sessionKey)` returns the index of the earliest `AgentExecutorStartEvent` in a contiguous chain of unmatched starts for the given session. A start is matched iff its `nodeId` appears as `startNodeId` on some `AgentExecutorCompleteEvent` with the same `sessionKey`. A matched start terminates the backwards walk. Returns -1 if no unmatched starts exist.
+**Sub-invariant S-INV12a**: Only considers starts matching the given `sessionKey`.
+**Sub-invariant S-INV12b**: Interleaved starts from other sessions are skipped (not break/matched).
+**Sub-invariant S-INV12c**: `errorCountForRetrySequence` counts from `firstUnmatched + 1` forward.
+**Search**: Unit test: `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods`.
+
+### S-INV13. Cumulative ErrorContext Chain (S13)
+**Invariant**: Each `ErrorDescriptor` in a retry sequence carries an `ErrorContext` containing all previous errors (as `ErrorEntry` records). The chain is built by: (1) calling `history.errorType(sessionKey)` to get the previous error, (2) calling `previousError.errorContext().withError(previousError)` to append it. The first error has `ErrorContext.EMPTY`. The chain is flat (no recursive nesting — `ErrorEntry` omits its own `ErrorContext`).
+**Sub-invariant S-INV13a**: After a completed execution (matched start/complete), the next error starts with `ErrorContext.EMPTY`.
+**Sub-invariant S-INV13b**: `ErrorEntry.from(error)` extracts `errorType`, `actionName`, `sessionKey`, `detail`, and `contextId` from each variant.
+**Search**: Unit test: `errorContext_accumulatesAcrossMultipleStartsAndErrors`. Trace: `*.blackboard.md` — `errorContext` field shows chain in retry tests.
+
+### S-INV14. errorType(sessionKey) Scoped Correctly (S14)
+**Invariant**: `errorType(sessionKey)` returns the chronologically last `ErrorDescriptor` between `findFirstUnmatchedStartIndex(sessionKey) + 1` and the end of history, matching by `sessionKey` on the descriptor. Returns `null` if `findFirstUnmatchedStartIndex` returns -1 (no active retry sequence).
+**Sub-invariant S-INV14a**: Errors from completed executions (before the first unmatched start) are excluded.
+**Sub-invariant S-INV14b**: Errors with a different `sessionKey` are skipped.
+**Sub-invariant S-INV14c**: Returns the LAST matching error (not the first), because it carries the cumulative `ErrorContext`.
+**Search**: Unit test: `errorType_withSessionKey_*` tests.
+
 ---
 
 ## Coverage: Surface → Invariants
@@ -621,3 +649,7 @@ Also sets `entity.activatedAt` to current timestamp.
 | S8 | S-INV8 |
 | S9 | — (compile-time) |
 | S10 | S-INV10 |
+| S11 | S-INV11, S-INV2 |
+| S12 | S-INV12 |
+| S13 | S-INV13 |
+| S14 | S-INV14 |

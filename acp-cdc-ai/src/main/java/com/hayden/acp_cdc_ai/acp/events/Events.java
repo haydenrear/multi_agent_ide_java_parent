@@ -168,7 +168,8 @@ public interface Events {
             @JsonSubTypes.Type(value = NullResultEvent.class, name = "NULL_RESULT"),
             @JsonSubTypes.Type(value = IncompleteJsonEvent.class, name = "INCOMPLETE_JSON"),
             @JsonSubTypes.Type(value = UnparsedToolCallEvent.class, name = "UNPARSED_TOOL_CALL"),
-            @JsonSubTypes.Type(value = TimeoutEvent.class, name = "TIMEOUT")
+            @JsonSubTypes.Type(value = TimeoutEvent.class, name = "TIMEOUT"),
+            @JsonSubTypes.Type(value = ParseErrorEvent.class, name = "PARSE_ERROR")
     })
     sealed interface GraphEvent extends FilteredObject, HasContextId {
 
@@ -598,13 +599,16 @@ public interface Events {
                         line("timestamp", e.timestamp()),
                         line("nodeId", e.nodeId()),
                         line("sessionKey", e.sessionKey()),
-                        line("actionName", e.actionName()));
+                        line("actionName", e.actionName()),
+                        line("requestContextId", e.requestContextId()));
                 case AgentExecutorCompleteEvent e -> formatEvent("Agent Executor Complete Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
                         line("nodeId", e.nodeId()),
                         line("sessionKey", e.sessionKey()),
-                        line("actionName", e.actionName()));
+                        line("actionName", e.actionName()),
+                        line("requestContextId", e.requestContextId()),
+                        line("startNodeId", e.startNodeId()));
                 case NullResultEvent e -> formatEvent("Null Result Event", e.eventType(),
                         line("eventId", e.eventId()),
                         line("timestamp", e.timestamp()),
@@ -632,6 +636,13 @@ public interface Events {
                         line("sessionKey", e.sessionKey()),
                         line("retryCount", e.retryCount()),
                         block("detail", e.detail()));
+                case ParseErrorEvent e -> formatEvent("Parse Error Event", e.eventType(),
+                        line("eventId", e.eventId()),
+                        line("timestamp", e.timestamp()),
+                        line("nodeId", e.nodeId()),
+                        line("sessionKey", e.sessionKey()),
+                        line("actionName", e.actionName()),
+                        block("rawOutput", e.rawOutput()));
             };
         }
 
@@ -1869,13 +1880,18 @@ public interface Events {
     /**
      * Emitted before the LLM call in AgentExecutor.run(). Signals a new executor attempt.
      * Used by AcpRetryEventListener to bracket retry state.
+     *
+     * <p>{@code requestContextId} is the unique ArtifactKey for this particular execution
+     * attempt (a child of the prompt context's currentContextId). It ties start/complete
+     * pairs together and lets ActionRetryListenerImpl detect unmatched starts (retries).
      */
     record AgentExecutorStartEvent(
             String eventId,
             Instant timestamp,
             String nodeId,
             String sessionKey,
-            String actionName
+            String actionName,
+            String requestContextId
     ) implements GraphEvent {
         @Override
         public String eventType() {
@@ -1886,13 +1902,19 @@ public interface Events {
     /**
      * Emitted after a successful LLM call in AgentExecutor.run(). Signals executor success.
      * Used by AcpRetryEventListener to clear retry state.
+     *
+     * <p>{@code requestContextId} is the agentRequest's contextId (same across retries).
+     * {@code startNodeId} is the corresponding {@link AgentExecutorStartEvent#nodeId()},
+     * which is unique per execution attempt and used for start/complete matching.
      */
     record AgentExecutorCompleteEvent(
             String eventId,
             Instant timestamp,
             String nodeId,
             String sessionKey,
-            String actionName
+            String actionName,
+            String requestContextId,
+            String startNodeId
     ) implements GraphEvent {
         @Override
         public String eventType() {
@@ -1989,6 +2011,25 @@ public interface Events {
         @Override
         public String eventType() {
             return "TIMEOUT";
+        }
+    }
+
+    /**
+     * Emitted when an LLM response cannot be parsed into the expected type.
+     * Covers JSON parse failures and generic deserialization errors.
+     */
+    @Builder
+    record ParseErrorEvent(
+            String eventId,
+            Instant timestamp,
+            String nodeId,
+            String sessionKey,
+            String actionName,
+            String rawOutput
+    ) implements GraphEvent {
+        @Override
+        public String eventType() {
+            return "PARSE_ERROR";
         }
     }
 }

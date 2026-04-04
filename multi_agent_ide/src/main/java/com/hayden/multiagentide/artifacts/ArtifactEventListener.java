@@ -128,6 +128,8 @@ public class ArtifactEventListener implements EventListener {
             }
             case Events.TimeoutEvent ignored -> {
             }
+            case Events.ParseErrorEvent ignored -> {
+            }
         }
     }
 
@@ -195,6 +197,7 @@ public class ArtifactEventListener implements EventListener {
             case Events.IncompleteJsonEvent ignored -> false;
             case Events.UnparsedToolCallEvent ignored -> false;
             case Events.TimeoutEvent ignored -> false;
+            case Events.ParseErrorEvent ignored -> false;
         };
     }
 

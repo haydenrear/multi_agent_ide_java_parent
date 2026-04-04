@@ -216,6 +216,9 @@ public class AgentEventListener implements EventListener {
             case Events.TimeoutEvent e -> {
                 log.warn("Timeout: session={} retry={} detail={}", e.sessionKey(), e.retryCount(), e.detail());
             }
+            case Events.ParseErrorEvent e -> {
+                log.warn("Parse error: session={} action={} rawOutput={}", e.sessionKey(), e.actionName(), e.rawOutput());
+            }
         }
     }
 

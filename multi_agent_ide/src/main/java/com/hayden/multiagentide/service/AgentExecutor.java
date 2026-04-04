@@ -149,11 +149,15 @@ public class AgentExecutor {
 
         // 5. Emit executor start event
         String sessionKey = promptContext.chatId() != null ? promptContext.chatId().value() : "";
-        String nodeId = promptContext.currentContextId() != null
-                ? promptContext.currentContextId().value() : "";
+        // requestContextId is the agentRequest's contextId — same across retries for the same request
+        ArtifactKey requestContextId = promptContext.currentContextId() != null
+                ? promptContext.currentContextId() : ArtifactKey.createRoot();
+        // nodeId is unique per execution attempt (child of requestContextId)
+        ArtifactKey nodeKey = requestContextId.createChild();
+        String nodeId = nodeKey.value();
         eventBus.publish(new Events.AgentExecutorStartEvent(
                 java.util.UUID.randomUUID().toString(), java.time.Instant.now(),
-                nodeId, sessionKey, meta.actionName()));
+                nodeId, sessionKey, meta.actionName(), requestContextId.value()));
 
         // 6. Call LLM
         U result = llmRunner.runWithTemplate(
@@ -161,10 +165,10 @@ public class AgentExecutor {
                 args.responseClazz(), context
         );
 
-        // 7. Emit executor complete event
+        // 7. Emit executor complete event — startNodeId links back to this start's unique nodeId
         eventBus.publish(new Events.AgentExecutorCompleteEvent(
                 java.util.UUID.randomUUID().toString(), java.time.Instant.now(),
-                nodeId, sessionKey, meta.actionName()));
+                nodeId, sessionKey, meta.actionName(), requestContextId.value(), nodeId));
 
         // 8. Decorate result
         DecorateRequestResults.DecorateRoutingArgs<U> uDecorateRoutingArgs = new DecorateRequestResults.DecorateRoutingArgs<U>(

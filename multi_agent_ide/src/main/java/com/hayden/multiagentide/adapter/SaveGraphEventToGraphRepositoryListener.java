@@ -165,6 +165,8 @@ public class SaveGraphEventToGraphRepositoryListener implements EventListener {
             }
             case Events.TimeoutEvent ignored -> {
             }
+            case Events.ParseErrorEvent ignored -> {
+            }
         }
     }
 

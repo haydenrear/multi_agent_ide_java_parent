@@ -2452,6 +2452,22 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             var completeEvents = testEventListener.eventsOfType(Events.AgentExecutorCompleteEvent.class);
             assertThat(startEvents).isNotEmpty();
             assertThat(startEvents).hasSameSizeAs(completeEvents);
+
+            // S-INV11: nodeId unique per attempt, startNodeId on complete matches start's nodeId
+            for (int i = 0; i < startEvents.size(); i++) {
+                var start = startEvents.get(i);
+                var complete = completeEvents.get(i);
+                assertThat(start.nodeId())
+                        .as("Start nodeId should not equal requestContextId (nodeId is a child)")
+                        .isNotEqualTo(start.requestContextId());
+                assertThat(complete.startNodeId())
+                        .as("Complete startNodeId should match start nodeId")
+                        .isEqualTo(start.nodeId());
+            }
+
+            // S-INV11: all nodeIds are distinct
+            var allNodeIds = startEvents.stream().map(Events.AgentExecutorStartEvent::nodeId).toList();
+            assertThat(allNodeIds).doesNotHaveDuplicates();
         }
 
         /**
@@ -2489,6 +2505,24 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             assertThat(startEvents.size())
                     .as("One extra start from the failed attempt")
                     .isEqualTo(completeEvents.size() + 1);
+
+            // S-INV11: The first two starts are for the same action (failed + retry) — they share
+            // requestContextId but have different nodeIds
+            var failedStart = startEvents.get(0);
+            var retryStart = startEvents.get(1);
+            assertThat(failedStart.requestContextId())
+                    .as("Failed and retry starts should share requestContextId")
+                    .isEqualTo(retryStart.requestContextId());
+            assertThat(failedStart.nodeId())
+                    .as("Failed and retry starts should have different nodeIds")
+                    .isNotEqualTo(retryStart.nodeId());
+
+            // S-INV11: The first complete event's startNodeId matches the retry start's nodeId
+            // (the failed start has no matching complete)
+            var firstComplete = completeEvents.get(0);
+            assertThat(firstComplete.startNodeId())
+                    .as("First complete's startNodeId should match retry start's nodeId")
+                    .isEqualTo(retryStart.nodeId());
         }
 
         /**

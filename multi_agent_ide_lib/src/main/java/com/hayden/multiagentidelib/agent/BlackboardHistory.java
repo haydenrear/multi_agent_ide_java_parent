@@ -187,7 +187,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         this.state = t.apply(this.state);
     }
 
-    synchronized void addEntry(String actionName, HasContextId enrichedInput) {
+    public synchronized void addEntry(String actionName, HasContextId enrichedInput) {
         this.history = this.history.withEntry(actionName, enrichedInput);
     }
 
@@ -354,11 +354,34 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
      * Returns the most recent ErrorDescriptor from history, or null if none.
      */
     public synchronized ErrorDescriptor errorType() {
+        return errorType(null);
+    }
+
+    /**
+     * Returns the most recent ErrorDescriptor for the current retry sequence of the
+     * given sessionKey, or null if none. Only considers errors after the first unmatched
+     * AgentExecutorStartEvent for this session, so completed executions' errors are excluded.
+     *
+     * <p>If sessionKey is null, returns the absolute last ErrorDescriptor (legacy behavior).
+     */
+    public synchronized ErrorDescriptor errorType(String sessionKey) {
         if (history == null || history.entries() == null) {
             return null;
         }
         List<Entry> entries = history.entries();
-        for (int i = entries.size() - 1; i >= 0; i--) {
+
+        // Determine the search boundary
+        int searchFrom = 0;
+        if (sessionKey != null) {
+            int firstUnmatched = findFirstUnmatchedStartIndex(sessionKey);
+            if (firstUnmatched < 0) {
+                // No active retry sequence for this session — no relevant error
+                return null;
+            }
+            searchFrom = firstUnmatched + 1;
+        }
+
+        for (int i = entries.size() - 1; i >= searchFrom; i--) {
             Entry entry = entries.get(i);
             if (entry == null) continue;
             Object input = switch (entry) {
@@ -366,7 +389,21 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                 case MessageEntry _ -> null;
             };
             if (input instanceof ErrorDescriptor ed) {
-                return ed;
+                if (sessionKey == null) {
+                    return ed;
+                }
+                String edSession = switch (ed) {
+                    case ErrorDescriptor.NoError e -> e.sessionKey();
+                    case ErrorDescriptor.CompactionError e -> e.sessionKey();
+                    case ErrorDescriptor.ParseError e -> e.sessionKey();
+                    case ErrorDescriptor.TimeoutError e -> e.sessionKey();
+                    case ErrorDescriptor.UnparsedToolCallError e -> e.sessionKey();
+                    case ErrorDescriptor.NullResultError e -> e.sessionKey();
+                    case ErrorDescriptor.IncompleteJsonError e -> e.sessionKey();
+                };
+                if (sessionKey.equals(edSession)) {
+                    return ed;
+                }
             }
         }
         return null;
@@ -377,6 +414,16 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
      */
     public synchronized ErrorDescriptor.CompactionStatus compactionStatus() {
         long count = errorCount(ErrorDescriptor.CompactionError.class);
+        if (count == 0) return ErrorDescriptor.CompactionStatus.NONE;
+        if (count == 1) return ErrorDescriptor.CompactionStatus.FIRST;
+        return ErrorDescriptor.CompactionStatus.MULTIPLE;
+    }
+
+    /**
+     * Returns the compaction status scoped to the current retry sequence for the given session.
+     */
+    public synchronized ErrorDescriptor.CompactionStatus compactionStatusForRetrySequence(String sessionKey) {
+        long count = errorCountForRetrySequence(ErrorDescriptor.CompactionError.class, sessionKey);
         if (count == 0) return ErrorDescriptor.CompactionStatus.NONE;
         if (count == 1) return ErrorDescriptor.CompactionStatus.FIRST;
         return ErrorDescriptor.CompactionStatus.MULTIPLE;
@@ -397,6 +444,139 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                 })
                 .filter(input -> input != null && errorType.isInstance(input))
                 .count();
+    }
+
+    /**
+     * Counts errors of a specific ErrorDescriptor type across the current retry sequence
+     * for the given session (chatId).
+     *
+     * <p>A retry sequence is the chain of consecutive unmatched AgentExecutorStartEvents
+     * for the same sessionKey. When the framework retries, AgentExecutor.run() emits a
+     * new StartEvent each time, so the history looks like:
+     * <pre>
+     *   StartEvent(session=X, req-1)
+     *     TimeoutError           ← error from 1st attempt
+     *   StartEvent(session=X, req-2)  ← framework retried
+     *     TimeoutError           ← error from 2nd attempt
+     *   StartEvent(session=X, req-3)  ← framework retried again
+     * </pre>
+     *
+     * This method finds the first StartEvent in that unbroken chain (the one that began
+     * the retry sequence) and counts all errors of the given type from that point forward.
+     * Only considers StartEvents with a matching sessionKey.
+     */
+    public synchronized long errorCountForRetrySequence(Class<? extends ErrorDescriptor> errorType, String sessionKey) {
+        int firstUnmatchedStartIndex = findFirstUnmatchedStartIndex(sessionKey);
+        if (firstUnmatchedStartIndex < 0) {
+            return 0;
+        }
+        List<Entry> entries = history.entries();
+        return entries.subList(firstUnmatchedStartIndex + 1, entries.size()).stream()
+                .filter(entry -> entry != null)
+                .map(entry -> switch (entry) {
+                    case DefaultEntry de -> de.input();
+                    case MessageEntry _ -> null;
+                })
+                .filter(input -> input != null && errorType.isInstance(input))
+                .count();
+    }
+
+    /**
+     * Finds the index of the first AgentExecutorStartEvent in the current unbroken
+     * chain of unmatched starts for the given sessionKey. Only considers starts whose
+     * sessionKey matches, so interleaved starts from other sessions are ignored.
+     * Returns the index of the earliest such start, or -1 if none.
+     *
+     * <p>Matching uses {@code startEvent.nodeId() == completeEvent.startNodeId()},
+     * since nodeId is unique per execution attempt while requestContextId can be
+     * the same across retries for the same request.
+     */
+    public synchronized int findFirstUnmatchedStartIndex(String sessionKey) {
+        if (history == null || history.entries() == null) {
+            return -1;
+        }
+        List<Entry> entries = history.entries();
+
+        // Collect all completed startNodeIds for this session
+        java.util.Set<String> completedStartNodeIds = new java.util.HashSet<>();
+        for (Entry entry : entries) {
+            if (entry instanceof DefaultEntry de
+                    && de.input() instanceof Events.AgentExecutorCompleteEvent ce
+                    && ce.startNodeId() != null
+                    && sessionKey.equals(ce.sessionKey())) {
+                completedStartNodeIds.add(ce.startNodeId());
+            }
+        }
+
+        // Walk backwards, tracking the earliest unmatched start in a contiguous chain
+        // Only consider starts for this sessionKey
+        int firstUnmatched = -1;
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            Entry entry = entries.get(i);
+            if (entry instanceof DefaultEntry de
+                    && de.input() instanceof Events.AgentExecutorStartEvent se
+                    && sessionKey.equals(se.sessionKey())) {
+                String nodeId = se.nodeId();
+                if (nodeId != null && completedStartNodeIds.contains(nodeId)) {
+                    // This start is matched — the chain of unmatched starts ends here
+                    break;
+                }
+                firstUnmatched = i;
+            }
+        }
+        return firstUnmatched;
+    }
+
+    /**
+     * Returns true if the last AgentExecutorStartEvent has a matching
+     * AgentExecutorCompleteEvent (by nodeId ↔ startNodeId).
+     */
+    public synchronized boolean isLastExecutionComplete() {
+        if (history == null || history.entries() == null) {
+            return false;
+        }
+        List<Entry> entries = history.entries();
+
+        // Find the last start
+        Events.AgentExecutorStartEvent lastStart = null;
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            Entry entry = entries.get(i);
+            if (entry instanceof DefaultEntry de
+                    && de.input() instanceof Events.AgentExecutorStartEvent se) {
+                lastStart = se;
+                break;
+            }
+        }
+        if (lastStart == null) return false;
+
+        String startNodeId = lastStart.nodeId();
+        if (startNodeId == null || startNodeId.isEmpty()) {
+            // Legacy: fall back to positional check
+            int lastStartIdx = -1, lastCompleteIdx = -1;
+            for (int i = entries.size() - 1; i >= 0; i--) {
+                Entry entry = entries.get(i);
+                if (entry instanceof DefaultEntry de) {
+                    if (lastCompleteIdx < 0 && de.input() instanceof Events.AgentExecutorCompleteEvent) {
+                        lastCompleteIdx = i;
+                    }
+                    if (lastStartIdx < 0 && de.input() instanceof Events.AgentExecutorStartEvent) {
+                        lastStartIdx = i;
+                    }
+                }
+                if (lastStartIdx >= 0 && lastCompleteIdx >= 0) break;
+            }
+            return lastStartIdx >= 0 && lastCompleteIdx > lastStartIdx;
+        }
+
+        // Check if any complete's startNodeId matches this start's nodeId
+        for (Entry entry : entries) {
+            if (entry instanceof DefaultEntry de
+                    && de.input() instanceof Events.AgentExecutorCompleteEvent ce
+                    && startNodeId.equals(ce.startNodeId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public record StringMessage(ArtifactKey contextId, String message) implements HasContextId {}
@@ -650,7 +830,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
         if (event == null) {
             return;
         }
-        if (nodeId != null && !nodeId.isBlank() && !nodeId.equals(event.nodeId())) {
+        if (nodeId != null && !nodeId.isBlank() && !isDescendantOrEqual(event.nodeId(), nodeId)) {
             return;
         }
         List<String> targets = classifyEventTargets(event);
@@ -750,6 +930,7 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             case Events.IncompleteJsonEvent e -> buildTargets(e.nodeId(), e.sessionKey());
             case Events.UnparsedToolCallEvent e -> buildTargets(e.nodeId(), e.sessionKey());
             case Events.TimeoutEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.ParseErrorEvent e -> buildTargets(e.nodeId(), e.sessionKey());
         };
     }
 
@@ -786,6 +967,15 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             return null;
         }
         return "parent:" + parentNodeId;
+    }
+
+    private static boolean isDescendantOrEqual(String eventNodeId, String parentNodeId) {
+        if (!ArtifactKey.isValid(eventNodeId) || !ArtifactKey.isValid(parentNodeId)) {
+            return false;
+        }
+        ArtifactKey eventKey = new ArtifactKey(eventNodeId);
+        ArtifactKey parentKey = new ArtifactKey(parentNodeId);
+        return eventKey.equals(parentKey) || eventKey.isDescendantOf(parentKey);
     }
 
     private static boolean hasText(String value) {

@@ -31,12 +31,12 @@ class AcpRetryEventListenerTest {
 
     private Events.AgentExecutorStartEvent executorStart() {
         return new Events.AgentExecutorStartEvent(
-                "evt-2", Instant.now(), "node-1", sessionKey, "someAction");
+                "evt-2", Instant.now(), "node-1", sessionKey, "someAction", "req-ctx-1");
     }
 
     private Events.AgentExecutorCompleteEvent executorComplete() {
         return new Events.AgentExecutorCompleteEvent(
-                "evt-3", Instant.now(), "node-1", sessionKey, "someAction");
+                "evt-3", Instant.now(), "node-1", sessionKey, "someAction", "req-ctx-1", "node-1");
     }
 
     private Events.CompactionEvent compaction() {
@@ -101,7 +101,7 @@ class AcpRetryEventListenerTest {
         @Test
         void executorStartOnUnknownSessionIsNoOp() {
             listener.onEvent(new Events.AgentExecutorStartEvent(
-                    "evt", Instant.now(), "node", "unknown", "action"));
+                    "evt", Instant.now(), "node", "unknown", "action", "req-ctx-unknown"));
         }
     }
 

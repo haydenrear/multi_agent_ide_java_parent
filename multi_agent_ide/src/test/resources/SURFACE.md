@@ -87,6 +87,10 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | S8 | `happyPath_noRetryFilteringOccurs` (no filtering in happy path), `retry_*` tests (filtering active on retry) | COVERED |
 | S9 | — (compile-time guarantee via interface hierarchy) | COVERED (compile) |
 | S10 | `controllerResponse_rendersTemplateAndResolvesInterrupt` (uses assemblePrompt path) | COVERED (indirect) |
+| S11 | `ActionRetryListenerImplTest` (unit: start/complete matching), integration: retry tests verify unique nodeId per attempt | COVERED |
+| S12 | `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods` (findFirstUnmatchedStartIndex, errorCountForRetrySequence) | COVERED (unit) |
+| S13 | `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods.errorContext_accumulatesAcrossMultipleStartsAndErrors` | COVERED (unit) |
+| S14 | `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods` (errorType_withSessionKey_* tests) | COVERED (unit) |
 
 ---
 
@@ -689,6 +693,26 @@ After `ActionRetryListener` fires, `BlackboardHistory.errorType()` returns the c
 `PromptContributorService.assemblePrompt()` is the single codepath for prompt assembly. Both `AgentExecutor.assemblePrompt()` (controller execution) and `PromptHealthCheckLlmCallDecorator` delegate to it. The method renders the template, resolves/filters contributors, and concatenates with `--- start/end` delimiters.
 
 **Validates**: No duplicated prompt assembly logic. Code colocation ensures retry filtering, template rendering, and contributor resolution happen consistently.
+
+### S11. requestContextId vs nodeId Semantics (P0)
+`requestContextId` is the agentRequest's `contextId` — the same value across all retry attempts for the same request. `nodeId` on `AgentExecutorStartEvent` is `requestContextId.createChild()` — unique per execution attempt. `AgentExecutorCompleteEvent.startNodeId` records the start event's `nodeId` for matching.
+
+**Validates**: `requestContextId` stable across retries. `nodeId` unique per attempt. `startNodeId` on complete event matches corresponding start's `nodeId`. `findFirstUnmatchedStartIndex` and `findLastUnmatchedStart` use `nodeId`↔`startNodeId` matching (not `requestContextId`).
+
+### S12. Retry Sequence Boundary Detection (P0)
+`BlackboardHistory.findFirstUnmatchedStartIndex(sessionKey)` walks backwards through start events for the given session, finding the earliest start whose `nodeId` has no matching `CompleteEvent.startNodeId`. A matched start (one that completed successfully) breaks the chain. `errorCountForRetrySequence` and `errorType(sessionKey)` scope to this boundary.
+
+**Validates**: Completed executions excluded from retry chain. Multiple unmatched starts (from framework reruns) form a contiguous chain. Cross-session starts ignored.
+
+### S13. Cumulative ErrorContext Across Retry Sequence (P0)
+Each `ErrorDescriptor` carries an `ErrorContext` with the ordered list of all previous errors in the retry sequence. Built by calling `history.errorType(sessionKey)` to get the last error, then `previousError.errorContext().withError(previousError)` to append it. The chain is flat (`ErrorEntry` records, no nested `ErrorContext`).
+
+**Validates**: First error has empty `ErrorContext`. Second error's context contains the first. Nth error's context contains all N-1 previous errors in order. Chain resets after a completed execution.
+
+### S14. errorType(sessionKey) Scoped to Active Retry Sequence (P0)
+`BlackboardHistory.errorType(sessionKey)` returns the last `ErrorDescriptor` within the current retry sequence for the given session. Returns `null` if no active retry sequence exists (all starts matched or no starts at all). Only considers errors with matching `sessionKey`.
+
+**Validates**: Errors from completed executions not returned. Errors from other sessions not returned. Returns the chronologically last error (which carries the full cumulative `ErrorContext`).
 
 ---
 

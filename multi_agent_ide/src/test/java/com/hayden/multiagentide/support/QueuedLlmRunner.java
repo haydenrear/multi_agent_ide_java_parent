@@ -8,6 +8,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.multiagentidelib.agent.ErrorDescriptor;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import lombok.Getter;
 import lombok.Setter;
@@ -366,9 +367,18 @@ public class QueuedLlmRunner implements LlmRunner {
             sb.append("## Call %d: `%s`\n\n".formatted(record.callIndex(), record.templateName()));
             sb.append("History entries: `%d`\n\n".formatted(entries.size()));
             if (history != null) {
+                var lastError = history.errorType();
                 sb.append("- errorType: `%s`\n".formatted(
-                        history.errorType() != null ? history.errorType().getClass().getSimpleName() : "null"));
-                sb.append("- compactionStatus: `%s`\n\n".formatted(history.compactionStatus()));
+                        lastError != null ? lastError.getClass().getSimpleName() : "null"));
+                sb.append("- compactionStatus: `%s`\n".formatted(history.compactionStatus()));
+                if (lastError != null && lastError.errorContext().hasErrors()) {
+                    sb.append("- errorContext: `%d previous errors` [%s]\n".formatted(
+                            lastError.errorContext().errorCount(),
+                            lastError.errorContext().previousErrors().stream()
+                                    .map(ErrorDescriptor.ErrorEntry::errorType)
+                                    .collect(java.util.stream.Collectors.joining(" → "))));
+                }
+                sb.append("\n");
             }
             if (entries.isEmpty()) {
                 sb.append("- (none)\n\n");

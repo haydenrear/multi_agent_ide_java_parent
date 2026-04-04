@@ -22,6 +22,23 @@ import java.util.concurrent.TimeoutException;
  * Classifies throwables into ErrorDescriptor variants so that AgentExecutor and
  * PromptContributors can adapt behavior on retry.
  *
+ * <p>Resolves action context from the last unmatched {@link Events.AgentExecutorStartEvent}
+ * on the blackboard (one whose {@code requestContextId} has no corresponding
+ * {@link Events.AgentExecutorCompleteEvent}). This is the authoritative source for
+ * the current LLM call's identity.
+ *
+ * <p>Returns early (no-op) if:
+ * <ul>
+ *   <li>No {@code BlackboardHistory} on the process</li>
+ *   <li>No unmatched {@code AgentExecutorStartEvent} on the blackboard</li>
+ * </ul>
+ *
+ * <p>Each error gets a unique {@code contextId} created as a child of the start event's
+ * {@code nodeId}, preserving the hierarchical ArtifactKey structure.
+ *
+ * <p>Error counts (for retryCount fields) are scoped to the current execution —
+ * only errors since the last {@code AgentExecutorStartEvent} are counted.
+ *
  * <p>For compaction errors, polls the ACP session for compaction completion before
  * returning (blocking the retry thread), matching the concurrency model of the
  * existing polling loop in AcpChatModel.
@@ -30,8 +47,8 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class ActionRetryListenerImpl implements ActionRetryListener {
 
-    private static final int MAX_COMPACTION_POLLS = 20;
-    private static final long COMPACTION_POLL_INTERVAL_MS = 10_000;
+    private static final int MAX_COMPACTION_POLLS = 30;
+    private static final long COMPACTION_POLL_INTERVAL_MS = 1_000;
 
     @Autowired
     @Lazy
@@ -46,29 +63,90 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
             return;
         }
 
-        String actionName = resolveActionName(history);
-        ArtifactKey contextId = resolveContextId(history);
+        // Find the last unmatched AgentExecutorStartEvent — one whose requestContextId
+        // has no corresponding AgentExecutorCompleteEvent. This is the current in-flight
+        // execution that is being retried.
+        Events.AgentExecutorStartEvent startEvent = findLastUnmatchedStart(history);
+        if (startEvent == null) {
+            log.warn("ActionRetryListener: no unmatched AgentExecutorStartEvent on blackboard for process {} — skipping",
+                    agentProcess.getId());
+            return;
+        }
 
-        ErrorDescriptor errorDescriptor = classify(throwable, actionName, contextId, history);
+        String actionName = startEvent.actionName();
+        String sessionKey = startEvent.sessionKey();
+        // Each error gets its own unique contextId as a child of the start event's nodeId
+        ArtifactKey parentContextId = new ArtifactKey(startEvent.nodeId());
+        ArtifactKey errorContextId = parentContextId.createChild();
+
+        ErrorDescriptor errorDescriptor = classify(throwable, actionName, sessionKey, errorContextId, history);
         history.addError(errorDescriptor);
 
-        log.info("ActionRetryListener: recorded {} for action={} retryCount={} on process={}",
-                errorDescriptor.getClass().getSimpleName(), actionName, context.getRetryCount(),
-                agentProcess.getId());
+        log.info("ActionRetryListener: recorded {} for action={} sessionKey={} retryCount={} on process={}",
+                errorDescriptor.getClass().getSimpleName(), actionName, sessionKey,
+                context.getRetryCount(), agentProcess.getId());
+
+        // Emit the error event for observability
+        Events.GraphEvent event = errorDescriptor.toEvent();
+        if (event != null) {
+            eventBus.publish(event);
+        }
 
         if (errorDescriptor instanceof ErrorDescriptor.CompactionError compactionError) {
-            waitForCompaction(compactionError, contextId);
+            waitForCompaction(compactionError, parentContextId);
         }
     }
 
     /**
-     * Classifies a throwable into the appropriate ErrorDescriptor variant.
+     * Finds the last AgentExecutorStartEvent whose nodeId has no matching
+     * AgentExecutorCompleteEvent (by startNodeId). Returns null if all starts are matched
+     * (or none exist).
+     *
+     * <p>Matching is by {@code startEvent.nodeId() == completeEvent.startNodeId()},
+     * since nodeId is unique per execution attempt while requestContextId can be the same
+     * across retries.
      */
-    ErrorDescriptor classify(Throwable throwable, String actionName, ArtifactKey contextId,
-                             BlackboardHistory history) {
+    Events.AgentExecutorStartEvent findLastUnmatchedStart(BlackboardHistory history) {
+        Events.AgentExecutorStartEvent lastStart = history.getLastOfType(Events.AgentExecutorStartEvent.class);
+        if (lastStart == null) {
+            return null;
+        }
+
+        String startNodeId = lastStart.nodeId();
+        if (startNodeId == null || startNodeId.isEmpty()) {
+            // Legacy event without nodeId — fall back to positional check
+            return history.isLastExecutionComplete() ? null : lastStart;
+        }
+
+        // Look for a complete event whose startNodeId matches this start's nodeId
+        Events.AgentExecutorCompleteEvent lastComplete = history.getLastOfType(Events.AgentExecutorCompleteEvent.class);
+        if (lastComplete != null && startNodeId.equals(lastComplete.startNodeId())) {
+            return null; // This start is matched — execution already completed
+        }
+
+        return lastStart;
+    }
+
+    /**
+     * Classifies a throwable into the appropriate ErrorDescriptor variant.
+     * Error counts span the entire retry sequence (from the first unmatched
+     * AgentExecutorStartEvent forward), not just the most recent attempt.
+     *
+     * <p>Each new ErrorDescriptor carries an {@link ErrorDescriptor.ErrorContext} that
+     * accumulates all previous errors in the retry sequence, so any single descriptor
+     * gives a complete picture of the error chain.
+     */
+    ErrorDescriptor classify(Throwable throwable, String actionName, String sessionKey,
+                             ArtifactKey contextId, BlackboardHistory history) {
+        // Build the ErrorContext by grabbing the last error for this session and appending it
+        ErrorDescriptor previousError = history.errorType(sessionKey);
+        ErrorDescriptor.ErrorContext errCtx = previousError != null
+                ? previousError.errorContext().withError(previousError)
+                : ErrorDescriptor.ErrorContext.EMPTY;
+
         if (throwable instanceof CompactionException) {
-            ErrorDescriptor.CompactionStatus status = history.compactionStatus().next();
-            return new ErrorDescriptor.CompactionError(actionName, status, false, contextId);
+            ErrorDescriptor.CompactionStatus status = history.compactionStatusForRetrySequence(sessionKey).next();
+            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, contextId, errCtx);
         }
 
         String message = throwable.getMessage();
@@ -76,49 +154,45 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
         String lowerMessage = message.toLowerCase();
 
         if (lowerMessage.contains("compacting") || lowerMessage.contains("prompt is too long")) {
-            ErrorDescriptor.CompactionStatus status = history.compactionStatus().next();
-            return new ErrorDescriptor.CompactionError(actionName, status, false, contextId);
+            ErrorDescriptor.CompactionStatus status = history.compactionStatusForRetrySequence(sessionKey).next();
+            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, contextId, errCtx);
         }
 
         if (throwable instanceof TimeoutException || lowerMessage.contains("timeout")) {
-            int retryCount = (int) history.errorCount(ErrorDescriptor.TimeoutError.class) + 1;
-            return new ErrorDescriptor.TimeoutError(actionName, retryCount, contextId);
+            int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.TimeoutError.class, sessionKey) + 1;
+            return new ErrorDescriptor.TimeoutError(actionName, sessionKey, retryCount, contextId, errCtx);
         }
 
         if (lowerMessage.contains("tool call")) {
-            return new ErrorDescriptor.UnparsedToolCallError(actionName, message, contextId);
+            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, message, contextId, errCtx);
         }
 
         if (lowerMessage.contains("null") && lowerMessage.contains("result")
                 || lowerMessage.contains("empty response")) {
-            int retryCount = (int) history.errorCount(ErrorDescriptor.NullResultError.class) + 1;
-            return new ErrorDescriptor.NullResultError(actionName, retryCount, 5, contextId);
+            int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.NullResultError.class, sessionKey) + 1;
+            return new ErrorDescriptor.NullResultError(actionName, sessionKey, retryCount, 5, contextId, errCtx);
         }
 
         if (lowerMessage.contains("incomplete json") || lowerMessage.contains("truncated")) {
-            int retryCount = (int) history.errorCount(ErrorDescriptor.IncompleteJsonError.class) + 1;
-            return new ErrorDescriptor.IncompleteJsonError(actionName, retryCount, message, contextId);
+            int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.IncompleteJsonError.class, sessionKey) + 1;
+            return new ErrorDescriptor.IncompleteJsonError(actionName, sessionKey, retryCount, message, contextId, errCtx);
         }
 
         if (throwable instanceof com.fasterxml.jackson.core.JsonParseException
                 || lowerMessage.contains("parse")) {
-            return new ErrorDescriptor.ParseError(actionName, message, contextId);
+            return new ErrorDescriptor.ParseError(actionName, sessionKey, message, contextId, errCtx);
         }
 
         // Fallback: treat as parse error with raw message
-        return new ErrorDescriptor.ParseError(actionName, message, contextId);
+        return new ErrorDescriptor.ParseError(actionName, sessionKey, message, contextId, errCtx);
     }
 
     /**
      * Blocks until compaction is complete or max polls exceeded.
-     * Emits CompactionEvent for observability.
      */
     private void waitForCompaction(ErrorDescriptor.CompactionError error, ArtifactKey contextId) {
         log.info("ActionRetryListener: waiting for compaction to complete for action={}",
                 error.actionName());
-        eventBus.publish(Events.CompactionEvent.of(
-                "ActionRetryListener waiting for compaction — action=" + error.actionName(),
-                contextId));
 
         for (int poll = 1; poll <= MAX_COMPACTION_POLLS; poll++) {
             try {
@@ -131,34 +205,9 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
             }
             log.info("ActionRetryListener: compaction poll {}/{} for action={}",
                     poll, MAX_COMPACTION_POLLS, error.actionName());
-            // The framework retry will re-invoke the action after we return.
-            // We just need to give the ACP session time to finish compacting.
-            // After waiting, return and let the retry proceed.
         }
 
         log.warn("ActionRetryListener: compaction still active after {} polls for action={} — returning for framework retry",
                 MAX_COMPACTION_POLLS, error.actionName());
-    }
-
-    /**
-     * Resolves the action name from the last BlackboardHistory entry.
-     */
-    private String resolveActionName(BlackboardHistory history) {
-        List<BlackboardHistory.Entry> entries = history.copyOfEntries();
-        if (entries.isEmpty()) {
-            return "unknown";
-        }
-        return entries.getLast().actionName();
-    }
-
-    /**
-     * Resolves the ArtifactKey (ACP session key) from the last BlackboardHistory entry.
-     */
-    private ArtifactKey resolveContextId(BlackboardHistory history) {
-        List<BlackboardHistory.Entry> entries = history.copyOfEntries();
-        if (entries.isEmpty()) {
-            return new ArtifactKey("unknown");
-        }
-        return entries.getLast().contextId();
     }
 }

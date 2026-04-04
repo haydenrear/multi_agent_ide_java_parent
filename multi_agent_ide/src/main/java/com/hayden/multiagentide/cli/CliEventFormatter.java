@@ -145,9 +145,12 @@ public class CliEventFormatter {
                                 + " template=" + summarize(normalizedArgs, e.templateName())
                                 + " prompt=" + summarize(normalizedArgs, e.assembledPrompt()));
                 case Events.AgentExecutorStartEvent e -> format(normalizedArgs, "EXECUTOR", e,
-                        "action=" + summarize(normalizedArgs, e.actionName()) + " session=" + summarize(normalizedArgs, e.sessionKey()));
+                        "action=" + summarize(normalizedArgs, e.actionName()) + " session=" + summarize(normalizedArgs, e.sessionKey())
+                                + " requestCtx=" + summarize(normalizedArgs, e.requestContextId()));
                 case Events.AgentExecutorCompleteEvent e -> format(normalizedArgs, "EXECUTOR", e,
-                        "action=" + summarize(normalizedArgs, e.actionName()) + " session=" + summarize(normalizedArgs, e.sessionKey()));
+                        "action=" + summarize(normalizedArgs, e.actionName()) + " session=" + summarize(normalizedArgs, e.sessionKey())
+                                + " requestCtx=" + summarize(normalizedArgs, e.requestContextId())
+                                + " startNodeId=" + summarize(normalizedArgs, e.startNodeId()));
                 case Events.NullResultEvent e -> format(normalizedArgs, "NULL_RESULT", e,
                         "session=" + summarize(normalizedArgs, e.sessionKey()) + " retry=" + e.retryCount() + "/" + e.maxRetries());
                 case Events.IncompleteJsonEvent e -> format(normalizedArgs, "INCOMPLETE_JSON", e,
@@ -156,6 +159,10 @@ public class CliEventFormatter {
                         "session=" + summarize(normalizedArgs, e.sessionKey()) + " text=" + summarize(normalizedArgs, e.toolCallText()));
                 case Events.TimeoutEvent e -> format(normalizedArgs, "TIMEOUT", e,
                         "session=" + summarize(normalizedArgs, e.sessionKey()) + " retry=" + e.retryCount());
+                case Events.ParseErrorEvent e -> format(normalizedArgs, "PARSE_ERROR", e,
+                        "session=" + summarize(normalizedArgs, e.sessionKey())
+                                + " action=" + summarize(normalizedArgs, e.actionName())
+                                + " rawOutput=" + summarize(normalizedArgs, e.rawOutput()));
             };
     }
 
