@@ -78,7 +78,7 @@ public interface AgentInterfaces {
             ) {
                 public AgentActionMetadata(AgentType agentType, String agentName, String actionName, String methodName, String template,
                                            Class<T> requestType, Class<U> routingType, Class<V> resultType) {
-                    this(agentType, agentName, actionName, methodName, template, requestType, routingType, resultType, null);
+                    this(agentType, agentName, actionName, methodName, template, requestType, routingType, resultType, ErrorTemplates.DEFAULT);
                 }
             }
 

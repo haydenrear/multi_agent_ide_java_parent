@@ -367,7 +367,7 @@ public class QueuedLlmRunner implements LlmRunner {
             sb.append("## Call %d: `%s`\n\n".formatted(record.callIndex(), record.templateName()));
             sb.append("History entries: `%d`\n\n".formatted(entries.size()));
             if (history != null) {
-                var lastError = history.errorType();
+                var lastError = history.errorType(null);
                 sb.append("- errorType: `%s`\n".formatted(
                         lastError != null ? lastError.getClass().getSimpleName() : "null"));
                 sb.append("- compactionStatus: `%s`\n".formatted(history.compactionStatus()));

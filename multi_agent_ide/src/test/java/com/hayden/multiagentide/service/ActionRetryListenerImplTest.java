@@ -151,7 +151,7 @@ class ActionRetryListenerImplTest {
             history.addEntry("test", startEvent("coordinateWorkflow", sessionKey, "node-1", "req-1"));
             // First compaction
             history.addError(new ErrorDescriptor.CompactionError(
-                    actionName, sessionKey, ErrorDescriptor.CompactionStatus.FIRST, false, contextId, EC));
+                    actionName, sessionKey, ErrorDescriptor.CompactionStatus.FIRST, false, "", contextId, EC));
             // Second compaction
             var result = listener.classify(
                     new CompactionException("compacting again", "session-1"),
@@ -346,10 +346,10 @@ class ActionRetryListenerImplTest {
 
             assertThat(history.errorType()).isNull();
 
-            history.addError(new ErrorDescriptor.ParseError("action1", sessionKey, "bad json", key, EC));
+            history.addError(new ErrorDescriptor.ParseError("action1", sessionKey, "bad json", "", key, EC));
             assertThat(history.errorType()).isInstanceOf(ErrorDescriptor.ParseError.class);
 
-            history.addError(new ErrorDescriptor.TimeoutError("action2", sessionKey, 1, key, EC));
+            history.addError(new ErrorDescriptor.TimeoutError("action2", sessionKey, 1, "", key, EC));
             assertThat(history.errorType()).isInstanceOf(ErrorDescriptor.TimeoutError.class);
         }
 
@@ -361,11 +361,11 @@ class ActionRetryListenerImplTest {
             assertThat(history.compactionStatus()).isEqualTo(ErrorDescriptor.CompactionStatus.NONE);
 
             history.addError(new ErrorDescriptor.CompactionError(
-                    "action1", sessionKey, ErrorDescriptor.CompactionStatus.FIRST, false, key, EC));
+                    "action1", sessionKey, ErrorDescriptor.CompactionStatus.FIRST, false, "", key, EC));
             assertThat(history.compactionStatus()).isEqualTo(ErrorDescriptor.CompactionStatus.FIRST);
 
             history.addError(new ErrorDescriptor.CompactionError(
-                    "action1", sessionKey, ErrorDescriptor.CompactionStatus.MULTIPLE, false, key, EC));
+                    "action1", sessionKey, ErrorDescriptor.CompactionStatus.MULTIPLE, false, "", key, EC));
             assertThat(history.compactionStatus()).isEqualTo(ErrorDescriptor.CompactionStatus.MULTIPLE);
         }
 
@@ -375,15 +375,15 @@ class ActionRetryListenerImplTest {
             var key = ArtifactKey.createRoot();
 
             // Errors before any start event — not counted
-            history.addError(new ErrorDescriptor.ParseError("old", sessionKey, "msg", key, EC));
+            history.addError(new ErrorDescriptor.ParseError("old", sessionKey, "msg", "", key, EC));
 
             // First attempt (unmatched — no complete)
             history.addEntry("test", startEvent("action1", sessionKey, "node-1", "req-1"));
-            history.addError(new ErrorDescriptor.TimeoutError("a", sessionKey, 1, key, EC));
+            history.addError(new ErrorDescriptor.TimeoutError("a", sessionKey, 1, "", key, EC));
 
             // Second attempt (also unmatched — retry chain continues)
             history.addEntry("test", startEvent("action1", sessionKey, "node-2", "req-2"));
-            history.addError(new ErrorDescriptor.TimeoutError("a", sessionKey, 2, key, EC));
+            history.addError(new ErrorDescriptor.TimeoutError("a", sessionKey, 2, "", key, EC));
 
             // Counts from req-1 (first unmatched) forward: 2 timeouts
             assertThat(history.errorCountForRetrySequence(ErrorDescriptor.TimeoutError.class, sessionKey)).isEqualTo(2);
@@ -398,12 +398,12 @@ class ActionRetryListenerImplTest {
 
             // Completed execution — should not be in retry chain
             history.addEntry("test", startEvent("action1", sessionKey, "node-1", "req-1"));
-            history.addError(new ErrorDescriptor.TimeoutError("a", sessionKey, 1, key, EC));
+            history.addError(new ErrorDescriptor.TimeoutError("a", sessionKey, 1, "", key, EC));
             history.addEntry("test", completeEvent("action1", sessionKey, "node-1", "req-1", "node-1"));
 
             // New retry chain starts here
             history.addEntry("test", startEvent("action1", sessionKey, "node-2", "req-2"));
-            history.addError(new ErrorDescriptor.TimeoutError("a", sessionKey, 1, key, EC));
+            history.addError(new ErrorDescriptor.TimeoutError("a", sessionKey, 1, "", key, EC));
 
             // Only 1 timeout — the one after req-2
             assertThat(history.errorCountForRetrySequence(ErrorDescriptor.TimeoutError.class, sessionKey)).isEqualTo(1);
@@ -416,9 +416,9 @@ class ActionRetryListenerImplTest {
 
             assertThat(history.errorCount(ErrorDescriptor.ParseError.class)).isZero();
 
-            history.addError(new ErrorDescriptor.ParseError("a", sessionKey, "msg", key, EC));
-            history.addError(new ErrorDescriptor.ParseError("b", sessionKey, "msg2", key, EC));
-            history.addError(new ErrorDescriptor.TimeoutError("c", sessionKey, 1, key, EC));
+            history.addError(new ErrorDescriptor.ParseError("a", sessionKey, "msg", "", key, EC));
+            history.addError(new ErrorDescriptor.ParseError("b", sessionKey, "msg2", "", key, EC));
+            history.addError(new ErrorDescriptor.TimeoutError("c", sessionKey, 1, "", key, EC));
 
             assertThat(history.errorCount(ErrorDescriptor.ParseError.class)).isEqualTo(2);
             assertThat(history.errorCount(ErrorDescriptor.TimeoutError.class)).isEqualTo(1);
@@ -451,8 +451,8 @@ class ActionRetryListenerImplTest {
             var key = ArtifactKey.createRoot();
 
             history.addEntry("test", startEvent("action1", sessionKey, "node-1", "req-1"));
-            history.addError(new ErrorDescriptor.ParseError("action1", sessionKey, "first", key, EC));
-            history.addError(new ErrorDescriptor.TimeoutError("action1", sessionKey, 1, key, EC));
+            history.addError(new ErrorDescriptor.ParseError("action1", sessionKey, "first", "", key, EC));
+            history.addError(new ErrorDescriptor.TimeoutError("action1", sessionKey, 1, "", key, EC));
 
             // Should return the last error (TimeoutError), not the first
             var result = history.errorType(sessionKey);
@@ -466,7 +466,7 @@ class ActionRetryListenerImplTest {
 
             // Completed execution with errors
             history.addEntry("test", startEvent("action1", sessionKey, "node-1", "req-1"));
-            history.addError(new ErrorDescriptor.ParseError("action1", sessionKey, "old error", key, EC));
+            history.addError(new ErrorDescriptor.ParseError("action1", sessionKey, "old error", "", key, EC));
             history.addEntry("test", completeEvent("action1", sessionKey, "node-1", "req-1", "node-1"));
 
             // No active retry sequence — should return null
@@ -489,9 +489,9 @@ class ActionRetryListenerImplTest {
             // Start for our session
             history.addEntry("test", startEvent("action1", sessionKey, "node-1", "req-1"));
             // Error from a different session interleaved
-            history.addError(new ErrorDescriptor.ParseError("action1", otherSession, "other session error", key, EC));
+            history.addError(new ErrorDescriptor.ParseError("action1", otherSession, "other session error", "", key, EC));
             // Error from our session
-            history.addError(new ErrorDescriptor.TimeoutError("action1", sessionKey, 1, key, EC));
+            history.addError(new ErrorDescriptor.TimeoutError("action1", sessionKey, 1, "", key, EC));
 
             var result = history.errorType(sessionKey);
             assertThat(result).isInstanceOf(ErrorDescriptor.TimeoutError.class);
@@ -506,7 +506,7 @@ class ActionRetryListenerImplTest {
             // First attempt — unmatched start, then error
             history.addEntry("test", startEvent("action1", sessionKey, "node-1", "req-1"));
             // First error: no previous errors, so ErrorContext is EMPTY
-            var error1 = new ErrorDescriptor.ParseError("action1", sessionKey, "bad json", key, EC);
+            var error1 = new ErrorDescriptor.ParseError("action1", sessionKey, "bad json", "", key, EC);
             history.addError(error1);
 
             // Second attempt — another unmatched start (framework retried), then error
@@ -515,7 +515,7 @@ class ActionRetryListenerImplTest {
             ErrorDescriptor previousError = history.errorType(sessionKey);
             assertThat(previousError).isNotNull();
             var ctx2 = previousError.errorContext().withError(previousError);
-            var error2 = new ErrorDescriptor.TimeoutError("action1", sessionKey, 1, key, ctx2);
+            var error2 = new ErrorDescriptor.TimeoutError("action1", sessionKey, 1, "", key, ctx2);
             history.addError(error2);
 
             // Third attempt — yet another unmatched start, then error
@@ -524,7 +524,7 @@ class ActionRetryListenerImplTest {
             assertThat(previousError).isNotNull();
             var ctx3 = previousError.errorContext().withError(previousError);
             var error3 = new ErrorDescriptor.CompactionError("action1", sessionKey,
-                    ErrorDescriptor.CompactionStatus.FIRST, false, key, ctx3);
+                    ErrorDescriptor.CompactionStatus.FIRST, false, "", key, ctx3);
             history.addError(error3);
 
             // Verify cumulative context on error3: should have error1 and error2
@@ -573,7 +573,7 @@ class ActionRetryListenerImplTest {
 
             // First execution — completes successfully after an error
             history.addEntry("test", startEvent("action1", sessionKey, "node-1", "req-1"));
-            history.addError(new ErrorDescriptor.ParseError("action1", sessionKey, "old", key, EC));
+            history.addError(new ErrorDescriptor.ParseError("action1", sessionKey, "old", "", key, EC));
             history.addEntry("test", completeEvent("action1", sessionKey, "node-1", "req-1", "node-1"));
 
             // New execution — new retry sequence, errors should NOT carry over from completed one
@@ -583,7 +583,7 @@ class ActionRetryListenerImplTest {
             assertThat(history.errorType(sessionKey)).isNull();
 
             // Add an error in the new sequence
-            var newError = new ErrorDescriptor.TimeoutError("action1", sessionKey, 1, key, EC);
+            var newError = new ErrorDescriptor.TimeoutError("action1", sessionKey, 1, "", key, EC);
             history.addError(newError);
 
             var result = history.errorType(sessionKey);

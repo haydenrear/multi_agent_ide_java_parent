@@ -6,6 +6,8 @@ import com.embabel.agent.core.AgentPlatform;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentidelib.agent.ErrorDescriptor;
+import com.hayden.multiagentidelib.agent.ErrorTemplates;
+import com.hayden.multiagentidelib.agent.ResolvedTemplate;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
@@ -124,7 +126,7 @@ public class AgentExecutor {
 
         // 3. Build/decorate prompt context
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
-        ErrorDescriptor errorDescriptor = history.errorType();
+        ErrorDescriptor errorDescriptor = history.errorType(PromptContext.chatId(enrichedRequest).value());
         DecoratorContext decoratorContext = new DecoratorContext(
                 context, meta.agentName(), meta.actionName(), meta.methodName(),
                 args.previousRequest(), enrichedRequest,
@@ -159,18 +161,26 @@ public class AgentExecutor {
                 java.util.UUID.randomUUID().toString(), java.time.Instant.now(),
                 nodeId, sessionKey, meta.actionName(), requestContextId.value()));
 
-        // 6. Call LLM
+        // 6. Resolve template — use error-specific override if available
+        ResolvedTemplate resolved = resolveTemplate(meta, errorDescriptor);
+
+        // 7. Call LLM — error templates replace the template model entirely
+        String effectiveTemplate = resolved.templateName();
+        Map<String, Object> effectiveModel = switch (resolved) {
+            case ResolvedTemplate.NoErrorTemplate _ -> templateModel;
+            case ResolvedTemplate.ErrorTemplate et -> et.model();
+        };
         U result = llmRunner.runWithTemplate(
-                meta.template(), promptContext, templateModel, toolContext,
+                effectiveTemplate, promptContext, effectiveModel, toolContext,
                 args.responseClazz(), context
         );
 
-        // 7. Emit executor complete event — startNodeId links back to this start's unique nodeId
+        // 8. Emit executor complete event — startNodeId links back to this start's unique nodeId
         eventBus.publish(new Events.AgentExecutorCompleteEvent(
                 java.util.UUID.randomUUID().toString(), java.time.Instant.now(),
                 nodeId, sessionKey, meta.actionName(), requestContextId.value(), nodeId));
 
-        // 8. Decorate result
+        // 9. Decorate result
         DecorateRequestResults.DecorateRoutingArgs<U> uDecorateRoutingArgs = new DecorateRequestResults.DecorateRoutingArgs<U>(
                 result, context, meta.agentName(),
                 meta.actionName(), meta.methodName(), args.previousRequest()
@@ -465,9 +475,11 @@ public class AgentExecutor {
 
         // 2. Build/decorate prompt context
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+        ErrorDescriptor errorDescriptor = history.errorType(PromptContext.chatId(enrichedRequest).value());
         DecoratorContext decoratorContext = new DecoratorContext(
                 context, meta.agentName(), meta.actionName(), meta.methodName(),
-                args.previousRequest(), enrichedRequest
+                args.previousRequest(), enrichedRequest,
+                Artifact.HashContext.defaultHashContext(), errorDescriptor
         );
         PromptContext promptContext = promptContextFactory.build(
                 meta.agentType(), enrichedRequest, args.previousRequest(), enrichedRequest,
@@ -597,9 +609,11 @@ public class AgentExecutor {
                 ));
 
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(operationContext);
+        ErrorDescriptor errorDescriptor = history.errorType(PromptContext.chatId(enrichedRequest).value());
         DecoratorContext decoratorContext = new DecoratorContext(
                 operationContext, meta.agentName(), meta.actionName(), meta.methodName(),
-                lastRequest, enrichedRequest
+                lastRequest, enrichedRequest,
+                Artifact.HashContext.defaultHashContext(), errorDescriptor
         );
         PromptContext promptContext = promptContextFactory.build(
                 meta.agentType(), enrichedRequest, lastRequest, enrichedRequest,
@@ -648,6 +662,43 @@ public class AgentExecutor {
         ));
 
         return ControllerResponseResult.success();
+    }
+
+    /**
+     * Resolves the effective template based on error state. Returns a {@link ResolvedTemplate}
+     * that either preserves the normal template (NoErrorTemplate) or replaces it with an
+     * error-specific template and model (ErrorTemplate).
+     *
+     * <p>Reads template names from the action's {@link ErrorTemplates}; when a field is null,
+     * falls back to the default template. The error model contains {@code errorDetail}
+     * from the throwable message.
+     */
+    ResolvedTemplate resolveTemplate(AgentActionMetadata<?, ?, ?> meta, ErrorDescriptor errorDescriptor) {
+        if (errorDescriptor == null)
+            return new ResolvedTemplate.NoErrorTemplate(meta.template());
+
+        ErrorTemplates templates = meta.errorTemplates();
+
+        String retryTemplate = switch (errorDescriptor) {
+            case ErrorDescriptor.CompactionError ce ->
+                    ce.compactionStatus() == ErrorDescriptor.CompactionStatus.MULTIPLE
+                            ? templates.compactionMultipleTemplate()
+                            : templates.compactionFirstTemplate();
+            case ErrorDescriptor.ParseError _ -> templates.parseErrorTemplate();
+            case ErrorDescriptor.TimeoutError _ -> templates.timeoutTemplate();
+            case ErrorDescriptor.UnparsedToolCallError _ -> templates.unparsedToolCallTemplate();
+            case ErrorDescriptor.NullResultError _ -> templates.nullResultTemplate();
+            case ErrorDescriptor.IncompleteJsonError _ -> templates.incompleteJsonTemplate();
+            case ErrorDescriptor.NoError _ -> null;
+        };
+
+        if (retryTemplate == null) {
+            return new ResolvedTemplate.NoErrorTemplate(meta.template());
+        }
+
+        String errorDetail = errorDescriptor.errorDetail();
+        Map<String, Object> errorModel = Map.of("errorDetail", errorDetail != null ? errorDetail : "");
+        return new ResolvedTemplate.ErrorTemplate(retryTemplate, errorModel);
     }
 
     /**

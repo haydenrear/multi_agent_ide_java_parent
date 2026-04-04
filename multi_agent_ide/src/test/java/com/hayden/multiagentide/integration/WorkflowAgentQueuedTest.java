@@ -227,7 +227,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             return new ActionQosProvider() {
                 @Override
                 public @NonNull ActionQos provideActionQos(@NonNull Method method, @NonNull Object instance) {
-                    return new ActionQos(2, 50, 5, 60000, false);
+                    return new ActionQos(2, 50, 1, 60, false);
                 }
             };
         }

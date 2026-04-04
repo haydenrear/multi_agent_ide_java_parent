@@ -47,6 +47,14 @@ public sealed interface ErrorDescriptor extends HasContextId
     Events.GraphEvent toEvent();
 
     /**
+     * Returns a human-readable detail string describing this error, suitable for
+     * inclusion in retry template models as {@code errorDetail}.
+     */
+    default String errorDetail() {
+        return "";
+    }
+
+    /**
      * Returns the accumulated error context from previous errors in this retry sequence.
      * NoError returns EMPTY by default.
      */
@@ -153,6 +161,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String sessionKey,
             CompactionStatus compactionStatus,
             boolean compactionCompleted,
+            String errorDetail,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -169,6 +178,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String actionName,
             String sessionKey,
             String rawOutput,
+            String errorDetail,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -189,6 +199,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String actionName,
             String sessionKey,
             int retryCount,
+            String errorDetail,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -200,7 +211,7 @@ public sealed interface ErrorDescriptor extends HasContextId
                     .nodeId(contextId.value())
                     .sessionKey(sessionKey)
                     .retryCount(retryCount)
-                    .detail("TimeoutError for action=" + actionName)
+                    .detail(errorDetail)
                     .build();
         }
     }
@@ -209,6 +220,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String actionName,
             String sessionKey,
             String toolCallText,
+            String errorDetail,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -229,6 +241,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String sessionKey,
             int retryCount,
             int maxRetries,
+            String errorDetail,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -250,6 +263,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String sessionKey,
             int retryCount,
             String rawFragment,
+            String errorDetail,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {

@@ -144,47 +144,48 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
                 ? previousError.errorContext().withError(previousError)
                 : ErrorDescriptor.ErrorContext.EMPTY;
 
-        if (throwable instanceof CompactionException) {
-            ErrorDescriptor.CompactionStatus status = history.compactionStatusForRetrySequence(sessionKey).next();
-            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, contextId, errCtx);
-        }
-
+        // Extract message early so all branches can use it as errorDetail
         String message = throwable.getMessage();
         if (message == null) message = "";
         String lowerMessage = message.toLowerCase();
 
+        if (throwable instanceof CompactionException) {
+            ErrorDescriptor.CompactionStatus status = history.compactionStatusForRetrySequence(sessionKey).next();
+            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, message, contextId, errCtx);
+        }
+
         if (lowerMessage.contains("compacting") || lowerMessage.contains("prompt is too long")) {
             ErrorDescriptor.CompactionStatus status = history.compactionStatusForRetrySequence(sessionKey).next();
-            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, contextId, errCtx);
+            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, message, contextId, errCtx);
         }
 
         if (throwable instanceof TimeoutException || lowerMessage.contains("timeout")) {
             int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.TimeoutError.class, sessionKey) + 1;
-            return new ErrorDescriptor.TimeoutError(actionName, sessionKey, retryCount, contextId, errCtx);
+            return new ErrorDescriptor.TimeoutError(actionName, sessionKey, retryCount, message, contextId, errCtx);
         }
 
         if (lowerMessage.contains("tool call")) {
-            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, message, contextId, errCtx);
+            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, message, message, contextId, errCtx);
         }
 
         if (lowerMessage.contains("null") && lowerMessage.contains("result")
                 || lowerMessage.contains("empty response")) {
             int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.NullResultError.class, sessionKey) + 1;
-            return new ErrorDescriptor.NullResultError(actionName, sessionKey, retryCount, 5, contextId, errCtx);
+            return new ErrorDescriptor.NullResultError(actionName, sessionKey, retryCount, 5, message, contextId, errCtx);
         }
 
         if (lowerMessage.contains("incomplete json") || lowerMessage.contains("truncated")) {
             int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.IncompleteJsonError.class, sessionKey) + 1;
-            return new ErrorDescriptor.IncompleteJsonError(actionName, sessionKey, retryCount, message, contextId, errCtx);
+            return new ErrorDescriptor.IncompleteJsonError(actionName, sessionKey, retryCount, message, message, contextId, errCtx);
         }
 
         if (throwable instanceof com.fasterxml.jackson.core.JsonParseException
                 || lowerMessage.contains("parse")) {
-            return new ErrorDescriptor.ParseError(actionName, sessionKey, message, contextId, errCtx);
+            return new ErrorDescriptor.ParseError(actionName, sessionKey, message, message, contextId, errCtx);
         }
 
         // Fallback: treat as parse error with raw message
-        return new ErrorDescriptor.ParseError(actionName, sessionKey, message, contextId, errCtx);
+        return new ErrorDescriptor.ParseError(actionName, sessionKey, message, message, contextId, errCtx);
     }
 
     /**
