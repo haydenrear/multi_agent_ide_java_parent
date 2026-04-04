@@ -3,7 +3,7 @@ package com.hayden.multiagentidelib.prompt;
 import java.util.List;
 import java.util.Set;
 
-public interface PromptContributorFactory {
+public interface PromptContributorFactory extends RetryAware {
 
     List<PromptContributor> create(PromptContext context);
 

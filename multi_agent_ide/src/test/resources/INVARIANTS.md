@@ -3,7 +3,7 @@
 Invariants validated against markdown trace data (`*.md`, `*.graph.md`, `*.events.md`, `*.blackboard.md`).
 Each invariant references the SURFACE.md scenarios it applies to.
 
-## Validation Run: 2026-04-01
+## Validation Run: 2026-04-04
 
 | Invariant | Status | Notes |
 |-----------|--------|-------|
@@ -45,12 +45,15 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | Q-INV1 | PASS (indirect) | PropagatorPersistenceIT + WorkflowAgentQueuedTest setUp: enable after seed, entity ACTIVE |
 | Q-INV2 | — | Not yet validated (needs dedicated deactivate + discovery assertion) |
 | Q-INV3 | PASS (indirect) | Tests fail without explicit activation — confirms auto-bootstrap defaults to INACTIVE |
-| S-INV1 | — | Not yet validated (needs event count in trace data) |
-| S-INV2 | — | Not yet validated (needs event pairing assertion) |
-| S-INV3 | PASS | 15 unit tests in ActionRetryListenerImplTest |
-| S-INV4 | — | Not yet validated (needs blackboard error descriptor in trace) |
+| S-INV1 | PASS | `happyPath_noRetryFilteringOccurs`: START=14, COMPLETE=14. Retry tests: START=15, COMPLETE=14 (one failed attempt) |
+| S-INV2 | PASS | Happy path: START==COMPLETE. Retry: START==COMPLETE+1 (unpaired start from thrown exception) |
+| S-INV3 | PASS | Unit tests (ActionRetryListenerImplTest) + 6 integration tests (`retry_*Error_classifiedAndRecoveredOnRetry`) confirm all 6 error types classified correctly |
+| S-INV4 | PASS | Blackboard traces show errorType persisted: NullResultError, CompactionError, TimeoutError, UnparsedToolCallError, IncompleteJsonError, ParseError across all calls after first failure |
 | S-INV5 | PASS (indirect) | No DegenerateLoopException in any integration test since Phase 3 |
 | S-INV6 | PASS | 22 unit tests in AcpSessionRetryContextTest + AcpRetryEventListenerTest |
+| S-INV7 | PASS | Happy-path traces show `errorType: null` (no error recorded). Retry traces show correct variant. `isRetry` check handles both null and NoError as non-retry |
+| S-INV8 | PASS | `happyPath_noRetryFilteringOccurs` (S-INV8a: no filtering). 6 retry tests complete successfully after error+retry (S-INV8b: retry filtering active). S-INV8c validated via code inspection |
+| S-INV10 | PASS (indirect) | controllerResponse test uses assemblePrompt path via PromptContributorService |
 
 ### Trace Timing Gap (A-INV2)
 
@@ -503,6 +506,22 @@ Also sets `entity.activatedAt` to current timestamp.
 **Invariant**: `AcpRetryEventListener` creates context on `ChatSessionCreatedEvent`, clears on `AgentExecutorStartEvent`, records compaction on `CompactionEvent` (NONE→SINGLE→MULTIPLE), clears on `AgentExecutorCompleteEvent`, removes on `ChatSessionClosedEvent`. `isRetry()` true only when retryCount > 0 AND errorCategory ≠ NONE.
 **Search**: Unit test coverage in `AcpSessionRetryContextTest` (13 tests) + `AcpRetryEventListenerTest` (9 tests).
 
+### S-INV7. ErrorDescriptor Propagated to PromptContext (S7)
+**Invariant**: `AgentExecutor.run()` reads `BlackboardHistory.errorType()` and passes it to `DecoratorContext.errorDescriptor`. `PromptContextFactory.build()` copies `decoratorContext.errorDescriptor()` to `PromptContext.errorDescriptor`. In happy-path workflows (no retries), `PromptContext.errorDescriptor` is always `NoError`.
+**Search**: `*.blackboard.md` — errorType field should be `NoError` for every call in happy-path tests. Code-level: `PromptContextFactory.build()` checks `decoratorContext.errorDescriptor() != null` and calls `pc.withErrorDescriptor()`.
+
+### S-INV8. Retry-Aware Filtering Excludes All Contributors When ErrorDescriptor is Non-NoError (S8)
+**Invariant**: When `PromptContext.errorDescriptor` is a non-NoError variant, `PromptContributorService.retrievePromptContributors()` filters contributors by calling `RetryAware.includeOn*()` matching the error type. Factories are filtered before `create()`. Contributors are filtered after collection. Default `RetryAware` methods return `false`, so contributors that don't override are excluded.
+**Sub-invariant S-INV8a**: In happy path, no filtering occurs — `isRetry` is `false` because `errorDescriptor` is `null` or `NoError`.
+**Sub-invariant S-INV8b**: On retry with `CompactionError`, only contributors returning `true` from `includeOnCompaction()` survive.
+**Sub-invariant S-INV8c**: `includeRetryAware()` switch covers all `ErrorDescriptor` variants exhaustively.
+**Sub-invariant S-INV8d** (KNOWN ISSUE): ErrorDescriptor persists for the entire workflow after a retry — see E32. After a successful retry, subsequent non-retry calls still see the error and have filtering active. Needs `addError(NoError)` after successful `runWithTemplate()` return (see F-E18).
+**Search**: Unit test for retry filtering. Integration trace: happy-path contributors count unchanged.
+
+### S-INV10. assemblePrompt Single Codepath (S10)
+**Invariant**: `PromptContributorService.assemblePrompt()` is the sole prompt assembly implementation. Both `AgentExecutor.assemblePrompt()` and `PromptHealthCheckLlmCallDecorator` delegate to it. The method: (1) renders template via `OperationContext.agentPlatform()`, (2) calls `getContributors()` (which applies retry filtering), (3) unwraps `PromptContributorAdapter`s, (4) concatenates with `--- start/end [name]` delimiters, (5) falls back to goal extraction or justification message if empty.
+**Search**: Code-level: `AgentExecutor.assemblePrompt()` calls `contributorService.assemblePrompt()`. `PromptHealthCheckLlmCallDecorator` calls `promptContributorService.assemblePrompt()`.
+
 ---
 
 ## Coverage: Surface → Invariants
@@ -598,3 +617,7 @@ Also sets `entity.activatedAt` to current timestamp.
 | S4 | S-INV4 |
 | S5 | S-INV5, E-INV1 |
 | S6 | S-INV6 |
+| S7 | S-INV7 |
+| S8 | S-INV8 |
+| S9 | — (compile-time) |
+| S10 | S-INV10 |

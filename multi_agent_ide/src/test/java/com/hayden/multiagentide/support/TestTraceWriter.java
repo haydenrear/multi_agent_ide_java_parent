@@ -7,6 +7,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentidelib.model.nodes.*;
+import io.modelcontextprotocol.spec.McpSchema;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +16,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Writes graph snapshots and event streams to markdown files for test trace review.
@@ -42,6 +45,9 @@ public class TestTraceWriter {
 
     @Getter @Setter
     private Path eventLogFile;
+
+    @Getter @Setter
+    private Path variousFile;
 
     @Getter @Setter
     private String testClassName;
@@ -177,6 +183,40 @@ public class TestTraceWriter {
         }
     }
 
+    public void writeMcpToolSchemas(List<McpSchema.Tool> tools) {
+        if (variousFile == null || tools == null) {
+            return;
+        }
+        try {
+            Files.createDirectories(variousFile.getParent());
+            writeHeader(variousFile, "MCP Tool Schema Log");
+
+            StringBuilder sb = new StringBuilder();
+            tools.stream()
+                    .sorted(Comparator.comparing(McpSchema.Tool::name))
+                    .forEach(tool -> {
+                        sb.append("## Tool: `%s`\n\n".formatted(tool.name()));
+                        if (tool.title() != null) {
+                            sb.append("- title: `%s`\n".formatted(tool.title()));
+                        }
+                        if (tool.description() != null) {
+                            sb.append("- description: `%s`\n".formatted(tool.description().replace("`", "'")));
+                        }
+                        sb.append("\n### Input Schema\n\n```json\n");
+                        sb.append(safeSerialize(tool.inputSchema()));
+                        sb.append("\n```\n\n");
+
+                        sb.append("### Output Schema\n\n```json\n");
+                        sb.append(safeSerialize(tool.outputSchema()));
+                        sb.append("\n```\n\n---\n\n");
+                    });
+
+            Files.writeString(variousFile, sb.toString(), StandardOpenOption.APPEND);
+        } catch (Exception e) {
+            log.warn("Failed to write MCP tool schemas to {}", variousFile, e);
+        }
+    }
+
     private void appendEventDetails(StringBuilder sb, Events.GraphEvent event) {
         switch (event) {
             case Events.NodeAddedEvent e -> {
@@ -267,4 +307,5 @@ public class TestTraceWriter {
             return "{ \"_serializationError\": \"" + e.getMessage().replace("\"", "'") + "\" }";
         }
     }
+
 }

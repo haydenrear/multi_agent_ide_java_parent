@@ -89,6 +89,17 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
             return new ErrorDescriptor.UnparsedToolCallError(actionName, message, contextId);
         }
 
+        if (lowerMessage.contains("null") && lowerMessage.contains("result")
+                || lowerMessage.contains("empty response")) {
+            int retryCount = (int) history.errorCount(ErrorDescriptor.NullResultError.class) + 1;
+            return new ErrorDescriptor.NullResultError(actionName, retryCount, 5, contextId);
+        }
+
+        if (lowerMessage.contains("incomplete json") || lowerMessage.contains("truncated")) {
+            int retryCount = (int) history.errorCount(ErrorDescriptor.IncompleteJsonError.class) + 1;
+            return new ErrorDescriptor.IncompleteJsonError(actionName, retryCount, message, contextId);
+        }
+
         if (throwable instanceof com.fasterxml.jackson.core.JsonParseException
                 || lowerMessage.contains("parse")) {
             return new ErrorDescriptor.ParseError(actionName, message, contextId);

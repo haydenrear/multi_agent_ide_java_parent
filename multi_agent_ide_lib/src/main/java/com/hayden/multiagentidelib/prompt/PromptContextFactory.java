@@ -201,6 +201,12 @@ public class PromptContextFactory {
                 decoratorContext.methodName()
         );
 
+        // Propagate errorDescriptor from the decorator context (populated by AgentExecutor
+        // from BlackboardHistory.errorType()) so prompt contributors can be retry-aware.
+        if (decoratorContext.errorDescriptor() != null) {
+            pc = pc.withErrorDescriptor(decoratorContext.errorDescriptor());
+        }
+
         return pc.toBuilder().promptContributors(this.promptContributor.getContributors(pc)).build();
     }
 

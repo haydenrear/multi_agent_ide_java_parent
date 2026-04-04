@@ -51,9 +51,22 @@ public class QueuedLlmRunner implements LlmRunner {
             .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
             .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-    private record QueuedResponse(Object response, BiConsumer<Object, OperationContext> callback) {
+    private record QueuedResponse(Object response, BiConsumer<Object, OperationContext> callback,
+                                     RuntimeException errorToThrow) {
         QueuedResponse(Object response) {
-            this(response, null);
+            this(response, null, null);
+        }
+
+        QueuedResponse(Object response, BiConsumer<Object, OperationContext> callback) {
+            this(response, callback, null);
+        }
+
+        static QueuedResponse error(RuntimeException exception) {
+            return new QueuedResponse(null, null, exception);
+        }
+
+        boolean isError() {
+            return errorToThrow != null;
         }
     }
 
@@ -142,6 +155,20 @@ public class QueuedLlmRunner implements LlmRunner {
     }
 
     /**
+     * Enqueue an error that will be thrown instead of returning a response.
+     * The exception propagates through AgentExecutor.run() into the Embabel retry
+     * framework, which invokes ActionRetryListenerImpl.onActionRetry() to classify
+     * the error. On retry, the next item in the queue (typically the real response)
+     * is returned.
+     *
+     * <p>Usage: to test retry behavior, call enqueueError first, then enqueue the
+     * real response for the same template. The framework retries and gets the success.</p>
+     */
+    public void enqueueError(RuntimeException exception) {
+        responseQueue.offer(QueuedResponse.error(exception));
+    }
+
+    /**
      * Insert a response at the front of the queue, so it will be dequeued next.
      * Useful from within callbacks that need to enqueue responses for nested calls
      * (e.g., agent-to-agent calls made during a workflow step).
@@ -203,6 +230,14 @@ public class QueuedLlmRunner implements LlmRunner {
         }
 
         QueuedResponse queued = responseQueue.poll();
+
+        // If this is an error entry, throw the exception to trigger retry
+        if (queued.isError()) {
+            log.info("QueuedLlmRunner: throwing enqueued error for template {} (call {}): {}",
+                    templateName, callCount, queued.errorToThrow().getMessage());
+            throw queued.errorToThrow();
+        }
+
         Object response = queued.response();
 
         // Fire callback before returning (if present)

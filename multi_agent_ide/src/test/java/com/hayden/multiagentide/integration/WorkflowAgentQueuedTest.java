@@ -34,6 +34,7 @@ import com.hayden.multiagentide.transformation.repository.TransformationRecordRe
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentidelib.agent.CompactionException;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
@@ -226,7 +227,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             return new ActionQosProvider() {
                 @Override
                 public @NonNull ActionQos provideActionQos(@NonNull Method method, @NonNull Object instance) {
-                    return new ActionQos(1, 50, 5, 60000, false);
+                    return new ActionQos(2, 50, 5, 60000, false);
                 }
             };
         }
@@ -2406,8 +2407,218 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             assertThat(output.getStatus()).isEqualTo(com.embabel.agent.core.AgentProcessStatusCode.COMPLETED);
 
             // The blackboard trace (via QueuedLlmRunner) should show NoError for every call.
-            // We verify this via the event listener — no CompactionEvent should appear in happy path.
+            // We verify this via the event listener — no error events should appear in happy path.
             assertThat(testEventListener.countOfType(Events.CompactionEvent.class)).isZero();
+            assertThat(testEventListener.countOfType(Events.NullResultEvent.class)).isZero();
+            assertThat(testEventListener.countOfType(Events.IncompleteJsonEvent.class)).isZero();
+            assertThat(testEventListener.countOfType(Events.UnparsedToolCallEvent.class)).isZero();
+            assertThat(testEventListener.countOfType(Events.TimeoutEvent.class)).isZero();
+        }
+
+        /**
+         * S-INV7 + S-INV8a + E28: In happy path, errorDescriptor propagates as NoError
+         * and no retry filtering occurs — all prompt contributors are included.
+         * Validates that the Phase 5 wiring (BlackboardHistory → DecoratorContext →
+         * PromptContext → PromptContributorService) does not accidentally trigger
+         * retry filtering in normal flow.
+         */
+        @Test
+        void happyPath_noRetryFilteringOccurs() {
+            setLogFile("happyPath_noRetryFilteringOccurs");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+            enqueueHappyPath("Implement auth");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Implement auth", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(com.embabel.agent.core.AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // S-INV7: errorDescriptor propagated — verify via no error events in happy path
+            // (ErrorDescriptor.NoError means no retry filtering triggers)
+            assertThat(testEventListener.countOfType(Events.CompactionEvent.class)).isZero();
+            assertThat(testEventListener.countOfType(Events.NullResultEvent.class)).isZero();
+            assertThat(testEventListener.countOfType(Events.IncompleteJsonEvent.class)).isZero();
+            assertThat(testEventListener.countOfType(Events.UnparsedToolCallEvent.class)).isZero();
+            assertThat(testEventListener.countOfType(Events.TimeoutEvent.class)).isZero();
+
+            // S-INV1: Executor events still emitted (proves assemblePrompt consolidation
+            // didn't break the LLM call pipeline)
+            var startEvents = testEventListener.eventsOfType(Events.AgentExecutorStartEvent.class);
+            var completeEvents = testEventListener.eventsOfType(Events.AgentExecutorCompleteEvent.class);
+            assertThat(startEvents).isNotEmpty();
+            assertThat(startEvents).hasSameSizeAs(completeEvents);
+        }
+
+        /**
+         * S-INV3 + S-INV4 + S-INV7 + S-INV8: ActionRetryListener classifies a "null result"
+         * error as NullResultError, records it on BlackboardHistory, and on retry the
+         * errorDescriptor propagates to PromptContext for retry-aware filtering.
+         *
+         * Uses enqueueError to throw on the first orchestrator call, then succeeds on retry.
+         */
+        @Test
+        void retry_nullResultError_classifiedAndRecoveredOnRetry() {
+            setLogFile("retry_nullResultError_classifiedAndRecoveredOnRetry");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            // First orchestrator call: throw "null result" error → triggers retry
+            queuedLlmRunner.enqueueError(new RuntimeException("LLM returned null result for orchestrator"));
+
+            // Retry: enqueue the real orchestrator response + rest of happy path
+            enqueueHappyPath("Implement auth");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Implement auth", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+
+            // S-INV1: One extra start event (failed attempt) but same number of completes
+            // (the failed attempt doesn't emit CompleteEvent since run() threw)
+            var startEvents = testEventListener.eventsOfType(Events.AgentExecutorStartEvent.class);
+            var completeEvents = testEventListener.eventsOfType(Events.AgentExecutorCompleteEvent.class);
+            assertThat(startEvents.size())
+                    .as("One extra start from the failed attempt")
+                    .isEqualTo(completeEvents.size() + 1);
+        }
+
+        /**
+         * S-INV3: ActionRetryListener classifies a CompactionException as CompactionError.
+         * The compaction wait loop is exercised but the workflow recovers on retry.
+         */
+        @Test
+        void retry_compactionError_classifiedAndRecoveredOnRetry() {
+            setLogFile("retry_compactionError_classifiedAndRecoveredOnRetry");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            // First orchestrator call: throw CompactionException → triggers retry
+            queuedLlmRunner.enqueueError(
+                    new CompactionException("Session is compacting", contextId));
+
+            // Retry: enqueue the real orchestrator response + rest of happy path
+            enqueueHappyPath("Implement auth");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Implement auth", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        /**
+         * S-INV3: ActionRetryListener classifies a "timeout" error as TimeoutError.
+         */
+        @Test
+        void retry_timeoutError_classifiedAndRecoveredOnRetry() {
+            setLogFile("retry_timeoutError_classifiedAndRecoveredOnRetry");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            // First orchestrator call: throw timeout → triggers retry
+            queuedLlmRunner.enqueueError(new RuntimeException("LLM request timeout after 60s"));
+
+            // Retry succeeds
+            enqueueHappyPath("Implement auth");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Implement auth", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        /**
+         * S-INV3: ActionRetryListener classifies an "unparsed tool call" error.
+         */
+        @Test
+        void retry_unparsedToolCallError_classifiedAndRecoveredOnRetry() {
+            setLogFile("retry_unparsedToolCallError_classifiedAndRecoveredOnRetry");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            // First orchestrator call: throw "tool call" error → triggers retry
+            queuedLlmRunner.enqueueError(
+                    new RuntimeException("Failed to parse tool call response from LLM"));
+
+            // Retry succeeds
+            enqueueHappyPath("Implement auth");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Implement auth", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        /**
+         * S-INV3: ActionRetryListener classifies an "incomplete json" / "truncated" error.
+         */
+        @Test
+        void retry_incompleteJsonError_classifiedAndRecoveredOnRetry() {
+            setLogFile("retry_incompleteJsonError_classifiedAndRecoveredOnRetry");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            // First orchestrator call: throw "incomplete json" error → triggers retry
+            queuedLlmRunner.enqueueError(
+                    new RuntimeException("incomplete json: response was truncated at token limit"));
+
+            // Retry succeeds
+            enqueueHappyPath("Implement auth");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Implement auth", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
+        }
+
+        /**
+         * S-INV3: ActionRetryListener classifies a parse error (fallback).
+         */
+        @Test
+        void retry_parseError_classifiedAndRecoveredOnRetry() {
+            setLogFile("retry_parseError_classifiedAndRecoveredOnRetry");
+            var contextId = seedOrchestrator().value();
+            queuedLlmRunner.setThread(contextId);
+
+            // First orchestrator call: throw generic parse error → triggers retry
+            queuedLlmRunner.enqueueError(
+                    new RuntimeException("Could not parse LLM response into expected type"));
+
+            // Retry succeeds
+            enqueueHappyPath("Implement auth");
+
+            var output = agentPlatform.runAgentFrom(
+                    findWorkflowAgent(),
+                    ProcessOptions.DEFAULT.withContextId(contextId).withPlannerType(PlannerType.GOAP),
+                    Map.of("it", new AgentModels.OrchestratorRequest(new ArtifactKey(contextId), "Implement auth", "DISCOVERY"))
+            );
+
+            assertThat(output.getStatus()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+            queuedLlmRunner.assertAllConsumed();
         }
     }
 

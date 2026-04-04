@@ -344,6 +344,8 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
             case ErrorDescriptor.ParseError e -> e.actionName();
             case ErrorDescriptor.TimeoutError e -> e.actionName();
             case ErrorDescriptor.UnparsedToolCallError e -> e.actionName();
+            case ErrorDescriptor.NullResultError e -> e.actionName();
+            case ErrorDescriptor.IncompleteJsonError e -> e.actionName();
         };
         this.history = this.history.withEntry(actionName, errorDescriptor);
     }

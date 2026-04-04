@@ -1,12 +1,11 @@
 package com.hayden.multiagentide.service;
 
 import com.embabel.agent.api.common.ActionContext;
-import com.embabel.agent.api.common.ContextualPromptElement;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentPlatform;
-import com.embabel.common.textio.template.CompiledTemplate;
-import com.embabel.common.textio.template.TemplateRenderer;
+import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.multiagentidelib.agent.ErrorDescriptor;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
@@ -15,7 +14,6 @@ import com.hayden.multiagentide.agent.AgentInterfaces.MultiAgentIdeMetadata.Agen
 import com.hayden.multiagentide.agent.decorator.prompt.LlmCallDecorator;
 import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
 import com.hayden.multiagentide.embabel.EmbabelUtil;
-import com.hayden.multiagentide.filter.prompt.FilteredPromptContributorAdapter;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentidelib.agent.AgentModels;
@@ -27,8 +25,6 @@ import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.prompt.PromptContextFactory;
-import com.hayden.multiagentidelib.prompt.PromptContributor;
-import com.hayden.multiagentidelib.prompt.PromptContributorAdapter;
 import com.hayden.multiagentidelib.prompt.PromptContributorService;
 import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
 import com.hayden.multiagentidelib.tool.ToolContext;
@@ -41,7 +37,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -129,9 +124,11 @@ public class AgentExecutor {
 
         // 3. Build/decorate prompt context
         BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
+        ErrorDescriptor errorDescriptor = history.errorType();
         DecoratorContext decoratorContext = new DecoratorContext(
                 context, meta.agentName(), meta.actionName(), meta.methodName(),
-                args.previousRequest(), enrichedRequest
+                args.previousRequest(), enrichedRequest,
+                Artifact.HashContext.defaultHashContext(), errorDescriptor
         );
         PromptContext promptContext = promptContextFactory.build(
                 meta.agentType(), enrichedRequest, args.previousRequest(), enrichedRequest,
@@ -650,95 +647,21 @@ public class AgentExecutor {
     }
 
     /**
-     * Assembles the full prompt text: rendered template + prompt contributors in priority order.
-     * Same pipeline as DefaultLlmRunner / PromptHealthCheckLlmCallDecorator, but returns the
-     * text instead of sending it to an LLM.
+     * Assembles the full prompt text by delegating to PromptContributorService.
      */
     private String assemblePrompt(PromptContext promptContext, Map<String, Object> templateModel, OperationContext context) {
-        StringBuilder sb = new StringBuilder();
-
-        // 1. Render the template
-        String templateText = renderTemplate(promptContext, templateModel, context);
-        if (templateText != null && !templateText.isBlank()) {
-            sb.append(templateText.trim());
-        }
-
-        // 2. Resolve and render prompt contributors
         PromptContributorService contributorService = promptContributorServiceProvider.getIfAvailable();
-        List<ContextualPromptElement> elements = contributorService != null
-                ? contributorService.getContributors(promptContext)
-                : promptContext.promptContributors();
-
-        List<PromptContributor> contributors = unwrapContributors(elements);
-        contributors.sort(Comparator.comparingInt(PromptContributor::priority));
-
-        for (int i = 0; i < contributors.size(); i++) {
-            PromptContributor pc = contributors.get(i);
-            String content;
-            try {
-                content = pc.contribute(promptContext);
-            } catch (Exception e) {
-                log.debug("Contributor {} threw during prompt assembly — skipping", pc.name(), e);
-                continue;
-            }
-            if (content == null || content.isBlank()) {
-                continue;
-            }
-            if (i == 0) {
-                sb.append("\n\n--- start [").append(pc.name()).append("] ---\n");
-            } else {
-                sb.append("\n--- end [").append(contributors.get(i - 1).name()).append("] ");
-                sb.append("--- start [").append(pc.name()).append("] ---\n");
-            }
-            sb.append(content.trim());
+        if (contributorService != null) {
+            return contributorService.assemblePrompt(promptContext, templateModel, context);
         }
-
-        if (!contributors.isEmpty()) {
-            sb.append("\n--- end [").append(contributors.getLast().name()).append("] ---");
-        }
-
-        String result = sb.toString().trim();
-        if (result.isEmpty() && promptContext.currentRequest() != null) {
+        // Fallback if service unavailable — just return goal or empty
+        if (promptContext.currentRequest() != null) {
             String goal = promptContext.currentRequest().goalExtraction();
             if (goal != null && !goal.isBlank()) {
                 return goal;
             }
-            // Fall back to justification message for controller requests
-            if (promptContext.currentRequest() instanceof AgentModels.AgentToControllerRequest acr
-                    && acr.justificationMessage() != null) {
-                return acr.justificationMessage();
-            }
         }
-        return result;
-    }
-
-    private String renderTemplate(PromptContext promptContext, Map<String, Object> templateModel, OperationContext context) {
-        try {
-            TemplateRenderer renderer = context.agentPlatform().getPlatformServices().getTemplateRenderer();
-            if (renderer == null) {
-                return null;
-            }
-            CompiledTemplate compiled = renderer.compileLoadedTemplate(promptContext.templateName());
-            return compiled.render(templateModel);
-        } catch (Exception e) {
-            log.debug("Could not render template for controller execution", e);
-            return null;
-        }
-    }
-
-    private List<PromptContributor> unwrapContributors(List<ContextualPromptElement> elements) {
-        List<PromptContributor> result = new ArrayList<>();
-        if (elements == null) {
-            return result;
-        }
-        for (var element : elements) {
-            if (element instanceof FilteredPromptContributorAdapter f) {
-                result.add(f.getContributor());
-            } else if (element instanceof PromptContributorAdapter adapter) {
-                result.add(adapter.getContributor());
-            }
-        }
-        return result;
+        return "";
     }
 
 }

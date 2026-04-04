@@ -1,15 +1,11 @@
 package com.hayden.multiagentide.agent.decorator.prompt;
 
-import com.embabel.common.textio.template.CompiledTemplate;
-import com.embabel.common.textio.template.TemplateRenderer;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentide.filter.prompt.FilteredPromptContributorAdapter;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.propagation.service.PropagationExecutionService;
 import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.prompt.PromptContributor;
-import com.hayden.multiagentidelib.prompt.PromptContributorAdapter;
+import com.hayden.multiagentidelib.prompt.PromptContributorService;
 import com.hayden.multiagentidelib.prompt.PromptContext;
 import com.hayden.multiagentidelib.propagation.model.PropagatorMatchOn;
 import lombok.RequiredArgsConstructor;
@@ -20,9 +16,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -50,6 +43,9 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
 
     @Autowired
     private EventBus eventBus;
+
+    @Autowired
+    private PromptContributorService promptContributorService;
 
     /**
      * Per-sourceNodeId cache of the last prompt content hash seen.
@@ -85,7 +81,8 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
         try {
             PromptContext promptContext = context.promptContext();
 
-            String assembledPrompt = assembleFullPrompt(context, promptContext);
+            String assembledPrompt = promptContributorService.assemblePrompt(
+                    promptContext, context.templateArgs(), context.op());
             if (assembledPrompt == null || assembledPrompt.isBlank()) {
                 return context;
             }
@@ -167,79 +164,6 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
             log.warn("Prompt health check propagation failed — skipping", e);
         }
         return context;
-    }
-
-    /**
-     * Assembles the full prompt text as the agent will see it:
-     * the rendered Jinja template first, then each contributor's output
-     * in ascending priority order, separated by named dividers.
-     */
-    private String assembleFullPrompt(LlmCallContext<?> context, PromptContext promptContext) {
-        String templateText = renderTemplate(context);
-
-        List<PromptContributor> contributors = unwrapContributors(promptContext);
-        contributors.sort(Comparator.comparingInt(PromptContributor::priority));
-
-        StringBuilder sb = new StringBuilder();
-        if (templateText != null && !templateText.isBlank()) {
-            sb.append(templateText.trim());
-        }
-
-        for (int i = 0; i < contributors.size(); i++) {
-            PromptContributor pc = contributors.get(i);
-            String content;
-            try {
-                content = pc.contribute(promptContext);
-            } catch (Exception e) {
-                log.debug("Contributor {} threw during prompt health assembly — skipping", pc.name(), e);
-                continue;
-            }
-            if (content == null || content.isBlank()) {
-                continue;
-            }
-            if (i == 0) {
-                sb.append("\n\n--- start [").append(pc.name()).append("] ---\n");
-            } else {
-                sb.append("\n--- end [").append(contributors.get(i - 1).name()).append("] ");
-                sb.append("--- start [").append(pc.name()).append("] ---\n");
-            }
-            sb.append(content.trim());
-        }
-
-        if (!contributors.isEmpty()) {
-            sb.append("\n--- end [").append(contributors.getLast().name()).append("] ---");
-        }
-
-        return sb.toString();
-    }
-
-    private String renderTemplate(LlmCallContext<?> context) {
-        try {
-            TemplateRenderer renderer = context.op().agentPlatform().getPlatformServices().getTemplateRenderer();
-            if (renderer == null) {
-                return null;
-            }
-            CompiledTemplate compiled = renderer.compileLoadedTemplate(context.promptContext().templateName());
-            return compiled.render(context.templateArgs());
-        } catch (Exception e) {
-            log.debug("Could not render template for prompt health check", e);
-            return null;
-        }
-    }
-
-    private List<PromptContributor> unwrapContributors(PromptContext promptContext) {
-        List<PromptContributor> result = new ArrayList<>();
-        for (var element : promptContext.promptContributors()) {
-            if (element instanceof FilteredPromptContributorAdapter f) {
-                result.add(f.getContributor());
-            } else if (element instanceof PromptContributorAdapter adapter) {
-                result.add(adapter.getContributor());
-            } else {
-                log.debug("Prompt health check: unknown ContextualPromptElement type {} — skipping",
-                        element.getClass().getSimpleName());
-            }
-        }
-        return result;
     }
 
 }

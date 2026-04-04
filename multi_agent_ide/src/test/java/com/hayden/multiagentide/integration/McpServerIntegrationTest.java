@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.DelegatingHttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
+import io.modelcontextprotocol.spec.McpSchema;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,10 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+
+import java.nio.file.Path;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -33,6 +38,8 @@ class McpServerIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    private static final Path TEST_WORK_DIR = Path.of("test_work/queued");
+
     @SneakyThrows
     @Test
     void whenTokenThenConnectsWithMcpClient() {
@@ -42,9 +49,20 @@ class McpServerIntegrationTest {
                                 .jsonMapper(new JacksonMcpJsonMapper(objectMapper))
                                 .build())
                 .build()) {
-            var initialized = m.initialize();
+            m.initialize();
             var listed = m.listTools();
-            log.info("Found list tools {}", listed);
+            Set<String> existingTools = listed.tools().stream().map(McpSchema.Tool::name).collect(Collectors.toSet());
+            log.info("Found existing tools {}", existingTools);
+            assertThat(existingTools)
+                    .contains("list_agents", "call_controller", "call_agent");
+
+            Path toolsFile = TEST_WORK_DIR.resolve("mcp.tools.md");
+
+            var traceWriter = new com.hayden.multiagentide.support.TestTraceWriter();
+            traceWriter.setTestClassName(McpServerIntegrationTest.class.getSimpleName());
+            traceWriter.setTestMethodName("tools");
+            traceWriter.setVariousFile(toolsFile);
+            traceWriter.writeMcpToolSchemas(listed.tools());
         }
 
     }

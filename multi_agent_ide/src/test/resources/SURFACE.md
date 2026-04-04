@@ -4,7 +4,7 @@ Test scenarios derived from code analysis of the workflow agent system.
 Each scenario targets a distinct code path, branch, or failure mode.
 Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = nice-to-have).
 
-## Coverage Status (2026-03-31)
+## Coverage Status (2026-04-04)
 
 | Scenario | Covered By | Status |
 |----------|-----------|--------|
@@ -77,12 +77,16 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | Q1 | — | **GAP (P1)** |
 | Q2 | — | **GAP (P1)** |
 | Q3 | — | GAP (P2) |
-| S1 | `fullWorkflow_discoveryToPlanningSingleAgentsToCompletion` (implicit — executor events emitted) | COVERED (trace) |
-| S2 | — | **GAP (P0)** |
-| S3 | `ActionRetryListenerImplTest` (unit only) | COVERED (unit) |
-| S4 | — | **GAP (P1)** |
+| S1 | `fullWorkflow_discoveryToPlanningSingleAgentsToCompletion`, `happyPath_noRetryFilteringOccurs` (START/COMPLETE pairing verified) | COVERED |
+| S2 | `happyPath_noRetryFilteringOccurs` (START=14, COMPLETE=14 in trace) | COVERED |
+| S3 | `ActionRetryListenerImplTest` (unit), `retry_*Error_classifiedAndRecoveredOnRetry` ×6 (integration) | COVERED |
+| S4 | `retry_*Error_classifiedAndRecoveredOnRetry` ×6 (errorType persisted in blackboard trace) | COVERED (trace) |
 | S5 | — | **GAP (P1)** |
 | S6 | `AcpSessionRetryContextTest`, `AcpRetryEventListenerTest` (unit only) | COVERED (unit) |
+| S7 | `happyPath_blackboardErrorTypeAlwaysNoError`, `happyPath_noRetryFilteringOccurs` (errorType=null in all happy-path traces) | COVERED |
+| S8 | `happyPath_noRetryFilteringOccurs` (no filtering in happy path), `retry_*` tests (filtering active on retry) | COVERED |
+| S9 | — (compile-time guarantee via interface hierarchy) | COVERED (compile) |
+| S10 | `controllerResponse_rendersTemplateAndResolvesInterrupt` (uses assemblePrompt path) | COVERED (indirect) |
 
 ---
 
@@ -647,9 +651,9 @@ Every `AgentExecutorStartEvent` has a matching `AgentExecutorCompleteEvent` in t
 **Validates**: No orphaned start events. No phantom completions. Events paired by sessionKey + actionName.
 
 ### S3. ActionRetryListener Error Classification (P0)
-When the Embabel retry framework fires `onActionRetry`, the `ActionRetryListenerImpl` classifies the throwable into the correct `ErrorDescriptor` variant and records it on `BlackboardHistory`. Classification order: CompactionException → compacting/prompt-too-long message → TimeoutException → "tool call" → "parse" → fallback ParseError.
+When the Embabel retry framework fires `onActionRetry`, the `ActionRetryListenerImpl` classifies the throwable into the correct `ErrorDescriptor` variant and records it on `BlackboardHistory`. Classification order: CompactionException → compacting/prompt-too-long message → TimeoutException → "tool call" → "null"+"result"/"empty response" → "incomplete json"/"truncated" → JsonParseException/"parse" → fallback ParseError.
 
-**Validates**: Unit-tested classification (15 tests in `ActionRetryListenerImplTest`). Error recorded on BlackboardHistory. CompactionStatus progression (NONE→FIRST→MULTIPLE).
+**Validates**: Unit-tested classification in `ActionRetryListenerImplTest`. Error recorded on BlackboardHistory. CompactionStatus progression (NONE→FIRST→MULTIPLE). NullResultError and IncompleteJsonError variants classified correctly.
 
 ### S4. ErrorDescriptor on BlackboardHistory After Retry (P1)
 After `ActionRetryListener` fires, `BlackboardHistory.errorType()` returns the classified error. `compactionStatus()` returns the compaction progression. These are queryable by downstream prompt contributors and AgentExecutor.
@@ -665,6 +669,26 @@ After `ActionRetryListener` fires, `BlackboardHistory.errorType()` returns the c
 `AcpRetryEventListener` maintains per-session retry state. Session created on `ChatSessionCreatedEvent`, cleared on `AgentExecutorStartEvent`, compaction recorded on `CompactionEvent`, cleared on `AgentExecutorCompleteEvent`, removed on `ChatSessionClosedEvent`.
 
 **Validates**: Unit-tested (22 tests across `AcpSessionRetryContextTest` and `AcpRetryEventListenerTest`). Session lifecycle correct. CompactionStatus progression matches ErrorDescriptor.
+
+### S7. ErrorDescriptor Propagated to PromptContext (P0)
+`AgentExecutor.run()` reads `BlackboardHistory.errorType()` and passes it via `DecoratorContext.errorDescriptor` to `PromptContextFactory.build()`, which copies it to `PromptContext.errorDescriptor`. This makes the error state visible to prompt contributor filtering.
+
+**Validates**: In happy path, `PromptContext.errorDescriptor` is always `NoError` (no errors recorded). On retry, the specific `ErrorDescriptor` variant propagates correctly.
+
+### S8. Retry-Aware Prompt Contributor Filtering (P0)
+`PromptContributorService.retrievePromptContributors()` checks `PromptContext.errorDescriptor`. When it is non-null and not `NoError`, factories are filtered by `RetryAware.includeOn*()` before calling `create()`, and individual contributors are filtered by the same interface after collection. Contributors/factories that don't override `RetryAware` defaults (all return `false`) are excluded on retry.
+
+**Validates**: In happy path (no error), no filtering occurs — all contributors included. On retry, only contributors that opt in for the specific error type survive.
+
+### S9. PromptContributor/Factory Extend RetryAware (P0)
+`PromptContributor extends RetryAware` and `PromptContributorFactory extends RetryAware`. All implementations inherit default methods that return `false`, meaning they are excluded on retry unless they override. This is a compile-time guarantee — no `instanceof` check needed.
+
+**Validates**: No runtime `instanceof RetryAware` check. All contributors participate in the filtering protocol by virtue of the interface hierarchy.
+
+### S10. assemblePrompt Consolidated in PromptContributorService (P1)
+`PromptContributorService.assemblePrompt()` is the single codepath for prompt assembly. Both `AgentExecutor.assemblePrompt()` (controller execution) and `PromptHealthCheckLlmCallDecorator` delegate to it. The method renders the template, resolves/filters contributors, and concatenates with `--- start/end` delimiters.
+
+**Validates**: No duplicated prompt assembly logic. Code colocation ensures retry filtering, template rendering, and contributor resolution happen consistently.
 
 ---
 
@@ -720,3 +744,7 @@ After `ActionRetryListener` fires, `BlackboardHistory.errorType()` returns the c
 | S4       |       |        | X          |          |           |     |           |
 | S5       | X     |        |            | X        |           |     |           |
 | S6       |       | X      |            |          |           |     |           |
+| S7       |       |        | X          |          |           |     |           |
+| S8       |       |        | X          |          |           |     |           |
+| S9       |       |        |            |          |           |     |           |
+| S10      |       | X      |            |          | X         |     |           |

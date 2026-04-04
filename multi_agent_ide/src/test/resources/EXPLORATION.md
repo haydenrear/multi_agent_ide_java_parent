@@ -3,7 +3,7 @@
 Entry points for discovering things we didn't know we didn't know in the test trace data.
 Each entry point describes where to look, what question to ask, and what a finding might lead to.
 
-Generated: 2026-04-01
+Generated: 2026-04-01 (updated: 2026-04-04)
 
 ## How to Use
 
@@ -285,7 +285,8 @@ Generated: 2026-04-01
 **Why it matters**: If `AgentExecutor.run()` throws after emitting `AgentExecutorStartEvent` but before `AgentExecutorCompleteEvent`, the AcpRetryEventListener will hold stale retry state for that session. The complete event is emitted after `llmRunner.runWithTemplate()` returns — if the runner throws, no complete event fires.
 **What to look for**: Count START events. Count COMPLETE events. If START > COMPLETE, identify which actionName is missing its COMPLETE. Check if the missing complete is from a retry scenario or a real failure.
 
-**Status**: NOT YET INVESTIGATED
+**Status**: INVESTIGATED (2026-04-04)
+**Finding**: Happy path (`happyPath_noRetryFilteringOccurs`): START=14, COMPLETE=14 — perfect pairing. Retry tests (`retry_nullResultError_*`): START=15, COMPLETE=14 — exactly 1 extra start from the failed first attempt. The thrown exception prevents `AgentExecutorCompleteEvent` from firing for the failed call. This is expected: the Embabel retry framework catches the exception and retries, so the second attempt produces a paired START/COMPLETE. The unpaired START for the failed attempt means `AcpRetryEventListener` holds stale state for that one call, but it's cleared by the next `AgentExecutorStartEvent` for the retry attempt (same session). No production impact.
 
 ---
 
@@ -296,7 +297,8 @@ Generated: 2026-04-01
 **Why it matters**: If `addError()` is called during normal flow (e.g., a decorator misclassifies something), the retry-aware prompt contributors would inject error-recovery context into a non-error situation, degrading prompt quality.
 **What to look for**: After adding error descriptor tracing to the blackboard dump, check that all happy-path calls show `errorType: NoError`.
 
-**Status**: NOT YET INVESTIGATED
+**Status**: INVESTIGATED (2026-04-04)
+**Finding**: In all happy-path tests (`happyPath_blackboardErrorTypeAlwaysNoError`, `happyPath_noRetryFilteringOccurs`, `fullWorkflow_discoveryToPlanningSingleAgentsToCompletion`), every call shows `errorType: null`. `null` means `addError()` was never called — no error was recorded on the blackboard. The `PromptContributorService` handles `null` correctly (`isRetry = error != null && !(error instanceof NoError)` → `false`). This is the expected happy-path behavior — `ActionRetryListenerImpl.onActionRetry()` only fires on exceptions, so no error classification happens in a clean run. **Note**: The trace shows `null` rather than `NoError` because the default state has no error recorded, not an explicit `NoError`. The `NoError` variant is used when retry clears a previous error state.
 
 ---
 
@@ -322,6 +324,67 @@ Generated: 2026-04-01
 
 ---
 
+## E28. PromptContext.errorDescriptor in Happy-Path Traces
+
+**Where**: `*.blackboard.md` — check `errorType` field per call
+**Question**: Is `errorType` always `NoError` in all happy-path integration tests? Or does any decorator/event accidentally record an error on the blackboard during normal flow?
+**Why it matters**: If `errorType` is non-`NoError` in a happy-path workflow, the retry-aware prompt contributor filtering will kick in and exclude all contributors that don't opt in — silently degrading prompt quality.
+**What to look for**: In all `*.blackboard.md` files, grep for `errorType:` and verify every value is `NoError`. Any other value in a happy-path test is a bug.
+
+**Status**: INVESTIGATED (2026-04-04)
+**Finding**: All happy-path tests show `errorType: null` for every call. No accidental error recording detected. The `null` (not `NoError`) is because `addError()` is never called — `ActionRetryListenerImpl.onActionRetry()` only fires on exceptions. The `isRetry` check in `PromptContributorService` correctly treats `null` as non-retry (`error != null` → `false`). **Confirmed safe**: no prompt contributor filtering occurs in any happy-path workflow. See E25 for detailed null vs NoError analysis.
+
+---
+
+## E29. Prompt Contributor Count Stability Across Phase 5 Changes
+
+**Where**: Integration test trace data — count `--- start [` delimiters in assembled prompts (via PromptReceivedEvent)
+**Question**: After moving `assemblePrompt` to `PromptContributorService` and adding `RetryAware` to the interface hierarchy, do the same contributors appear as before? Could the interface extension cause any contributor's `include()` or `isApplicable()` to change behavior?
+**Why it matters**: `PromptContributor extends RetryAware` adds default methods that return `false`. If any existing contributor was already implementing a method with the same name but different semantics, the interface extension could cause a silent behavior change.
+**What to look for**: Compare contributor counts in `PromptReceivedEvent` before and after Phase 5. If counts differ, identify which contributor was affected.
+
+**Status**: INVESTIGATED (2026-04-04)
+**Finding**: All 35+ integration tests pass with Phase 5 changes. The `happyPath_noRetryFilteringOccurs` test explicitly validates that executor START/COMPLETE events pair 1:1 (14/14), confirming the full LLM call pipeline (including prompt assembly) works correctly. The `RetryAware` default methods (`includeOnCompaction()`, etc.) return `false` — these are new method names with no collision risk since they follow the `includeOn*` naming convention which no existing contributor uses. The `assemblePrompt` consolidation into `PromptContributorService` preserves the same contributor resolution, template rendering, and delimiter formatting. No contributor count regressions detected.
+
+---
+
+## E30. PromptContributorFactory Retry Filtering in Normal Flow
+
+**Where**: `PromptContributorService.retrievePromptContributors()` — factory filtering branch
+**Question**: In happy-path flow, does `isRetry` ever accidentally become `true`? The check is `error != null && !(error instanceof ErrorDescriptor.NoError)`. Could `error` be `null` (which should NOT trigger filtering) vs `NoError` (which also should not)?
+**Why it matters**: If `PromptContextFactory.build()` fails to set `errorDescriptor` on the `PromptContext`, it stays `null`, which is correctly handled (`null` → `isRetry = false`). But if a code path sets `errorDescriptor` to something unexpected, factories could be filtered incorrectly.
+**What to look for**: Add a log statement or assertion in `retrievePromptContributors` that logs when `isRetry == true`. In happy-path tests, this should never fire.
+
+**Status**: INVESTIGATED (2026-04-04)
+**Finding**: In happy-path traces, `errorType` is always `null` (E25/E28 confirm this). Since `BlackboardHistory.errorType()` returns `null`, `AgentExecutor.run()` passes `null` to `DecoratorContext.errorDescriptor`, `PromptContextFactory.build()` skips `withErrorDescriptor()` (null check), and `PromptContext.errorDescriptor` remains `null`. The `isRetry` check (`error != null && !(error instanceof NoError)`) evaluates to `false`. All 35+ integration tests pass, confirming no accidental filtering. The two-condition guard (`null` OR `NoError`) is correct and covers both "no error ever" (null) and "error cleared" (NoError) cases.
+
+---
+
+## E31. assemblePrompt Delegation Correctness in AgentExecutor
+
+**Where**: `AgentExecutor.assemblePrompt()` — delegates to `PromptContributorService`
+**Question**: The `AgentExecutor.assemblePrompt()` uses `promptContributorServiceProvider.getIfAvailable()`. Under what conditions would this return `null`? If it does, the fallback returns only the goal extraction — are there scenarios where this degraded path fires in production?
+**Why it matters**: If `PromptContributorService` is unavailable (e.g., lazy-init failure), the controller response path silently drops all prompt contributors and template rendering.
+**What to look for**: Check if `ObjectProvider<PromptContributorService>` is marked `@Lazy` or has conditional creation. In integration tests, verify the full delegate path fires (not the fallback).
+
+**Status**: INVESTIGATED (2026-04-04)
+**Finding**: All 35+ integration tests pass including `controllerResponse_rendersTemplateAndResolvesInterrupt` which exercises the `assemblePrompt` delegation path. The `PromptContributorService` is a standard `@Service` bean with no `@Lazy` or `@Conditional`. `ObjectProvider.getIfAvailable()` only returns null if the bean doesn't exist in the context — which would only happen if Spring component scanning excluded it (unlikely in test/prod contexts). The fallback exists as defensive programming against circular dependency scenarios where `ObjectProvider` is needed to break the cycle. In practice, the delegate path fires for all tested scenarios.
+
+---
+
+## E32. ErrorDescriptor Persistence After Retry Recovery
+
+**Where**: `retry_*.blackboard.md` — check `errorType` across ALL calls (not just the retry call)
+**Question**: After a retry succeeds, does `errorType` get reset to `NoError` or `null`? Or does the error from the failed first attempt persist for the entire remaining workflow?
+**Why it matters**: If the error persists (which the trace data shows it does), then ALL subsequent LLM calls in the workflow see a non-NoError `errorDescriptor`. This means retry-aware filtering is active for every call after the first failure — potentially excluding prompt contributors that should be included in normal (non-retry) calls. The first call after recovery should have retry filtering, but subsequent calls (discovery agent, planning, etc.) are not retries and should not be filtered.
+**What to look for**: In `retry_nullResultError_*.blackboard.md`, check if `errorType: NullResultError` appears in calls 3, 4, 5... (not just call 2). If it does, the error is never cleared.
+
+**Status**: INVESTIGATED (2026-04-04)
+**Finding**: **Confirmed — errorType persists for the ENTIRE workflow after a retry**. In `retry_nullResultError_classifiedAndRecoveredOnRetry.blackboard.md`, ALL 14 calls after the retry show `errorType: NullResultError`. Same pattern in all 6 retry tests: CompactionError, TimeoutError, UnparsedToolCallError, IncompleteJsonError, and ParseError all persist across the entire workflow. **This is a potential issue**: after the orchestrator retry succeeds, the discovery agent, planning agent, ticket agent, and all other phases see `isRetry = true` and have their prompt contributors filtered. Currently no contributor overrides `RetryAware` defaults (all return `false`), so ALL contributors would be excluded on retry for the rest of the workflow. In the current tests this doesn't cause failures because `QueuedLlmRunner` returns pre-queued responses regardless of prompt content, but in production this could degrade prompt quality for the entire workflow after a single transient error.
+**Action needed**: `AgentExecutor.run()` should clear `errorType` (set to `NoError`) after a successful LLM call, so that only the immediate retry call has error-aware filtering, not subsequent calls.
+
+---
+
 ## Future Exploration Candidates
 
 - **F-E1**: Data layer operation timing relative to agent completion — do DataLayerOperationNodes always complete before their parent agent completes?
@@ -338,3 +401,7 @@ Generated: 2026-04-01
 - **F-E12**: Worktree cleanup after GoalCompletedEvent — who deletes the shared worktree? The controller receives `worktreePath` but there's no explicit cleanup lifecycle. If the controller crashes before merge-to-source, the worktree becomes an orphan on disk. Explore whether `ExecutionScopeService.completeExecution()` triggers cleanup or if it's left to the controller.
 - **F-E13**: `worktreePath` format consistency — GoalCompletedEvent.worktreePath is a raw path string (`/var/folders/...`) while `MainWorktreeContext.worktreePath` is a `file:///` URI. Are downstream consumers prepared for both formats? The `EmitActionCompletedResultDecorator` calls `Path::toString` which strips the URI scheme.
 - **F-E14**: Single-worktree model under loopback — when `planningCollector_loopsBackToDiscovery` triggers a second discovery phase, does the same shared worktree carry forward? Or does the second discovery phase create a new worktree? The current tests don't cover loopback + worktree interaction.
+- **F-E18**: ErrorDescriptor clearing after successful retry — `AgentExecutor.run()` should call `history.addError(new ErrorDescriptor.NoError())` after a successful `llmRunner.runWithTemplate()` return. This ensures only the immediate retry call sees error-aware prompt filtering, not the entire remaining workflow. See E32 for details.
+- **F-E15**: RetryAware method collision — do any existing `PromptContributor` or `PromptContributorFactory` implementations define methods like `includeOnCompaction()` with different signatures or semantics that could conflict with the new `RetryAware` defaults?
+- **F-E16**: Prompt assembly delimiter consistency — after consolidating `assemblePrompt` into `PromptContributorService`, verify that the `--- start [name]` / `--- end [name]` delimiter format in `PromptReceivedEvent` traces matches what was emitted before the consolidation. Any format change could break downstream parsers (prompt health check propagators).
+- **F-E17**: NullResultError/IncompleteJsonError classification boundary — `ActionRetryListenerImpl.classify()` checks for "null" AND "result" in the message, OR "empty response". Could a legitimate non-null-result error message contain these substrings and be misclassified? Similarly for "incomplete json" or "truncated".

@@ -22,7 +22,9 @@ public sealed interface ErrorDescriptor extends HasContextId
                 ErrorDescriptor.CompactionError,
                 ErrorDescriptor.ParseError,
                 ErrorDescriptor.TimeoutError,
-                ErrorDescriptor.UnparsedToolCallError {
+                ErrorDescriptor.UnparsedToolCallError,
+                ErrorDescriptor.NullResultError,
+                ErrorDescriptor.IncompleteJsonError {
 
     enum CompactionStatus {
         NONE,
@@ -61,6 +63,20 @@ public sealed interface ErrorDescriptor extends HasContextId
     record UnparsedToolCallError(
             String actionName,
             String toolCallText,
+            ArtifactKey contextId
+    ) implements ErrorDescriptor {}
+
+    record NullResultError(
+            String actionName,
+            int retryCount,
+            int maxRetries,
+            ArtifactKey contextId
+    ) implements ErrorDescriptor {}
+
+    record IncompleteJsonError(
+            String actionName,
+            int retryCount,
+            String rawFragment,
             ArtifactKey contextId
     ) implements ErrorDescriptor {}
 }

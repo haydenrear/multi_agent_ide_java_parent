@@ -25,7 +25,7 @@ import static com.hayden.acp_cdc_ai.acp.AcpChatModel.MCP_SESSION_HEADER;
  * Tool definitions for Embabel agents.
  * These tools are available to all agents via the agent execution framework.
  */
-@Component
+//@Component
 @RequiredArgsConstructor
 public class AgentTools implements ToolCarrier {
 

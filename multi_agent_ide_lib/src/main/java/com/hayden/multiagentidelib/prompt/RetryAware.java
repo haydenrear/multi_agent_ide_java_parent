@@ -35,4 +35,12 @@ public interface RetryAware {
     default boolean includeOnUnparsedToolCall(ErrorDescriptor.UnparsedToolCallError error) {
         return false;
     }
+
+    default boolean includeOnNullResult(ErrorDescriptor.NullResultError error) {
+        return false;
+    }
+
+    default boolean includeOnIncompleteJson(ErrorDescriptor.IncompleteJsonError error) {
+        return false;
+    }
 }
