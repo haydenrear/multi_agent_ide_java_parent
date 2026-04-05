@@ -1,7 +1,9 @@
 package com.hayden.multiagentide.integration.filter;
 
+import com.embabel.agent.api.annotation.support.ActionQosProvider;
 import com.embabel.agent.api.common.ContextualPromptElement;
 import com.embabel.agent.api.common.OperationContext;
+import com.embabel.agent.core.ActionQos;
 import com.embabel.agent.core.Blackboard;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,15 +39,21 @@ import com.hayden.multiagentide.prompt.PromptContributor;
 import com.hayden.multiagentide.prompt.PromptContributorAdapterFactory;
 import com.hayden.multiagentide.prompt.PromptContributorService;
 import com.hayden.multiagentide.prompt.contributor.WeAreHerePromptContributor;
+import com.hayden.multiagentide.support.QueuedChatModel;
+import com.hayden.multiagentide.support.TestEventListener;
 import com.hayden.multiagentide.tool.ToolContext;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -53,6 +61,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -108,6 +117,21 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
     private InMemoryGraphRepository inMemoryGraphRepository;
 //    @MockitoBean
 //    private SandboxResolver sandboxResolver;
+
+    @TestConfiguration
+    static class TestConfig {
+
+        @Bean
+        @Primary
+        ActionQosProvider manager() {
+            return new ActionQosProvider() {
+                @Override
+                public @NonNull ActionQos provideActionQos(@NonNull Method method, @NonNull Object instance) {
+                    return new ActionQos(2, 50, 2, 60, false);
+                }
+            };
+        }
+    }
 
     @BeforeEach
     void setUp() {
@@ -531,7 +555,8 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
 
     @Test
     void aiPathFilter_registrationAndExecution_appliesLlmInstructionsThroughInterpreter() throws Exception {
-        ArtifactKey actionKey = ArtifactKey.createRoot().createChild();
+        ArtifactKey root = ArtifactKey.createRoot();
+        ArtifactKey actionKey = root.createChild();
         String actionNodeId = actionKey.value();
         String actionLayerId = "layer-action-ai-" + UUID.randomUUID();
         String contributorName = "it-test-contributor-ai";
@@ -588,18 +613,27 @@ class FilterPolicyInfrastructureIT extends AgentTestBase {
                 .output(mockInstructions)
                 .build();
         Mockito.when(llmRunner.runWithTemplate(
-                Mockito.anyString(),
-                Mockito.any(PromptContext.class),
-                Mockito.anyMap(),
-                Mockito.any(ToolContext.class),
-                Mockito.eq(AgentModels.AiFilterResult.class),
-                Mockito.any(OperationContext.class)
+                Mockito.any(),
+                Mockito.any(),
+                Mockito.any(),
+                Mockito.any(),
+                Mockito.any(),
+                Mockito.any()
         )).thenReturn(mockResult);
+
+        BlackboardHistory value = new BlackboardHistory(new BlackboardHistory.History(), root.value(), WorkflowGraphState.initial(root.value()));
+
 
         // 5. Build a PromptContext with OperationContext so AI filter can execute
         var mockAgentProcess = Mockito.mock(com.embabel.agent.core.AgentProcess.class);
         OperationContext mockOperationContext = Mockito.mock(OperationContext.class);
+        Mockito.when(mockOperationContext.last(BlackboardHistory.class))
+                .thenReturn(value);
+        var mockBlackboard = Mockito.mock(Blackboard.class);
         Mockito.when(mockOperationContext.getAgentProcess()).thenReturn(mockAgentProcess);
+        Mockito.when(mockAgentProcess.getBlackboard()).thenReturn(mockBlackboard);
+        Mockito.when(mockBlackboard.last(BlackboardHistory.class))
+                .thenReturn(value);
         PromptContext promptContext = PromptContext.builder()
                 .agentType(AgentType.ORCHESTRATOR)
                 .currentContextId(actionKey)

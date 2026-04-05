@@ -8,13 +8,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
-import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.AgentModels;
 import com.hayden.multiagentide.filter.model.layer.FilterContext;
 import com.hayden.multiagentide.filter.service.FilterDescriptor;
 import com.hayden.multiagentide.filter.service.FilterResult;
 import com.hayden.multiagentide.llm.AgentLlmExecutor;
-import com.hayden.multiagentide.llm.AgentLlmExecutor.DirectExecutorArgs;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -82,37 +80,18 @@ public final class AiFilterTool<I, O>
 
     @Override
     public @NotNull FilterResult<AgentModels.AiFilterResult> apply(AgentModels.AiFilterRequest i, FilterContext.AiFilterContext ctx) {
+        if (ctx == null || ctx.directExecutorArgs() == null || agentLlmExecutor == null) {
+            return aiFailResult("AI filter context is not fully initialized");
+        }
         try {
-            String templateName = ctx.templateName() != null ? ctx.templateName() : TEMPLATE_NAME;
-            try {
-                AgentModels.AiFilterResult aiResult = agentLlmExecutor.runDirect(
-                        DirectExecutorArgs.<AgentModels.AiFilterResult>builder()
-                                .responseClazz(AgentModels.AiFilterResult.class)
-                                .agentName(AgentInterfaces.AGENT_NAME_AI_FILTER)
-                                .actionName(AgentInterfaces.ACTION_AI_FILTER)
-                                .methodName(AgentInterfaces.METHOD_AI_FILTER)
-                                .template(templateName)
-                                .promptContext(ctx.promptContext())
-                                .templateModel(ctx.model() != null ? ctx.model() : Map.of())
-                                .toolContext(ctx.toolContext())
-                                .operationContext(ctx.context())
-                                .build());
-                if (aiResult == null) {
-                    return aiFailResult("LLM returned null result");
-                }
-                return new FilterResult<>(aiResult, buildAiFilterDescriptor());
-            } catch (Exception e) {
-                return aiFailResult("LLM call threw error: %s".formatted(e.getMessage()));
+            AgentModels.AiFilterResult aiResult = agentLlmExecutor.runDirect(ctx.directExecutorArgs());
+            if (aiResult == null) {
+                return aiFailResult("LLM returned null result");
             }
+            return new FilterResult<>(aiResult, buildAiFilterDescriptor());
         } catch (Exception e) {
             log.error("Error when attempting to filter {}.", i, e);
-            return new FilterResult<>(
-                    AgentModels.AiFilterResult.builder()
-                            .successful(false)
-                            .errorMessage(e.getMessage())
-                            .output(List.of())
-                            .build(),
-                    new FilterDescriptor.NoOpFilterDescriptor());
+            return aiFailResult("LLM call threw error: %s".formatted(e.getMessage()));
         }
     }
 

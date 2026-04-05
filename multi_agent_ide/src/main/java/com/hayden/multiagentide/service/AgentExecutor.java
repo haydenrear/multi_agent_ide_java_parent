@@ -688,7 +688,13 @@ public class AgentExecutor implements AgentLlmExecutor {
 
         retryTemplate.setRetryPolicy(new SpringAiRetryPolicy(qos.getMaxAttempts(), Set.of("rate limit", "rate-limit")));
 
-        return retryTemplate.execute(ctx -> doRunDirect(args));
+        return retryTemplate.execute(ctx -> {
+            DirectExecutorArgs<T> effective = args;
+            if (ctx.getRetryCount() > 0 && args.refresh() != null) {
+                effective = args.refresh().get();
+            }
+            return doRunDirect(effective);
+        });
     }
 
     private <T> T doRunDirect(DirectExecutorArgs<T> args) {

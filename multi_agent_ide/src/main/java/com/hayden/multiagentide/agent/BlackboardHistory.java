@@ -229,7 +229,11 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
     }
 
     public static BlackboardHistory getEntireBlackboardHistory(Blackboard context) {
-        return context.last(BlackboardHistory.class);
+        return Optional.ofNullable(context.last(BlackboardHistory.class))
+                .orElseGet(() -> {
+                    log.error("Error retrieving blackboard history. Did not exist for {}.", context.getBlackboardId());
+                    return null;
+                });
     }
 
     public static <T> T getLastMatching(Blackboard context, Function<Entry, Optional<T>> inputType) {
