@@ -63,10 +63,8 @@ public record PromptContext(
                     : (aar.targetNodeId() != null && !aar.targetNodeId().isBlank()
                        ? new ArtifactKey(aar.targetNodeId())
                        : aar.targetAgentKey());
-            case AgentModels.AgentToControllerRequest acr -> {
-                log.error("chatId() called on AgentToControllerRequest — this request routes through the permission gate, not ACP. Returning sourceAgentKey as fallback.");
-                yield acr.sourceAgentKey();
-            }
+            case AgentModels.AgentToControllerRequest acr ->
+                    acr.sourceAgentKey();
             case AgentModels.ControllerToAgentRequest car -> car.chatId() != null
                     ? car.chatId()
                     : car.targetAgentKey();

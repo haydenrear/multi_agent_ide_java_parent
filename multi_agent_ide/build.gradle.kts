@@ -178,6 +178,10 @@ tasks.register("acpCdcAiTest") {
     )
 }
 
+tasks.register<Test>("acpIntegrationTest") {
+    include("**/acp_tests/**")
+}
+
 tasks.register<Test>("unitTest") {
     exclude("**/acp_tests/**", "**/integration/**", "**/perf/**", "**/cli/**")
     dependsOn(
