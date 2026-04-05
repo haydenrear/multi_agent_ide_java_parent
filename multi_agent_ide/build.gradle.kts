@@ -210,8 +210,8 @@ tasks.register<Test>("integrationTest") {
 
 tasks.register("integrationTestAndUnitTest") {
     dependsOn(
-        "integrationTest",
         "unitTest",
+        "integrationTest"
     )
 }
 
