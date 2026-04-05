@@ -11,7 +11,8 @@ import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
 import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
 import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
-import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor.DirectExecutorArgs;
 import com.hayden.multiagentidelib.propagation.model.layer.AiPropagatorContext;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
@@ -41,7 +42,7 @@ public final class AiPropagatorTool
 
     @Autowired
     @JsonIgnore
-    private LlmRunner llmRunner;
+    private AgentLlmExecutor agentLlmExecutor;
 
     @JsonCreator
     public AiPropagatorTool(
@@ -60,21 +61,25 @@ public final class AiPropagatorTool
 
     @Override
     public FilterResult<AgentModels.AiPropagatorResult> apply(AgentModels.AiPropagatorRequest input, AiPropagatorContext ctx) {
-        if (ctx == null || ctx.promptContext() == null || llmRunner == null) {
+        if (ctx == null || ctx.promptContext() == null || agentLlmExecutor == null) {
             return fail("AI propagator context is not fully initialized", input);
         }
         String templateName = ctx.templateName() != null && !ctx.templateName().isBlank()
                 ? ctx.templateName()
                 : TEMPLATE_NAME;
         try {
-            AgentModels.AiPropagatorResult result = llmRunner.runWithTemplate(
-                    templateName,
-                    ctx.promptContext(),
-                    ctx.model() == null ? Map.of() : ctx.model(),
-                    ctx.toolContext(),
-                    AgentModels.AiPropagatorResult.class,
-                    ctx.context()
-            );
+            AgentModels.AiPropagatorResult result = agentLlmExecutor.runDirect(
+                    DirectExecutorArgs.<AgentModels.AiPropagatorResult>builder()
+                            .responseClazz(AgentModels.AiPropagatorResult.class)
+                            .agentName("ai-propagator")
+                            .actionName("ai-propagator")
+                            .methodName("apply")
+                            .template(templateName)
+                            .promptContext(ctx.promptContext())
+                            .templateModel(ctx.model() == null ? Map.of() : ctx.model())
+                            .toolContext(ctx.toolContext())
+                            .operationContext(ctx.context())
+                            .build());
             if (result == null) {
                 return fail("AI propagator returned null", input);
             }

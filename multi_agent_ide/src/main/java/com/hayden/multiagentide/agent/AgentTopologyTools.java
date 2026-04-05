@@ -16,7 +16,8 @@ import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor.DirectExecutorArgs;
 import com.hayden.multiagentidelib.model.nodes.AgentToAgentConversationNode;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
 import com.hayden.multiagentidelib.prompt.PromptContext;
@@ -61,7 +62,7 @@ public class AgentTopologyTools implements ToolCarrier {
 
     private AgentPlatform agentPlatform;
     private DecorateRequestResults decorateRequestResults;
-    private LlmRunner llmRunner;
+    private AgentLlmExecutor agentLlmExecutor;
     private PromptContextFactory promptContextFactory;
     private EventBus eventBus;
     private com.hayden.multiagentide.service.AgentExecutor agentExecutor;
@@ -77,8 +78,8 @@ public class AgentTopologyTools implements ToolCarrier {
     }
 
     @Autowired
-    public void setLlmRunner(LlmRunner llmRunner) {
-        this.llmRunner = llmRunner;
+    public void setAgentLlmExecutor(AgentLlmExecutor agentLlmExecutor) {
+        this.agentLlmExecutor = agentLlmExecutor;
     }
 
     @Autowired
@@ -338,14 +339,18 @@ public class AgentTopologyTools implements ToolCarrier {
                     callChain, message, null, null, null);
 
             // 4. Call LLM through the target agent's session (routed by PromptContext.chatId())
-            AgentModels.AgentCallRouting routing = llmRunner.runWithTemplate(
-                    AgentInterfaces.TEMPLATE_COMMUNICATION_AGENT_CALL,
-                    promptContext,
-                    templateModel,
-                    toolContext,
-                    AgentModels.AgentCallRouting.class,
-                    operationContext
-            );
+            AgentModels.AgentCallRouting routing = agentLlmExecutor.runDirect(
+                    DirectExecutorArgs.<AgentModels.AgentCallRouting>builder()
+                            .responseClazz(AgentModels.AgentCallRouting.class)
+                            .agentName(AgentInterfaces.AGENT_NAME_AGENT_CALL)
+                            .actionName(AgentInterfaces.ACTION_AGENT_CALL)
+                            .methodName(AgentInterfaces.METHOD_CALL_AGENT)
+                            .template(AgentInterfaces.TEMPLATE_COMMUNICATION_AGENT_CALL)
+                            .promptContext(promptContext)
+                            .templateModel(templateModel)
+                            .toolContext(toolContext)
+                            .operationContext(operationContext)
+                            .build());
 
             // 5. Decorate routing result (WorkflowGraphResultDecorator completes the node here)
             routing = decorateRequestResults.decorateRouting(

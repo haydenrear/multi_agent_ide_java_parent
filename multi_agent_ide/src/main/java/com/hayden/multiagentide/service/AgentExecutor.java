@@ -23,6 +23,7 @@ import com.hayden.multiagentidelib.agent.AgentPretty;
 import com.hayden.multiagentidelib.agent.AgentType;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.multiagentidelib.agent.DecoratorContext;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
 import com.hayden.multiagentidelib.llm.LlmRunner;
 import com.hayden.multiagentidelib.model.nodes.GraphNode;
 import com.hayden.multiagentidelib.prompt.PromptContext;
@@ -52,7 +53,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class AgentExecutor {
+public class AgentExecutor implements AgentLlmExecutor {
 
     public record TemplateModelArgs<T extends AgentModels.AgentRequest>(
             T enrichedRequest,
@@ -662,6 +663,77 @@ public class AgentExecutor {
         ));
 
         return ControllerResponseResult.success();
+    }
+
+    // =========================================================================
+    // Direct LLM execution: callers that already build their own contexts
+    // =========================================================================
+
+    /**
+     * Execute an LLM call with agent executor semantics (events, error descriptors, error templates)
+     * for callers that already build their own PromptContext and ToolContext.
+     * <p>
+     * This is the lighter-weight entry point compared to {@link #run(AgentExecutorArgs)} —
+     * it skips request/prompt/tool/result decoration but provides event emission,
+     * error descriptor resolution from blackboard history, and error-specific template overrides.
+     */
+    @Override
+    public <T> T runDirect(DirectExecutorArgs<T> args) {
+        var operationContext = args.operationContext();
+        var promptContext = args.promptContext();
+
+        // 1. Resolve error descriptor from blackboard
+        BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(operationContext);
+        String chatIdValue = promptContext.chatId() != null ? promptContext.chatId().value() : "";
+        ErrorDescriptor errorDescriptor = history.errorType(chatIdValue);
+
+        // 2. Emit start event
+        ArtifactKey requestContextId = promptContext.currentContextId() != null
+                ? promptContext.currentContextId() : ArtifactKey.createRoot();
+        ArtifactKey nodeKey = requestContextId.createChild();
+        String nodeId = nodeKey.value();
+        String sessionKey = chatIdValue;
+        eventBus.publish(new Events.AgentExecutorStartEvent(
+                UUID.randomUUID().toString(), java.time.Instant.now(),
+                nodeId, sessionKey, args.actionName(), requestContextId.value()));
+
+        // 3. Resolve error template
+        ErrorTemplates errorTemplates = ErrorTemplates.DEFAULT;
+        String effectiveTemplate = args.template();
+        Map<String, Object> effectiveModel = args.templateModel();
+
+        String retryTemplate = switch (errorDescriptor) {
+            case ErrorDescriptor.CompactionError ce ->
+                    ce.compactionStatus() == ErrorDescriptor.CompactionStatus.MULTIPLE
+                            ? errorTemplates.compactionMultipleTemplate()
+                            : errorTemplates.compactionFirstTemplate();
+            case ErrorDescriptor.ParseError _ -> errorTemplates.parseErrorTemplate();
+            case ErrorDescriptor.TimeoutError _ -> errorTemplates.timeoutTemplate();
+            case ErrorDescriptor.UnparsedToolCallError _ -> errorTemplates.unparsedToolCallTemplate();
+            case ErrorDescriptor.NullResultError _ -> errorTemplates.nullResultTemplate();
+            case ErrorDescriptor.IncompleteJsonError _ -> errorTemplates.incompleteJsonTemplate();
+            case ErrorDescriptor.NoError _ -> null;
+        };
+
+        if (retryTemplate != null) {
+            effectiveTemplate = retryTemplate;
+            String errorDetail = errorDescriptor.errorDetail();
+            effectiveModel = Map.of("errorDetail", errorDetail != null ? errorDetail : "");
+        }
+
+        // 4. Call LLM
+        T result = llmRunner.runWithTemplate(
+                effectiveTemplate, promptContext, effectiveModel,
+                args.toolContext() != null ? args.toolContext() : ToolContext.empty(),
+                args.responseClazz(), operationContext
+        );
+
+        // 5. Emit complete event
+        eventBus.publish(new Events.AgentExecutorCompleteEvent(
+                UUID.randomUUID().toString(), java.time.Instant.now(),
+                nodeId, sessionKey, args.actionName(), requestContextId.value(), nodeId));
+
+        return result;
     }
 
     /**

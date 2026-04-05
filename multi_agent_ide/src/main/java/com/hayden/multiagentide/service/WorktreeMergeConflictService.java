@@ -10,7 +10,8 @@ import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.tools.ToolContextDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
-import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor.DirectExecutorArgs;
 import com.hayden.multiagentidelib.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
@@ -42,7 +43,7 @@ public class WorktreeMergeConflictService {
     public static final String ACTION_NAME = "merge-conflict-agent";
     public static final String METHOD_NAME = "runMergeConflictAgent";
 
-    private final LlmRunner llmRunner;
+    private final AgentLlmExecutor agentLlmExecutor;
     @Autowired
     @Lazy
     private EventBus eventBus;
@@ -195,14 +196,18 @@ public class WorktreeMergeConflictService {
         );
 
         try {
-            AgentModels.MergeConflictResult conflictResult = llmRunner.runWithTemplate(
-                    TEMPLATE,
-                    decoratedPromptContext,
-                    model,
-                    toolContext,
-                    AgentModels.MergeConflictResult.class,
-                    operationContext
-            );
+            AgentModels.MergeConflictResult conflictResult = agentLlmExecutor.runDirect(
+                    DirectExecutorArgs.<AgentModels.MergeConflictResult>builder()
+                            .responseClazz(AgentModels.MergeConflictResult.class)
+                            .agentName(AGENT_NAME)
+                            .actionName(ACTION_NAME)
+                            .methodName(METHOD_NAME)
+                            .template(TEMPLATE)
+                            .promptContext(decoratedPromptContext)
+                            .templateModel(model)
+                            .toolContext(toolContext)
+                            .operationContext(operationContext)
+                            .build());
             if (conflictResult == null) {
                 String reason = "Merge conflict agent returned empty result.";
                 publishNodeError(reason, request.contextId());

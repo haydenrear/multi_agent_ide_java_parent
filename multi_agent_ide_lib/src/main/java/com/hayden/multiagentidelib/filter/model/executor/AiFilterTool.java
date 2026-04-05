@@ -12,7 +12,8 @@ import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.filter.model.layer.FilterContext;
 import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
-import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor.DirectExecutorArgs;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +47,7 @@ public final class AiFilterTool<I, O>
 
     @Autowired
     @JsonIgnore
-    private LlmRunner llmRunner;
+    private AgentLlmExecutor agentLlmExecutor;
 
     @JsonCreator
     public AiFilterTool(
@@ -83,14 +84,18 @@ public final class AiFilterTool<I, O>
         try {
             String templateName = ctx.templateName() != null ? ctx.templateName() : TEMPLATE_NAME;
             try {
-                AgentModels.AiFilterResult aiResult = llmRunner.runWithTemplate(
-                        templateName,
-                        ctx.promptContext(),
-                        ctx.model() != null ? ctx.model() : Map.of(),
-                        ctx.toolContext(),
-                        AgentModels.AiFilterResult.class,
-                        ctx.context()
-                );
+                AgentModels.AiFilterResult aiResult = agentLlmExecutor.runDirect(
+                        DirectExecutorArgs.<AgentModels.AiFilterResult>builder()
+                                .responseClazz(AgentModels.AiFilterResult.class)
+                                .agentName("ai-filter")
+                                .actionName("ai-filter")
+                                .methodName("apply")
+                                .template(templateName)
+                                .promptContext(ctx.promptContext())
+                                .templateModel(ctx.model() != null ? ctx.model() : Map.of())
+                                .toolContext(ctx.toolContext())
+                                .operationContext(ctx.context())
+                                .build());
                 if (aiResult == null) {
                     return aiFailResult("LLM returned null result");
                 }

@@ -10,7 +10,8 @@ import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.tools.ToolContextDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
-import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor.DirectExecutorArgs;
 import com.hayden.multiagentidelib.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
@@ -48,7 +49,7 @@ public class WorktreeAutoCommitService {
     private static final String CLEAN_REQUIREMENT = "Before returning, git status must be clean for the target worktree (no staged, unstaged, untracked, or conflicted files).";
 
     private final GitWorktreeService gitWorktreeService;
-    private final LlmRunner llmRunner;
+    private final AgentLlmExecutor agentLlmExecutor;
 
     @Autowired @Lazy
     private EventBus eventBus;
@@ -230,14 +231,18 @@ public class WorktreeAutoCommitService {
                     METHOD_NAME
             );
 
-            AgentModels.CommitAgentResult raw = llmRunner.runWithTemplate(
-                    TEMPLATE_WORKTREE_COMMIT_AGENT,
-                    decoratedPromptContext,
-                    model,
-                    toolContext,
-                    AgentModels.CommitAgentResult.class,
-                    operationContext
-            );
+            AgentModels.CommitAgentResult raw = agentLlmExecutor.runDirect(
+                    DirectExecutorArgs.<AgentModels.CommitAgentResult>builder()
+                            .responseClazz(AgentModels.CommitAgentResult.class)
+                            .agentName(AGENT_NAME)
+                            .actionName(ACTION_NAME)
+                            .methodName(METHOD_NAME)
+                            .template(TEMPLATE_WORKTREE_COMMIT_AGENT)
+                            .promptContext(decoratedPromptContext)
+                            .templateModel(model)
+                            .toolContext(toolContext)
+                            .operationContext(operationContext)
+                            .build());
 
             AgentModels.CommitAgentResult normalized = normalizeCommitResult(raw, request, sourceResult);
 

@@ -8,7 +8,8 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.repository.GraphRepository;
-import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor.DirectExecutorArgs;
 import com.hayden.multiagentidelib.tool.ToolContext;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
@@ -29,6 +30,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults.decoratePromptContext;
@@ -50,11 +53,14 @@ public class InterruptService {
     public static final String INTERRUPT_ID_NOT_FOUND = "interrupt_id_not_found";
 
     private final PermissionGate permissionGate;
-    private final LlmRunner llmRunner;
     private final PromptContextFactory promptContextFactory;
     private final List<PromptContextDecorator> promptContextDecorators;
     private final List<ToolContextDecorator> toolContextDecorators;
     private final GraphRepository graphRepository;
+
+    @Autowired
+    @Lazy
+    private AgentLlmExecutor agentLlmExecutor;
 
     /**
      * Handle review interrupt using Jinja templates and PromptContext.
@@ -118,14 +124,17 @@ public class InterruptService {
                         METHOD_RUN_INTERRUPT_AGENT_REVIEW
                 );
 
-                var s = llmRunner.runWithTemplate(
-                        TEMPLATE_REVIEW_RESOLUTION,
-                        promptContext,
-                        modelWithFeedback,
-                        toolContext,
-                        routingClass,
-                        context
-                );
+                var s = agentLlmExecutor.runDirect(DirectExecutorArgs.<T>builder()
+                        .responseClazz(routingClass)
+                        .agentName(AGENT_NAME)
+                        .actionName(ACTION_AGENT_REVIEW)
+                        .methodName(METHOD_HANDLE_INTERRUPT)
+                        .template(TEMPLATE_REVIEW_RESOLUTION)
+                        .promptContext(promptContext)
+                        .templateModel(modelWithFeedback)
+                        .toolContext(toolContext)
+                        .operationContext(context)
+                        .build());
 
                 log.info("After feedback handled: {}, {}.", s.getClass().getSimpleName(), s);
                 yield s;
@@ -137,14 +146,17 @@ public class InterruptService {
                 modelWithFeedback.put("interruptFeedback", """
                         Please route back to the orchestrator with instructions to use best judgement and recommended approach.
                         """);
-                yield llmRunner.runWithTemplate(
-                    TEMPLATE_REVIEW_RESOLUTION,
-                    promptContext,
-                    templateModel,
-                    toolContext,
-                    routingClass,
-                    context
-            );
+                yield agentLlmExecutor.runDirect(DirectExecutorArgs.<T>builder()
+                    .responseClazz(routingClass)
+                    .agentName(AGENT_NAME)
+                    .actionName(ACTION_AGENT_REVIEW)
+                    .methodName(METHOD_HANDLE_INTERRUPT)
+                    .template(TEMPLATE_REVIEW_RESOLUTION)
+                    .promptContext(promptContext)
+                    .templateModel(templateModel)
+                    .toolContext(toolContext)
+                    .operationContext(context)
+                    .build());
             }
         };
     }
@@ -384,20 +396,21 @@ public class InterruptService {
                 METHOD_RUN_INTERRUPT_AGENT_REVIEW
         );
 
-        AgentModels.ReviewAgentResult routing = llmRunner.runWithTemplate(
-                TEMPLATE_WORKFLOW_REVIEW,
-                promptContext,
-                Map.of(
+        return agentLlmExecutor.runDirect(DirectExecutorArgs.<AgentModels.ReviewAgentResult>builder()
+                .responseClazz(AgentModels.ReviewAgentResult.class)
+                .agentName(AGENT_NAME)
+                .actionName(ACTION_AGENT_REVIEW)
+                .methodName(METHOD_RUN_INTERRUPT_AGENT_REVIEW)
+                .template(TEMPLATE_WORKFLOW_REVIEW)
+                .promptContext(promptContext)
+                .templateModel(Map.of(
                         "content", Objects.toString(result.reviewContent, ""),
                         "criteria", REVIEW_CRITERIA,
                         "returnRoute", "interrupt"
-                ),
-                toolContext,
-                AgentModels.ReviewAgentResult.class,
-                context
-        );
-
-        return routing;
+                ))
+                .toolContext(toolContext)
+                .operationContext(context)
+                .build());
     }
     
 

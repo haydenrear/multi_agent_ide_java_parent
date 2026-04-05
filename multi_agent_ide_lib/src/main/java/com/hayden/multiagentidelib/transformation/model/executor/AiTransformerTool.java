@@ -10,7 +10,8 @@ import com.hayden.multiagentidelib.filter.model.executor.ExecutableTool;
 import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
 import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
 import com.hayden.multiagentidelib.filter.service.FilterResult;
-import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
+import com.hayden.multiagentidelib.llm.AgentLlmExecutor.DirectExecutorArgs;
 import com.hayden.multiagentidelib.transformation.model.layer.AiTransformerContext;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
@@ -38,7 +39,7 @@ public final class AiTransformerTool implements ExecutableTool<AgentModels.AiTra
 
     @Autowired
     @JsonIgnore
-    private LlmRunner llmRunner;
+    private AgentLlmExecutor agentLlmExecutor;
 
     @JsonCreator
     public AiTransformerTool(
@@ -57,21 +58,25 @@ public final class AiTransformerTool implements ExecutableTool<AgentModels.AiTra
 
     @Override
     public FilterResult<AgentModels.AiTransformerResult> apply(AgentModels.AiTransformerRequest input, AiTransformerContext ctx) {
-        if (ctx == null || ctx.promptContext() == null || llmRunner == null) {
+        if (ctx == null || ctx.promptContext() == null || agentLlmExecutor == null) {
             return fail("AI transformer context is not fully initialized", input);
         }
         String templateName = ctx.templateName() != null && !ctx.templateName().isBlank()
                 ? ctx.templateName()
                 : TEMPLATE_NAME;
         try {
-            AgentModels.AiTransformerResult result = llmRunner.runWithTemplate(
-                    templateName,
-                    ctx.promptContext(),
-                    ctx.model() == null ? Map.of() : ctx.model(),
-                    ctx.toolContext(),
-                    AgentModels.AiTransformerResult.class,
-                    ctx.context()
-            );
+            AgentModels.AiTransformerResult result = agentLlmExecutor.runDirect(
+                    DirectExecutorArgs.<AgentModels.AiTransformerResult>builder()
+                            .responseClazz(AgentModels.AiTransformerResult.class)
+                            .agentName("ai-transformer")
+                            .actionName("ai-transformer")
+                            .methodName("apply")
+                            .template(templateName)
+                            .promptContext(ctx.promptContext())
+                            .templateModel(ctx.model() == null ? Map.of() : ctx.model())
+                            .toolContext(ctx.toolContext())
+                            .operationContext(ctx.context())
+                            .build());
             if (result == null) {
                 return fail("AI transformer returned null", input);
             }
