@@ -385,6 +385,30 @@ Generated: 2026-04-01 (updated: 2026-04-04)
 
 ---
 
+## E33. Dual Retry Level Interaction for ChatModel Errors
+
+**Where**: `test_work/chatmodel/*.md` and `test_work/chatmodel/*.events.md`
+**Question**: When `ChatModel.call()` throws, the exception first hits `AbstractLlmOperations.retryTemplateWithListener` (LLM operations-level retry), then if all LLM-level retries fail, propagates to `ActionQos.retryTemplate` (action-level retry). Both register `ActionRetryListener`. Does our `ActionRetryListenerImpl.onActionRetry()` get called twice (once per retry level)? If so, does the BlackboardHistory accumulate duplicate errors?
+**Why it matters**: If the LLM operations retry catches and retries the exception internally (before it reaches action-level retry), the action-level retry may never fire. Alternatively, if both fire, we may see double-counted errors in the retry sequence, affecting `errorCountForRetrySequence` and `CompactionStatus` progression.
+**What to look for**: In `WorkflowAgentAcpChatModelTest` trace data, count `AgentExecutorStartEvent` vs number of `ChatModel.call()` invocations (QueuedChatModel.callCount). If callCount > startEvents, the LLM-level retry is firing internally. Check `BlackboardHistory` error entries for duplicates.
+
+**Status**: INVESTIGATED (2026-04-04)
+**Finding**: **Confirmed — dual retry levels both fire**. In both `retry_compactionFromChatModel_recoversOnRetry` and `retry_parseErrorFromChatModel_recoversOnRetry`, we observe 30 `AgentExecutorStartEvent` vs 28 `AgentExecutorCompleteEvent` (delta = 2). The QueuedChatModel.callCount shows 12 successful calls (1 error + 11 happy path = 12 total). The 2-start gap (instead of 1) indicates the LLM operations-level retry fires a start event before the action-level retry. Both retry levels invoke `ActionRetryListenerImpl` via their respective `RetryListener` registrations. This means each ChatModel error could produce 2 `onActionRetry()` calls — one from AbstractLlmOperations and one from ActionQos. The BlackboardHistory appears to handle this gracefully (the workflow still completes), but the error count may be inflated. **Action**: Consider whether `ActionRetryListenerImpl` should deduplicate by checking if the current error is already the last error on the blackboard.
+
+---
+
+## E34. QueuedChatModel JSON Serialization Compatibility with Embabel Framework
+
+**Where**: `test_work/chatmodel/*.md` — inspect the JSON returned by QueuedChatModel
+**Question**: Does the embabel framework's `OutputConverter` (Jackson-based) parse our queued JSON responses correctly? The framework may expect specific JSON structure (e.g., wrapping, schema annotations, `@JsonTypeInfo`) that simple `ObjectMapper.writeValueAsString()` doesn't produce.
+**Why it matters**: If the framework's output converter rejects or misparses the JSON, the test would fail with a parse error rather than the retry scenario we intend to test. This would make QueuedChatModel unreliable as a test double.
+**What to look for**: If `retry_parseErrorFromChatModel_recoversOnRetry` fails because the successful response ALSO fails to parse (not just the intentional error), then the JSON format is incompatible.
+
+**Status**: INVESTIGATED (2026-04-04)
+**Finding**: JSON serialization IS compatible. Both `retry_compactionFromChatModel_recoversOnRetry` and `retry_parseErrorFromChatModel_recoversOnRetry` complete with `COMPLETED` status. The embabel framework's `FilteringJacksonOutputConverter` correctly parses the JSON produced by `ObjectMapper.writeValueAsString()` for all routing types (OrchestratorRouting, DiscoveryOrchestratorRouting, etc.). The call log shows clean JSON round-trips for 11 successful calls across 7 routing types. No additional schema annotations or wrapper formats needed.
+
+---
+
 ## Future Exploration Candidates
 
 - **F-E1**: Data layer operation timing relative to agent completion — do DataLayerOperationNodes always complete before their parent agent completes?

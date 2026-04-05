@@ -58,6 +58,8 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | S-INV12 | PASS (unit) | Unit tests in ActionRetryListenerImplTest cover session scoping, chain detection |
 | S-INV13 | PASS (unit) | Unit test: errorContext_accumulatesAcrossMultipleStartsAndErrors |
 | S-INV14 | PASS (unit) | Unit tests: errorType_withSessionKey_* (4 tests) |
+| S-INV15 | PASS | ChatModel-level errors reach ActionRetryListenerImpl: 30 starts vs 28 completes (2 extra from dual retry), workflow COMPLETED |
+| S-INV16 | PASS (static) | AcpChatModel has zero internal retry loops (T036 grep verification) |
 
 ### Trace Timing Gap (A-INV2)
 
@@ -550,6 +552,18 @@ Also sets `entity.activatedAt` to current timestamp.
 **Sub-invariant S-INV14c**: Returns the LAST matching error (not the first), because it carries the cumulative `ErrorContext`.
 **Search**: Unit test: `errorType_withSessionKey_*` tests.
 
+### S-INV15. ChatModel-Level Errors Reach ActionRetryListenerImpl (S15)
+**Invariant**: Exceptions thrown from `ChatModel.call()` (CompactionException, RuntimeException with error keywords) propagate through `DefaultLlmRunner → AbstractLlmOperations.retryTemplateWithListener → ActionQos.retryTemplate` and reach `ActionRetryListenerImpl.onActionRetry()`. The error is classified into the correct `ErrorDescriptor` variant and recorded on `BlackboardHistory`. The retry attempt uses the next queued response and completes successfully.
+**Sub-invariant S-INV15a**: CompactionException from ChatModel produces `CompactionError` on blackboard.
+**Sub-invariant S-INV15b**: RuntimeException("parse") from ChatModel produces `ParseError` on blackboard.
+**Sub-invariant S-INV15c**: After retry, `AgentProcessStatusCode.COMPLETED` — the workflow finishes normally.
+**Sub-invariant S-INV15d**: `startEvents.size() > completeEvents.size()` — one extra start from the failed attempt.
+**Search**: Integration test: `WorkflowAgentAcpChatModelTest.ChatModelRetryScenarios.*`. Trace data: `test_work/chatmodel/*.md`.
+
+### S-INV16. AcpChatModel Has No Internal Retry Loops (S16)
+**Invariant**: `AcpChatModel.kt` contains zero internal retry patterns. Static grep for `Thread.sleep`, `while` (except StringTokenizer), `nullRetryCount`, `continueCount`, `pollCount` returns zero matches. The `isIncompleteJson()`, `isSessionCompacting()`, and `detectUnparsedToolCallInLastMessage()` methods detect-and-throw rather than retry.
+**Search**: Static: `grep -c 'Thread.sleep\|nullRetryCount\|continueCount\|pollCount' AcpChatModel.kt` = 0.
+
 ---
 
 ## Coverage: Surface → Invariants
@@ -653,3 +667,5 @@ Also sets `entity.activatedAt` to current timestamp.
 | S12 | S-INV12 |
 | S13 | S-INV13 |
 | S14 | S-INV14 |
+| S15 | S-INV15 |
+| S16 | S-INV16 |

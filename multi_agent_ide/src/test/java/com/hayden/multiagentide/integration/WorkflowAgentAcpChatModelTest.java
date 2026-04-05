@@ -54,6 +54,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import com.hayden.multiagentide.support.TestTraceWriter;
+
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -162,6 +164,8 @@ class WorkflowAgentAcpChatModelTest extends AgentTestBase {
     @Autowired
     private PropagatorRegistrationService propagatorRegistrationService;
 
+    private static final Path TEST_WORK_DIR = Path.of("test_work/chatmodel");
+
     @TestConfiguration
     static class TestConfig {
         @Bean
@@ -244,6 +248,32 @@ class WorkflowAgentAcpChatModelTest extends AgentTestBase {
         artifactRepository.flush();
     }
 
+    private void setLogFile(String testName) {
+        Path file = TEST_WORK_DIR.resolve(testName + ".md");
+        Path graphFile = TEST_WORK_DIR.resolve(testName + ".graph.md");
+        Path eventFile = TEST_WORK_DIR.resolve(testName + ".events.md");
+        try {
+            java.nio.file.Files.createDirectories(TEST_WORK_DIR);
+            java.nio.file.Files.deleteIfExists(file);
+            java.nio.file.Files.deleteIfExists(graphFile);
+            java.nio.file.Files.deleteIfExists(eventFile);
+        } catch (Exception e) {
+            // ignore cleanup failures
+        }
+        queuedChatModel.setLogFile(file);
+        queuedChatModel.setTestClassName(WorkflowAgentAcpChatModelTest.class.getSimpleName());
+        queuedChatModel.setTestMethodName(testName);
+
+        var traceWriter = new TestTraceWriter();
+        traceWriter.setGraphLogFile(graphFile);
+        traceWriter.setEventLogFile(eventFile);
+        traceWriter.setTestClassName(WorkflowAgentAcpChatModelTest.class.getSimpleName());
+        traceWriter.setTestMethodName(testName);
+        queuedChatModel.setTraceWriter(traceWriter);
+        queuedChatModel.setGraphRepository(graphRepository);
+        testEventListener.setTraceWriter(traceWriter);
+    }
+
     @Nested
     class ChatModelRetryScenarios {
 
@@ -254,6 +284,7 @@ class WorkflowAgentAcpChatModelTest extends AgentTestBase {
          */
         @Test
         void retry_compactionFromChatModel_recoversOnRetry() {
+            setLogFile("retry_compactionFromChatModel_recoversOnRetry");
             var contextId = seedOrchestrator().value();
 
             // First ChatModel.call(): throw CompactionException
@@ -285,6 +316,7 @@ class WorkflowAgentAcpChatModelTest extends AgentTestBase {
          */
         @Test
         void retry_parseErrorFromChatModel_recoversOnRetry() {
+            setLogFile("retry_parseErrorFromChatModel_recoversOnRetry");
             var contextId = seedOrchestrator().value();
 
             // First ChatModel.call(): throw parse error

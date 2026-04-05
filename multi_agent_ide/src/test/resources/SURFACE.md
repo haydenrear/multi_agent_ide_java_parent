@@ -91,6 +91,8 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | S12 | `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods` (findFirstUnmatchedStartIndex, errorCountForRetrySequence) | COVERED (unit) |
 | S13 | `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods.errorContext_accumulatesAcrossMultipleStartsAndErrors` | COVERED (unit) |
 | S14 | `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods` (errorType_withSessionKey_* tests) | COVERED (unit) |
+| S15 | `retry_compactionFromChatModel_recoversOnRetry`, `retry_parseErrorFromChatModel_recoversOnRetry` (WorkflowAgentAcpChatModelTest) | COVERED |
+| S16 | T036 verification grep (zero `Thread.sleep`, `while` retry, `nullRetryCount`, `continueCount`, `pollCount` in AcpChatModel) | COVERED (static) |
 
 ---
 
@@ -714,6 +716,16 @@ Each `ErrorDescriptor` carries an `ErrorContext` with the ordered list of all pr
 
 **Validates**: Errors from completed executions not returned. Errors from other sessions not returned. Returns the chronologically last error (which carries the full cumulative `ErrorContext`).
 
+### S15. ChatModel-Level Error Propagation Through Full Pipeline (P0)
+Exceptions thrown from `ChatModel.call()` (the AcpChatModel layer) propagate through `DefaultLlmRunner → embabel framework AbstractLlmOperations.retryTemplateWithListener → ActionQos.retryTemplate → ActionRetryListenerImpl`. Two retry levels exist: LLM operations (AbstractLlmOperations) and action (ActionQos). Both register the `ActionRetryListener`. `WorkflowAgentAcpChatModelTest` validates this by replacing `ChatModel` with `QueuedChatModel` and using the real `DefaultLlmRunner`.
+
+**Validates**: CompactionException from ChatModel classified as CompactionError. ParseError RuntimeException from ChatModel classified as ParseError. Retry succeeds on second attempt. Start/Complete event pairing shows extra start from failed attempt.
+
+### S16. AcpChatModel Detect-and-Throw (No Internal Retry) (P0)
+`AcpChatModel` no longer contains internal retry loops. It detects error conditions (compaction, null result, unparsed tool call, incomplete JSON) and throws exceptions with messages that `ActionRetryListenerImpl.classify()` can match. The embabel framework retry mechanism handles all retries externally.
+
+**Validates**: Static verification: zero `Thread.sleep`, `while` retry, `nullRetryCount`, `continueCount`, `pollCount` patterns in AcpChatModel.kt. `isIncompleteJson()` replaces `handleIncompleteJson()`. `isSessionCompacting()` throws `CompactionException` instead of polling.
+
 ---
 
 ## Coverage Matrix
@@ -772,3 +784,5 @@ Each `ErrorDescriptor` carries an `ErrorContext` with the ordered list of all pr
 | S8       |       |        | X          |          |           |     |           |
 | S9       |       |        |            |          |           |     |           |
 | S10      |       | X      |            |          | X         |     |           |
+| S15      | X     | X      |            |          |           |     |           |
+| S16      |       |        |            |          |           |     |           |
