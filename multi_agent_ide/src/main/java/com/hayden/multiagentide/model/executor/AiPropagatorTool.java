@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
+import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.AgentModels;
 import com.hayden.multiagentide.filter.model.executor.ExecutableTool;
 import com.hayden.multiagentide.filter.model.executor.AiFilterTool;
@@ -71,9 +72,9 @@ public final class AiPropagatorTool
             AgentModels.AiPropagatorResult result = agentLlmExecutor.runDirect(
                     DirectExecutorArgs.<AgentModels.AiPropagatorResult>builder()
                             .responseClazz(AgentModels.AiPropagatorResult.class)
-                            .agentName("ai-propagator")
-                            .actionName("ai-propagator")
-                            .methodName("apply")
+                            .agentName(AgentInterfaces.AGENT_NAME_AI_PROPAGATOR)
+                            .actionName(AgentInterfaces.ACTION_AI_PROPAGATOR)
+                            .methodName(AgentInterfaces.METHOD_AI_PROPAGATOR)
                             .template(templateName)
                             .promptContext(ctx.promptContext())
                             .templateModel(ctx.model() == null ? Map.of() : ctx.model())

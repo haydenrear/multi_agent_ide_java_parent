@@ -109,6 +109,8 @@ management:
 embabel:
   agent:
     platform:
+      direct-executions:
+        max-attempts: 10
       llm-operations:
         data-binding:
           max-attempts: 1

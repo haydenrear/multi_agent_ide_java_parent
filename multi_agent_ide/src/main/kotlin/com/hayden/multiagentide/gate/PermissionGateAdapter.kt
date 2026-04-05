@@ -8,6 +8,7 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.Events
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
 import com.hayden.multiagentide.model.nodes.AskPermissionNode
+import com.hayden.multiagentide.model.nodes.GraphNodeBuilderHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.future.future
@@ -39,25 +40,23 @@ class PermissionGateAdapter(val permissionGate: PermissionGate) : IPermissionGat
                     it
                 )
             }.toList()
-        val permissionNode = AskPermissionNode.builder()
-            .nodeId(originKey.createChild().value)
-            .title("Permission request")
-            .goal("Permission requested for tool call $toolCallId")
-            .status(Events.NodeStatus.WAITING_INPUT)
-            .parentNodeId(originId)
-            .childNodeIds(mutableListOf())
-            .metadata(
-                mutableMapOf(
-                    "requestId" to requestId,
-                    "toolCallId" to toolCallId,
-                    "originNodeId" to originId
-                )
-            )
-            .createdAt(now)
-            .lastUpdatedAt(now)
-            .toolCallId(toolCallId)
-            .optionIds(permissions.map { it.optionId.value })
-            .build()
+        val permissionNode = GraphNodeBuilderHelper.buildAskPermissionNode(
+            originKey.createChild().value,
+            "Permission request",
+            "Permission requested for tool call $toolCallId",
+            Events.NodeStatus.WAITING_INPUT,
+            originId,
+            mutableListOf(),
+            mutableMapOf(
+                "requestId" to requestId,
+                "toolCallId" to toolCallId,
+                "originNodeId" to originId
+            ),
+            now,
+            now,
+            toolCallId,
+            permissions.map { it.optionId.value }
+        )
 
         permissionGate.publishAskPermissionRequest(
             originId,

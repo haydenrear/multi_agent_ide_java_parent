@@ -220,12 +220,12 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
             return new TestEventListener();
         }
 
-        @Bean
+        @Bean @Primary
         ActionQosProvider manager() {
             return new ActionQosProvider() {
                 @Override
                 public @NonNull ActionQos provideActionQos(@NonNull Method method, @NonNull Object instance) {
-                    return new ActionQos(2, 50, 1, 60, false);
+                    return new ActionQos(2, 50, 2, 60, false);
                 }
             };
         }

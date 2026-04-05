@@ -10,6 +10,7 @@ import com.hayden.multiagentide.repository.GraphRepository
 import com.hayden.multiagentide.agent.AgentModels
 import com.hayden.multiagentide.model.nodes.AskPermissionNode
 import com.hayden.multiagentide.model.nodes.GraphNode
+import com.hayden.multiagentide.model.nodes.GraphNodeBuilderHelper
 import com.hayden.multiagentide.model.nodes.InterruptContext
 import com.hayden.multiagentide.model.nodes.InterruptNode
 import com.hayden.multiagentide.model.nodes.Interruptible
@@ -18,26 +19,6 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.EventBus
 import com.hayden.acp_cdc_ai.acp.events.Events
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
-import com.hayden.multiagentide.model.nodes.AgentToAgentConversationNode
-import com.hayden.multiagentide.model.nodes.AgentToControllerConversationNode
-import com.hayden.multiagentide.model.nodes.CollectorNode
-import com.hayden.multiagentide.model.nodes.ControllerToAgentConversationNode
-import com.hayden.multiagentide.model.nodes.DataLayerOperationNode
-import com.hayden.multiagentide.model.nodes.DiscoveryCollectorNode
-import com.hayden.multiagentide.model.nodes.DiscoveryDispatchAgentNode
-import com.hayden.multiagentide.model.nodes.DiscoveryNode
-import com.hayden.multiagentide.model.nodes.DiscoveryOrchestratorNode
-import com.hayden.multiagentide.model.nodes.MergeNode
-import com.hayden.multiagentide.model.nodes.OrchestratorNode
-import com.hayden.multiagentide.model.nodes.PlanningCollectorNode
-import com.hayden.multiagentide.model.nodes.PlanningDispatchAgentNode
-import com.hayden.multiagentide.model.nodes.PlanningNode
-import com.hayden.multiagentide.model.nodes.PlanningOrchestratorNode
-import com.hayden.multiagentide.model.nodes.SummaryNode
-import com.hayden.multiagentide.model.nodes.TicketCollectorNode
-import com.hayden.multiagentide.model.nodes.TicketDispatchAgentNode
-import com.hayden.multiagentide.model.nodes.TicketNode
-import com.hayden.multiagentide.model.nodes.TicketOrchestratorNode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
@@ -100,25 +81,23 @@ class PermissionGate(
         }
 
         val now = Instant.now()
-        val permissionNode = AskPermissionNode.builder()
-            .nodeId(ArtifactKey(originNodeId).createChild().value)
-            .title("Permission: " + (toolCall.title ?: "request"))
-            .goal("Permission requested for tool call " + toolCall.toolCallId.value)
-            .status(Events.NodeStatus.WAITING_INPUT)
-            .parentNodeId(originNodeId)
-            .childNodeIds(mutableListOf())
-            .metadata(
-                mutableMapOf(
-                    "requestId" to requestId,
-                    "toolCallId" to toolCall.toolCallId.value,
-                    "originNodeId" to originNodeId
-                )
-            )
-            .createdAt(now)
-            .lastUpdatedAt(now)
-            .toolCallId(toolCall.toolCallId.value)
-            .optionIds(permissions.map { it.optionId.toString() })
-            .build()
+        val permissionNode = GraphNodeBuilderHelper.buildAskPermissionNode(
+            ArtifactKey(originNodeId).createChild().value,
+            "Permission: " + (toolCall.title ?: "request"),
+            "Permission requested for tool call " + toolCall.toolCallId.value,
+            Events.NodeStatus.WAITING_INPUT,
+            originNodeId,
+            mutableListOf(),
+            mutableMapOf(
+                "requestId" to requestId,
+                "toolCallId" to toolCall.toolCallId.value,
+                "originNodeId" to originNodeId
+            ),
+            now,
+            now,
+            toolCall.toolCallId.value,
+            permissions.map { it.optionId.toString() }
+        )
 
         return publishAskPermissionRequest(
             originNodeId,
@@ -286,11 +265,7 @@ class PermissionGate(
                 val reviewNode = node as? ReviewNode
                 val reviewContent = reason ?: reviewNode?.reviewContent ?: ""
                 if (reviewNode != null && reviewNode.status() != Events.NodeStatus.WAITING_INPUT) {
-                    val updated = reviewNode
-                        .toBuilder()
-                        .status(Events.NodeStatus.WAITING_INPUT)
-                        .lastUpdatedAt(Instant.now())
-                        .build()
+                    val updated = GraphNodeBuilderHelper.withStatus(reviewNode, Events.NodeStatus.WAITING_INPUT)
                     emitNodeUpdatedIf(updated)
                     orchestrator.emitStatusChangeEvent(
                         reviewNode.nodeId(),
@@ -310,11 +285,7 @@ class PermissionGate(
                 val node = graphRepository.findById(interruptId).orElse(null)
                 val reviewNode = node as? ReviewNode
                 if (reviewNode != null && reviewNode.status() == Events.NodeStatus.READY) {
-                    val updated = reviewNode
-                        .toBuilder()
-                        .status(Events.NodeStatus.RUNNING)
-                        .lastUpdatedAt(Instant.now())
-                        .build()
+                    val updated = GraphNodeBuilderHelper.withStatus(reviewNode, Events.NodeStatus.RUNNING)
                     emitNodeUpdatedIf(updated)
                     orchestrator.emitStatusChangeEvent(
                         reviewNode.nodeId(),
@@ -391,16 +362,14 @@ class PermissionGate(
                 val updatedContext = interruptNode.interruptContext()
                     ?.withStatus(InterruptContext.InterruptStatus.RESOLVED)
                     ?.withResultPayload(resolutionNotes)
-                val updated = interruptNode
-                    .toBuilder()
-                    .approved(resolution.approved())
-                    .agentFeedback(resolutionNotes ?: "")
-                    .reviewCompletedAt(Instant.now())
-                    .reviewResult(reviewResult)
-                    .interruptContext(updatedContext ?: interruptNode.interruptContext())
-                    .status(Events.NodeStatus.COMPLETED)
-                    .lastUpdatedAt(Instant.now())
-                    .build()
+                val updated = GraphNodeBuilderHelper.withReviewResolution(
+                    interruptNode,
+                    resolution.approved(),
+                    resolutionNotes ?: "",
+                    reviewResult,
+                    updatedContext ?: interruptNode.interruptContext(),
+                    Events.NodeStatus.COMPLETED
+                )
                 emitNodeUpdatedIf(updated)
                 orchestrator.emitStatusChangeEvent(
                     interruptNode.nodeId(),
@@ -420,12 +389,11 @@ class PermissionGate(
                 val updatedContext = interruptNode.interruptContext()
                     ?.withStatus(InterruptContext.InterruptStatus.RESOLVED)
                     ?.withResultPayload(resolutionNotes)
-                val updated = interruptNode
-                    .toBuilder()
-                    .interruptContext(updatedContext ?: interruptNode.interruptContext())
-                    .status(Events.NodeStatus.COMPLETED)
-                    .lastUpdatedAt(Instant.now())
-                    .build()
+                val updated = GraphNodeBuilderHelper.withInterruptResolution(
+                    interruptNode,
+                    updatedContext ?: interruptNode.interruptContext(),
+                    Events.NodeStatus.COMPLETED
+                )
                 emitNodeUpdatedIf(updated)
                 orchestrator.emitStatusChangeEvent(
                     interruptNode.nodeId(),
@@ -488,75 +456,6 @@ class PermissionGate(
     }
 
     private fun updateInterruptContext(node: GraphNode, context: InterruptContext): GraphNode {
-        return when (node) {
-            is DiscoveryNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is DiscoveryCollectorNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is DiscoveryDispatchAgentNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is DiscoveryOrchestratorNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is PlanningNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is PlanningCollectorNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is PlanningDispatchAgentNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is PlanningOrchestratorNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is TicketNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is TicketCollectorNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is TicketDispatchAgentNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is TicketOrchestratorNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is ReviewNode ->
-                node.toBuilder().interruptContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is MergeNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is OrchestratorNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is CollectorNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is SummaryNode ->
-                node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is InterruptNode ->
-                node.toBuilder().interruptContext(context).lastUpdatedAt(Instant.now()).build()
-
-            is AskPermissionNode ->
-                node.toBuilder().lastUpdatedAt(Instant.now()).build()
-
-            is AgentToAgentConversationNode ->
-                node.toBuilder().lastUpdatedAt(Instant.now()).build()
-
-            is AgentToControllerConversationNode ->
-                node.toBuilder().lastUpdatedAt(Instant.now()).build()
-
-            is ControllerToAgentConversationNode ->
-                node.toBuilder().lastUpdatedAt(Instant.now()).build()
-
-            is DataLayerOperationNode ->
-                node.toBuilder().lastUpdatedAt(Instant.now()).build()
-        }
+        return GraphNodeBuilderHelper.updateInterruptContext(node, context)
     }
 }

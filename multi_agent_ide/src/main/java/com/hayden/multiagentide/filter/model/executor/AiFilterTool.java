@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
+import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.AgentModels;
 import com.hayden.multiagentide.filter.model.layer.FilterContext;
 import com.hayden.multiagentide.filter.service.FilterDescriptor;
@@ -87,9 +88,9 @@ public final class AiFilterTool<I, O>
                 AgentModels.AiFilterResult aiResult = agentLlmExecutor.runDirect(
                         DirectExecutorArgs.<AgentModels.AiFilterResult>builder()
                                 .responseClazz(AgentModels.AiFilterResult.class)
-                                .agentName("ai-filter")
-                                .actionName("ai-filter")
-                                .methodName("apply")
+                                .agentName(AgentInterfaces.AGENT_NAME_AI_FILTER)
+                                .actionName(AgentInterfaces.ACTION_AI_FILTER)
+                                .methodName(AgentInterfaces.METHOD_AI_FILTER)
                                 .template(templateName)
                                 .promptContext(ctx.promptContext())
                                 .templateModel(ctx.model() != null ? ctx.model() : Map.of())

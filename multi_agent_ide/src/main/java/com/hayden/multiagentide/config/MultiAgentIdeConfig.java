@@ -15,9 +15,6 @@ import org.springframework.context.annotation.Configuration;
 @ComponentScan(
         basePackageClasses = {
                 AgUiSerdes.class, McpProperties.class, AcpChatModel.class, EnvConfigProps.class
-        },
-        basePackages = {
-                "com.hayden.multiagentide"
         })
 public class MultiAgentIdeConfig {
 

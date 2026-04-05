@@ -1,6 +1,5 @@
 package com.hayden.multiagentide.skills;
 
-import com.hayden.multiagentide.skills.SkillDecorator;
 import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

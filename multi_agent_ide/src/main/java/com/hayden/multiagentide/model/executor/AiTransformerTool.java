@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
+import com.hayden.multiagentide.agent.AgentInterfaces;
 import com.hayden.multiagentide.agent.AgentModels;
 import com.hayden.multiagentide.filter.model.executor.ExecutableTool;
 import com.hayden.multiagentide.filter.model.executor.AiFilterTool;
@@ -68,9 +69,9 @@ public final class AiTransformerTool implements ExecutableTool<AgentModels.AiTra
             AgentModels.AiTransformerResult result = agentLlmExecutor.runDirect(
                     DirectExecutorArgs.<AgentModels.AiTransformerResult>builder()
                             .responseClazz(AgentModels.AiTransformerResult.class)
-                            .agentName("ai-transformer")
-                            .actionName("ai-transformer")
-                            .methodName("apply")
+                            .agentName(AgentInterfaces.AGENT_NAME_AI_TRANSFORMER)
+                            .actionName(AgentInterfaces.ACTION_AI_TRANSFORMER)
+                            .methodName(AgentInterfaces.METHOD_AI_TRANSFORMER)
                             .template(templateName)
                             .promptContext(ctx.promptContext())
                             .templateModel(ctx.model() == null ? Map.of() : ctx.model())

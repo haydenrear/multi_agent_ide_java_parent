@@ -60,7 +60,7 @@ public class InterruptService {
 
     @Autowired
     @Lazy
-    private AgentLlmExecutor agentLlmExecutor;
+    private AgentExecutor agentLlmExecutor;
 
     /**
      * Handle review interrupt using Jinja templates and PromptContext.
@@ -86,7 +86,7 @@ public class InterruptService {
             Class<T> routingClass
     ) {
         return switch (request.type()) {
-            case HUMAN_REVIEW, AGENT_REVIEW, PAUSE -> {
+            case HUMAN_REVIEW, AGENT_REVIEW, PAUSE, BRANCH, STOP, PRUNE -> {
                 log.info("Handling feedback from AI.");
                 String feedback = resolveInterruptFeedback(context, request, originNode, promptContext);
                 log.info("Resolved feedback: {}.", feedback);
@@ -139,47 +139,10 @@ public class InterruptService {
                 log.info("After feedback handled: {}, {}.", s.getClass().getSimpleName(), s);
                 yield s;
             }
-            case BRANCH, STOP, PRUNE -> {
-//
-                log.error("Received branch, stop, prune, unexpectedly - not implemented..");
-                Map<String, Object> modelWithFeedback = new java.util.HashMap<>(templateModel);
-                modelWithFeedback.put("interruptFeedback", """
-                        Please route back to the orchestrator with instructions to use best judgement and recommended approach.
-                        """);
-                yield agentLlmExecutor.runDirect(DirectExecutorArgs.<T>builder()
-                    .responseClazz(routingClass)
-                    .agentName(AGENT_NAME)
-                    .actionName(ACTION_AGENT_REVIEW)
-                    .methodName(METHOD_HANDLE_INTERRUPT)
-                    .template(TEMPLATE_REVIEW_RESOLUTION)
-                    .promptContext(promptContext)
-                    .templateModel(templateModel)
-                    .toolContext(toolContext)
-                    .operationContext(context)
-                    .build());
-            }
+//            case BRANCH, STOP, PRUNE -> {
+//                throw new RuntimeException("Received branch, stop, prune, unexpectedly - not implemented..");
+//            }
         };
-    }
-
-    public <T> T handleInterrupt(
-            OperationContext context,
-            AgentModels.InterruptRequest request,
-            GraphNode originNode,
-            String templateName,
-            PromptContext promptContext,
-            Map<String, Object> templateModel,
-            Class<T> routingClass
-    ) {
-        return handleInterrupt(
-                context,
-                request,
-                originNode,
-                templateName,
-                promptContext,
-                templateModel,
-                ToolContext.empty(),
-                routingClass
-        );
     }
 
     public PermissionGate.InterruptResolution awaitHumanReview(
@@ -300,25 +263,25 @@ public class InterruptService {
             return firstNonBlank(feedback, result.reviewContent());
         }
         return switch(request.type()) {
-            case HUMAN_REVIEW, PAUSE -> {
+            case HUMAN_REVIEW, PAUSE, AGENT_REVIEW, STOP, BRANCH, PRUNE -> {
                 PermissionGate.InterruptResolution resolution =
                         resolveInterruptHumanAgent(request, originNode);
                 String feedback = resolution != null ? resolution.getResolutionNotes() : null;
                 yield firstNonBlank(feedback, result.reviewContent());
             }
-            case AGENT_REVIEW, STOP, BRANCH, PRUNE -> {
-                if (result.interruptId().isBlank()) {
-                    yield result.reviewContent();
-                }
-                String agentOriginNodeId = originNode != null ? originNode.nodeId() : result.interruptId();
-                publishInterruptWithContext(result.interruptId(), agentOriginNodeId, request.type(), result.reviewContent());
-                AgentModels.ReviewAgentResult reviewResult =
-                        runInterruptAgentReview(context, promptContext, result, request);
-                String feedback = reviewResult != null ? reviewResult.output() : "";
-                IPermissionGate.ResolutionType agentResolutionType = resolveResolutionType(reviewResult);
-                permissionGate.resolveInterrupt(result.interruptId(), agentResolutionType, feedback, reviewResult);
-                yield feedback;
-            }
+//            case AGENT_REVIEW, STOP, BRANCH, PRUNE -> {
+//                if (result.interruptId().isBlank()) {
+//                    yield result.reviewContent();
+//                }
+//                String agentOriginNodeId = originNode != null ? originNode.nodeId() : result.interruptId();
+//                publishInterruptWithContext(result.interruptId(), agentOriginNodeId, request.type(), result.reviewContent());
+//                AgentModels.ReviewAgentResult reviewResult =
+//                        runInterruptAgentReview(context, promptContext, result, request);
+//                String feedback = reviewResult != null ? reviewResult.output() : "";
+//                IPermissionGate.ResolutionType agentResolutionType = resolveResolutionType(reviewResult);
+//                permissionGate.resolveInterrupt(result.interruptId(), agentResolutionType, feedback, reviewResult);
+//                yield feedback;
+//            }
         };
     }
 

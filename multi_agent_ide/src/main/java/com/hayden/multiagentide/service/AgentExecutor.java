@@ -1,8 +1,12 @@
 package com.hayden.multiagentide.service;
 
+import com.embabel.agent.api.annotation.support.ActionQosPropertyProvider;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.common.OperationContext;
+import com.embabel.agent.core.ActionQos;
 import com.embabel.agent.core.AgentPlatform;
+import com.embabel.agent.spi.config.spring.AgentPlatformProperties;
+import com.embabel.agent.spi.support.springai.SpringAiRetryPolicy;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentide.agent.ErrorDescriptor;
@@ -36,16 +40,11 @@ import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Colocates decorator/LLM/interrupt logic so callers don't duplicate the pipeline.
@@ -99,6 +98,8 @@ public class AgentExecutor implements AgentLlmExecutor {
     private final EventBus eventBus;
     private final GraphRepository graphRepository;
     private final List<LlmCallDecorator> llmCallDecorators;
+    private final ActionQosPropertyProvider propertyProvider;
+
 
     public <T extends AgentModels.AgentRequest, U extends AgentModels.AgentRouting, V extends AgentModels.AgentResult> U run(
             AgentExecutorArgs<T, U, V, U> args
@@ -679,6 +680,18 @@ public class AgentExecutor implements AgentLlmExecutor {
      */
     @Override
     public <T> T runDirect(DirectExecutorArgs<T> args) {
+        ActionQos qos = Optional.ofNullable(propertyProvider.getBound("embabel.agent.platform.direct-executions"))
+                .orElse(new AgentPlatformProperties.ActionQosProperties.ActionProperties())
+                .toActionQos(new ActionQos());
+
+        RetryTemplate retryTemplate = qos.retryTemplate(args.agentName() + "-" + args.actionName() + "-" + args.methodName());
+
+        retryTemplate.setRetryPolicy(new SpringAiRetryPolicy(qos.getMaxAttempts(), Set.of("rate limit", "rate-limit")));
+
+        return retryTemplate.execute(ctx -> doRunDirect(args));
+    }
+
+    private <T> T doRunDirect(DirectExecutorArgs<T> args) {
         var operationContext = args.operationContext();
         var promptContext = args.promptContext();
 
@@ -697,28 +710,18 @@ public class AgentExecutor implements AgentLlmExecutor {
                 UUID.randomUUID().toString(), java.time.Instant.now(),
                 nodeId, sessionKey, args.actionName(), requestContextId.value()));
 
-        // 3. Resolve error template
-        ErrorTemplates errorTemplates = ErrorTemplates.DEFAULT;
+        // 3. Resolve error template via AgentActionMetadata lookup
+        var meta = AgentInterfaces.MultiAgentIdeMetadata.AgentMetadata.findByAction(
+                args.agentName(), args.actionName(), args.methodName());
+
         String effectiveTemplate = args.template();
+
         Map<String, Object> effectiveModel = args.templateModel();
 
-        String retryTemplate = switch (errorDescriptor) {
-            case ErrorDescriptor.CompactionError ce ->
-                    ce.compactionStatus() == ErrorDescriptor.CompactionStatus.MULTIPLE
-                            ? errorTemplates.compactionMultipleTemplate()
-                            : errorTemplates.compactionFirstTemplate();
-            case ErrorDescriptor.ParseError _ -> errorTemplates.parseErrorTemplate();
-            case ErrorDescriptor.TimeoutError _ -> errorTemplates.timeoutTemplate();
-            case ErrorDescriptor.UnparsedToolCallError _ -> errorTemplates.unparsedToolCallTemplate();
-            case ErrorDescriptor.NullResultError _ -> errorTemplates.nullResultTemplate();
-            case ErrorDescriptor.IncompleteJsonError _ -> errorTemplates.incompleteJsonTemplate();
-            case ErrorDescriptor.NoError _ -> null;
-        };
-
-        if (retryTemplate != null) {
-            effectiveTemplate = retryTemplate;
-            String errorDetail = errorDescriptor.errorDetail();
-            effectiveModel = Map.of("errorDetail", errorDetail != null ? errorDetail : "");
+        ResolvedTemplate resolved = resolveTemplate(meta, errorDescriptor);
+        effectiveTemplate = resolved.templateName() != null ? resolved.templateName() : effectiveTemplate;
+        if (resolved instanceof ResolvedTemplate.ErrorTemplate et) {
+            effectiveModel = et.model();
         }
 
         // 4. Call LLM
@@ -749,7 +752,14 @@ public class AgentExecutor implements AgentLlmExecutor {
         if (errorDescriptor == null)
             return new ResolvedTemplate.NoErrorTemplate(meta.template());
 
-        ErrorTemplates templates = meta.errorTemplates();
+        ErrorTemplates templates;
+        if (meta == null)  {
+            log.error("Didn't find agent action metadata. Should have found one!");
+            templates = ErrorTemplates.DEFAULT;
+        } else {
+            templates = meta.errorTemplates();
+        }
+
 
         String retryTemplate = switch (errorDescriptor) {
             case ErrorDescriptor.CompactionError ce ->

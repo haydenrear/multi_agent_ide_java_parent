@@ -306,6 +306,45 @@ public interface AgentInterfaces {
                     TEMPLATE_COMMUNICATION_CONTROLLER_RESPONSE,
                     AgentModels.ControllerToAgentRequest.class, AgentModels.ControllerResponseRouting.class, AgentModels.ControllerResponseResult.class);
 
+            List<AgentActionMetadata<?, ?, ?>> ALL = List.of(
+                    CONTEXT_MANAGER_STUCK, CONTEXT_MANAGER_REQUEST,
+                    COORDINATE_WORKFLOW, CONSOLIDATE_WORKFLOW_OUTPUTS,
+                    CONSOLIDATE_DISCOVERY_FINDINGS, CONSOLIDATE_PLANS_INTO_TICKETS,
+                    CONSOLIDATE_TICKET_RESULTS,
+                    KICK_OFF_DISCOVERY_AGENTS, DECOMPOSE_PLAN, ORCHESTRATE_TICKET_EXECUTION,
+                    DISPATCH_DISCOVERY_AGENTS, DISPATCH_PLANNING_AGENTS, DISPATCH_TICKET_AGENTS,
+                    RUN_TICKET_AGENT, RUN_PLANNING_AGENT, RUN_DISCOVERY_AGENT,
+                    HANDLE_UNIFIED_INTERRUPT,
+                    TICKET_AGENT_INTERRUPT, PLANNING_AGENT_INTERRUPT, DISCOVERY_AGENT_INTERRUPT,
+                    INTERRUPT_REVIEW_RESOLUTION, INTERRUPT_AGENT_REVIEW,
+                    WORKTREE_AUTO_COMMIT, WORKTREE_MERGE_CONFLICT,
+                    AI_FILTER, AI_PROPAGATOR, AI_TRANSFORMER,
+                    CALL_AGENT, CALL_CONTROLLER, RESPOND_TO_AGENT
+            );
+
+
+            class AgentMetadataRegistry {
+                public static final Map<String, AgentActionMetadata<?, ?, ?>> BY_KEY;
+                static {
+                    var map = new java.util.HashMap<String, AgentActionMetadata<?, ?, ?>>();
+                    for (var m : ALL) {
+                        map.put(key(m.agentName(), m.actionName(), m.methodName()), m);
+                    }
+                    BY_KEY = Map.copyOf(map);
+                }
+            }
+
+
+            private static String key(String agentName, String actionName, String methodName) {
+                return agentName + "::" + actionName + "::" + methodName;
+            }
+
+            /**
+             * Look up metadata by agent/action/method triple. Returns null if not found.
+             */
+            static AgentActionMetadata<?, ?, ?> findByAction(String agentName, String actionName, String methodName) {
+                return AgentMetadataRegistry.BY_KEY.get(key(agentName, actionName, methodName));
+            }
         }
 
     }
