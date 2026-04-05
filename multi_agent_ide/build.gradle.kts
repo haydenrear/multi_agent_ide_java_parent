@@ -203,5 +203,7 @@ tasks.register("integrationTestAndUnitTest") {
         "unitTest",
         "integrationTest"
     )
+
+    tasks.getByName("integrationTest").dependsOn("unitTest")
 }
 

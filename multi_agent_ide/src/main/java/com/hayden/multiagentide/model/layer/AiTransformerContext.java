@@ -6,6 +6,7 @@ import com.hayden.multiagentide.agent.AgentModels;
 import com.hayden.multiagentide.filter.FilterFn;
 import com.hayden.multiagentide.filter.config.FilterConfigProperties;
 import com.hayden.multiagentide.filter.model.layer.FilterContext;
+import com.hayden.multiagentide.llm.AgentLlmExecutor;
 import com.hayden.multiagentide.prompt.PromptContext;
 import com.hayden.multiagentide.tool.ToolContext;
 import lombok.Builder;
@@ -22,7 +23,8 @@ public record AiTransformerContext(
         Map<String, Object> model,
         ToolContext toolContext,
         Class<AgentModels.AiTransformerResult> responseClass,
-        OperationContext context
+        OperationContext context,
+        AgentLlmExecutor.DirectExecutorArgs<AgentModels.AiTransformerResult> directExecutorArgs
 ) implements FilterContext {
 
     @Override

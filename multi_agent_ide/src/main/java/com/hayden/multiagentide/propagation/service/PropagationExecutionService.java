@@ -23,6 +23,7 @@ import com.hayden.multiagentide.agent.AgentPretty;
 import com.hayden.multiagentide.agent.AgentType;
 import com.hayden.multiagentide.agent.BlackboardHistory;
 import com.hayden.multiagentide.filter.config.FilterContextFactory;
+import com.hayden.multiagentide.llm.AgentLlmExecutor;
 import com.hayden.multiagentide.model.executor.AiPropagatorTool;
 import com.hayden.multiagentide.model.layer.AiPropagatorContext;
 import com.hayden.multiagentide.model.layer.DefaultPropagationContext;
@@ -201,6 +202,47 @@ public class PropagationExecutionService {
             return failedOutput(beforePayload, "AI propagator requires a live OperationContext");
         }
 
+        var argsAndRequest = buildPropagatorArgs(aiTextPropagator, aiExecutor, context, beforePayload, originalPayload, resolvedOperationContext);
+
+        AiPropagatorContext aiContext = AiPropagatorContext.builder()
+                .propagationContext(context)
+                .templateName(AI_PROPAGATOR_TEMPLATE_NAME)
+                .promptContext(argsAndRequest.args().promptContext())
+                .toolContext(argsAndRequest.args().toolContext())
+                .model(argsAndRequest.args().templateModel())
+                .responseClass(AgentModels.AiPropagatorResult.class)
+                .context(resolvedOperationContext)
+                .directExecutorArgs(argsAndRequest.args()
+                        .toBuilder()
+                        .refresh(() -> buildPropagatorArgs(aiTextPropagator, aiExecutor, context, beforePayload, originalPayload, resolvedOperationContext).args())
+                        .build())
+                .build();
+
+        AgentModels.AiPropagatorResult result = aiTextPropagator.apply(argsAndRequest.decoratedRequest(), aiContext);
+        result = decorateRequestResults.decorateResult(
+                new DecorateRequestResults.DecorateResultArgs<>(
+                        result,
+                        resolvedOperationContext,
+                        AI_PROPAGATOR_AGENT_NAME,
+                        AI_PROPAGATOR_ACTION_NAME,
+                        AI_PROPAGATOR_METHOD_NAME,
+                        argsAndRequest.decoratedRequest()));
+        return result.toOutput();
+    }
+
+    private record PropagatorArgsAndRequest(
+            AgentLlmExecutor.DirectExecutorArgs<AgentModels.AiPropagatorResult> args,
+            AgentModels.AiPropagatorRequest decoratedRequest
+    ) {}
+
+    private PropagatorArgsAndRequest buildPropagatorArgs(
+            AiTextPropagator aiTextPropagator,
+            AiPropagatorTool aiExecutor,
+            DefaultPropagationContext context,
+            String beforePayload,
+            Object originalPayload,
+            OperationContext resolvedOperationContext
+    ) {
         AgentModels.AgentRequest parentRequest = resolveParentRequest(originalPayload, resolvedOperationContext);
         PromptContext parentPromptContext = PromptContext.builder()
                 .agentType(AgentType.AI_PROPAGATOR)
@@ -273,26 +315,19 @@ public class PropagationExecutionService {
                         AI_PROPAGATOR_ACTION_NAME,
                         AI_PROPAGATOR_METHOD_NAME));
 
-        AiPropagatorContext aiContext = AiPropagatorContext.builder()
-                .propagationContext(context)
-                .templateName(AI_PROPAGATOR_TEMPLATE_NAME)
+        var args = AgentLlmExecutor.DirectExecutorArgs.<AgentModels.AiPropagatorResult>builder()
+                .responseClazz(AgentModels.AiPropagatorResult.class)
+                .agentName(AI_PROPAGATOR_AGENT_NAME)
+                .actionName(AI_PROPAGATOR_ACTION_NAME)
+                .methodName(AI_PROPAGATOR_METHOD_NAME)
+                .template(AI_PROPAGATOR_TEMPLATE_NAME)
                 .promptContext(decoratedPromptContext)
+                .templateModel(model)
                 .toolContext(toolContext)
-                .model(model)
-                .responseClass(AgentModels.AiPropagatorResult.class)
-                .context(resolvedOperationContext)
+                .operationContext(resolvedOperationContext)
                 .build();
 
-        AgentModels.AiPropagatorResult result = aiTextPropagator.apply(decoratedRequest, aiContext);
-        result = decorateRequestResults.decorateResult(
-                new DecorateRequestResults.DecorateResultArgs<>(
-                        result,
-                        resolvedOperationContext,
-                        AI_PROPAGATOR_AGENT_NAME,
-                        AI_PROPAGATOR_ACTION_NAME,
-                        AI_PROPAGATOR_METHOD_NAME,
-                        decoratedRequest));
-        return result.toOutput();
+        return new PropagatorArgsAndRequest(args, decoratedRequest);
     }
 
     private Map<String, Object> buildAiModel(AiPropagatorTool aiExecutor,

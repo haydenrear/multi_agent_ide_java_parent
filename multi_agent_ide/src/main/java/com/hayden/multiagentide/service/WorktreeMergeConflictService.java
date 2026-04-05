@@ -154,13 +154,66 @@ public class WorktreeMergeConflictService {
                 trunkContext != null && trunkContext.mainWorktree() != null ? trunkContext.mainWorktree().worktreeId() : null
         ));
 
-        request = decorateCommitRequest(
+        AgentModels.MergeConflictRequest decoratedRequest = decorateCommitRequest(
                 request,
                 decoratorContext,
                 sourceRequest,
                 routedFromRequest
         );
 
+        try {
+            var args = buildMergeConflictArgs(decoratedRequest, sourceRequest, decoratorContext, model, operationContext);
+
+            AgentModels.MergeConflictResult conflictResult = agentLlmExecutor.runDirect(
+                    args.toBuilder()
+                            .refresh(() -> buildMergeConflictArgs(decoratedRequest, sourceRequest, decoratorContext, model, operationContext))
+                            .build());
+            if (conflictResult == null) {
+                String reason = "Merge conflict agent returned empty result.";
+                publishNodeError(reason, decoratedRequest.contextId());
+                return AgentModels.MergeConflictResult.builder()
+                        .contextId(decoratedRequest.contextId())
+                        .successful(false)
+                        .output(reason)
+                        .errorMessage("No response from model.")
+                        .resolvedConflictFiles(List.of())
+                        .notes(List.of())
+                        .worktreeContext(worktreeContext)
+                        .build();
+            }
+
+            return decorateResult(
+                    conflictResult,
+                    operationContext,
+                    resultDecorators,
+                    AGENT_NAME,
+                    ACTION_NAME,
+                    METHOD_NAME,
+                    decoratedRequest
+            );
+        } catch (Exception e) {
+            String reason = "Merge conflict agent execution failed: " + e.getMessage();
+            log.error(reason, e);
+            publishNodeError(reason, decoratedRequest.contextId());
+            return AgentModels.MergeConflictResult.builder()
+                    .contextId(decoratedRequest.contextId())
+                    .successful(false)
+                    .output("Merge conflict agent execution failed.")
+                    .errorMessage(e.getMessage())
+                    .resolvedConflictFiles(List.of())
+                    .notes(List.of())
+                    .worktreeContext(worktreeContext)
+                    .build();
+        }
+    }
+
+    private DirectExecutorArgs<AgentModels.MergeConflictResult> buildMergeConflictArgs(
+            AgentModels.MergeConflictRequest request,
+            AgentModels.AgentRequest sourceRequest,
+            DecoratorContext decoratorContext,
+            Map<String, Object> model,
+            OperationContext operationContext
+    ) {
         PromptContext promptContext = new PromptContext(
                 request.sourceAgentType() != null ? request.sourceAgentType() : AgentType.MERGE_CONFLICT_AGENT,
                 request.contextId(),
@@ -196,56 +249,17 @@ public class WorktreeMergeConflictService {
                 METHOD_NAME
         );
 
-        try {
-            AgentModels.MergeConflictResult conflictResult = agentLlmExecutor.runDirect(
-                    DirectExecutorArgs.<AgentModels.MergeConflictResult>builder()
-                            .responseClazz(AgentModels.MergeConflictResult.class)
-                            .agentName(AGENT_NAME)
-                            .actionName(ACTION_NAME)
-                            .methodName(METHOD_NAME)
-                            .template(TEMPLATE)
-                            .promptContext(decoratedPromptContext)
-                            .templateModel(model)
-                            .toolContext(toolContext)
-                            .operationContext(operationContext)
-                            .build());
-            if (conflictResult == null) {
-                String reason = "Merge conflict agent returned empty result.";
-                publishNodeError(reason, request.contextId());
-                return AgentModels.MergeConflictResult.builder()
-                        .contextId(request.contextId())
-                        .successful(false)
-                        .output(reason)
-                        .errorMessage("No response from model.")
-                        .resolvedConflictFiles(List.of())
-                        .notes(List.of())
-                        .worktreeContext(worktreeContext)
-                        .build();
-            }
-
-            return decorateResult(
-                    conflictResult,
-                    operationContext,
-                    resultDecorators,
-                    AGENT_NAME,
-                    ACTION_NAME,
-                    METHOD_NAME,
-                    request
-            );
-        } catch (Exception e) {
-            String reason = "Merge conflict agent execution failed: " + e.getMessage();
-            log.error(reason, e);
-            publishNodeError(reason, request.contextId());
-            return AgentModels.MergeConflictResult.builder()
-                    .contextId(request.contextId())
-                    .successful(false)
-                    .output("Merge conflict agent execution failed.")
-                    .errorMessage(e.getMessage())
-                    .resolvedConflictFiles(List.of())
-                    .notes(List.of())
-                    .worktreeContext(worktreeContext)
-                    .build();
-        }
+        return DirectExecutorArgs.<AgentModels.MergeConflictResult>builder()
+                .responseClazz(AgentModels.MergeConflictResult.class)
+                .agentName(AGENT_NAME)
+                .actionName(ACTION_NAME)
+                .methodName(METHOD_NAME)
+                .template(TEMPLATE)
+                .promptContext(decoratedPromptContext)
+                .templateModel(model)
+                .toolContext(toolContext)
+                .operationContext(operationContext)
+                .build();
     }
 
     private AgentModels.MergeConflictRequest decorateCommitRequest(

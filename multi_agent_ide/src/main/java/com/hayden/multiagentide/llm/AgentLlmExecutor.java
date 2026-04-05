@@ -6,6 +6,7 @@ import com.hayden.multiagentide.tool.ToolContext;
 import lombok.Builder;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * LLM executor that wraps calls with agent-session-aware infrastructure:
@@ -25,7 +26,7 @@ public interface AgentLlmExecutor {
      */
     <T> T runDirect(DirectExecutorArgs<T> args);
 
-    @Builder
+    @Builder(toBuilder = true)
     record DirectExecutorArgs<T>(
             Class<T> responseClazz,
             String agentName,
@@ -35,6 +36,14 @@ public interface AgentLlmExecutor {
             PromptContext promptContext,
             Map<String, Object> templateModel,
             ToolContext toolContext,
-            OperationContext operationContext
+            OperationContext operationContext,
+            /**
+             * Optional callback that produces a fresh DirectExecutorArgs on retry.
+             * When provided, each retry attempt calls {@code refresh.get()} to re-run
+             * the full decoration pipeline (request, prompt, tool decorators) so that
+             * error descriptors and decorator state are up-to-date for the new attempt.
+             * When null, the same args are reused on retry.
+             */
+            Supplier<DirectExecutorArgs<T>> refresh
     ) {}
 }

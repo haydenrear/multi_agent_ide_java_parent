@@ -34,6 +34,9 @@ acp.mcp:
   http:
     enabled: false
 
+embabel.agent.platform.direct-executions:
+  max-attempts: 1
+
 multi-agent-ide:
   retry:
     max-compaction-polls: 1

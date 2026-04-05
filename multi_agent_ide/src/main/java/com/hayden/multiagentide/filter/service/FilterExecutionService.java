@@ -16,6 +16,7 @@ import com.hayden.multiagentide.filter.model.Filter;
 import com.hayden.multiagentide.filter.model.FilterSource;
 import com.hayden.multiagentide.filter.model.PathFilter;
 import com.hayden.multiagentide.filter.model.executor.*;
+import com.hayden.multiagentide.llm.AgentLlmExecutor;
 import com.hayden.multiagentide.filter.repository.FilterDecisionRecordEntity;
 import com.hayden.multiagentide.filter.repository.FilterDecisionRecordRepository;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
@@ -259,7 +260,56 @@ public class FilterExecutionService {
             return Optional.empty();
         }
 
-        // The parent workflow request is already decorated — do not re-run requestDecorators on it.
+        var argsAndRequest = buildFilterArgs(p, aiExecutor, filterContext, promptContext, operationContext, payload, policy);
+
+        FilterContext.AiFilterContext aiFilterContext = FilterContext.AiFilterContext.builder()
+                .filterContext(filterContext)
+                .templateName(AI_FILTER_TEMPLATE_NAME)
+                .promptContext(argsAndRequest.args().promptContext())
+                .model(argsAndRequest.args().templateModel())
+                .toolContext(argsAndRequest.args().toolContext())
+                .responseClass(AgentModels.AiFilterResult.class)
+                .context(operationContext)
+                .directExecutorArgs(argsAndRequest.args()
+                        .toBuilder()
+                        .refresh(() -> buildFilterArgs(p, aiExecutor, filterContext, getPromptContext(filterContext),
+                                getOpContext(filterContext, getPromptContext(filterContext)), payload, policy).args())
+                        .build())
+                .build();
+
+        var result = p.apply(argsAndRequest.decoratedRequest(), aiFilterContext);
+
+        if (result.res() != null) {
+            return Optional.of(
+                    result.toBuilder()
+                            .res(decorateRequestResults.decorateResult(
+                                    new DecorateRequestResults.DecorateResultArgs<>(
+                                            result.res(),
+                                            operationContext,
+                                            AI_FILTER_AGENT_NAME,
+                                            AI_FILTER_ACTION_NAME,
+                                            AI_FILTER_METHOD_NAME,
+                                            argsAndRequest.decoratedRequest())))
+                            .build());
+        }
+
+        return Optional.of(result);
+    }
+
+    private record FilterArgsAndRequest(
+            AgentLlmExecutor.DirectExecutorArgs<AgentModels.AiFilterResult> args,
+            AgentModels.AiFilterRequest decoratedRequest
+    ) {}
+
+    private FilterArgsAndRequest buildFilterArgs(
+            AiPathFilter p,
+            AiFilterTool<?, ?> aiExecutor,
+            FilterContext filterContext,
+            PromptContext promptContext,
+            OperationContext operationContext,
+            String payload,
+            PolicyRegistrationEntity policy
+    ) {
         AgentModels.AgentRequest parentRequest = promptContext.currentRequest();
 
         ArtifactKey chatKey = aiFilterSessionResolver.resolveSessionKey(
@@ -284,12 +334,7 @@ public class FilterExecutionService {
                         parentRequest
                 ));
 
-        Map<String, Object> model = buildAiModel(
-                aiExecutor,
-                payload,
-                policy,
-                parentRequest
-        );
+        Map<String, Object> model = buildAiModel(aiExecutor, payload, policy, parentRequest);
 
         PromptContext aiPromptContext = promptContext
                 .toBuilder()
@@ -299,7 +344,6 @@ public class FilterExecutionService {
                 .previousRequest(parentRequest)
                 .model(model)
                 .build();
-
 
         PromptContext decoratedPromptContext = decorateRequestResults.decoratePromptContext(
                 new DecorateRequestResults.DecoratePromptContextArgs(
@@ -319,33 +363,19 @@ public class FilterExecutionService {
                         AI_FILTER_METHOD_NAME
                 ));
 
-        FilterContext.AiFilterContext aiFilterContext = FilterContext.AiFilterContext.builder()
-                .filterContext(filterContext)
-                .templateName(AI_FILTER_TEMPLATE_NAME)
+        var args = AgentLlmExecutor.DirectExecutorArgs.<AgentModels.AiFilterResult>builder()
+                .responseClazz(AgentModels.AiFilterResult.class)
+                .agentName(AI_FILTER_AGENT_NAME)
+                .actionName(AI_FILTER_ACTION_NAME)
+                .methodName(AI_FILTER_METHOD_NAME)
+                .template(AI_FILTER_TEMPLATE_NAME)
                 .promptContext(decoratedPromptContext)
-                .model(model)
+                .templateModel(model)
                 .toolContext(decoratedToolContext)
-                .responseClass(AgentModels.AiFilterResult.class)
-                .context(operationContext)
+                .operationContext(operationContext)
                 .build();
 
-        var result = p.apply(aiSessionRequest, aiFilterContext);
-
-        if (result.res() != null) {
-            return Optional.of(
-                    result.toBuilder()
-                            .res(decorateRequestResults.decorateResult(
-                                    new DecorateRequestResults.DecorateResultArgs<>(
-                                            result.res(),
-                                            operationContext,
-                                            AI_FILTER_AGENT_NAME,
-                                            AI_FILTER_ACTION_NAME,
-                                            AI_FILTER_METHOD_NAME,
-                                            aiSessionRequest)))
-                            .build());
-        }
-
-        return Optional.of(result);
+        return new FilterArgsAndRequest(args, aiSessionRequest);
     }
 
     private PromptContext getPromptContext(FilterContext filterContext) {

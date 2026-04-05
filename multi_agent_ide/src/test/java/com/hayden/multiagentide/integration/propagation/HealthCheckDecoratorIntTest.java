@@ -1,9 +1,12 @@
 package com.hayden.multiagentide.integration.propagation;
 
+import com.embabel.agent.api.annotation.support.ActionQosProvider;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.api.common.PlatformServices;
+import com.embabel.agent.core.ActionQos;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
+import com.embabel.agent.core.Blackboard;
 import com.embabel.common.textio.template.CompiledTemplate;
 import com.embabel.common.textio.template.TemplateRenderer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,6 +32,7 @@ import com.hayden.multiagentide.prompt.PromptContext;
 import com.hayden.multiagentide.prompt.PromptContributor;
 import com.hayden.multiagentide.prompt.PromptContributorAdapter;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -44,6 +48,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -76,6 +81,17 @@ class HealthCheckDecoratorIntTest extends AgentTestBase {
         @Bean
         QueuedLlmRunner queuedLlmRunner(LlmRunner llmRunner) {
             return (QueuedLlmRunner) llmRunner;
+        }
+
+        @Bean
+        @Primary
+        ActionQosProvider manager() {
+            return new ActionQosProvider() {
+                @Override
+                public @NonNull ActionQos provideActionQos(@NonNull Method method, @NonNull Object instance) {
+                    return new ActionQos(2, 50, 2, 60, false);
+                }
+            };
         }
     }
 
@@ -148,6 +164,7 @@ class HealthCheckDecoratorIntTest extends AgentTestBase {
 
         AgentPlatform mockAgentPlatform = Mockito.mock(AgentPlatform.class);
         AgentProcess mockAgentProcess = Mockito.mock(AgentProcess.class);
+        Blackboard mockBlackboard = Mockito.mock(Blackboard.class);
         PlatformServices mockPlatformServices = Mockito.mock(PlatformServices.class);
         TemplateRenderer mockTemplateRenderer = Mockito.mock(TemplateRenderer.class);
         CompiledTemplate mockCompiledTemplate = Mockito.mock(CompiledTemplate.class);
@@ -159,7 +176,12 @@ class HealthCheckDecoratorIntTest extends AgentTestBase {
         Mockito.when(mockOp.agentPlatform()).thenReturn(mockAgentPlatform);
         Mockito.when(mockOp.getAgentProcess()).thenReturn(mockAgentProcess);
         Mockito.when(mockAgentProcess.getId()).thenReturn(contextId.value());
-        Mockito.when(mockAgentProcess.last(BlackboardHistory.class)).thenReturn(new BlackboardHistory(new BlackboardHistory.History(), contextId.value(), WorkflowGraphState.initial(contextId.value())));
+        Mockito.when(mockAgentProcess.getBlackboard()).thenReturn(mockBlackboard);
+        BlackboardHistory value = new BlackboardHistory(new BlackboardHistory.History(), contextId.value(), WorkflowGraphState.initial(contextId.value()));
+        Mockito.when(mockOp.last(BlackboardHistory.class)).thenReturn(value);
+        Mockito.when(mockAgentProcess.last(BlackboardHistory.class)).thenReturn(value);
+        Mockito.when(mockBlackboard.last(BlackboardHistory.class)).thenReturn(value);
+
 
         PromptContext promptContext = PromptContext.builder()
                 .agentType(AgentType.ORCHESTRATOR)

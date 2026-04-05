@@ -8,7 +8,6 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.repository.GraphRepository;
-import com.hayden.multiagentide.llm.AgentLlmExecutor;
 import com.hayden.multiagentide.llm.AgentLlmExecutor.DirectExecutorArgs;
 import com.hayden.multiagentide.tool.ToolContext;
 import com.hayden.multiagentide.agent.AgentModels;
@@ -42,9 +41,6 @@ import static com.hayden.multiagentide.agent.decorator.request.DecorateRequestRe
 @RequiredArgsConstructor
 public class InterruptService {
 
-    private static final String REVIEW_CRITERIA =
-            "Review for correctness and completeness. Reply with approved if correct, otherwise explain issues.";
-    public static final String TEMPLATE_WORKFLOW_REVIEW = "workflow/review";
     public static final String TEMPLATE_REVIEW_RESOLUTION = "workflow/review_resolution";
     public static final String AGENT_NAME = "interrupt-service";
     public static final String ACTION_AGENT_REVIEW = "agent-review";
@@ -91,58 +87,64 @@ public class InterruptService {
                 String feedback = resolveInterruptFeedback(context, request, originNode, promptContext);
                 log.info("Resolved feedback: {}.", feedback);
 
-                Map<String, Object> modelWithFeedback = new java.util.HashMap<>(templateModel);
-                modelWithFeedback.put("interruptFeedback", feedback);
-                DecoratorContext decoratorContext = new DecoratorContext(
-                        context, AGENT_NAME, ACTION_AGENT_REVIEW, METHOD_RUN_INTERRUPT_AGENT_REVIEW, promptContext.previousRequest(), promptContext.currentRequest()
-                );
-                promptContext = promptContextFactory.build(
-                        AgentType.REVIEW_RESOLUTION_AGENT,
-                        promptContext.currentRequest(),
-                        promptContext.previousRequest(),
-                        promptContext.currentRequest(),
-                        promptContext.blackboardHistory(),
-                        TEMPLATE_REVIEW_RESOLUTION,
-                        modelWithFeedback,
-                        context,
-                        decoratorContext
-                );
-                promptContext = decoratePromptContext(
-                        promptContext,
-                        promptContextDecorators,
-                        decoratorContext
-                );
+                var args = buildInterruptArgs(context, request, feedback, promptContext, templateModel, toolContext, routingClass);
 
-                toolContext = decorateToolContext(
-                        toolContext,
-                        request,
-                        promptContext.previousRequest(),
-                        context,
-                        toolContextDecorators,
-                        AGENT_NAME,
-                        ACTION_AGENT_REVIEW,
-                        METHOD_RUN_INTERRUPT_AGENT_REVIEW
+                var s = agentLlmExecutor.runDirect(
+                        args.toBuilder()
+                                .refresh(() -> buildInterruptArgs(context, request, feedback, promptContext, templateModel, toolContext, routingClass))
+                                .build()
                 );
-
-                var s = agentLlmExecutor.runDirect(DirectExecutorArgs.<T>builder()
-                        .responseClazz(routingClass)
-                        .agentName(AGENT_NAME)
-                        .actionName(ACTION_AGENT_REVIEW)
-                        .methodName(METHOD_HANDLE_INTERRUPT)
-                        .template(TEMPLATE_REVIEW_RESOLUTION)
-                        .promptContext(promptContext)
-                        .templateModel(modelWithFeedback)
-                        .toolContext(toolContext)
-                        .operationContext(context)
-                        .build());
 
                 log.info("After feedback handled: {}, {}.", s.getClass().getSimpleName(), s);
                 yield s;
             }
-//            case BRANCH, STOP, PRUNE -> {
-//                throw new RuntimeException("Received branch, stop, prune, unexpectedly - not implemented..");
-//            }
         };
+    }
+
+    private <T> DirectExecutorArgs<T> buildInterruptArgs(OperationContext context, AgentModels.InterruptRequest request, String feedback, PromptContext promptContext, Map<String, Object> templateModel, ToolContext toolContext, Class<T> routingClass) {
+        Map<String, Object> modelWithFeedback = new java.util.HashMap<>(templateModel);
+        modelWithFeedback.put("interruptFeedback", feedback);
+        DecoratorContext decoratorContext = new DecoratorContext(
+                context, AGENT_NAME, ACTION_AGENT_REVIEW, METHOD_RUN_INTERRUPT_AGENT_REVIEW, promptContext.previousRequest(), promptContext.currentRequest()
+        );
+        promptContext = promptContextFactory.build(
+                AgentType.REVIEW_RESOLUTION_AGENT,
+                promptContext.currentRequest(),
+                promptContext.previousRequest(),
+                promptContext.currentRequest(),
+                promptContext.blackboardHistory(),
+                TEMPLATE_REVIEW_RESOLUTION,
+                modelWithFeedback,
+                context,
+                decoratorContext
+        );
+        promptContext = decoratePromptContext(
+                promptContext,
+                promptContextDecorators,
+                decoratorContext
+        );
+
+        toolContext = decorateToolContext(
+                toolContext,
+                request,
+                promptContext.previousRequest(),
+                context,
+                toolContextDecorators,
+                AGENT_NAME,
+                ACTION_AGENT_REVIEW,
+                METHOD_RUN_INTERRUPT_AGENT_REVIEW
+        );
+        return DirectExecutorArgs.<T>builder()
+                .responseClazz(routingClass)
+                .agentName(AGENT_NAME)
+                .actionName(ACTION_AGENT_REVIEW)
+                .methodName(METHOD_HANDLE_INTERRUPT)
+                .template(TEMPLATE_REVIEW_RESOLUTION)
+                .promptContext(promptContext)
+                .templateModel(modelWithFeedback)
+                .toolContext(toolContext)
+                .operationContext(context)
+                .build();
     }
 
     public PermissionGate.InterruptResolution awaitHumanReview(
@@ -269,19 +271,6 @@ public class InterruptService {
                 String feedback = resolution != null ? resolution.getResolutionNotes() : null;
                 yield firstNonBlank(feedback, result.reviewContent());
             }
-//            case AGENT_REVIEW, STOP, BRANCH, PRUNE -> {
-//                if (result.interruptId().isBlank()) {
-//                    yield result.reviewContent();
-//                }
-//                String agentOriginNodeId = originNode != null ? originNode.nodeId() : result.interruptId();
-//                publishInterruptWithContext(result.interruptId(), agentOriginNodeId, request.type(), result.reviewContent());
-//                AgentModels.ReviewAgentResult reviewResult =
-//                        runInterruptAgentReview(context, promptContext, result, request);
-//                String feedback = reviewResult != null ? reviewResult.output() : "";
-//                IPermissionGate.ResolutionType agentResolutionType = resolveResolutionType(reviewResult);
-//                permissionGate.resolveInterrupt(result.interruptId(), agentResolutionType, feedback, reviewResult);
-//                yield feedback;
-//            }
         };
     }
 
@@ -304,80 +293,6 @@ public class InterruptService {
     private record InterruptData(String reviewContent, String interruptId) {
     }
 
-    private IPermissionGate.ResolutionType resolveResolutionType(AgentModels.ReviewAgentResult reviewResult) {
-        if (reviewResult == null || reviewResult.assessmentStatus() == null) {
-            return IPermissionGate.ResolutionType.RESOLVED;
-        }
-        try {
-            return IPermissionGate.ResolutionType.valueOf(reviewResult.assessmentStatus().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return IPermissionGate.ResolutionType.RESOLVED;
-        }
-    }
-
-    private AgentModels.ReviewAgentResult runInterruptAgentReview(
-            OperationContext context,
-            PromptContext callerPromptContext,
-            InterruptData result,
-            AgentModels.InterruptRequest request
-    ) {
-        BlackboardHistory history = BlackboardHistory.getEntireBlackboardHistory(context);
-
-        // Rebuild prompt context with the interrupt request as currentRequest so that
-        // prompt contributor factories (e.g. WorktreeSandboxPromptContributorFactory)
-        // can see it and contribute.
-        DecoratorContext decoratorContext = new DecoratorContext(
-                context, AGENT_NAME, ACTION_AGENT_REVIEW, METHOD_RUN_INTERRUPT_AGENT_REVIEW, callerPromptContext.previousRequest(), request
-        );
-
-        PromptContext promptContext = promptContextFactory.build(
-                AgentType.REVIEW_AGENT,
-                callerPromptContext.previousRequest(),
-                callerPromptContext.previousRequest(),
-                request,
-                history,
-                TEMPLATE_WORKFLOW_REVIEW,
-                callerPromptContext.model(),
-                context,
-                decoratorContext
-        );
-
-        promptContext = decoratePromptContext(
-                promptContext,
-                promptContextDecorators,
-                decoratorContext
-        );
-
-        ToolContext toolContext = decorateToolContext(
-                ToolContext.empty(),
-                request,
-                callerPromptContext.previousRequest(),
-                context,
-                toolContextDecorators,
-                AGENT_NAME,
-                ACTION_AGENT_REVIEW,
-                METHOD_RUN_INTERRUPT_AGENT_REVIEW
-        );
-
-        return agentLlmExecutor.runDirect(DirectExecutorArgs.<AgentModels.ReviewAgentResult>builder()
-                .responseClazz(AgentModels.ReviewAgentResult.class)
-                .agentName(AGENT_NAME)
-                .actionName(ACTION_AGENT_REVIEW)
-                .methodName(METHOD_RUN_INTERRUPT_AGENT_REVIEW)
-                .template(TEMPLATE_WORKFLOW_REVIEW)
-                .promptContext(promptContext)
-                .templateModel(Map.of(
-                        "content", Objects.toString(result.reviewContent, ""),
-                        "criteria", REVIEW_CRITERIA,
-                        "returnRoute", "interrupt"
-                ))
-                .toolContext(toolContext)
-                .operationContext(context)
-                .build());
-    }
-    
-
-
     private InterruptContext resolveInterruptContext(GraphNode node) {
         if (node == null) {
             return null;
@@ -393,14 +308,6 @@ public class InterruptService {
         }
         return null;
     }
-
-    private static String appendInterruptFeedback(String prompt, String feedback) {
-        if (feedback == null || feedback.isBlank()) {
-            return prompt;
-        }
-        return prompt + "\n\nReview feedback:\n" + feedback;
-    }
-
 
     private static String firstNonBlank(String... values) {
         if (values == null) {

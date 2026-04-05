@@ -193,55 +193,11 @@ public class WorktreeAutoCommitService {
         }
 
         try {
-            Map<String, Object> model = modelFor(request, sourceResult, targetWorktree, changedFiles);
-            AgentModels.AgentRequest previousRequest = sourceRequest != null ? sourceRequest : lastRequest;
-
-            PromptContext promptContext = new PromptContext(
-                    sourceAgentType,
-                    request.contextId(),
-                    BlackboardHistory.getEntireBlackboardHistory(operationContext),
-                    previousRequest,
-                    request,
-                    Map.of(),
-                    TEMPLATE_WORKTREE_COMMIT_AGENT,
-                    model,
-                    AcpChatOptionsString.DEFAULT_MODEL_NAME,
-                    operationContext,
-                    decoratorContext.agentName(),
-                    decoratorContext.actionName(),
-                    decoratorContext.methodName()
-            );
-
-            PromptContext decoratedPromptContext = decoratePromptContext(
-                    promptContext,
-                    promptContextDecorators,
-                    new DecoratorContext(
-                            operationContext, AGENT_NAME, ACTION_NAME, METHOD_NAME, previousRequest, request
-                    )
-            );
-
-            ToolContext toolContext = decorateToolContext(
-                    ToolContext.empty(),
-                    sourceRequest != null ? sourceRequest : request,
-                    previousRequest,
-                    operationContext,
-                    toolContextDecorators,
-                    AGENT_NAME,
-                    ACTION_NAME,
-                    METHOD_NAME
-            );
+            var args = buildCommitAgentArgs(request, sourceRequest, lastRequest, decoratorContext, sourceAgentType, sourceResult, targetWorktree, changedFiles, operationContext);
 
             AgentModels.CommitAgentResult raw = agentLlmExecutor.runDirect(
-                    DirectExecutorArgs.<AgentModels.CommitAgentResult>builder()
-                            .responseClazz(AgentModels.CommitAgentResult.class)
-                            .agentName(AGENT_NAME)
-                            .actionName(ACTION_NAME)
-                            .methodName(METHOD_NAME)
-                            .template(TEMPLATE_WORKTREE_COMMIT_AGENT)
-                            .promptContext(decoratedPromptContext)
-                            .templateModel(model)
-                            .toolContext(toolContext)
-                            .operationContext(operationContext)
+                    args.toBuilder()
+                            .refresh(() -> buildCommitAgentArgs(request, sourceRequest, lastRequest, decoratorContext, sourceAgentType, sourceResult, targetWorktree, changedFiles, operationContext))
                             .build());
 
             AgentModels.CommitAgentResult normalized = normalizeCommitResult(raw, request, sourceResult);
@@ -259,6 +215,68 @@ public class WorktreeAutoCommitService {
             log.warn("Commit agent LLM/tool execution failed for worktree {}. Falling back to direct commit.", targetWorktree.worktreeId(), e);
             return fallbackCommit(request, sourceResult, targetWorktree, changedFiles, sourceAgentType, e.getMessage());
         }
+    }
+
+    private DirectExecutorArgs<AgentModels.CommitAgentResult> buildCommitAgentArgs(
+            AgentModels.CommitAgentRequest request,
+            AgentModels.AgentRequest sourceRequest,
+            AgentModels.AgentRequest lastRequest,
+            DecoratorContext decoratorContext,
+            AgentType sourceAgentType,
+            AgentModels.AgentResult sourceResult,
+            WorktreeContext targetWorktree,
+            List<String> changedFiles,
+            OperationContext operationContext
+    ) {
+        Map<String, Object> model = modelFor(request, sourceResult, targetWorktree, changedFiles);
+        AgentModels.AgentRequest previousRequest = sourceRequest != null ? sourceRequest : lastRequest;
+
+        PromptContext promptContext = new PromptContext(
+                sourceAgentType,
+                request.contextId(),
+                BlackboardHistory.getEntireBlackboardHistory(operationContext),
+                previousRequest,
+                request,
+                Map.of(),
+                TEMPLATE_WORKTREE_COMMIT_AGENT,
+                model,
+                AcpChatOptionsString.DEFAULT_MODEL_NAME,
+                operationContext,
+                decoratorContext.agentName(),
+                decoratorContext.actionName(),
+                decoratorContext.methodName()
+        );
+
+        PromptContext decoratedPromptContext = decoratePromptContext(
+                promptContext,
+                promptContextDecorators,
+                new DecoratorContext(
+                        operationContext, AGENT_NAME, ACTION_NAME, METHOD_NAME, previousRequest, request
+                )
+        );
+
+        ToolContext toolContext = decorateToolContext(
+                ToolContext.empty(),
+                sourceRequest != null ? sourceRequest : request,
+                previousRequest,
+                operationContext,
+                toolContextDecorators,
+                AGENT_NAME,
+                ACTION_NAME,
+                METHOD_NAME
+        );
+
+        return DirectExecutorArgs.<AgentModels.CommitAgentResult>builder()
+                .responseClazz(AgentModels.CommitAgentResult.class)
+                .agentName(AGENT_NAME)
+                .actionName(ACTION_NAME)
+                .methodName(METHOD_NAME)
+                .template(TEMPLATE_WORKTREE_COMMIT_AGENT)
+                .promptContext(decoratedPromptContext)
+                .templateModel(model)
+                .toolContext(toolContext)
+                .operationContext(operationContext)
+                .build();
     }
 
     private AgentModels.CommitAgentRequest decorateCommitRequest(

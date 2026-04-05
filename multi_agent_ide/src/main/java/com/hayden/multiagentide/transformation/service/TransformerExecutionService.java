@@ -25,6 +25,7 @@ import com.hayden.multiagentide.model.TextTransformer;
 import com.hayden.multiagentide.model.TransformationAction;
 import com.hayden.multiagentide.model.Transformer;
 import com.hayden.multiagentide.model.TransformerMatchOn;
+import com.hayden.multiagentide.llm.AgentLlmExecutor;
 import com.hayden.multiagentide.model.executor.AiTransformerTool;
 import com.hayden.multiagentide.model.layer.AiTransformerContext;
 import com.hayden.multiagentide.model.layer.ControllerEndpointTransformationContext;
@@ -184,6 +185,49 @@ public class TransformerExecutionService {
             return currentText;
         }
 
+        var argsAndRequest = buildTransformerArgs(aiTextTransformer, aiExecutor, context, currentText, operationContext);
+
+        AiTransformerContext aiContext = AiTransformerContext.builder()
+                .transformationContext(context)
+                .templateName(AI_TRANSFORMER_TEMPLATE_NAME)
+                .promptContext(argsAndRequest.args().promptContext())
+                .toolContext(argsAndRequest.args().toolContext())
+                .model(argsAndRequest.args().templateModel())
+                .responseClass(AgentModels.AiTransformerResult.class)
+                .context(operationContext)
+                .directExecutorArgs(argsAndRequest.args()
+                        .toBuilder()
+                        .refresh(() -> buildTransformerArgs(aiTextTransformer, aiExecutor, context, currentText, operationContext).args())
+                        .build())
+                .build();
+
+        AgentModels.AiTransformerResult result = aiTextTransformer.apply(argsAndRequest.decoratedRequest(), aiContext);
+        result = decorateRequestResults.decorateResult(
+                new DecorateRequestResults.DecorateResultArgs<>(
+                        result,
+                        operationContext,
+                        AI_TRANSFORMER_AGENT_NAME,
+                        AI_TRANSFORMER_ACTION_NAME,
+                        AI_TRANSFORMER_METHOD_NAME,
+                        argsAndRequest.decoratedRequest()
+                ));
+        return result.transformedText() == null || result.transformedText().isBlank()
+                ? currentText
+                : result.transformedText();
+    }
+
+    private record TransformerArgsAndRequest(
+            AgentLlmExecutor.DirectExecutorArgs<AgentModels.AiTransformerResult> args,
+            AgentModels.AiTransformerRequest decoratedRequest
+    ) {}
+
+    private TransformerArgsAndRequest buildTransformerArgs(
+            AiTextTransformer aiTextTransformer,
+            AiTransformerTool aiExecutor,
+            ControllerEndpointTransformationContext context,
+            String currentText,
+            OperationContext operationContext
+    ) {
         AgentModels.AgentRequest parentRequest = BlackboardHistory.getLastFromHistory(operationContext, AgentModels.AgentRequest.class);
         PromptContext parentPromptContext = PromptContext.builder()
                 .agentType(AgentType.AI_TRANSFORMER)
@@ -255,29 +299,19 @@ public class TransformerExecutionService {
                         AI_TRANSFORMER_METHOD_NAME
                 ));
 
-        AiTransformerContext aiContext = AiTransformerContext.builder()
-                .transformationContext(context)
-                .templateName(AI_TRANSFORMER_TEMPLATE_NAME)
+        var args = AgentLlmExecutor.DirectExecutorArgs.<AgentModels.AiTransformerResult>builder()
+                .responseClazz(AgentModels.AiTransformerResult.class)
+                .agentName(AI_TRANSFORMER_AGENT_NAME)
+                .actionName(AI_TRANSFORMER_ACTION_NAME)
+                .methodName(AI_TRANSFORMER_METHOD_NAME)
+                .template(AI_TRANSFORMER_TEMPLATE_NAME)
                 .promptContext(decoratedPromptContext)
+                .templateModel(model)
                 .toolContext(toolContext)
-                .model(model)
-                .responseClass(AgentModels.AiTransformerResult.class)
-                .context(operationContext)
+                .operationContext(operationContext)
                 .build();
 
-        AgentModels.AiTransformerResult result = aiTextTransformer.apply(decoratedRequest, aiContext);
-        result = decorateRequestResults.decorateResult(
-                new DecorateRequestResults.DecorateResultArgs<>(
-                        result,
-                        operationContext,
-                        AI_TRANSFORMER_AGENT_NAME,
-                        AI_TRANSFORMER_ACTION_NAME,
-                        AI_TRANSFORMER_METHOD_NAME,
-                        decoratedRequest
-                ));
-        return result.transformedText() == null || result.transformedText().isBlank()
-                ? currentText
-                : result.transformedText();
+        return new TransformerArgsAndRequest(args, decoratedRequest);
     }
 
     private Map<String, Object> buildAiModel(AiTransformerTool aiExecutor,
