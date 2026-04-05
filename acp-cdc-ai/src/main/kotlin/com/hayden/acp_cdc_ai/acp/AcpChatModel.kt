@@ -59,16 +59,14 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import java.io.File
-import java.security.MessageDigest
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.readLines
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
-
-private const val CONTINUE = "Please continue and return structured response."
 
 /**
  * ACP-backed ChatModel implementation using the agentclientprotocol SDK.
@@ -95,9 +93,6 @@ class AcpChatModel(
     @Value("\${server.port:8080}")
     lateinit var mcpServerPort: Integer
 
-    // Tracks the hash of the last prompt sent per session routing key.
-    // If the same hash arrives again, it's a retry from the upstream structured output parser.
-    private val lastPromptHashPerSession = ConcurrentHashMap<String, String>()
 
     companion object AcpChatModel {
 
@@ -140,19 +135,10 @@ class AcpChatModel(
         val messages = resolveToSendMessages(chatRequest, hasSession)
         val builtPrompt = Prompt.builder().messages(messages).chatOptions(chatRequest.options).build()
 
-        // Detect retry: same prompt content sent to the same session again
-        val sessionKey = sessionContext.chatModelKey.value
-        val promptHash = MessageDigest.getInstance("SHA-256")
-            .digest(formatPromptMessages(builtPrompt).toByteArray())
-            .joinToString("") { "%02x".format(it) }
-        val previousHash = lastPromptHashPerSession.put(sessionKey, promptHash)
-        val isRetry = hasSession && previousHash == promptHash
-
         return invokeChat(
             builtPrompt,
             sessionContext,
-            memoryId,
-            isRetry
+            memoryId
         )
     }
 
@@ -192,239 +178,110 @@ class AcpChatModel(
     fun invokeChat(
         messages: Prompt,
         sessionContext: AcpSessionManager.AcpSessionContext,
-        memoryId: Any?,
-        isRetry: Boolean = false
+        memoryId: Any?
     ): ChatResponse = runBlocking {
         val session = sessionContext
         val generations = mutableListOf<Generation>()
-
-        // If the session already existed before this call, this is a retry from the
-        // upstream structured output parser.  The ACP session already has the full prompt
-        // context — re-sending it causes the session to grow and compact.  Just send
-        // CONTINUE to nudge the agent to finish its response.
-        val content = if (isRetry) {
-            log.info("Retry detected for {} — sending CONTINUE instead of full prompt",
-                sessionContext.chatModelKey)
-            listOf(ContentBlock.Text(CONTINUE))
-        } else {
-            listOf(ContentBlock.Text(formatPromptMessages(messages)))
-        }
+        val content = listOf(ContentBlock.Text(formatPromptMessages(messages)))
 
         try {
             doPerformPrompt(session, content, sessionContext, memoryId, generations)
-            // If the session emitted a compaction event ("Compacting..."), the stream ends and
-            // the session waits for the next user message.  Re-issue the same prompt after
-            // waiting for compaction to finish so the LLM can complete its response with the
-            // compacted context.
-            handleCompactingSession(generations, sessionContext, session, memoryId)
         } catch (e: JsonRpcException) {
             if (e.message?.contains("Prompt is too long") == true) {
-                session.resetSession()
-                doPerformPrompt(session, content, sessionContext, memoryId, generations)
+                // "Prompt is too long" is a compaction signal — throw CompactionException
+                // so ActionRetryListenerImpl classifies it and the framework retries.
+                throw CompactionException(
+                    "Prompt is too long for session ${sessionContext.chatModelKey.value}",
+                    sessionContext.chatModelKey.value
+                )
             }
+            throw e
         }
-
 
         generations.addAll(session.flushWindows(memoryId))
 
-        // Filter out generations that are just compaction markers — they are not real output
-        // and would bypass the null/empty retry handler below.
+        // Detect compaction — throw so the framework retry handles it
+        if (isSessionCompacting(generations)) {
+            log.info(
+                "ACP session compaction detected for {} — throwing CompactionException for framework retry",
+                sessionContext.chatModelKey
+            )
+            eventBus.publish(
+                Events.CompactionEvent.of(
+                    "ACP session compacting for ${sessionContext.chatModelKey.value}",
+                    sessionContext.chatModelKey
+                )
+            )
+            throw CompactionException(
+                "Session compacting for ${sessionContext.chatModelKey.value}",
+                sessionContext.chatModelKey.value
+            )
+        }
+
+        // Filter out compaction markers that slipped through
         generations.removeAll { g ->
             val text = runCatching { g.output.text }.getOrNull()?.trim()
-            text?.lowercase()?.contains("compacting...") ?: false || text == "..." || text?.lowercase()?.contains("compaction completed") ?: false
+            text?.lowercase()?.contains("compacting...") ?: false || text == "..." || text?.lowercase()
+                ?.contains("compaction completed") ?: false
         }
 
-        // If generations are empty (null getResult() upstream), retry with "Please continue."
+        // Null/empty result — throw so ActionRetryListenerImpl classifies as NullResultError
         if (generations.isEmpty() || generations.all { it.output == null || it.output.text.isNullOrBlank() }) {
-            val maxNullRetries = 5
-            var nullRetryCount = 0
-            val continueMsg = listOf(ContentBlock.Text(CONTINUE))
-            while ((generations.isEmpty() || generations.all { it.output == null || it.output.text.isNullOrBlank() }) && nullRetryCount < maxNullRetries) {
-                nullRetryCount++
-                log.warn("ACP returned null/empty result for {} — retry {}/{} with 'Please continue.'",
-                    sessionContext.chatModelKey, nullRetryCount, maxNullRetries)
-                Thread.sleep(5_000)
-                generations.clear()
-                doPerformPrompt(session, continueMsg, sessionContext, memoryId, generations)
-                generations.addAll(session.flushWindows(memoryId))
-            }
-            if (generations.isEmpty() || generations.all { it.output == null || it.output.text.isNullOrBlank() }) {
-                log.error("ACP still returning null/empty after {} retries for {} — returning empty response",
-                    maxNullRetries, sessionContext.chatModelKey)
-            }
+            throw RuntimeException(
+                "ACP returned null result for session ${sessionContext.chatModelKey.value}"
+            )
         }
 
+        // Unparsed tool call — throw so ActionRetryListenerImpl classifies as UnparsedToolCallError
         val unparsedToolCall = detectUnparsedToolCallInLastMessage(generations)
         if (unparsedToolCall != null) {
             val err = "ACP returned unparsed tool call as final structured output: $unparsedToolCall"
             log.warn(err)
             sessionManager.eventBus.publish(Events.NodeErrorEvent.err(err, sessionContext.chatModelKey))
-
-            val retryGenerations = mutableListOf<Generation>()
-            val retryContent = listOf(
-                ContentBlock.Text(
-                    "The last thing you sent was parsed as a tool call: $unparsedToolCall. " +
-                            "Do not return a tool call as final structured output. " +
-                            "Please continue with either a different tool call that can actually execute, " +
-                            "or return the required structured response for this step."
-                )
-            )
-            session.prompt(retryContent)
-                .transform { event ->
-                    parseGenerationsFromAcpEvent(event, sessionContext, memoryId).forEach { emit(it) }
-                }
-                .collect { retryGenerations.add(it) }
-
-            retryGenerations.addAll(session.flushWindows(memoryId))
-            return@runBlocking toChatResponse(retryGenerations)
+            throw RuntimeException(err)
         }
 
-        // If the response contains a '{' but is not valid JSON, the agent likely got
-        // truncated mid-response.  Send lightweight "please continue" instead of
-        // returning incomplete output (which causes the caller to do a full prompt
-        // retry with compaction overhead).
-        val incompleteJsonResult = handleIncompleteJson(generations, session, sessionContext, memoryId)
-        if (incompleteJsonResult != null) {
-            return@runBlocking incompleteJsonResult
+        // Incomplete JSON — throw so ActionRetryListenerImpl classifies as IncompleteJsonError
+        if (isIncompleteJson(generations)) {
+            throw RuntimeException(
+                "incomplete json: response was truncated for session ${sessionContext.chatModelKey.value}"
+            )
         }
 
         // Strip markdown code fences (```json ... ```) and leading prose before JSON.
-        // Agents sometimes wrap their JSON response in markdown formatting which the
-        // upstream structured output parser cannot handle.
         sanitizeGenerationText(generations)
 
         toChatResponse(generations)
     }
 
-    private suspend fun handleCompactingSession(
-        generations: MutableList<Generation>,
-        sessionContext: AcpSessionManager.AcpSessionContext,
-        session: AcpSessionManager.AcpSessionContext,
-        memoryId: Any?
-    ) {
-        if (!isSessionCompacting(generations)) {
-            return
-        }
-
-        log.info(
-            "ACP session compaction detected for {} — polling until compaction completes",
-            sessionContext.chatModelKey
-        )
-        eventBus.publish(
-            Events.CompactionEvent.of(
-                "ACP session compacting for ${sessionContext.chatModelKey.value} — polling until complete",
-                sessionContext.chatModelKey
-            )
-        )
-        val continueContent = listOf(ContentBlock.Text(CONTINUE))
-        val maxPolls = 20
-        var pollCount = 0
-
-        // Keep polling until we get a response that is NOT a compaction marker.
-        // The session needs time to finish compacting before it can produce real output.
-        while (pollCount < maxPolls) {
-            pollCount++
-            log.info(
-                "Compaction poll {}/{} for {} — waiting 10s",
-                pollCount, maxPolls, sessionContext.chatModelKey
-            )
-            withContext(Dispatchers.IO) {
-                Thread.sleep(10_000)
-            }
-            generations.clear()
-            doPerformPrompt(session, continueContent, sessionContext, memoryId, generations)
-            generations.addAll(session.flushWindows(memoryId))
-
-            if (!isSessionCompacting(generations)) {
-                log.info("Compaction completed after {} polls for {}", pollCount, sessionContext.chatModelKey)
-                return
-            }
-        }
-
-        // Still compacting after max polls — clear so downstream null/empty handler
-        // sends lightweight CONTINUE instead of returning "Compacting..." text.
-        log.warn("Compaction still active after {} polls for {} — clearing for downstream retry",
-            maxPolls, sessionContext.chatModelKey)
-        generations.clear()
-    }
-
     /**
-     * Detects incomplete JSON in the agent's response and sends "please continue" to get the
-     * agent to finish, rather than returning the truncated output (which causes the upstream
-     * structured output parser to do a full prompt retry with compaction overhead).
-     *
-     * Returns a ChatResponse if the incomplete JSON was recovered, or null if the response
-     * was not incomplete JSON (caller should proceed normally).
+     * Detects whether the generation text contains incomplete/truncated JSON.
+     * Returns true if text has a '{' but no valid complete JSON object.
      */
-    private suspend fun handleIncompleteJson(
-        generations: MutableList<Generation>,
-        session: AcpSessionManager.AcpSessionContext,
-        sessionContext: AcpSessionManager.AcpSessionContext,
-        memoryId: Any?
-    ): ChatResponse? {
+    private fun isIncompleteJson(generations: List<Generation>): Boolean {
         val rawText = generations
             .mapNotNull { runCatching { it.output.text }.getOrNull() }
             .joinToString("")
             .trim()
 
-        // Strip markdown fences before checking for incomplete JSON
         val combinedText = stripMarkdownCodeFences(rawText) ?: rawText
 
         if (combinedText.isEmpty() || !combinedText.contains("{")) {
-            return null
+            return false
         }
 
-        // Try to extract a complete JSON object — if it parses, no incomplete JSON
         val trailingJson = extractTrailingJsonObject(combinedText)
         if (trailingJson != null) {
             try {
                 objectMapper.readTree(trailingJson)
-                return null // Valid JSON — not incomplete
+                return false // Valid JSON — not incomplete
             } catch (_: Exception) {
-                // extractTrailingJsonObject found balanced braces but content isn't valid JSON
+                // Balanced braces but invalid JSON content
             }
         }
 
-        // Has a '{' but no complete JSON object — agent was truncated
-        val maxContinueRetries = 5
-        var continueCount = 0
-        val continueMsg = listOf(ContentBlock.Text(CONTINUE))
-
-        while (continueCount < maxContinueRetries) {
-            continueCount++
-            log.warn("Incomplete JSON detected for {} — sending continue {}/{}",
-                sessionContext.chatModelKey, continueCount, maxContinueRetries)
-
-            val retryGenerations = mutableListOf<Generation>()
-            doPerformPrompt(session, continueMsg, sessionContext, memoryId, retryGenerations)
-            retryGenerations.addAll(session.flushWindows(memoryId))
-
-            // Combine all text so far (original + all continuations), stripping fences
-            val allRaw = (generations + retryGenerations)
-                .mapNotNull { runCatching { it.output.text }.getOrNull() }
-                .joinToString("")
-                .trim()
-            val allText = stripMarkdownCodeFences(allRaw) ?: allRaw
-
-            val json = extractTrailingJsonObject(allText)
-            if (json != null) {
-                try {
-                    objectMapper.readTree(json)
-                    log.info("Incomplete JSON recovered after {} continue(s) for {}",
-                        continueCount, sessionContext.chatModelKey)
-                    generations.addAll(retryGenerations)
-                    return toChatResponse(generations)
-                } catch (_: Exception) {
-                    // Still not valid — keep trying
-                }
-            }
-
-            generations.addAll(retryGenerations)
-        }
-
-        log.warn("Incomplete JSON not recovered after {} continues for {} — returning as-is",
-            maxContinueRetries, sessionContext.chatModelKey)
-        return null
+        // Has a '{' but no complete JSON object — truncated
+        return true
     }
 
     /**
@@ -596,7 +453,11 @@ class AcpChatModel(
         }
 
         val sandboxTranslation =
-            resolveSandboxTranslation(resolvedCall.sessionArtifactKey(), resolvedCall.providerName() ?: AcpProvider.CLAUDE_LLAMA, provider.args)
+            resolveSandboxTranslation(
+                resolvedCall.sessionArtifactKey(),
+                resolvedCall.providerName() ?: AcpProvider.CLAUDE_LLAMA,
+                provider.args
+            )
         val process = command + sandboxTranslation.args.toTypedArray()
         val workingDirectory = provider.workingDirectory
 

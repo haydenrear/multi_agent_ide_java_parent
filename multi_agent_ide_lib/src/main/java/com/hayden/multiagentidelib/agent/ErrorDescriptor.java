@@ -40,6 +40,8 @@ public sealed interface ErrorDescriptor extends HasContextId
                 ErrorDescriptor.NullResultError,
                 ErrorDescriptor.IncompleteJsonError {
 
+    Throwable lastException();
+
     /**
      * Converts this error descriptor to the corresponding GraphEvent for event bus emission.
      * Returns null for NoError.
@@ -101,6 +103,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String actionName,
             String sessionKey,
             String detail,
+            Throwable lastException,
             ArtifactKey contextId
     ) {
         public static ErrorEntry from(ErrorDescriptor error) {
@@ -132,7 +135,7 @@ public sealed interface ErrorDescriptor extends HasContextId
                 case NullResultError e -> "retry=" + e.retryCount() + "/" + e.maxRetries();
                 case IncompleteJsonError e -> "retry=" + e.retryCount();
             };
-            return new ErrorEntry(type, action, session, detail, error.contextId());
+            return new ErrorEntry(type, action, session, detail, error.lastException(), error.contextId());
         }
     }
 
@@ -151,6 +154,11 @@ public sealed interface ErrorDescriptor extends HasContextId
 
     record NoError(String sessionKey, ArtifactKey contextId) implements ErrorDescriptor {
         @Override
+        public Throwable lastException() {
+            return null;
+        }
+
+        @Override
         public Events.GraphEvent toEvent() {
             return null;
         }
@@ -162,6 +170,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             CompactionStatus compactionStatus,
             boolean compactionCompleted,
             String errorDetail,
+            Throwable lastException,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -179,6 +188,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String sessionKey,
             String rawOutput,
             String errorDetail,
+            Throwable lastException,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -200,6 +210,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String sessionKey,
             int retryCount,
             String errorDetail,
+            Throwable lastException,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -221,6 +232,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             String sessionKey,
             String toolCallText,
             String errorDetail,
+            Throwable lastException,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -242,6 +254,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             int retryCount,
             int maxRetries,
             String errorDetail,
+            Throwable lastException,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {
@@ -264,6 +277,7 @@ public sealed interface ErrorDescriptor extends HasContextId
             int retryCount,
             String rawFragment,
             String errorDetail,
+            Throwable lastException,
             ArtifactKey contextId,
             ErrorContext errorContext
     ) implements ErrorDescriptor {

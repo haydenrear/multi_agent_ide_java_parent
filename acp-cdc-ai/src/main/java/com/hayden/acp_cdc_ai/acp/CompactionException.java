@@ -1,4 +1,4 @@
-package com.hayden.multiagentidelib.agent;
+package com.hayden.acp_cdc_ai.acp;
 
 /**
  * Typed exception thrown by AcpChatModel when compaction is detected in an ACP session.

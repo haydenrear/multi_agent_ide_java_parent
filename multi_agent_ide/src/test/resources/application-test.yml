@@ -1,6 +1,8 @@
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 1s
+  main:
+    allow-bean-definition-overriding: true
 
 # Artifact persistence configuration for tests
 artifacts:
@@ -31,3 +33,8 @@ llm:
 acp.mcp:
   http:
     enabled: false
+
+multi-agent-ide:
+  retry:
+    max-compaction-polls: 1
+    compaction-poll-interval-ms: 50

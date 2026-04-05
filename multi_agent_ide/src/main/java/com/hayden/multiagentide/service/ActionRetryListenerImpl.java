@@ -1,20 +1,20 @@
 package com.hayden.multiagentide.service;
 
 import com.embabel.agent.core.AgentProcess;
+import com.hayden.multiagentide.retry.RetryConfigProperties;
 import org.springframework.context.annotation.Lazy;
 import com.embabel.agent.spi.common.ActionRetryListener;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.agent.CompactionException;
+import com.hayden.acp_cdc_ai.acp.CompactionException;
 import com.hayden.multiagentidelib.agent.ErrorDescriptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.retry.RetryContext;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -47,12 +47,12 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class ActionRetryListenerImpl implements ActionRetryListener {
 
-    private static final int MAX_COMPACTION_POLLS = 30;
-    private static final long COMPACTION_POLL_INTERVAL_MS = 1_000;
-
     @Autowired
     @Lazy
     private EventBus eventBus;
+
+    @Autowired
+    private RetryConfigProperties retryConfigProperties;
 
     @Override
     public void onActionRetry(RetryContext context, Throwable throwable, AgentProcess agentProcess) {
@@ -80,6 +80,10 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
         ArtifactKey errorContextId = parentContextId.createChild();
 
         ErrorDescriptor errorDescriptor = classify(throwable, actionName, sessionKey, errorContextId, history);
+
+        if (history.didRetryAlreadyRunForThisExactExceptionInHierarchy(errorDescriptor))
+            return;
+
         history.addError(errorDescriptor);
 
         log.info("ActionRetryListener: recorded {} for action={} sessionKey={} retryCount={} on process={}",
@@ -151,41 +155,41 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
 
         if (throwable instanceof CompactionException) {
             ErrorDescriptor.CompactionStatus status = history.compactionStatusForRetrySequence(sessionKey).next();
-            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, message, contextId, errCtx);
+            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, message, throwable, contextId, errCtx);
         }
 
         if (lowerMessage.contains("compacting") || lowerMessage.contains("prompt is too long")) {
             ErrorDescriptor.CompactionStatus status = history.compactionStatusForRetrySequence(sessionKey).next();
-            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, message, contextId, errCtx);
+            return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, message, throwable, contextId, errCtx);
         }
 
         if (throwable instanceof TimeoutException || lowerMessage.contains("timeout")) {
             int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.TimeoutError.class, sessionKey) + 1;
-            return new ErrorDescriptor.TimeoutError(actionName, sessionKey, retryCount, message, contextId, errCtx);
+            return new ErrorDescriptor.TimeoutError(actionName, sessionKey, retryCount, message, throwable, contextId, errCtx);
         }
 
         if (lowerMessage.contains("tool call")) {
-            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, message, message, contextId, errCtx);
+            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, message, message, throwable, contextId, errCtx);
         }
 
         if (lowerMessage.contains("null") && lowerMessage.contains("result")
                 || lowerMessage.contains("empty response")) {
             int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.NullResultError.class, sessionKey) + 1;
-            return new ErrorDescriptor.NullResultError(actionName, sessionKey, retryCount, 5, message, contextId, errCtx);
+            return new ErrorDescriptor.NullResultError(actionName, sessionKey, retryCount, 5, message, throwable, contextId, errCtx);
         }
 
         if (lowerMessage.contains("incomplete json") || lowerMessage.contains("truncated")) {
             int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.IncompleteJsonError.class, sessionKey) + 1;
-            return new ErrorDescriptor.IncompleteJsonError(actionName, sessionKey, retryCount, message, message, contextId, errCtx);
+            return new ErrorDescriptor.IncompleteJsonError(actionName, sessionKey, retryCount, message, message, throwable, contextId, errCtx);
         }
 
         if (throwable instanceof com.fasterxml.jackson.core.JsonParseException
                 || lowerMessage.contains("parse")) {
-            return new ErrorDescriptor.ParseError(actionName, sessionKey, message, message, contextId, errCtx);
+            return new ErrorDescriptor.ParseError(actionName, sessionKey, message, message, throwable, contextId, errCtx);
         }
 
         // Fallback: treat as parse error with raw message
-        return new ErrorDescriptor.ParseError(actionName, sessionKey, message, message, contextId, errCtx);
+        return new ErrorDescriptor.ParseError(actionName, sessionKey, message, message, throwable, contextId, errCtx);
     }
 
     /**
@@ -195,9 +199,9 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
         log.info("ActionRetryListener: waiting for compaction to complete for action={}",
                 error.actionName());
 
-        for (int poll = 1; poll <= MAX_COMPACTION_POLLS; poll++) {
+        for (int poll = 1; poll <= retryConfigProperties.getMaxCompactionPolls(); poll++) {
             try {
-                Thread.sleep(COMPACTION_POLL_INTERVAL_MS);
+                Thread.sleep(retryConfigProperties.getCompactionPollIntervalMs());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 log.warn("ActionRetryListener: compaction wait interrupted for action={}",
@@ -205,10 +209,10 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
                 return;
             }
             log.info("ActionRetryListener: compaction poll {}/{} for action={}",
-                    poll, MAX_COMPACTION_POLLS, error.actionName());
+                    poll, retryConfigProperties.getMaxCompactionPolls(), error.actionName());
         }
 
         log.warn("ActionRetryListener: compaction still active after {} polls for action={} — returning for framework retry",
-                MAX_COMPACTION_POLLS, error.actionName());
+                retryConfigProperties.getMaxCompactionPolls(), error.actionName());
     }
 }

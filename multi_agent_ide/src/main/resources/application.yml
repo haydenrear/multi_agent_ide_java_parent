@@ -110,6 +110,8 @@ embabel:
   agent:
     platform:
       llm-operations:
+        data-binding:
+          max-attempts: 1
         prompts:
           default-timeout: 900m
       scanning:
@@ -217,6 +219,9 @@ mcp:
   protocols:
     required:
       hindsight: 2025-03-26
+
+
+
 
 skills:
   local-skills:
@@ -360,3 +365,5 @@ multi-agent-ide:
 filter:
   uv: uv
   bins: {{PROJ_DIR}}/bin
+
+

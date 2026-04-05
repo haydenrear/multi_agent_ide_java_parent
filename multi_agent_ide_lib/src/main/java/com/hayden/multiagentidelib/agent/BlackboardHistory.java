@@ -142,6 +142,12 @@ public class BlackboardHistory implements EventListener, EventSubscriber<Events.
                 && (type.isAssignableFrom(entry.inputType()) || type.equals(entry.inputType()));
     }
 
+    public boolean didRetryAlreadyRunForThisExactExceptionInHierarchy(ErrorDescriptor errorDescriptor) {
+        return this.getLastMatching(e -> e.input() instanceof ErrorDescriptor desc && desc.lastException() == errorDescriptor.lastException()
+                ? Optional.of(desc)
+                : Optional.empty()) != null;
+    }
+
     /**
      * Tracks a single historical blackboard state entry.
      * Each entry represents a previous action's input that has been archived.

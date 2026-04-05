@@ -1,7 +1,6 @@
 package com.hayden.multiagentide.integration;
 
 import com.embabel.agent.api.annotation.support.ActionQosProvider;
-import com.embabel.agent.api.annotation.support.DefaultActionMethodManager;
 import com.embabel.agent.api.common.PlannerType;
 import com.embabel.agent.core.ActionQos;
 import com.embabel.agent.core.AgentPlatform;
@@ -34,17 +33,13 @@ import com.hayden.multiagentide.transformation.repository.TransformationRecordRe
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
 import com.hayden.multiagentidelib.agent.AgentModels;
 import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.agent.CompactionException;
+import com.hayden.acp_cdc_ai.acp.CompactionException;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentidelib.llm.LlmRunner;
-import com.hayden.multiagentidelib.model.MergeResult;
-import com.hayden.multiagentidelib.model.merge.MergeAggregation;
-import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
-import com.hayden.multiagentidelib.model.merge.MergeDirection;
 import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
