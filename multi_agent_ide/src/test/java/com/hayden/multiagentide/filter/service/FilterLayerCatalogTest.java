@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.filter.service;
 
-import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentide.agent.AgentType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

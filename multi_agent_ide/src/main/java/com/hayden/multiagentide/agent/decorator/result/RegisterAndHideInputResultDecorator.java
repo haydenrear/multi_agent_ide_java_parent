@@ -1,9 +1,9 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
 import com.hayden.acp_cdc_ai.acp.events.HasContextId;
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistoryService;
+import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.BlackboardHistoryService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -2,7 +2,7 @@ package com.hayden.multiagentide.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
-import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentModels;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

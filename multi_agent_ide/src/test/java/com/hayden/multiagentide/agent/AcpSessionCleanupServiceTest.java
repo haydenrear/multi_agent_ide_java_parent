@@ -4,7 +4,6 @@ import com.hayden.acp_cdc_ai.acp.AcpSessionManager;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.agent.AgentModels;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

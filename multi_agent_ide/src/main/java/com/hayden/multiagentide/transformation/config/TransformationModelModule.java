@@ -3,10 +3,11 @@ package com.hayden.multiagentide.transformation.config;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.hayden.multiagentidelib.transformation.model.*;
-import com.hayden.multiagentidelib.transformation.model.executor.AiTransformerTool;
-import com.hayden.multiagentidelib.transformation.model.layer.AiTransformerContext;
-import com.hayden.multiagentidelib.transformation.model.layer.ControllerEndpointTransformationContext;
+import com.hayden.multiagentide.model.AiTextTransformer;
+import com.hayden.multiagentide.model.TextTransformer;
+import com.hayden.multiagentide.model.executor.AiTransformerTool;
+import com.hayden.multiagentide.model.layer.AiTransformerContext;
+import com.hayden.multiagentide.model.layer.ControllerEndpointTransformationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

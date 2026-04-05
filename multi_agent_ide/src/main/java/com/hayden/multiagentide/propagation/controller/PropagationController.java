@@ -9,7 +9,7 @@ import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationIte
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemResponse;
 import com.hayden.multiagentide.propagation.model.Propagation;
 import com.hayden.multiagentide.propagation.service.PropagationItemService;
-import com.hayden.multiagentidelib.propagation.model.PropagationResolutionType;
+import com.hayden.multiagentide.model.PropagationResolutionType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

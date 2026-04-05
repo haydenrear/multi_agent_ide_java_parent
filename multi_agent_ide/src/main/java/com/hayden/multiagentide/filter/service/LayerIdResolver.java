@@ -3,7 +3,7 @@ package com.hayden.multiagentide.filter.service;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.filter.repository.LayerEntity;
 import com.hayden.multiagentide.filter.repository.LayerRepository;
-import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentide.prompt.PromptContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

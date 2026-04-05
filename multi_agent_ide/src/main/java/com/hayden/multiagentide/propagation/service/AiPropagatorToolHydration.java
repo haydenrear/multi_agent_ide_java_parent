@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.propagation.service;
 
-import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
+import com.hayden.multiagentide.model.executor.AiPropagatorTool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;

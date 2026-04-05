@@ -1,9 +1,9 @@
 package com.hayden.multiagentide.repository;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.model.nodes.GraphNode;
-import com.hayden.multiagentidelib.model.nodes.InterruptNode;
-import com.hayden.multiagentidelib.model.nodes.ReviewNode;
+import com.hayden.multiagentide.model.nodes.GraphNode;
+import com.hayden.multiagentide.model.nodes.InterruptNode;
+import com.hayden.multiagentide.model.nodes.ReviewNode;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;

@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.filter.service;
 
-import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
+import com.hayden.multiagentide.filter.model.executor.AiFilterTool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;

@@ -1,11 +1,12 @@
 package com.hayden.multiagentide.agent.decorator;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentide.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentide.service.InterruptSchemaGenerator;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.model.nodes.GraphNode;
-import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
-import com.hayden.multiagentidelib.model.nodes.DiscoveryNode;
+import com.hayden.multiagentide.agent.AgentType;
+import com.hayden.multiagentide.model.nodes.GraphNode;
+import com.hayden.multiagentide.model.nodes.OrchestratorNode;
+import com.hayden.multiagentide.model.nodes.DiscoveryNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -335,7 +336,7 @@ class InterruptAddMessageComposerTest {
                 .createdAt(Instant.now())
                 .lastUpdatedAt(Instant.now())
                 .orchestratorOutput("")
-                .worktreeContext(com.hayden.multiagentidelib.model.worktree.MainWorktreeContext.builder()
+                .worktreeContext(MainWorktreeContext.builder()
                         .worktreeId("wt-test")
                         .repositoryUrl("https://test.example.com/repo.git")
                         .worktreePath(java.nio.file.Path.of("/tmp/test"))

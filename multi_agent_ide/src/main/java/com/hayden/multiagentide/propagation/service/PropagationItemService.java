@@ -1,12 +1,14 @@
 package com.hayden.multiagentide.propagation.service;
 
+import com.hayden.multiagentide.model.PropagationAction;
+import com.hayden.multiagentide.model.PropagationItemStatus;
+import com.hayden.multiagentide.model.PropagationResolutionType;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemResponse;
 import com.hayden.multiagentide.propagation.repository.PropagationItemEntity;
 import com.hayden.multiagentide.propagation.repository.PropagationItemRepository;
 import org.springframework.data.domain.PageRequest;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordEntity;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
-import com.hayden.multiagentidelib.propagation.model.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

@@ -2,9 +2,9 @@ package com.hayden.multiagentide.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentType;
+import com.hayden.multiagentide.prompt.contributor.NodeMappings;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

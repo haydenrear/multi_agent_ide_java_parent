@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.transformation.service;
 
-import com.hayden.multiagentidelib.transformation.model.executor.AiTransformerTool;
+import com.hayden.multiagentide.model.executor.AiTransformerTool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;

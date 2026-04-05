@@ -1,8 +1,8 @@
 package com.hayden.multiagentide.orchestration;
 
+import com.hayden.multiagentide.model.nodes.*;
+import com.hayden.multiagentide.model.worktree.WorktreeContext;
 import com.hayden.multiagentide.repository.EventStreamRepository;
-import com.hayden.multiagentidelib.model.nodes.*;
-import com.hayden.multiagentidelib.model.worktree.*;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.repository.GraphRepository;

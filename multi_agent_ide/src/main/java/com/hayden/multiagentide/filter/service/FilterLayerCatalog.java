@@ -2,8 +2,8 @@ package com.hayden.multiagentide.filter.service;
 
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.agent.AgentInterfaces;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentType;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

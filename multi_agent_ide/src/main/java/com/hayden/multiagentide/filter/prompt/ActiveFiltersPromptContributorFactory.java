@@ -5,17 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
 import com.hayden.multiagentide.filter.service.LayerIdResolver;
 import com.hayden.multiagentide.filter.service.PolicyDiscoveryService;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.prompt.PromptContributor;
-import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
-import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
-import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentide.agent.AgentType;
+import com.hayden.multiagentide.prompt.PromptContributor;
+import com.hayden.multiagentide.prompt.PromptContributorDescriptor;
+import com.hayden.multiagentide.prompt.PromptContributorFactory;
+import com.hayden.multiagentide.prompt.PromptContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 

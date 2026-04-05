@@ -2,12 +2,11 @@ package com.hayden.multiagentide.controller;
 
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentide.model.nodes.*;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.repository.GraphRepository;
-import com.hayden.multiagentidelib.model.nodes.*;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
-import org.junit.jupiter.api.BeforeEach;
+import com.hayden.multiagentide.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentide.model.worktree.WorktreeContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;

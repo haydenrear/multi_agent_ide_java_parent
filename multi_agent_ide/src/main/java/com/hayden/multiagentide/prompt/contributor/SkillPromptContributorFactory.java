@@ -1,13 +1,12 @@
 package com.hayden.multiagentide.prompt.contributor;
 
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.skills.SkillDecorator;
+import com.hayden.multiagentide.agent.BlackboardHistory;
+import com.hayden.multiagentide.skills.SkillDecorator;
 import com.hayden.multiagentide.skills.SkillFinder;
-import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentidelib.prompt.PromptContributor;
-import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
-import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
+import com.hayden.multiagentide.prompt.PromptContext;
+import com.hayden.multiagentide.prompt.PromptContributor;
+import com.hayden.multiagentide.prompt.PromptContributorDescriptor;
+import com.hayden.multiagentide.prompt.PromptContributorFactory;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Component;

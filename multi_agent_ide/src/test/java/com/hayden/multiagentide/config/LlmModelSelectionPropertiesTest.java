@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.config;
 
 import com.hayden.acp_cdc_ai.acp.config.AcpProvider;
-import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentide.agent.AgentType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

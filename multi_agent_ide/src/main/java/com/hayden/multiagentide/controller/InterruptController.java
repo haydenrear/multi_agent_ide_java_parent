@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.controller;
 
 import com.hayden.multiagentide.repository.GraphRepository;
-import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
+import com.hayden.multiagentide.prompt.contributor.NodeMappings;
 import jakarta.validation.Valid;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
@@ -9,7 +9,7 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.service.AgentControlService;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.service.PermissionGateService;
-import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentide.agent.AgentType;
 
 import java.time.Instant;
 import java.util.List;

@@ -2,8 +2,8 @@ package com.hayden.multiagentide.config;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.UpstreamContext;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.UpstreamContext;
 
 /**
  * Jackson mix-in for Artifact.AgentModel interface to enable polymorphic serialization/deserialization.

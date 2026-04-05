@@ -1,20 +1,14 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentide.agent.WorkflowGraphService;
-import com.hayden.multiagentide.service.GitMergeService;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
-import com.hayden.multiagentidelib.model.merge.MergeDirection;
-import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
-import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
+import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.BlackboardHistory;
+import com.hayden.multiagentide.model.worktree.WorktreeSandboxContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 
-import java.util.Objects;
 import java.util.Optional;
 
 /**

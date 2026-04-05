@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationEntity;
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
-import com.hayden.multiagentidelib.propagation.model.Propagator;
-import com.hayden.multiagentidelib.propagation.model.PropagatorLayerBinding;
-import com.hayden.multiagentidelib.propagation.model.PropagatorMatchOn;
-import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
+import com.hayden.multiagentide.model.Propagator;
+import com.hayden.multiagentide.model.PropagatorLayerBinding;
+import com.hayden.multiagentide.model.PropagatorMatchOn;
+import com.hayden.multiagentide.model.executor.AiPropagatorTool;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

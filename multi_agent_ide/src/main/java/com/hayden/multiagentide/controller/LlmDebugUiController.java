@@ -1,5 +1,6 @@
 package com.hayden.multiagentide.controller;
 
+import com.hayden.multiagentide.model.nodes.*;
 import jakarta.validation.Valid;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
@@ -12,7 +13,6 @@ import com.hayden.multiagentide.propagation.service.PropagationItemService;
 import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.transformation.integration.ControllerEndpointTransformationIntegration;
-import com.hayden.multiagentidelib.model.nodes.*;
 import com.hayden.multiagentide.ui.shared.SharedUiInteractionService;
 import com.hayden.multiagentide.ui.shared.UiActionCommand;
 import com.hayden.multiagentide.ui.shared.UiStateSnapshot;

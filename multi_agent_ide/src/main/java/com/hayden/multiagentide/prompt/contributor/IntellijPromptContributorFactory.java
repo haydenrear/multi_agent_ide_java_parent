@@ -1,14 +1,13 @@
 package com.hayden.multiagentide.prompt.contributor;
 
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
-import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentidelib.prompt.PromptContributor;
-import com.hayden.multiagentidelib.prompt.PromptContributorDescriptor;
-import com.hayden.multiagentidelib.prompt.PromptContributorFactory;
+import com.hayden.multiagentide.agent.BlackboardHistory;
+import com.hayden.multiagentide.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentide.model.worktree.WorktreeSandboxContext;
+import com.hayden.multiagentide.prompt.PromptContext;
+import com.hayden.multiagentide.prompt.PromptContributor;
+import com.hayden.multiagentide.prompt.PromptContributorDescriptor;
+import com.hayden.multiagentide.prompt.PromptContributorFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;

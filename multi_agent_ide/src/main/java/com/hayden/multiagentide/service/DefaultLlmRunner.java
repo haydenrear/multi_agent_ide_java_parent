@@ -1,6 +1,5 @@
 package com.hayden.multiagentide.service;
 
-import com.embabel.agent.api.common.nested.ObjectCreator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.embabel.agent.api.common.ContextualPromptElement;
 import com.embabel.agent.api.common.OperationContext;
@@ -10,15 +9,14 @@ import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.multiagentide.agent.AskUserQuestionToolAdapter;
 import com.hayden.multiagentide.agent.decorator.prompt.LlmCallDecorator;
 import com.hayden.multiagentide.config.LlmModelSelectionProperties;
-import com.hayden.multiagentidelib.llm.LlmRunner;
-import com.hayden.multiagentidelib.prompt.PromptContributorService;
-import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentidelib.tool.ToolAbstraction;
-import com.hayden.multiagentidelib.tool.ToolContext;
+import com.hayden.multiagentide.llm.LlmRunner;
+import com.hayden.multiagentide.prompt.PromptContributorService;
+import com.hayden.multiagentide.prompt.PromptContext;
+import com.hayden.multiagentide.tool.ToolAbstraction;
+import com.hayden.multiagentide.tool.ToolContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

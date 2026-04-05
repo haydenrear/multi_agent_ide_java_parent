@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.cli;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentModels;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

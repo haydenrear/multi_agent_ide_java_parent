@@ -4,11 +4,10 @@ import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentProcess;
 import com.hayden.multiagentide.service.AgentExecutor;
 import com.hayden.multiagentide.service.InterruptService;
-import com.hayden.multiagentidelib.llm.LlmRunner;
-import com.hayden.multiagentidelib.agent.*;
-import com.hayden.multiagentidelib.prompt.ContextIdService;
-import com.hayden.multiagentidelib.prompt.PromptContextFactory;
-import com.hayden.multiagentidelib.service.RequestEnrichment;
+import com.hayden.multiagentide.llm.LlmRunner;
+import com.hayden.multiagentide.prompt.ContextIdService;
+import com.hayden.multiagentide.prompt.PromptContextFactory;
+import com.hayden.multiagentide.service.RequestEnrichment;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import org.junit.jupiter.api.Test;
 

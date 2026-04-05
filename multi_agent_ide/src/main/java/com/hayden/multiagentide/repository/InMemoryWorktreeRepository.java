@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.repository;
 
-import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
+import com.hayden.multiagentide.model.worktree.WorktreeContext;
 import org.springframework.stereotype.Repository;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;

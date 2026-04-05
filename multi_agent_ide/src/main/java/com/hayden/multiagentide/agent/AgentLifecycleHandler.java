@@ -2,14 +2,12 @@ package com.hayden.multiagentide.agent;
 
 import com.embabel.agent.api.event.*;
 import com.embabel.agent.core.*;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.model.nodes.*;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentide.model.nodes.OrchestratorNode;
+import com.hayden.multiagentide.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentide.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.WorktreeService;

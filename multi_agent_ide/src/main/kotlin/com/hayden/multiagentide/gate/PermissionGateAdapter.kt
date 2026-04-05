@@ -7,7 +7,7 @@ import com.agentclientprotocol.model.RequestPermissionResponse
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.Events
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
-import com.hayden.multiagentidelib.model.nodes.AskPermissionNode
+import com.hayden.multiagentide.model.nodes.AskPermissionNode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.future.future

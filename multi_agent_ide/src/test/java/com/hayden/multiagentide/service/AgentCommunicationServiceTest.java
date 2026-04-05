@@ -2,13 +2,14 @@ package com.hayden.multiagentide.service;
 
 import com.hayden.acp_cdc_ai.acp.AcpSessionManager;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
+import com.hayden.multiagentide.model.nodes.DiscoveryOrchestratorNode;
+import com.hayden.multiagentide.model.worktree.MainWorktreeContext;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.topology.CommunicationTopologyConfig;
 import com.hayden.multiagentide.topology.CommunicationTopologyProvider;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
-import com.hayden.multiagentidelib.model.nodes.DiscoveryNode;
-import com.hayden.multiagentidelib.model.nodes.GraphNode;
+import com.hayden.multiagentide.agent.AgentType;
+import com.hayden.multiagentide.model.nodes.OrchestratorNode;
+import com.hayden.multiagentide.model.nodes.GraphNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -245,7 +246,7 @@ class AgentCommunicationServiceTest {
                 .createdAt(java.time.Instant.now())
                 .lastUpdatedAt(java.time.Instant.now())
                 .orchestratorOutput("")
-                .worktreeContext(com.hayden.multiagentidelib.model.worktree.MainWorktreeContext.builder()
+                .worktreeContext(MainWorktreeContext.builder()
                         .worktreeId("wt-test")
                         .repositoryUrl("https://test.example.com/repo.git")
                         .worktreePath(java.nio.file.Path.of("/tmp/test"))
@@ -254,7 +255,7 @@ class AgentCommunicationServiceTest {
     }
 
     private GraphNode mockDiscoveryOrchestratorNode(ArtifactKey key) {
-        return com.hayden.multiagentidelib.model.nodes.DiscoveryOrchestratorNode.builder()
+        return DiscoveryOrchestratorNode.builder()
                 .nodeId(key.value())
                 .title("Discovery Orchestrator")
                 .goal("Test")

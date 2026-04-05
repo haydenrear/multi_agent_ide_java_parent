@@ -3,10 +3,11 @@ package com.hayden.multiagentide.propagation.config;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.hayden.multiagentidelib.propagation.model.*;
-import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
-import com.hayden.multiagentidelib.propagation.model.layer.AiPropagatorContext;
-import com.hayden.multiagentidelib.propagation.model.layer.DefaultPropagationContext;
+import com.hayden.multiagentide.model.AiTextPropagator;
+import com.hayden.multiagentide.model.TextPropagator;
+import com.hayden.multiagentide.model.executor.AiPropagatorTool;
+import com.hayden.multiagentide.model.layer.AiPropagatorContext;
+import com.hayden.multiagentide.model.layer.DefaultPropagationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

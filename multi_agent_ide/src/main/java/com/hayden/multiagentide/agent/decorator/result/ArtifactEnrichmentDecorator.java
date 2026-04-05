@@ -1,9 +1,9 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
 import com.embabel.agent.api.common.OperationContext;
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.service.RequestEnrichment;
+import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.service.RequestEnrichment;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -2,12 +2,13 @@ package com.hayden.multiagentide.agent.decorator.prompt;
 
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
+import com.hayden.multiagentide.agent.AgentType;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.propagation.service.PropagationExecutionService;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.prompt.PromptContributorService;
-import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentidelib.propagation.model.PropagatorMatchOn;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.prompt.PromptContributorService;
+import com.hayden.multiagentide.prompt.PromptContext;
+import com.hayden.multiagentide.model.PropagatorMatchOn;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -67,9 +68,9 @@ public class PromptHealthCheckLlmCallDecorator implements LlmCallDecorator {
         // Avoid recursion: do not fire health checks for internal automation LLM calls
         // (AI_PROPAGATOR, AI_FILTER, AI_TRANSFORMER all invoke the LLM themselves).
         var agentType = context.promptContext().agentType();
-        if (agentType == com.hayden.multiagentidelib.agent.AgentType.AI_PROPAGATOR
-                || agentType == com.hayden.multiagentidelib.agent.AgentType.AI_FILTER
-                || agentType == com.hayden.multiagentidelib.agent.AgentType.AI_TRANSFORMER) {
+        if (agentType == AgentType.AI_PROPAGATOR
+                || agentType == AgentType.AI_FILTER
+                || agentType == AgentType.AI_TRANSFORMER) {
             return context;
         }
         // Additional self-referential guard: if the assembled prompt already contains the

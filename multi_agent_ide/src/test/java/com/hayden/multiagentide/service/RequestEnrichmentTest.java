@@ -1,10 +1,10 @@
 package com.hayden.multiagentide.service;
 
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.prompt.ContextIdService;
-import com.hayden.multiagentidelib.service.RequestEnrichment;
-import com.hayden.multiagentidelib.template.DiscoveryReport;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.BlackboardHistory;
+import com.hayden.multiagentide.prompt.ContextIdService;
+import com.hayden.multiagentide.template.DiscoveryReport;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.Blackboard;
@@ -59,7 +59,7 @@ class RequestEnrichmentTest {
         Blackboard blackboard = mock(Blackboard.class);
         when(operationContext.getAgentProcess()).thenReturn(agentProcess);
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
-        when(blackboard.last(com.hayden.multiagentidelib.agent.BlackboardHistory.class)).thenReturn(null);
+        when(blackboard.last(BlackboardHistory.class)).thenReturn(null);
 
         AgentModels.DiscoveryAgentResults enriched = enrichment.enrich(request, operationContext, parent);
 

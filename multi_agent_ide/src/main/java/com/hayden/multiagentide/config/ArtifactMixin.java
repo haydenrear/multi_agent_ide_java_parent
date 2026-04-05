@@ -2,7 +2,7 @@ package com.hayden.multiagentide.config;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
+import com.hayden.multiagentide.artifact.PromptTemplateVersion;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.MessageStreamArtifact;
 

@@ -5,21 +5,22 @@ import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.agent.DecoratorContext;
+import com.hayden.multiagentide.model.merge.MergeDirection;
+import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptContextDecorator;
 import com.hayden.multiagentide.agent.decorator.tools.ToolContextDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
-import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
-import com.hayden.multiagentidelib.llm.AgentLlmExecutor.DirectExecutorArgs;
-import com.hayden.multiagentidelib.tool.ToolContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.model.merge.AgentMergeStatus;
-import com.hayden.multiagentidelib.model.merge.MergeAggregation;
-import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
-import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
-import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentide.llm.AgentLlmExecutor;
+import com.hayden.multiagentide.llm.AgentLlmExecutor.DirectExecutorArgs;
+import com.hayden.multiagentide.tool.ToolContext;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentType;
+import com.hayden.multiagentide.model.merge.AgentMergeStatus;
+import com.hayden.multiagentide.model.merge.MergeAggregation;
+import com.hayden.multiagentide.model.merge.MergeDescriptor;
+import com.hayden.multiagentide.model.worktree.WorktreeSandboxContext;
+import com.hayden.multiagentide.prompt.PromptContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -307,7 +308,7 @@ public class WorktreeMergeConflictService {
 
     private MergeDescriptor toAggregationDescriptor(MergeAggregation aggregation) {
         if (aggregation == null) {
-            return MergeDescriptor.noOp(com.hayden.multiagentidelib.model.merge.MergeDirection.CHILD_TO_TRUNK);
+            return MergeDescriptor.noOp(MergeDirection.CHILD_TO_TRUNK);
         }
         if (aggregation.conflicted() != null && aggregation.conflicted().mergeDescriptor() != null) {
             return aggregation.conflicted().mergeDescriptor();
@@ -321,7 +322,7 @@ public class WorktreeMergeConflictService {
             conflictFiles.addAll(status.mergeDescriptor().conflictFiles());
         }
         return MergeDescriptor.builder()
-                .mergeDirection(com.hayden.multiagentidelib.model.merge.MergeDirection.CHILD_TO_TRUNK)
+                .mergeDirection(MergeDirection.CHILD_TO_TRUNK)
                 .successful(true)
                 .conflictFiles(conflictFiles)
                 .build();

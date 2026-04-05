@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.artifacts;
 
-import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
+import com.hayden.multiagentide.artifact.PromptTemplateVersion;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import org.junit.jupiter.api.BeforeEach;

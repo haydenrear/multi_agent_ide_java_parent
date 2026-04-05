@@ -30,7 +30,6 @@ dependencies {
     implementation("org.jspecify:jspecify:1.0.0")
     implementation(project(":commit-diff-context"))
     implementation(project(":commit-diff-model"))
-    implementation(project(":multi_agent_ide_java_parent:multi_agent_ide_lib"))
     implementation(project(":persistence"))
     implementation(project(":hindsight"))
     implementation(project(":jpa-persistence"))
@@ -154,17 +153,6 @@ tasks.test {
     dependsOn("processYmlFiles", "processXmlFiles")
 }
 
-tasks.register("multiAgentIdeLibTest") {
-    description = "Run unit tests for multi_agent_ide and its dependency modules"
-    group = "verification"
-
-    dependsOn(
-        ":multi_agent_ide_java_parent:multi_agent_ide_lib:test",
-        "processYmlFiles",
-        "processXmlFiles"
-    )
-}
-
 tasks.register("utilityModuleTest") {
     description = "Run unit tests for multi_agent_ide and its dependency modules"
     group = "verification"
@@ -191,8 +179,7 @@ tasks.register<Test>("unitTest") {
     exclude("**/acp_tests/**", "**/integration/**", "**/perf/**", "**/cli/**")
     dependsOn(
         "acpCdcAiTest",
-        "utilityModuleTest",
-        "multiAgentIdeLibTest"
+        "utilityModuleTest"
     )
 }
 

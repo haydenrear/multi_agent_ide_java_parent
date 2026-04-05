@@ -1,8 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.prompt;
 
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
-import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.prompt.PromptContext;
 import org.springframework.stereotype.Component;
 
 @Component

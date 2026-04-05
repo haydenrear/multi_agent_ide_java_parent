@@ -1,6 +1,7 @@
 package com.hayden.multiagentide.propagation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hayden.multiagentide.model.PropagationResolutionType;
 import com.hayden.multiagentide.propagation.controller.dto.ResolvePropagationItemResponse;
 import com.hayden.multiagentide.propagation.service.PropagationItemService;
 import com.hayden.multiagentide.propagation.repository.PropagationItemEntity;
@@ -56,7 +57,7 @@ class PropagationControllerTest {
 
     @Test
     void resolve_returnsServiceResponse() throws Exception {
-        when(propagationItemService.resolve(eq("item-1"), eq(com.hayden.multiagentidelib.propagation.model.PropagationResolutionType.ACKNOWLEDGED), eq("looks good")))
+        when(propagationItemService.resolve(eq("item-1"), eq(PropagationResolutionType.ACKNOWLEDGED), eq("looks good")))
                 .thenReturn(ResolvePropagationItemResponse.builder()
                         .ok(true)
                         .itemId("item-1")

@@ -1,10 +1,9 @@
 package com.hayden.multiagentide.prompt.contributor;
 
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
-import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentidelib.prompt.PromptContributor;
+import com.hayden.multiagentide.prompt.PromptContext;
+import com.hayden.multiagentide.prompt.PromptContributor;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 // @Component
 @RequiredArgsConstructor

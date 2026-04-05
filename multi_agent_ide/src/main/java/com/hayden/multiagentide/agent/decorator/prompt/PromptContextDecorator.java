@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.prompt;
 
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.prompt.PromptContext;
 
 public interface PromptContextDecorator {
 

@@ -6,7 +6,7 @@ import com.hayden.multiagentide.artifacts.PolicyLifecycleArtifactService;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationEntity;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
-import com.hayden.multiagentidelib.filter.model.policy.PolicyLayerBinding;
+import com.hayden.multiagentide.filter.model.policy.PolicyLayerBinding;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

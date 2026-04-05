@@ -3,8 +3,8 @@ package com.hayden.multiagentide.agent.decorator.prompt;
 import com.embabel.agent.api.common.nested.ObjectCreator;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.agent.*;
-import com.hayden.multiagentidelib.prompt.PromptContext;
+import com.hayden.multiagentide.agent.*;
+import com.hayden.multiagentide.prompt.PromptContext;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

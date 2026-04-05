@@ -1,9 +1,9 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
 import com.hayden.multiagentide.agent.decorator.request.SandboxResolver;
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
+import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.model.worktree.WorktreeSandboxContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

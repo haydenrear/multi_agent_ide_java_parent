@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
 import com.hayden.multiagentide.agent.WorkflowGraphService;
-import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentModels;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

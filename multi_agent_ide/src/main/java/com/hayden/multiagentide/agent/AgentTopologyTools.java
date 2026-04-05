@@ -12,17 +12,14 @@ import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
 import com.hayden.multiagentide.service.AgentCommunicationService;
 import com.hayden.multiagentide.service.SessionKeyResolutionService;
 
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentidelib.llm.AgentLlmExecutor;
-import com.hayden.multiagentidelib.llm.AgentLlmExecutor.DirectExecutorArgs;
-import com.hayden.multiagentidelib.model.nodes.AgentToAgentConversationNode;
-import com.hayden.multiagentidelib.model.nodes.GraphNode;
-import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentidelib.prompt.PromptContextFactory;
-import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
+import com.hayden.multiagentide.tool.ToolContext;
+import com.hayden.multiagentide.llm.AgentLlmExecutor;
+import com.hayden.multiagentide.llm.AgentLlmExecutor.DirectExecutorArgs;
+import com.hayden.multiagentide.model.nodes.AgentToAgentConversationNode;
+import com.hayden.multiagentide.model.nodes.GraphNode;
+import com.hayden.multiagentide.prompt.PromptContext;
+import com.hayden.multiagentide.prompt.PromptContextFactory;
+import com.hayden.multiagentide.prompt.contributor.NodeMappings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -322,9 +319,9 @@ public class AgentTopologyTools implements ToolCarrier {
             );
 
             // 3. Build and decorate tool context
-            com.hayden.multiagentidelib.tool.ToolContext toolContext = decorateRequestResults.decorateToolContext(
+            ToolContext toolContext = decorateRequestResults.decorateToolContext(
                     new DecorateRequestResults.DecorateToolArgs(
-                            com.hayden.multiagentidelib.tool.ToolContext.empty(),
+                            ToolContext.empty(),
                             enrichedRequest,
                             lastRequest,
                             operationContext,

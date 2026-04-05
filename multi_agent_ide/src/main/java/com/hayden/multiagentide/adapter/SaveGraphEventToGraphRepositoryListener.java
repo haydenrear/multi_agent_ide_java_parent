@@ -4,7 +4,7 @@ import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.acp_cdc_ai.acp.events.EventNode;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.repository.GraphRepository;
-import com.hayden.multiagentidelib.model.nodes.GraphNode;
+import com.hayden.multiagentide.model.nodes.GraphNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

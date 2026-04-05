@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.propagation.controller.dto;
 
-import com.hayden.multiagentidelib.filter.model.executor.AiFilterTool;
+import com.hayden.multiagentide.filter.model.executor.AiFilterTool;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 

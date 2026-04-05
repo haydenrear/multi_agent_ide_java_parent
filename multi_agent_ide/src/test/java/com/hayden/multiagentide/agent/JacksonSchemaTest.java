@@ -3,8 +3,6 @@ package com.hayden.multiagentide.agent;
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter;
 import com.embabel.common.ai.converters.JacksonPropertyFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.SkipPropertyFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 

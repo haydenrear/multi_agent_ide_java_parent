@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.repository;
 
-import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
+import com.hayden.multiagentide.model.worktree.WorktreeContext;
 
 import java.nio.file.Path;
 import java.util.List;

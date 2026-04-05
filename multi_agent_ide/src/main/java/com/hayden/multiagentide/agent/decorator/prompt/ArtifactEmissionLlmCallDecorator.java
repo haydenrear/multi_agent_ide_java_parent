@@ -7,13 +7,14 @@ import com.google.common.collect.Lists;
 import com.hayden.multiagentide.artifacts.ArtifactService;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
 import com.hayden.multiagentide.filter.prompt.FilteredPromptContributorAdapter;
-import com.hayden.multiagentidelib.tool.ToolAbstraction;
-import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
-import com.hayden.multiagentidelib.filter.service.FilterResult;
-import com.hayden.multiagentidelib.prompt.FilteredPromptContributor;
-import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentidelib.prompt.PromptContributor;
-import com.hayden.multiagentidelib.prompt.PromptContributorAdapter;
+import com.hayden.multiagentide.filter.service.FilterDescriptor;
+import com.hayden.multiagentide.tool.ToolAbstraction;
+import com.hayden.multiagentide.artifact.PromptTemplateVersion;
+import com.hayden.multiagentide.filter.service.FilterResult;
+import com.hayden.multiagentide.prompt.FilteredPromptContributor;
+import com.hayden.multiagentide.prompt.PromptContext;
+import com.hayden.multiagentide.prompt.PromptContributor;
+import com.hayden.multiagentide.prompt.PromptContributorAdapter;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactHashing;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
@@ -598,7 +599,7 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
         return null;
     }
 
-    private Artifact.FilterDescriptorArtifact.FilterDescriptorView toDescriptorView(com.hayden.multiagentidelib.filter.service.FilterDescriptor descriptor) {
+    private Artifact.FilterDescriptorArtifact.FilterDescriptorView toDescriptorView(FilterDescriptor descriptor) {
         if (descriptor == null) {
             return new Artifact.FilterDescriptorArtifact.FilterDescriptorView(List.of(), List.of());
         }
@@ -612,7 +613,7 @@ public class ArtifactEmissionLlmCallDecorator implements LlmCallDecorator {
     }
 
     private Artifact.FilterDescriptorArtifact.FilterDescriptorView.DescriptorEntry toDescriptorEntry(
-            com.hayden.multiagentidelib.filter.service.FilterDescriptor.Entry entry) {
+            FilterDescriptor.Entry entry) {
         return new Artifact.FilterDescriptorArtifact.FilterDescriptorView.DescriptorEntry(
                 entry.descriptorType(),
                 entry.policyId(),

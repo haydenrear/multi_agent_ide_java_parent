@@ -1,13 +1,12 @@
 package com.hayden.multiagentide.filter.integration;
 
 import com.hayden.multiagentide.filter.service.FilterExecutionService;
-import com.hayden.multiagentidelib.filter.config.FilterContextFactory;
+import com.hayden.multiagentide.filter.config.FilterContextFactory;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
-import com.hayden.multiagentidelib.filter.model.FilterSource;
-import com.hayden.multiagentidelib.filter.model.layer.DefaultPathFilterContext;
-import com.hayden.multiagentidelib.filter.model.layer.FilterContext;
-import com.hayden.multiagentidelib.filter.service.FilterDescriptor;
-import com.hayden.multiagentidelib.filter.service.FilterResult;
+import com.hayden.multiagentide.filter.model.FilterSource;
+import com.hayden.multiagentide.filter.model.layer.FilterContext;
+import com.hayden.multiagentide.filter.service.FilterDescriptor;
+import com.hayden.multiagentide.filter.service.FilterResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

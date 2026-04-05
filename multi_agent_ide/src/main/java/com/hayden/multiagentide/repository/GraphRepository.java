@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.repository;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.model.nodes.GraphNode;
+import com.hayden.multiagentide.model.nodes.GraphNode;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

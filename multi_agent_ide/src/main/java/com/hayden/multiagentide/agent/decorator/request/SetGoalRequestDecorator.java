@@ -1,8 +1,8 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
+import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.BlackboardHistory;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

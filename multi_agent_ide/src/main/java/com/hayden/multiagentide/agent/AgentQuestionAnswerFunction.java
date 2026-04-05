@@ -4,8 +4,6 @@ import com.embabel.agent.core.AgentPlatform;
 import com.hayden.multiagentide.gate.PermissionGate;
 import com.hayden.multiagentide.repository.GraphRepository;
 import com.hayden.multiagentide.service.InterruptService;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;

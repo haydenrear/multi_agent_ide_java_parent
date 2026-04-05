@@ -5,7 +5,6 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.EventListener;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.agent.AgentModels;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

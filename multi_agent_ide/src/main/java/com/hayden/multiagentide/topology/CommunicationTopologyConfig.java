@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.topology;
 
-import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentide.agent.AgentType;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;

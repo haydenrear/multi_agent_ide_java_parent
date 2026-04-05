@@ -7,17 +7,37 @@ import com.agentclientprotocol.model.SessionUpdate
 import com.hayden.acp_cdc_ai.acp.AcpChatModel.AddMessage
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator
 import com.hayden.multiagentide.repository.GraphRepository
-import com.hayden.multiagentidelib.agent.AgentModels
-import com.hayden.multiagentidelib.model.nodes.AskPermissionNode
-import com.hayden.multiagentidelib.model.nodes.GraphNode
-import com.hayden.multiagentidelib.model.nodes.InterruptContext
-import com.hayden.multiagentidelib.model.nodes.InterruptNode
-import com.hayden.multiagentidelib.model.nodes.Interruptible
-import com.hayden.multiagentidelib.model.nodes.ReviewNode
+import com.hayden.multiagentide.agent.AgentModels
+import com.hayden.multiagentide.model.nodes.AskPermissionNode
+import com.hayden.multiagentide.model.nodes.GraphNode
+import com.hayden.multiagentide.model.nodes.InterruptContext
+import com.hayden.multiagentide.model.nodes.InterruptNode
+import com.hayden.multiagentide.model.nodes.Interruptible
+import com.hayden.multiagentide.model.nodes.ReviewNode
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey
 import com.hayden.acp_cdc_ai.acp.events.EventBus
 import com.hayden.acp_cdc_ai.acp.events.Events
 import com.hayden.acp_cdc_ai.permission.IPermissionGate
+import com.hayden.multiagentide.model.nodes.AgentToAgentConversationNode
+import com.hayden.multiagentide.model.nodes.AgentToControllerConversationNode
+import com.hayden.multiagentide.model.nodes.CollectorNode
+import com.hayden.multiagentide.model.nodes.ControllerToAgentConversationNode
+import com.hayden.multiagentide.model.nodes.DataLayerOperationNode
+import com.hayden.multiagentide.model.nodes.DiscoveryCollectorNode
+import com.hayden.multiagentide.model.nodes.DiscoveryDispatchAgentNode
+import com.hayden.multiagentide.model.nodes.DiscoveryNode
+import com.hayden.multiagentide.model.nodes.DiscoveryOrchestratorNode
+import com.hayden.multiagentide.model.nodes.MergeNode
+import com.hayden.multiagentide.model.nodes.OrchestratorNode
+import com.hayden.multiagentide.model.nodes.PlanningCollectorNode
+import com.hayden.multiagentide.model.nodes.PlanningDispatchAgentNode
+import com.hayden.multiagentide.model.nodes.PlanningNode
+import com.hayden.multiagentide.model.nodes.PlanningOrchestratorNode
+import com.hayden.multiagentide.model.nodes.SummaryNode
+import com.hayden.multiagentide.model.nodes.TicketCollectorNode
+import com.hayden.multiagentide.model.nodes.TicketDispatchAgentNode
+import com.hayden.multiagentide.model.nodes.TicketNode
+import com.hayden.multiagentide.model.nodes.TicketOrchestratorNode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
@@ -469,73 +489,73 @@ class PermissionGate(
 
     private fun updateInterruptContext(node: GraphNode, context: InterruptContext): GraphNode {
         return when (node) {
-            is com.hayden.multiagentidelib.model.nodes.DiscoveryNode ->
+            is DiscoveryNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.DiscoveryCollectorNode ->
+            is DiscoveryCollectorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.DiscoveryDispatchAgentNode ->
+            is DiscoveryDispatchAgentNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.DiscoveryOrchestratorNode ->
+            is DiscoveryOrchestratorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.PlanningNode ->
+            is PlanningNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.PlanningCollectorNode ->
+            is PlanningCollectorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.PlanningDispatchAgentNode ->
+            is PlanningDispatchAgentNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.PlanningOrchestratorNode ->
+            is PlanningOrchestratorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.TicketNode ->
+            is TicketNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.TicketCollectorNode ->
+            is TicketCollectorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.TicketDispatchAgentNode ->
+            is TicketDispatchAgentNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.TicketOrchestratorNode ->
+            is TicketOrchestratorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
             is ReviewNode ->
                 node.toBuilder().interruptContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.MergeNode ->
+            is MergeNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.OrchestratorNode ->
+            is OrchestratorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.CollectorNode ->
+            is CollectorNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.SummaryNode ->
+            is SummaryNode ->
                 node.toBuilder().interruptibleContext(context).lastUpdatedAt(Instant.now()).build()
 
             is InterruptNode ->
                 node.toBuilder().interruptContext(context).lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.AskPermissionNode ->
+            is AskPermissionNode ->
                 node.toBuilder().lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.AgentToAgentConversationNode ->
+            is AgentToAgentConversationNode ->
                 node.toBuilder().lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.AgentToControllerConversationNode ->
+            is AgentToControllerConversationNode ->
                 node.toBuilder().lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.ControllerToAgentConversationNode ->
+            is ControllerToAgentConversationNode ->
                 node.toBuilder().lastUpdatedAt(Instant.now()).build()
 
-            is com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode ->
+            is DataLayerOperationNode ->
                 node.toBuilder().lastUpdatedAt(Instant.now()).build()
         }
     }

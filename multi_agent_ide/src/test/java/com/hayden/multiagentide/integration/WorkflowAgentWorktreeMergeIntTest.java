@@ -16,6 +16,7 @@ import com.hayden.multiagentide.filter.repository.FilterDecisionRecordRepository
 import com.hayden.multiagentide.filter.repository.LayerRepository;
 import com.hayden.multiagentide.filter.repository.PolicyRegistrationRepository;
 import com.hayden.multiagentide.gate.PermissionGate;
+import com.hayden.multiagentide.model.nodes.DataLayerOperationNode;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import com.hayden.multiagentide.propagation.repository.PropagationItemRepository;
 import com.hayden.multiagentide.propagation.repository.PropagationRecordRepository;
@@ -29,23 +30,21 @@ import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.transformation.repository.TransformationRecordRepository;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.llm.LlmRunner;
+import com.hayden.multiagentide.agent.BlackboardHistory;
+import com.hayden.multiagentide.llm.LlmRunner;
 import com.hayden.multiagentide.service.WorktreeAutoCommitService;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentide.support.QueuedLlmRunner;
 import com.hayden.multiagentide.support.TestEventListener;
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
-import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentModels;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
-import com.hayden.utilitymodule.git.RepoUtil;
-import com.hayden.utilitymodule.stream.StreamUtil;
+import com.hayden.multiagentide.model.nodes.OrchestratorNode;
+import com.hayden.multiagentide.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentide.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentide.model.worktree.WorktreeSandboxContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -515,8 +514,8 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
 
             // Check that DataLayerOperationNode instances exist in the graph
             var dataLayerNodes = graphRepository.findAll().stream()
-                    .filter(n -> n instanceof com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode)
-                    .map(n -> (com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode) n)
+                    .filter(n -> n instanceof DataLayerOperationNode)
+                    .map(n -> (DataLayerOperationNode) n)
                     .toList();
             assertThat(dataLayerNodes).isNotEmpty();
 
@@ -547,9 +546,9 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
 
             // AiPropagator data layer nodes should exist with chatSessionKey set
             var propagatorNodes = graphRepository.findAll().stream()
-                    .filter(n -> n instanceof com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode dln
+                    .filter(n -> n instanceof DataLayerOperationNode dln
                             && "AiPropagator".equals(dln.operationType()))
-                    .map(n -> (com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode) n)
+                    .map(n -> (DataLayerOperationNode) n)
                     .toList();
 
             assertThat(propagatorNodes)
@@ -585,9 +584,9 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
             queuedLlmRunner.assertAllConsumed();
 
             var propagatorNodes = graphRepository.findAll().stream()
-                    .filter(n -> n instanceof com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode dln
+                    .filter(n -> n instanceof DataLayerOperationNode dln
                             && "AiPropagator".equals(dln.operationType()))
-                    .map(n -> (com.hayden.multiagentidelib.model.nodes.DataLayerOperationNode) n)
+                    .map(n -> (DataLayerOperationNode) n)
                     .toList();
 
             assertThat(propagatorNodes).hasSizeGreaterThanOrEqualTo(2);
@@ -1140,7 +1139,7 @@ class WorkflowAgentWorktreeMergeIntTest extends AgentTestBase {
         AgentModels.AgentRequest request = context.last(AgentModels.AgentRequest.class);
         // Fallback: try blackboard history
 
-        var history = com.hayden.multiagentidelib.agent.BlackboardHistory.getEntireBlackboardHistory(context);
+        var history = BlackboardHistory.getEntireBlackboardHistory(context);
         return BlackboardHistory.findLastWorkflowRequest(history);
     }
 

@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.propagation.controller.dto;
 
-import com.hayden.multiagentidelib.propagation.model.executor.AiPropagatorTool;
+import com.hayden.multiagentide.model.executor.AiPropagatorTool;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;

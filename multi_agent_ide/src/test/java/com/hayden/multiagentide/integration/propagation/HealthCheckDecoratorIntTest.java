@@ -11,7 +11,6 @@ import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.multiagentide.agent.decorator.prompt.LlmCallDecorator;
 import com.hayden.multiagentide.agent.decorator.prompt.PromptHealthCheckLlmCallDecorator;
 import com.hayden.multiagentide.agent.decorator.request.DecorateRequestResults;
-import com.hayden.multiagentide.agent.decorator.request.WorktreeContextRequestDecorator;
 import com.hayden.multiagentide.filter.repository.LayerRepository;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
 import com.hayden.multiagentide.filter.service.LayerHierarchyBootstrap;
@@ -21,14 +20,14 @@ import com.hayden.multiagentide.propagation.repository.PropagationRecordReposito
 import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRepository;
 import com.hayden.multiagentide.support.AgentTestBase;
 import com.hayden.multiagentide.support.QueuedLlmRunner;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.agent.WorkflowGraphState;
-import com.hayden.multiagentidelib.llm.LlmRunner;
-import com.hayden.multiagentidelib.prompt.PromptContext;
-import com.hayden.multiagentidelib.prompt.PromptContributor;
-import com.hayden.multiagentidelib.prompt.PromptContributorAdapter;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentType;
+import com.hayden.multiagentide.agent.BlackboardHistory;
+import com.hayden.multiagentide.agent.WorkflowGraphState;
+import com.hayden.multiagentide.llm.LlmRunner;
+import com.hayden.multiagentide.prompt.PromptContext;
+import com.hayden.multiagentide.prompt.PromptContributor;
+import com.hayden.multiagentide.prompt.PromptContributorAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +45,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;

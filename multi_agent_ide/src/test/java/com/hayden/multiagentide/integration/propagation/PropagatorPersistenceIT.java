@@ -13,8 +13,8 @@ import com.hayden.multiagentide.propagation.repository.PropagatorRegistrationRep
 import com.hayden.multiagentide.propagation.service.AutoAiPropagatorBootstrap;
 import com.hayden.multiagentide.propagation.service.PropagatorAttachableCatalogService;
 import com.hayden.multiagentide.propagation.service.PropagatorRegistrationService;
-import com.hayden.multiagentidelib.propagation.model.PropagationItemStatus;
-import com.hayden.multiagentidelib.propagation.model.PropagationResolutionType;
+import com.hayden.multiagentide.model.PropagationItemStatus;
+import com.hayden.multiagentide.model.PropagationResolutionType;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

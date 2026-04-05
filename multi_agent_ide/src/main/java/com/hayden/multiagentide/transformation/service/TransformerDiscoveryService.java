@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationEntity;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
-import com.hayden.multiagentidelib.transformation.model.Transformer;
-import com.hayden.multiagentidelib.transformation.model.TransformerLayerBinding;
-import com.hayden.multiagentidelib.transformation.model.TransformerMatchOn;
-import com.hayden.multiagentidelib.transformation.model.executor.AiTransformerTool;
+import com.hayden.multiagentide.model.Transformer;
+import com.hayden.multiagentide.model.TransformerLayerBinding;
+import com.hayden.multiagentide.model.TransformerMatchOn;
+import com.hayden.multiagentide.model.executor.AiTransformerTool;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

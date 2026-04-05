@@ -5,7 +5,7 @@ import com.embabel.agent.core.support.BlackboardWorldState;
 import com.embabel.plan.Action;
 import com.embabel.plan.Goal;
 import com.embabel.plan.common.condition.*;
-import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentModels;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,7 +14,6 @@ import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 
 import static com.embabel.agent.core.BlackboardKt.satisfiesType;
 

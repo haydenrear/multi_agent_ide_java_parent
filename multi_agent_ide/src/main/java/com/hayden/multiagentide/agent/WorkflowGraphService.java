@@ -1,13 +1,12 @@
 package com.hayden.multiagentide.agent;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.hayden.multiagentide.model.nodes.*;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import com.hayden.multiagentide.repository.GraphRepository;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.model.nodes.*;
+
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -33,7 +32,7 @@ public class WorkflowGraphService {
     private final GraphRepository graphRepository;
     private final GraphNodeFactory nodeFactory;
 
-    public synchronized  <T> T resolveState(OperationContext context, Function<com.hayden.multiagentidelib.agent.WorkflowGraphState, T> t) {
+    public synchronized  <T> T resolveState(OperationContext context, Function<WorkflowGraphState, T> t) {
         Optional<BlackboardHistory> bhOpt = Optional.ofNullable(context.last(BlackboardHistory.class));
         T state = bhOpt
                     .flatMap(bh -> bh.fromState(t))
@@ -46,7 +45,7 @@ public class WorkflowGraphService {
     }
 
     public synchronized void updateState(OperationContext context,
-                                         Function<com.hayden.multiagentidelib.agent.WorkflowGraphState, com.hayden.multiagentidelib.agent.WorkflowGraphState> state) {
+                                         Function<WorkflowGraphState, WorkflowGraphState> state) {
         Optional<BlackboardHistory> bhOpt = Optional.ofNullable(context.last(BlackboardHistory.class));
 
         bhOpt.ifPresentOrElse(bh -> {
@@ -934,7 +933,7 @@ public class WorkflowGraphService {
             Class<T> type,
             Function<T, T> existingUpdater,
             Supplier<T> createNew,
-            BiFunction<com.hayden.multiagentidelib.agent.WorkflowGraphState, String, com.hayden.multiagentidelib.agent.WorkflowGraphState> stateUpdater
+            BiFunction<WorkflowGraphState, String, WorkflowGraphState> stateUpdater
     ) {
         Optional<T> existing = updateExisting(stateNodeId, requestContextId, type, existingUpdater);
         if (existing.isPresent()) {

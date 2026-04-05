@@ -2,9 +2,9 @@ package com.hayden.multiagentide.agent.decorator;
 
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.service.InterruptSchemaGenerator;
-import com.hayden.multiagentidelib.agent.AgentType;
-import com.hayden.multiagentidelib.model.nodes.GraphNode;
-import com.hayden.multiagentidelib.prompt.contributor.NodeMappings;
+import com.hayden.multiagentide.agent.AgentType;
+import com.hayden.multiagentide.model.nodes.GraphNode;
+import com.hayden.multiagentide.prompt.contributor.NodeMappings;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;

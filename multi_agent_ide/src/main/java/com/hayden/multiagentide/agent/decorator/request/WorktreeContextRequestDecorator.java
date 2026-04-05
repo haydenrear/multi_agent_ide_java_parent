@@ -1,31 +1,17 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
-import com.embabel.agent.api.common.OperationContext;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentide.repository.GraphRepository;
-import com.hayden.multiagentide.repository.WorktreeRepository;
+import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.service.WorktreeService;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.events.DegenerateLoopException;
-import com.hayden.multiagentidelib.model.nodes.GraphNode;
-import com.hayden.multiagentidelib.model.nodes.OrchestratorNode;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
-import io.micrometer.common.util.StringUtils;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.events.DegenerateLoopException;
+import com.hayden.multiagentide.model.worktree.WorktreeSandboxContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
 
 @Slf4j
 @Component

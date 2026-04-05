@@ -7,9 +7,9 @@ import com.hayden.multiagentide.filter.integration.ControllerEventFilterIntegrat
 import com.hayden.multiagentide.filter.integration.PathFilterIntegration;
 import com.hayden.multiagentide.filter.service.LayerIdResolver;
 import com.hayden.multiagentide.repository.EventStreamRepository;
-import com.hayden.multiagentidelib.filter.model.FilterSource;
-import com.hayden.multiagentidelib.filter.model.layer.GraphEventObjectContext;
-import com.hayden.multiagentidelib.filter.model.layer.DefaultPathFilterContext;
+import com.hayden.multiagentide.filter.model.FilterSource;
+import com.hayden.multiagentide.filter.model.layer.GraphEventObjectContext;
+import com.hayden.multiagentide.filter.model.layer.DefaultPathFilterContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

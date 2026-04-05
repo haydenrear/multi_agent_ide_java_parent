@@ -3,14 +3,13 @@ package com.hayden.multiagentide.artifacts.semantic;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
-import com.hayden.multiagentidelib.artifact.SemanticRepresentation;
+import com.hayden.multiagentide.artifact.SemanticRepresentation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.ByteBuffer;
-import java.time.Instant;
 import java.util.*;
 
 /**

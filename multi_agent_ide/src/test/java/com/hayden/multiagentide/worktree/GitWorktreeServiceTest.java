@@ -8,9 +8,9 @@ import static org.mockito.Mockito.verify;
 
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.model.MergeResult;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentide.model.MergeResult;
+import com.hayden.multiagentide.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentide.model.worktree.SubmoduleWorktreeContext;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.support.AgentTestBase;

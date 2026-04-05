@@ -1,7 +1,7 @@
 package com.hayden.multiagentide.agent.decorator.result;
 
-import com.hayden.multiagentidelib.agent.DecoratorContext;
-import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentide.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.AgentModels;
 
 public interface ResultDecorator {
 

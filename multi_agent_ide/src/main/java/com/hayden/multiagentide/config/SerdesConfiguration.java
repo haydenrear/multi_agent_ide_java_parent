@@ -2,7 +2,7 @@ package com.hayden.multiagentide.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
-import com.hayden.multiagentidelib.filter.config.ContextObjectMapperProvider;
+import com.hayden.multiagentide.filter.config.ContextObjectMapperProvider;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

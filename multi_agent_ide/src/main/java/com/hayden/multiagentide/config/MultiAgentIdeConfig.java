@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Configuration;
                 AgUiSerdes.class, McpProperties.class, AcpChatModel.class, EnvConfigProps.class
         },
         basePackages = {
-                "com.hayden.multiagentidelib"
+                "com.hayden.multiagentide"
         })
 public class MultiAgentIdeConfig {
 

@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.topology;
 
-import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentide.agent.AgentType;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -9,7 +9,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Provides access to the communication topology configuration with support for runtime refresh.

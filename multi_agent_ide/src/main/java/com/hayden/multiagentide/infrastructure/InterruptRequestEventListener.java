@@ -6,7 +6,7 @@ import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.multiagentide.agent.decorator.InterruptAddMessageComposer;
 import com.hayden.multiagentide.agent.decorator.prompt.FilterPropertiesDecorator;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
-import com.hayden.multiagentidelib.model.nodes.GraphNode;
+import com.hayden.multiagentide.model.nodes.GraphNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;

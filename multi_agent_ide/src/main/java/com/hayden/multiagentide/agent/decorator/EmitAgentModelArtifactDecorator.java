@@ -1,6 +1,6 @@
 package com.hayden.multiagentide.agent.decorator;
 
-import com.hayden.multiagentidelib.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.agent.decorator.request.DispatchedAgentRequestDecorator;
 import com.hayden.multiagentide.agent.decorator.request.RequestDecorator;
 import com.hayden.multiagentide.agent.decorator.result.DispatchedAgentResultDecorator;
@@ -8,7 +8,7 @@ import com.hayden.multiagentide.agent.decorator.result.FinalResultDecorator;
 import com.hayden.multiagentide.agent.decorator.result.ResultDecorator;
 import com.hayden.multiagentide.artifacts.ArtifactEmissionService;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
-import com.hayden.multiagentidelib.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentModels;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

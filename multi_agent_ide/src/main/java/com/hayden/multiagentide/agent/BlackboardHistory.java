@@ -1,0 +1,1011 @@
+package com.hayden.multiagentide.agent;
+
+import com.embabel.agent.api.common.OperationContext;
+import com.embabel.agent.core.Blackboard;
+import com.hayden.acp_cdc_ai.acp.events.*;
+import com.hayden.acp_cdc_ai.acp.events.EventListener;
+import com.hayden.commitdiffcontext.events.EventSubscriber;
+import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
+
+import java.time.Instant;
+import java.util.*;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+/**
+ * Blackboard history management for tracking action inputs and preventing
+ * unwanted state accumulation through clearing.
+ */
+@Slf4j
+public class BlackboardHistory implements EventListener, EventSubscriber<Events.GraphEvent> {
+
+    private static final int DEFAULT_LOOP_THRESHOLD = 3;
+    private static final Map<String, String> LOOP_ACTION_ALIASES = Map.of(
+            "context-manager-route", "routeToContextManager",
+            "context-manager", "contextManagerRequest",
+            "commit-agent", "runCommitAgent",
+            "merge-conflict-agent", "runMergeConflictAgent",
+            "path-filter", "runAiFilter"
+    );
+    private static final Set<String> LOOP_ACTIONS_TO_IGNORE = Set.of(
+            "routeToContextManager",
+            "contextManagerRequest",
+            "runCommitAgent",
+            "runMergeConflictAgent",
+            "runAiFilter"
+    );
+
+    private static volatile int loopThreshold = DEFAULT_LOOP_THRESHOLD;
+
+    private final String listenerId;
+    private final String nodeId;
+
+    private volatile WorkflowGraphState state;
+    private volatile History history;
+
+    public static AgentModels.AgentRequest findLastRequest(BlackboardHistory bh,
+                                                       Predicate<AgentModels.AgentRequest> r) {
+        if (bh == null)
+            return null;
+
+        return bh.fromHistory(history -> {
+            if (history == null || history.entries() == null) {
+                return null;
+            }
+            List<Entry> entries = history.entries();
+            for (int i = entries.size() - 1; i >= 0; i--) {
+                Entry entry = entries.get(i);
+                if (entry == null) {
+                    continue;
+                }
+                Object input = switch (entry) {
+                    case DefaultEntry defaultEntry ->
+                            defaultEntry.input();
+                    case MessageEntry ignored ->
+                            null;
+                };
+                if (input instanceof AgentModels.AgentRequest agentRequest && r.test(agentRequest)) {
+                    return agentRequest;
+                }
+            }
+            return null;
+        });
+    }
+
+    public static Predicate<String> isContextRequestOrInterrupt(BlackboardHistory history) {
+        return actionName -> {
+            String normalized = normalizeLoopActionName(actionName);
+            if (normalized == null || normalized.isBlank()) {
+                return true;
+            }
+            return !LOOP_ACTIONS_TO_IGNORE.contains(normalized);
+        };
+    }
+
+    /**
+     * Returns true if the request is a non-workflow request type — controller conversations,
+     * utility agents, etc. Prompt contributors that only apply to workflow
+     * actions (curation, worktree context, workflow position) should skip when this returns true.
+     */
+    public static boolean isNonWorkflowRequest(AgentModels.AgentRequest request) {
+        if (request == null) return true;
+        return request instanceof AgentModels.CommitAgentRequest
+                || request instanceof AgentModels.MergeConflictRequest
+                || request instanceof AgentModels.AiFilterRequest
+                || request instanceof AgentModels.AiPropagatorRequest
+                || request instanceof AgentModels.AiTransformerRequest
+                || request instanceof AgentModels.AgentToAgentRequest
+                || request instanceof AgentModels.AgentToControllerRequest
+                || request instanceof AgentModels.ControllerToAgentRequest;
+    }
+
+    public static AgentModels.@Nullable AgentRequest findLastNonContextRequest(BlackboardHistory history) {
+        AgentModels.AgentRequest lastRequest = findLastRequest(
+                history,
+                a -> !(a instanceof AgentModels.InterruptRequest)
+                        && !(a instanceof AgentModels.ContextManagerRequest)
+                        && !(a instanceof AgentModels.ContextManagerRoutingRequest)
+                        && !(a instanceof AgentModels.CommitAgentRequest)
+                        && !(a instanceof AgentModels.MergeConflictRequest)
+                        && !(a instanceof AgentModels.AiFilterRequest)
+                        && !(a instanceof AgentModels.AiPropagatorRequest)
+                        && !(a instanceof AgentModels.AiTransformerRequest)
+                        && !(a instanceof AgentModels.AgentToAgentRequest)
+                        && !(a instanceof AgentModels.AgentToControllerRequest)
+                        && !(a instanceof AgentModels.ControllerToAgentRequest)
+        );
+        return lastRequest;
+    }
+
+    public static AgentModels.@Nullable AgentRequest findLastWorkflowRequest(BlackboardHistory history) {
+        return findLastRequest(
+                history,
+                a -> !(a instanceof AgentModels.InterruptRequest)
+                        && !(a instanceof AgentModels.ContextManagerRequest)
+                        && !(a instanceof AgentModels.ContextManagerRoutingRequest)
+                        && !(a instanceof AgentModels.CommitAgentRequest)
+                        && !(a instanceof AgentModels.AiFilterRequest)
+                        && !(a instanceof AgentModels.AiPropagatorRequest)
+                        && !(a instanceof AgentModels.AiTransformerRequest)
+                        && !(a instanceof AgentModels.MergeConflictRequest)
+                        && !(a instanceof AgentModels.AgentToAgentRequest)
+                        && !(a instanceof AgentModels.AgentToControllerRequest)
+                        && !(a instanceof AgentModels.ControllerToAgentRequest)
+        );
+    }
+
+    public static <T> boolean isAssignableType(Class<T> type, Entry entry) {
+        return entry.inputType() != null
+                && (type.isAssignableFrom(entry.inputType()) || type.equals(entry.inputType()));
+    }
+
+    public boolean didRetryAlreadyRunForThisExactExceptionInHierarchy(ErrorDescriptor errorDescriptor) {
+        return this.getLastMatching(e -> e.input() instanceof ErrorDescriptor desc && desc.lastException() == errorDescriptor.lastException()
+                ? Optional.of(desc)
+                : Optional.empty()) != null;
+    }
+
+    /**
+     * Tracks a single historical blackboard state entry.
+     * Each entry represents a previous action's input that has been archived.
+     */
+    public sealed interface Entry extends HasContextId permits DefaultEntry, MessageEntry {
+
+        Instant timestamp();
+
+        String actionName();
+
+        HasContextId input();
+
+        Class<?> inputType();
+
+    }
+
+    public BlackboardHistory(History history, String nodeId, WorkflowGraphState state) {
+        this.history = history == null ? new History() : history;
+        this.nodeId = nodeId;
+        this.listenerId = "BlackboardHistory-" + System.identityHashCode(this);
+        this.state = state;
+    }
+
+    public synchronized <T> T fromHistory(Function<History, T> t) {
+        return t.apply(history);
+    }
+
+    public synchronized <T> T getLastOfType(Class<T> t)  {
+        return history.getLastOfType(t).orElse(null);
+    }
+
+    public synchronized <T> T getLastMatching(Function<Entry, Optional<T>> t)  {
+        return history.getLastMatching(t).orElse(null);
+    }
+
+    public synchronized <T> Optional<T> fromState(Function<WorkflowGraphState, T> t) {
+        if (state == null)
+            return Optional.empty();
+        return Optional.ofNullable(t.apply(state));
+    }
+
+    public synchronized void updateState(Function<@Nullable WorkflowGraphState, WorkflowGraphState> t) {
+        this.state = t.apply(this.state);
+    }
+
+    public synchronized void addEntry(String actionName, HasContextId enrichedInput) {
+        this.history = this.history.withEntry(actionName, enrichedInput);
+    }
+
+    public synchronized <T> Optional<T> getValue(Function<Entry, Optional<T>> findValue) {
+        if (history == null || history.entries() == null) {
+            return Optional.empty();
+        }
+        List<Entry> entries = history.entries();
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            Entry entry = entries.get(i);
+            if (entry == null) {
+                continue;
+            }
+
+            var f = findValue.apply(entry);
+
+            if (f.isPresent())
+                return f;
+        }
+
+        return Optional.empty();
+
+    }
+
+    private History history() {
+        return history;
+    }
+
+    public synchronized String summary() {
+        return Optional.ofNullable(history)
+                .flatMap(h -> Optional.of(h.getSummary()))
+                .orElse(null);
+    }
+
+    public static BlackboardHistory getEntireBlackboardHistory(Blackboard context) {
+        return context.last(BlackboardHistory.class);
+    }
+
+    public static <T> T getLastMatching(Blackboard context, Function<Entry, Optional<T>> inputType) {
+        if (context == null)
+            return null;
+
+        var history = getEntireBlackboardHistory(context);
+
+        if (history == null) {
+            return null;
+        }
+
+        return history.getLastMatching(inputType);
+    }
+
+    public static <T> T getLastFromHistory(Blackboard context, Class<T> inputType) {
+        var history = getEntireBlackboardHistory(context);
+
+        if (history == null) {
+            return null;
+        }
+
+        if (Objects.equals(inputType, AgentModels.AgentRequest.class))  {
+            return (T) BlackboardHistory.findLastWorkflowRequest(history);
+        }
+
+
+        return history.getLastOfType(inputType);
+    }
+
+    public static void setLoopThreshold(int threshold) {
+        if (threshold <= 0) {
+            return;
+        }
+        loopThreshold = threshold;
+    }
+
+    public static int getLoopThreshold() {
+        return loopThreshold;
+    }
+
+    public static boolean detectLoop(OperationContext context, Class<?> inputType) {
+        return Optional.ofNullable(getEntireBlackboardHistory(context))
+                .map(bh -> bh.fromHistory(h -> h.detectLoop(inputType)))
+                .orElse(false);
+    }
+
+    public static BlackboardHistory ensureSubscribed(EventBus eventBus, OperationContext context, Supplier<WorkflowGraphState> factory) {
+        if (eventBus == null || context == null) {
+            return null;
+        }
+        BlackboardHistory existing = context.last(BlackboardHistory.class);
+        if (existing != null) {
+            return existing;
+        }
+
+        BlackboardHistory listener = new BlackboardHistory(new History(), resolveNodeId(context), factory.get());
+        context.getAgentProcess().addObject(listener);
+        eventBus.subscribe(listener);
+        return listener;
+    }
+
+    public static void unsubscribe(EventBus eventBus, OperationContext context) {
+        if (eventBus == null || context == null) {
+            return;
+        }
+
+        BlackboardHistory existing = context.last(BlackboardHistory.class);
+
+        if (existing != null)
+            eventBus.unsubscribe(existing);
+        else
+            log.error("Attempted to unsubscribe from blackboard history not found for {}.",
+                       context.getAgentProcess().getId());
+    }
+
+    public static String resolveNodeId(OperationContext context) {
+        if (context == null) {
+            return null;
+        }
+
+        String contextIdString;
+
+        try {
+            contextIdString = context.getAgentProcess().getProcessOptions().getContextIdString();
+        } catch (Exception e) {
+            contextIdString = null;
+        }
+
+        String id = context.getAgentProcess().getId();
+
+        // getId() may be class-qualified (e.g. "WorkflowAgent >> ak:…"); extract only the ArtifactKey portion for comparison.
+        String idArtifactKey = (id != null && id.contains(" >> "))
+                ? id.substring(id.lastIndexOf(" >> ") + 4)
+                : id;
+        if (!Objects.equals(contextIdString, idArtifactKey)) {
+            log.warn("Context ID string {} did not match ArtifactKey portion of ID {}", contextIdString, id);
+        }
+        return id;
+    }
+
+    public long countType(Class<?> requestType) {
+        return history.countType(requestType);
+    }
+
+    public List<Entry> copyOfEntries() {
+        return List.copyOf(this.history.entries());
+    }
+
+    /**
+     * Records an error descriptor as a blackboard history entry.
+     * The actionName comes from the ErrorDescriptor variant's actionName field.
+     */
+    public synchronized void addError(ErrorDescriptor errorDescriptor) {
+        String actionName = switch (errorDescriptor) {
+            case ErrorDescriptor.NoError _ -> "no-error";
+            case ErrorDescriptor.CompactionError e -> e.actionName();
+            case ErrorDescriptor.ParseError e -> e.actionName();
+            case ErrorDescriptor.TimeoutError e -> e.actionName();
+            case ErrorDescriptor.UnparsedToolCallError e -> e.actionName();
+            case ErrorDescriptor.NullResultError e -> e.actionName();
+            case ErrorDescriptor.IncompleteJsonError e -> e.actionName();
+        };
+        this.history = this.history.withEntry(actionName, errorDescriptor);
+    }
+
+    /**
+     * Returns the most recent ErrorDescriptor from history, or null if none.
+     */
+    public synchronized ErrorDescriptor errorType() {
+        return errorType(null);
+    }
+
+    /**
+     * Returns the most recent ErrorDescriptor for the current retry sequence of the
+     * given sessionKey, or null if none. Only considers errors after the first unmatched
+     * AgentExecutorStartEvent for this session, so completed executions' errors are excluded.
+     *
+     * <p>If sessionKey is null, returns the absolute last ErrorDescriptor (legacy behavior).
+     */
+    public synchronized ErrorDescriptor errorType(String sessionKey) {
+        if (history == null || history.entries() == null) {
+            return null;
+        }
+        List<Entry> entries = history.entries();
+
+        // Determine the search boundary
+        int searchFrom = 0;
+        if (sessionKey != null) {
+            int firstUnmatched = findFirstUnmatchedStartIndex(sessionKey);
+            if (firstUnmatched < 0) {
+                // No active retry sequence for this session — no relevant error
+                return null;
+            }
+            searchFrom = firstUnmatched + 1;
+        }
+
+        for (int i = entries.size() - 1; i >= searchFrom; i--) {
+            Entry entry = entries.get(i);
+            if (entry == null) continue;
+            Object input = switch (entry) {
+                case DefaultEntry de -> de.input();
+                case MessageEntry _ -> null;
+            };
+            if (input instanceof ErrorDescriptor ed) {
+                if (sessionKey == null) {
+                    return ed;
+                }
+                String edSession = switch (ed) {
+                    case ErrorDescriptor.NoError e -> e.sessionKey();
+                    case ErrorDescriptor.CompactionError e -> e.sessionKey();
+                    case ErrorDescriptor.ParseError e -> e.sessionKey();
+                    case ErrorDescriptor.TimeoutError e -> e.sessionKey();
+                    case ErrorDescriptor.UnparsedToolCallError e -> e.sessionKey();
+                    case ErrorDescriptor.NullResultError e -> e.sessionKey();
+                    case ErrorDescriptor.IncompleteJsonError e -> e.sessionKey();
+                };
+                if (sessionKey.equals(edSession)) {
+                    return ed;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the compaction status based on CompactionError entries in history.
+     */
+    public synchronized ErrorDescriptor.CompactionStatus compactionStatus() {
+        long count = errorCount(ErrorDescriptor.CompactionError.class);
+        if (count == 0) return ErrorDescriptor.CompactionStatus.NONE;
+        if (count == 1) return ErrorDescriptor.CompactionStatus.FIRST;
+        return ErrorDescriptor.CompactionStatus.MULTIPLE;
+    }
+
+    /**
+     * Returns the compaction status scoped to the current retry sequence for the given session.
+     */
+    public synchronized ErrorDescriptor.CompactionStatus compactionStatusForRetrySequence(String sessionKey) {
+        long count = errorCountForRetrySequence(ErrorDescriptor.CompactionError.class, sessionKey);
+        if (count == 0) return ErrorDescriptor.CompactionStatus.NONE;
+        if (count == 1) return ErrorDescriptor.CompactionStatus.FIRST;
+        return ErrorDescriptor.CompactionStatus.MULTIPLE;
+    }
+
+    /**
+     * Counts errors of a specific ErrorDescriptor type in history.
+     */
+    public synchronized long errorCount(Class<? extends ErrorDescriptor> errorType) {
+        if (history == null || history.entries() == null) {
+            return 0;
+        }
+        return history.entries().stream()
+                .filter(entry -> entry != null)
+                .map(entry -> switch (entry) {
+                    case DefaultEntry de -> de.input();
+                    case MessageEntry _ -> null;
+                })
+                .filter(input -> input != null && errorType.isInstance(input))
+                .count();
+    }
+
+    /**
+     * Counts errors of a specific ErrorDescriptor type across the current retry sequence
+     * for the given session (chatId).
+     *
+     * <p>A retry sequence is the chain of consecutive unmatched AgentExecutorStartEvents
+     * for the same sessionKey. When the framework retries, AgentExecutor.run() emits a
+     * new StartEvent each time, so the history looks like:
+     * <pre>
+     *   StartEvent(session=X, req-1)
+     *     TimeoutError           ← error from 1st attempt
+     *   StartEvent(session=X, req-2)  ← framework retried
+     *     TimeoutError           ← error from 2nd attempt
+     *   StartEvent(session=X, req-3)  ← framework retried again
+     * </pre>
+     *
+     * This method finds the first StartEvent in that unbroken chain (the one that began
+     * the retry sequence) and counts all errors of the given type from that point forward.
+     * Only considers StartEvents with a matching sessionKey.
+     */
+    public synchronized long errorCountForRetrySequence(Class<? extends ErrorDescriptor> errorType, String sessionKey) {
+        int firstUnmatchedStartIndex = findFirstUnmatchedStartIndex(sessionKey);
+        if (firstUnmatchedStartIndex < 0) {
+            return 0;
+        }
+        List<Entry> entries = history.entries();
+        return entries.subList(firstUnmatchedStartIndex + 1, entries.size()).stream()
+                .filter(entry -> entry != null)
+                .map(entry -> switch (entry) {
+                    case DefaultEntry de -> de.input();
+                    case MessageEntry _ -> null;
+                })
+                .filter(input -> input != null && errorType.isInstance(input))
+                .count();
+    }
+
+    /**
+     * Finds the index of the first AgentExecutorStartEvent in the current unbroken
+     * chain of unmatched starts for the given sessionKey. Only considers starts whose
+     * sessionKey matches, so interleaved starts from other sessions are ignored.
+     * Returns the index of the earliest such start, or -1 if none.
+     *
+     * <p>Matching uses {@code startEvent.nodeId() == completeEvent.startNodeId()},
+     * since nodeId is unique per execution attempt while requestContextId can be
+     * the same across retries for the same request.
+     */
+    public synchronized int findFirstUnmatchedStartIndex(String sessionKey) {
+        if (history == null || history.entries() == null) {
+            return -1;
+        }
+        List<Entry> entries = history.entries();
+
+        // Collect all completed startNodeIds for this session
+        java.util.Set<String> completedStartNodeIds = new java.util.HashSet<>();
+        for (Entry entry : entries) {
+            if (entry instanceof DefaultEntry de
+                    && de.input() instanceof Events.AgentExecutorCompleteEvent ce
+                    && ce.startNodeId() != null
+                    && sessionKey.equals(ce.sessionKey())) {
+                completedStartNodeIds.add(ce.startNodeId());
+            }
+        }
+
+        // Walk backwards, tracking the earliest unmatched start in a contiguous chain
+        // Only consider starts for this sessionKey
+        int firstUnmatched = -1;
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            Entry entry = entries.get(i);
+            if (entry instanceof DefaultEntry de
+                    && de.input() instanceof Events.AgentExecutorStartEvent se
+                    && sessionKey.equals(se.sessionKey())) {
+                String nodeId = se.nodeId();
+                if (nodeId != null && completedStartNodeIds.contains(nodeId)) {
+                    // This start is matched — the chain of unmatched starts ends here
+                    break;
+                }
+                firstUnmatched = i;
+            }
+        }
+        return firstUnmatched;
+    }
+
+    /**
+     * Returns true if the last AgentExecutorStartEvent has a matching
+     * AgentExecutorCompleteEvent (by nodeId ↔ startNodeId).
+     */
+    public synchronized boolean isLastExecutionComplete() {
+        if (history == null || history.entries() == null) {
+            return false;
+        }
+        List<Entry> entries = history.entries();
+
+        // Find the last start
+        Events.AgentExecutorStartEvent lastStart = null;
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            Entry entry = entries.get(i);
+            if (entry instanceof DefaultEntry de
+                    && de.input() instanceof Events.AgentExecutorStartEvent se) {
+                lastStart = se;
+                break;
+            }
+        }
+        if (lastStart == null) return false;
+
+        String startNodeId = lastStart.nodeId();
+        if (startNodeId == null || startNodeId.isEmpty()) {
+            // Legacy: fall back to positional check
+            int lastStartIdx = -1, lastCompleteIdx = -1;
+            for (int i = entries.size() - 1; i >= 0; i--) {
+                Entry entry = entries.get(i);
+                if (entry instanceof DefaultEntry de) {
+                    if (lastCompleteIdx < 0 && de.input() instanceof Events.AgentExecutorCompleteEvent) {
+                        lastCompleteIdx = i;
+                    }
+                    if (lastStartIdx < 0 && de.input() instanceof Events.AgentExecutorStartEvent) {
+                        lastStartIdx = i;
+                    }
+                }
+                if (lastStartIdx >= 0 && lastCompleteIdx >= 0) break;
+            }
+            return lastStartIdx >= 0 && lastCompleteIdx > lastStartIdx;
+        }
+
+        // Check if any complete's startNodeId matches this start's nodeId
+        for (Entry entry : entries) {
+            if (entry instanceof DefaultEntry de
+                    && de.input() instanceof Events.AgentExecutorCompleteEvent ce
+                    && startNodeId.equals(ce.startNodeId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public record StringMessage(ArtifactKey contextId, String message) implements HasContextId {}
+
+    public record DefaultEntry(
+            Instant timestamp,
+            String actionName,
+            HasContextId input,
+            Class<?> inputType
+    ) implements Entry {
+        @Override
+        public ArtifactKey contextId() {
+            return input.contextId();
+        }
+    }
+
+    public record MessageEvents(List<Events.GraphEvent> events, ArtifactKey contextId) implements HasContextId {}
+
+    public record MessageEntry(
+            Instant timestamp,
+            String actionName,
+            MessageEvents events
+    ) implements Entry {
+        @Override
+        public HasContextId input() {
+            return events;
+        }
+
+        @Override
+        public Class<?> inputType() {
+            return List.class;
+        }
+
+        @Override
+        public ArtifactKey contextId() {
+            return events.contextId;
+        }
+    }
+
+    /**
+     * The main history container.
+     * Instead of clearing the blackboard, inputs are transferred here.
+     */
+    public record History(
+            List<Entry> entries
+    ) {
+        public History() {
+            this(Collections.synchronizedList(new ArrayList<>()));
+        }
+
+        boolean detectLoop(OperationContext context, Class<?> inputType, int threshold) {
+            return this.detectLoop(inputType, threshold);
+        }
+
+        /**
+         * Add an entry to the history
+         */
+        public History withEntry(String actionName, HasContextId input) {
+            List<Entry> newEntries = new ArrayList<>(entries);
+            newEntries.add(new DefaultEntry(
+                    Instant.now(),
+                    actionName,
+                    input,
+                    input != null ? input.getClass() : null
+            ));
+            return new History(newEntries);
+        }
+
+        /**
+         * Check if we've seen this input type before (indicating a retry/loop)
+         */
+        public boolean hasSeenType(Class<?> type) {
+            return entries.stream()
+                    .anyMatch(entry -> entry.inputType() != null && entry.inputType().equals(type));
+        }
+
+        /**
+         * Count how many times we've seen this input type
+         */
+        public long countType(Class<?> type) {
+            return entries.stream()
+                    .filter(entry -> entry.inputType() != null && entry.inputType().equals(type))
+                    .count();
+        }
+
+        /**
+         * Get all entries of a specific type
+         */
+        @SuppressWarnings("unchecked")
+        public <T> List<T> getEntriesOfType(Class<T> type) {
+            return entries.stream()
+                    .filter(entry -> entry.inputType() != null && entry.inputType().equals(type))
+                    .map(entry -> (T) entry.input())
+                    .collect(Collectors.toList());
+        }
+
+        public <T> List<T> getEntriesOfTypeOrSuper(Class<T> type) {
+            return entries.stream()
+                    .filter(entry -> entry.inputType() != null && (entry.inputType().equals(type) || type.isAssignableFrom(entry.inputType())))
+                    .map(entry -> (T) entry.input())
+                    .collect(Collectors.toList());
+        }
+
+        public <T> Optional<T> getLastMatching(Function<Entry, Optional<T>> type) {
+            return entries.stream()
+                    .flatMap(t -> type.apply(t).stream())
+                    .reduce((first, second) -> second);
+        }
+
+        /**
+         * Get the most recent entry of a specific type
+         */
+        @SuppressWarnings("unchecked")
+        public <T> Optional<T> getLastOfType(Class<T> type) {
+            return getLastMatching(entry -> {
+                if (isExactlyType(type, entry)) {
+                    return Optional.of((T) entry.input());
+                }
+                return Optional.empty();
+            }).or(() -> getLastMatching(entry -> {
+                if (isAssignableType(type, entry)) {
+                    return Optional.of((T) entry.input());
+                }
+                return Optional.empty();
+            }));
+        }
+
+        /**
+         * Check if this is a retry of a specific action
+         */
+        public boolean isRetry(String actionName) {
+            return entries.stream()
+                    .anyMatch(entry -> entry.actionName().equals(actionName));
+        }
+
+        /**
+         * Get retry count for a specific action
+         */
+        public long getRetryCount(String actionName) {
+            return entries.stream()
+                    .filter(entry -> entry.actionName().equals(actionName))
+                    .count();
+        }
+
+        public boolean detectLoop(Class<?> type) {
+            return detectLoop(type, BlackboardHistory.getLoopThreshold());
+        }
+
+        /**
+         * Check if we're in a loop by detecting repeated patterns
+         */
+        public boolean detectLoop(Class<?> type, int threshold) {
+            return countType(type) >= threshold;
+        }
+
+        /**
+         * Get a summary of all historical entries
+         */
+        public String getSummary() {
+            if (entries.isEmpty()) {
+                return "No historical entries";
+            }
+
+            Map<String, Long> actionCounts = entries.stream()
+                    .collect(Collectors.groupingBy(
+                            Entry::actionName,
+                            Collectors.counting()
+                    ));
+
+            StringBuilder summary = new StringBuilder("History Summary:\n");
+            actionCounts.forEach((action, count) ->
+                    summary.append(String.format("  - %s: %d attempts\n", action, count))
+            );
+
+            return summary.toString();
+        }
+
+        public Object last() {
+            return Optional.ofNullable(entries.getLast()).flatMap(e -> Optional.ofNullable(e.input()));
+        }
+
+        private void addEvent(Events.GraphEvent event, String actionName) {
+            if (event == null) {
+                return;
+            }
+            entries.add(new DefaultEntry(
+                    event.timestamp(),
+                    actionName != null ? actionName : event.eventType(),
+                    event,
+                    event.getClass()
+            ));
+        }
+
+
+        private void addMessageEvent(Events.GraphEvent event, String actionName) {
+            if (event == null || actionName == null) {
+                return;
+            }
+            for (Entry entry : entries) {
+                if (actionName.equals(entry.actionName()) && entry instanceof MessageEntry messageEntry) {
+                    messageEntry.events().events().add(event);
+                    return;
+                }
+            }
+            List<Events.GraphEvent> events = new ArrayList<>();
+            events.add(event);
+            entries.add(new MessageEntry(
+                    event.timestamp(),
+                    actionName,
+                    new MessageEvents(events, event.contextId().parent().orElseGet(() -> {
+                        log.error("Error when attempting to get parent of contextId for {}.", event);
+                        return event.contextId();
+                    }))
+            ));
+        }
+
+        public <T> List<T> getLast(Class<T> contextManagerRequestClass) {
+            if (!isAssignableType(contextManagerRequestClass, this.entries.getLast())) {
+                return new ArrayList<>();
+            }
+
+            return this.entries.reversed().stream()
+                    .takeWhile(e -> isAssignableType(contextManagerRequestClass, e))
+                    .map(e -> (T) e.input())
+                    .toList();
+        }
+    }
+
+    private static <T> boolean isExactlyType(Class<T> type, Entry entry) {
+        return entry.inputType() != null && entry.inputType().equals(type);
+    }
+
+    private static String normalizeLoopActionName(String actionName) {
+        if (actionName == null) {
+            return null;
+        }
+        String trimmed = actionName.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return LOOP_ACTION_ALIASES.getOrDefault(trimmed, trimmed);
+    }
+
+    @Override
+    public String listenerId() {
+        return listenerId;
+    }
+
+    @Override
+    public void onEvent(Events.GraphEvent event) {
+        if (event == null) {
+            return;
+        }
+        if (nodeId != null && !nodeId.isBlank() && !isDescendantOrEqual(event.nodeId(), nodeId)) {
+            return;
+        }
+        List<String> targets = classifyEventTargets(event);
+        if (targets.isEmpty()) {
+            return;
+        }
+        boolean isMessage = isMessageEvent(event);
+        for (String target : targets) {
+            String actionName = isMessage ? target + "::messages" : target + "::" + event.eventType();
+            if (isMessage) {
+                history.addMessageEvent(event, actionName);
+            } else {
+                history.addEvent(event, actionName);
+            }
+        }
+    }
+
+    @Override
+    public Class<Events.GraphEvent> eventType() {
+        return Events.GraphEvent.class;
+    }
+
+    private static List<String> classifyEventTargets(Events.GraphEvent event) {
+        return switch (event) {
+            case Events.NodeAddedEvent nodeAdded -> buildTargets(event.nodeId(), nodeAdded.parentNodeId());
+            case Events.AddChildNodeEvent addChild -> buildTargets(addChild.nodeId(), addChild.parentNodeId());
+            case Events.ActionStartedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.ActionCompletedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.StopAgentEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.PauseEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.ResumeEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.ResolveInterruptEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.AddMessageEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.InterruptRequestEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.NodeStatusChangedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.NodeErrorEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.NodeBranchedEvent nodeBranched -> buildTargets(event.nodeId(), nodeBranched.originalNodeId());
+            case Events.NodePrunedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.NodeReviewRequestedEvent reviewRequested ->
+                    buildTargets(reviewRequested.reviewNodeId(), reviewRequested.nodeId());
+            case Events.InterruptStatusEvent interruptStatus ->
+                    buildTargets(event.nodeId(), interruptStatus.originNodeId(), interruptStatus.resumeNodeId());
+            case Events.GoalStartedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.GoalCompletedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.WorktreeCreatedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.WorktreeBranchedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.WorktreeMergedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.WorktreeDiscardedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.NodeUpdatedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.NodeDeletedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.NodeStreamDeltaEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.NodeThoughtDeltaEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.ToolCallEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.GuiRenderEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.UiDiffAppliedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.UiDiffRejectedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.UiDiffRevertedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.UiFeedbackEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.NodeBranchRequestedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.PlanUpdateEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.UserMessageChunkEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.CurrentModeUpdateEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.AvailableCommandsUpdateEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.PermissionRequestedEvent permissionRequested ->
+                    buildTargets(event.nodeId(), permissionRequested.originNodeId());
+            case Events.PermissionResolvedEvent permissionResolved ->
+                    buildTargets(event.nodeId(), permissionResolved.originNodeId());
+            case Events.ArtifactEvent artifactEvent ->
+                    new ArrayList<>();
+            case Events.ChatSessionCreatedEvent chatSessionCreatedEvent ->
+                    buildTargets(chatSessionCreatedEvent.nodeId(), chatSessionCreatedEvent.chatModelId().value());
+            case Events.ChatSessionClosedEvent chatSessionClosedEvent ->
+                    buildTargets(chatSessionClosedEvent.nodeId(), chatSessionClosedEvent.sessionId());
+            case Events.ChatSessionResetEvent chatEvent ->
+                    buildTargets(chatEvent.nodeId(), chatEvent.sessionId());
+            case Events.AiFilterSessionEvent aiFilterSessionEvent ->
+                    buildTargets(aiFilterSessionEvent.nodeId(), null);
+            case Events.TuiInteractionGraphEvent tuiInteractionGraphEvent ->
+                    new ArrayList<>();
+            case Events.TuiSystemGraphEvent tuiSystemGraphEvent ->
+                    new ArrayList<>();
+            case Events.MergePhaseStartedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.MergePhaseCompletedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.PropagationEvent propagationEvent ->
+                    buildTargets(propagationEvent.sourceNodeId(), null);
+            case Events.TransformationEvent ignored -> new ArrayList<>();
+            case Events.CompactionEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.AgentCallStartedEvent callStarted ->
+                    buildTargets(callStarted.callerNodeId(), callStarted.targetNodeId());
+            case Events.AgentCallCompletedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.AgentCallEvent callEvent ->
+                    buildTargets(callEvent.callerSessionId(), callEvent.targetSessionId());
+            case Events.PromptReceivedEvent ignored -> buildTargets(event.nodeId(), null);
+            case Events.AgentExecutorStartEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.AgentExecutorCompleteEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.NullResultEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.IncompleteJsonEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.UnparsedToolCallEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.TimeoutEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+            case Events.ParseErrorEvent e -> buildTargets(e.nodeId(), e.sessionKey());
+        };
+    }
+
+    private static List<String> buildTargets(String nodeId, String parentNodeId, String... additionalParents) {
+        LinkedHashSet<String> targets = new LinkedHashSet<>();
+        String nodeTarget = nodeKey(nodeId);
+        if (hasText(nodeTarget)) {
+            targets.add(nodeTarget);
+        }
+        String parentTarget = parentKey(parentNodeId);
+        if (hasText(parentTarget)) {
+            targets.add(parentTarget);
+        }
+        if (additionalParents != null) {
+            for (String parent : additionalParents) {
+                String target = parentKey(parent);
+                if (hasText(target)) {
+                    targets.add(target);
+                }
+            }
+        }
+        return List.copyOf(targets);
+    }
+
+    private static String nodeKey(String nodeId) {
+        if (!hasText(nodeId)) {
+            return null;
+        }
+        return "node:" + nodeId;
+    }
+
+    private static String parentKey(String parentNodeId) {
+        if (!hasText(parentNodeId)) {
+            return null;
+        }
+        return "parent:" + parentNodeId;
+    }
+
+    private static boolean isDescendantOrEqual(String eventNodeId, String parentNodeId) {
+        if (!ArtifactKey.isValid(eventNodeId) || !ArtifactKey.isValid(parentNodeId)) {
+            return false;
+        }
+        ArtifactKey eventKey = new ArtifactKey(eventNodeId);
+        ArtifactKey parentKey = new ArtifactKey(parentNodeId);
+        return eventKey.equals(parentKey) || eventKey.isDescendantOf(parentKey);
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private static boolean isMessageEvent(Events.GraphEvent event) {
+        return event instanceof Events.NodeStreamDeltaEvent
+                || event instanceof Events.NodeThoughtDeltaEvent
+                || event instanceof Events.ToolCallEvent
+                || event instanceof Events.AddMessageEvent
+                || event instanceof Events.UserMessageChunkEvent;
+    }
+
+    /**
+     * Represents a note attached to history entries.
+     */
+    public record HistoryNote(
+            String noteId,
+            Instant timestamp,
+            String content,
+            List<String> tags,
+            String authorAgent
+    ) {
+    }
+
+}

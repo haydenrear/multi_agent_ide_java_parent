@@ -3,8 +3,8 @@ package com.hayden.multiagentide.integration.filter;
 import com.hayden.acp_cdc_ai.acp.events.Events;
 import com.hayden.acp_cdc_ai.acp.filter.FilterEnums;
 import com.hayden.multiagentide.filter.service.FilterExecutionService;
-import com.hayden.multiagentidelib.filter.model.FilterSource;
-import com.hayden.multiagentidelib.filter.model.policy.PolicyLayerBinding;
+import com.hayden.multiagentide.filter.model.FilterSource;
+import com.hayden.multiagentide.filter.model.policy.PolicyLayerBinding;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

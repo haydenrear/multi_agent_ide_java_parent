@@ -1,14 +1,14 @@
 package com.hayden.multiagentide.service;
 
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.model.MergeResult;
-import com.hayden.multiagentidelib.model.merge.MergeDescriptor;
-import com.hayden.multiagentidelib.model.merge.MergeDirection;
-import com.hayden.multiagentidelib.model.merge.SubmoduleMergeResult;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.SubmoduleWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.WorktreeSandboxContext;
-import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.model.MergeResult;
+import com.hayden.multiagentide.model.merge.MergeDescriptor;
+import com.hayden.multiagentide.model.merge.MergeDirection;
+import com.hayden.multiagentide.model.merge.SubmoduleMergeResult;
+import com.hayden.multiagentide.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentide.model.worktree.SubmoduleWorktreeContext;
+import com.hayden.multiagentide.model.worktree.WorktreeSandboxContext;
+import com.hayden.multiagentide.model.worktree.WorktreeContext;
 import com.hayden.multiagentide.repository.WorktreeRepository;
 import com.hayden.utilitymodule.git.RepoUtil;
 import lombok.extern.slf4j.Slf4j;

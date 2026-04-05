@@ -15,6 +15,10 @@ import com.hayden.multiagentide.artifacts.ExecutionScopeService;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.multiagentide.gate.PermissionGate;
+import com.hayden.multiagentide.model.nodes.AgentToAgentConversationNode;
+import com.hayden.multiagentide.model.nodes.DiscoveryCollectorNode;
+import com.hayden.multiagentide.model.nodes.DiscoveryOrchestratorNode;
+import com.hayden.multiagentide.model.nodes.OrchestratorNode;
 import com.hayden.multiagentide.orchestration.ComputationGraphOrchestrator;
 import com.hayden.multiagentide.filter.repository.FilterDecisionRecordRepository;
 import com.hayden.multiagentide.filter.repository.LayerRepository;
@@ -31,18 +35,17 @@ import com.hayden.multiagentide.support.QueuedLlmRunner;
 import com.hayden.multiagentide.support.TestEventListener;
 import com.hayden.multiagentide.transformation.repository.TransformationRecordRepository;
 import com.hayden.multiagentide.transformation.repository.TransformerRegistrationRepository;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.AgentType;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.AgentType;
 import com.hayden.acp_cdc_ai.acp.CompactionException;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.acp.events.Artifact;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;
-import com.hayden.multiagentidelib.llm.LlmRunner;
-import com.hayden.multiagentidelib.model.nodes.*;
-import com.hayden.multiagentidelib.model.worktree.MainWorktreeContext;
-import com.hayden.multiagentidelib.model.worktree.WorktreeContext;
+import com.hayden.multiagentide.llm.LlmRunner;
+import com.hayden.multiagentide.model.worktree.MainWorktreeContext;
+import com.hayden.multiagentide.model.worktree.WorktreeContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -1540,7 +1543,7 @@ class WorkflowAgentQueuedTest extends AgentTestBase {
                         // Call listAvailableAgents from the discovery orchestrator's perspective
                         var agents = agentCommunicationService.listAvailableAgents(
                                 contextId,
-                                com.hayden.multiagentidelib.agent.AgentType.ORCHESTRATOR
+                                AgentType.ORCHESTRATOR
                         );
                         topologyResults.addAll(agents);
                     }

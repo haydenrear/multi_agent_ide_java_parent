@@ -1,13 +1,13 @@
 package com.hayden.multiagentide.agent.decorator.request;
 
 import com.embabel.agent.api.common.OperationContext;
-import com.hayden.multiagentidelib.agent.DecoratorContext;
+import com.hayden.multiagentide.agent.DecoratorContext;
 import com.hayden.multiagentide.artifacts.ExecutionScopeService;
 import com.hayden.multiagentide.embabel.EmbabelUtil;
 import com.hayden.multiagentide.filter.service.FilterLayerCatalog;
-import com.hayden.multiagentidelib.agent.AgentModels;
-import com.hayden.multiagentidelib.agent.BlackboardHistory;
-import com.hayden.multiagentidelib.agent.WorkflowGraphState;
+import com.hayden.multiagentide.agent.AgentModels;
+import com.hayden.multiagentide.agent.BlackboardHistory;
+import com.hayden.multiagentide.agent.WorkflowGraphState;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
 import com.hayden.acp_cdc_ai.acp.events.EventBus;
 import com.hayden.acp_cdc_ai.acp.events.Events;

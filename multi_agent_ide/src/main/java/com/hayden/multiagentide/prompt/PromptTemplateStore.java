@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hayden.multiagentide.artifacts.entity.ArtifactEntity;
 import com.hayden.multiagentide.artifacts.repository.ArtifactRepository;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
-import com.hayden.multiagentidelib.artifact.PromptTemplateVersion;
+import com.hayden.multiagentide.artifact.PromptTemplateVersion;
 import com.hayden.utilitymodule.stream.StreamUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
