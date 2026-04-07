@@ -163,7 +163,7 @@ multi-agent-embabel:
         env:
           MCP_TOOL_TIMEOUT: 900000
           MCP_TIMEOUT: 900000
-          DEFAULT_REQUEST_TIMEOUT_MSEC: 900000
+          MCP_TOOL_CALL_MCP_REQUEST_TIMEOUT_MSEC: 900_000
           ANTHROPIC_BASE_URL: https://openrouter.ai/api
           ANTHROPIC_AUTH_TOKEN: ${X_OPENROUTER_API_KEY}
           ANTHROPIC_API_KEY: ""
@@ -179,7 +179,7 @@ multi-agent-embabel:
         env:
           MCP_TOOL_TIMEOUT: 900000
           MCP_TIMEOUT: 900000
-          DEFAULT_REQUEST_TIMEOUT_MSEC: 900000
+          MCP_TOOL_CALL_MCP_REQUEST_TIMEOUT_MSEC: 900_000
           ANTHROPIC_AUTH_TOKEN: ollama
           ANTHROPIC_BASE_URL: http://localhost:11434
           ANTHROPIC_API_KEY: ""
