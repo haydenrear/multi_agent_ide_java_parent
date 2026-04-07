@@ -2,6 +2,7 @@ package com.hayden.multiagentide.service;
 
 import com.embabel.agent.core.AgentProcess;
 import com.hayden.multiagentide.retry.RetryConfigProperties;
+import org.jspecify.annotations.NonNull;
 import org.springframework.context.annotation.Lazy;
 import com.embabel.agent.spi.common.ActionRetryListener;
 import com.hayden.acp_cdc_ai.acp.events.ArtifactKey;
@@ -15,6 +16,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.retry.RetryContext;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -84,11 +89,12 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
         if (history.didRetryAlreadyRunForThisExactExceptionInHierarchy(errorDescriptor))
             return;
 
-        history.addError(errorDescriptor);
-
-        log.info("ActionRetryListener: recorded {} for action={} sessionKey={} retryCount={} on process={}",
+        log.info("ActionRetryListener: recorded {} for action={} sessionKey={} retryCount={} on process={}, errorContextId={}, causes={}",
                 errorDescriptor.getClass().getSimpleName(), actionName, sessionKey,
-                context.getRetryCount(), agentProcess.getId());
+                context.getRetryCount(), agentProcess.getId(), errorContextId,
+                parseCauses(throwable));
+
+        history.addError(errorDescriptor);
 
         // Emit the error event for observability
         Events.GraphEvent event = errorDescriptor.toEvent();
@@ -101,34 +107,68 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
         }
     }
 
+    private static @NonNull List<String> parseCauses(Throwable throwable) {
+        List<String> causes = new ArrayList<>();
+
+        Throwable cause = throwable;
+
+        do {
+            causes.add(cause.getClass().getName());
+            cause = throwable.getCause();
+        } while (cause != null);
+
+        return causes;
+    }
+
     /**
      * Finds the last AgentExecutorStartEvent whose nodeId has no matching
      * AgentExecutorCompleteEvent (by startNodeId). Returns null if all starts are matched
      * (or none exist).
+     *
+     * <p>Scans all start events (not just the last one) because intervening operations
+     * like controller calls emit their own start+complete pairs. The actual in-flight
+     * execution that is being retried may not be the most recent start event.
      *
      * <p>Matching is by {@code startEvent.nodeId() == completeEvent.startNodeId()},
      * since nodeId is unique per execution attempt while requestContextId can be the same
      * across retries.
      */
     Events.AgentExecutorStartEvent findLastUnmatchedStart(BlackboardHistory history) {
-        Events.AgentExecutorStartEvent lastStart = history.getLastOfType(Events.AgentExecutorStartEvent.class);
-        if (lastStart == null) {
+        List<Events.AgentExecutorStartEvent> allStarts = history.fromHistory(
+                h -> h.getEntriesOfType(Events.AgentExecutorStartEvent.class));
+        if (allStarts == null || allStarts.isEmpty()) {
             return null;
         }
 
-        String startNodeId = lastStart.nodeId();
-        if (startNodeId == null || startNodeId.isEmpty()) {
-            // Legacy event without nodeId — fall back to positional check
-            return history.isLastExecutionComplete() ? null : lastStart;
+        // Collect all completed nodeIds into a set for O(1) lookup
+        List<Events.AgentExecutorCompleteEvent> allCompletes = history.fromHistory(
+                h -> h.getEntriesOfType(Events.AgentExecutorCompleteEvent.class));
+        Set<String> completedNodeIds = new HashSet<>();
+        if (allCompletes != null) {
+            for (Events.AgentExecutorCompleteEvent complete : allCompletes) {
+                if (complete.startNodeId() != null) {
+                    completedNodeIds.add(complete.startNodeId());
+                }
+            }
         }
 
-        // Look for a complete event whose startNodeId matches this start's nodeId
-        Events.AgentExecutorCompleteEvent lastComplete = history.getLastOfType(Events.AgentExecutorCompleteEvent.class);
-        if (lastComplete != null && startNodeId.equals(lastComplete.startNodeId())) {
-            return null; // This start is matched — execution already completed
+        // Walk backwards through starts to find the last one without a matching complete
+        for (int i = allStarts.size() - 1; i >= 0; i--) {
+            Events.AgentExecutorStartEvent start = allStarts.get(i);
+            String nodeId = start.nodeId();
+            if (nodeId == null || nodeId.isEmpty()) {
+                // Legacy event without nodeId — fall back to positional check
+                if (!history.isLastExecutionComplete()) {
+                    return start;
+                }
+                continue;
+            }
+            if (!completedNodeIds.contains(nodeId)) {
+                return start;
+            }
         }
 
-        return lastStart;
+        return null;
     }
 
     /**
@@ -168,8 +208,9 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
             return new ErrorDescriptor.TimeoutError(actionName, sessionKey, retryCount, message, throwable, contextId, errCtx);
         }
 
-        if (lowerMessage.contains("tool call")) {
-            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, message, message, throwable, contextId, errCtx);
+        if (lowerMessage.contains("ACP returned unparsed tool call as final structured output:".toLowerCase())) {
+            int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.UnparsedToolCallError.class, sessionKey) + 1;
+            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, retryCount, message, message, throwable, contextId, errCtx);
         }
 
         if (lowerMessage.contains("null") && lowerMessage.contains("result")
@@ -183,10 +224,38 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
             return new ErrorDescriptor.IncompleteJsonError(actionName, sessionKey, retryCount, message, message, throwable, contextId, errCtx);
         }
 
+        if (lowerMessage.contains("could not parse the given text to the desired target type")
+                && lowerMessage.contains("\"tool:\"") && lowerMessage.contains("call_controller")) {
+            int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.UnparsedToolCallError.class, sessionKey) + 1;
+            message += """
+                    It seems you tried to return a tool call for the controller instead of using your MCP tools.
+                    Please use the MCP tool call to justify, and then return your structured response after validating.
+                    Please do not try to return a tool call to the controller.
+                    """;
+            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, retryCount, message, message, throwable, contextId, errCtx);
+        }
+
+        if (lowerMessage.contains("could not parse the given text to the desired target type")
+                && lowerMessage.contains("\"tool:\"")) {
+            int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.UnparsedToolCallError.class, sessionKey) + 1;
+            message += """
+                    It seems you tried to return a tool call for the controller instead of using your MCP tools.
+                    Please use the MCP tool call to justify, and then return your structured response after validating.
+                    Please do not try to return a tool call to the controller.
+                    """;
+            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, retryCount, message, message, throwable, contextId, errCtx);
+        }
+
+        if (lowerMessage.contains("could not parse the given text to the desired target type")) {
+            int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.IncompleteJsonError.class, sessionKey) + 1;
+            return new ErrorDescriptor.IncompleteJsonError(actionName, sessionKey, retryCount, message, message, throwable, contextId, errCtx);
+        }
+
         if (throwable instanceof com.fasterxml.jackson.core.JsonParseException
                 || lowerMessage.contains("parse")) {
             return new ErrorDescriptor.ParseError(actionName, sessionKey, message, message, throwable, contextId, errCtx);
         }
+
 
         // Fallback: treat as parse error with raw message
         return new ErrorDescriptor.ParseError(actionName, sessionKey, message, message, throwable, contextId, errCtx);

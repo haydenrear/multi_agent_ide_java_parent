@@ -55,11 +55,11 @@ Each invariant references the SURFACE.md scenarios it applies to.
 | S-INV8 | PASS | `happyPath_noRetryFilteringOccurs` (S-INV8a: no filtering). 6 retry tests complete successfully after error+retry (S-INV8b: retry filtering active). S-INV8c validated via code inspection |
 | S-INV10 | PASS (indirect) | controllerResponse test uses assemblePrompt path via PromptContributorService |
 | S-INV11 | — | Not yet validated (needs integration trace verification) |
-| S-INV12 | PASS (unit) | Unit tests in ActionRetryListenerImplTest cover session scoping, chain detection |
+| S-INV12 | PASS (unit) | Unit tests in ActionRetryListenerImplTest cover session scoping, chain detection, interleaving controller calls |
 | S-INV13 | PASS (unit) | Unit test: errorContext_accumulatesAcrossMultipleStartsAndErrors |
 | S-INV14 | PASS (unit) | Unit tests: errorType_withSessionKey_* (4 tests) |
 | S-INV15 | PASS | ChatModel-level errors reach ActionRetryListenerImpl: 30 starts vs 28 completes (2 extra from dual retry), workflow COMPLETED |
-| S-INV16 | PASS (static) | AcpChatModel has zero internal retry loops (T036 grep verification) |
+| S-INV16 | PASS (static) | AcpChatModel has zero internal retry loops, isIncompleteJson removed (T036 grep verification) |
 
 ### Trace Timing Gap (A-INV2)
 
@@ -231,6 +231,10 @@ Each invariant listed here should eventually be expanded into its own group of s
 ### D-INV9. list_agents Topology Filtering (D8)
 **Invariant**: Entries in list_agents with `callable=false` correspond to disallowed topology pairs.
 **Search**: Test assertion cross-referencing allowedCommunications config.
+
+### D-INV10. Tool Description Structured Result Bypass Prevention (D10)
+**Invariant**: Both `call_agent` and `list_agents` tool descriptions (in `@Tool` and `@McpTool` annotations on `AgentTopologyTools`) contain explicit warnings that agents must NEVER use these tools as a substitute for returning their structured JSON result. The description text includes: "Never use call_agent as a substitute for returning your structured result" and "do NOT use call_agent/list_agents to work around the failure by manually delegating or forwarding". Both `@Tool` and `@McpTool` annotations carry identical description text.
+**Search**: Static: grep `AgentTopologyTools.java` for "substitute for returning your structured result" — must match in both `call_agent` and `list_agents` `@Tool` and `@McpTool` annotations (4 matches total).
 
 ---
 
@@ -497,8 +501,8 @@ Also sets `entity.activatedAt` to current timestamp.
 **Search**: `*.events.md` — pair by sessionKey + actionName, verify temporal ordering.
 
 ### S-INV3. ActionRetryListener Error Classification (S3)
-**Invariant**: `ActionRetryListenerImpl.classify()` maps throwables to ErrorDescriptor variants deterministically: CompactionException → CompactionError, "compacting"/"prompt too long" → CompactionError, TimeoutException/"timeout" → TimeoutError, "tool call" → UnparsedToolCallError, JsonParseException/"parse" → ParseError, unknown → ParseError (fallback). Classification order matters: "tool call" checked before "parse" to prevent "Unparsed" matching "parse".
-**Search**: Unit test coverage in `ActionRetryListenerImplTest` (15 tests).
+**Invariant**: `ActionRetryListenerImpl.classify()` maps throwables to ErrorDescriptor variants deterministically: CompactionException → CompactionError, "compacting"/"prompt too long" → CompactionError, TimeoutException/"timeout" → TimeoutError, "tool call" → UnparsedToolCallError, "null"+"result"/"empty response" → NullResultError, "incomplete json"/"truncated" → IncompleteJsonError, "could not parse the given text to the desired target type" → IncompleteJsonError, JsonParseException/"parse" → ParseError, unknown → ParseError (fallback). Classification order matters: "tool call" checked before "parse" to prevent "Unparsed" matching "parse". "could not parse" from embabel framework's OutputConverter is mapped to IncompleteJsonError (not ParseError) because it indicates the LLM produced structurally incomplete output.
+**Search**: Unit test coverage in `ActionRetryListenerImplTest` (15+ tests).
 
 ### S-INV4. ErrorDescriptor Persisted on BlackboardHistory (S4)
 **Invariant**: After `ActionRetryListener.onActionRetry()` fires, `BlackboardHistory.errorType()` returns the classified `ErrorDescriptor`. `compactionStatus()` returns the compaction progression (NONE → FIRST → MULTIPLE). Calling `addError(NoError)` resets errorType but preserves history entries.
@@ -533,11 +537,12 @@ Also sets `entity.activatedAt` to current timestamp.
 **Search**: `*.events.md` — in retry scenarios, two START events have the same `requestContextId` but different `nodeId`. The COMPLETE event's `startNodeId` matches the second START's `nodeId`.
 
 ### S-INV12. Retry Sequence Boundary Correctness (S12)
-**Invariant**: `findFirstUnmatchedStartIndex(sessionKey)` returns the index of the earliest `AgentExecutorStartEvent` in a contiguous chain of unmatched starts for the given session. A start is matched iff its `nodeId` appears as `startNodeId` on some `AgentExecutorCompleteEvent` with the same `sessionKey`. A matched start terminates the backwards walk. Returns -1 if no unmatched starts exist.
+**Invariant**: `findFirstUnmatchedStartIndex(sessionKey)` returns the index of the earliest `AgentExecutorStartEvent` in a contiguous chain of unmatched starts for the given session. A start is matched iff its `nodeId` appears as `startNodeId` on some `AgentExecutorCompleteEvent` with the same `sessionKey`. A matched start terminates the backwards walk. Returns -1 if no unmatched starts exist. `ActionRetryListenerImpl.findLastUnmatchedStart()` scans ALL start events and builds a `Set<String>` of completed `nodeId`s from ALL complete events, then walks backwards to find the last start with no matching complete.
 **Sub-invariant S-INV12a**: Only considers starts matching the given `sessionKey`.
 **Sub-invariant S-INV12b**: Interleaved starts from other sessions are skipped (not break/matched).
 **Sub-invariant S-INV12c**: `errorCountForRetrySequence` counts from `firstUnmatched + 1` forward.
-**Search**: Unit test: `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods`.
+**Sub-invariant S-INV12d**: Interleaved controller call start+complete pairs (e.g., `controllerExecution` start B + complete B between unmatched LLM start A) do not cause `findLastUnmatchedStart` to miss A. The set-based approach ensures B's complete matches B's start, leaving A correctly identified as unmatched.
+**Search**: Unit test: `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods`, `ActionRetryListenerImplTest.FindLastUnmatchedStart.unmatchedStart_withInterveningMatchedControllerCall_returnsOriginalStart`.
 
 ### S-INV13. Cumulative ErrorContext Chain (S13)
 **Invariant**: Each `ErrorDescriptor` in a retry sequence carries an `ErrorContext` containing all previous errors (as `ErrorEntry` records). The chain is built by: (1) calling `history.errorType(sessionKey)` to get the previous error, (2) calling `previousError.errorContext().withError(previousError)` to append it. The first error has `ErrorContext.EMPTY`. The chain is flat (no recursive nesting — `ErrorEntry` omits its own `ErrorContext`).
@@ -561,8 +566,8 @@ Also sets `entity.activatedAt` to current timestamp.
 **Search**: Integration test: `WorkflowAgentAcpChatModelTest.ChatModelRetryScenarios.*`. Trace data: `test_work/chatmodel/*.md`.
 
 ### S-INV16. AcpChatModel Has No Internal Retry Loops (S16)
-**Invariant**: `AcpChatModel.kt` contains zero internal retry patterns. Static grep for `Thread.sleep`, `while` (except StringTokenizer), `nullRetryCount`, `continueCount`, `pollCount` returns zero matches. The `isIncompleteJson()`, `isSessionCompacting()`, and `detectUnparsedToolCallInLastMessage()` methods detect-and-throw rather than retry.
-**Search**: Static: `grep -c 'Thread.sleep\|nullRetryCount\|continueCount\|pollCount' AcpChatModel.kt` = 0.
+**Invariant**: `AcpChatModel.kt` contains zero internal retry patterns. Static grep for `Thread.sleep`, `while` (except StringTokenizer), `nullRetryCount`, `continueCount`, `pollCount`, `isIncompleteJson` returns zero matches. The `isSessionCompacting()` and `detectUnparsedToolCallInLastMessage()` methods detect-and-throw rather than retry. `isIncompleteJson()` has been removed — incomplete JSON is now detected by the embabel framework's `OutputConverter` throwing a parse exception, which propagates through the retry framework and is classified as `IncompleteJsonError` by `ActionRetryListenerImpl.classify()`.
+**Search**: Static: `grep -c 'Thread.sleep\|nullRetryCount\|continueCount\|pollCount\|isIncompleteJson' AcpChatModel.kt` = 0.
 
 ---
 
@@ -595,6 +600,7 @@ Also sets `entity.activatedAt` to current timestamp.
 | D7 | D-INV1 (partial) |
 | D8 | D-INV8–9 |
 | D9 | D-INV8 |
+| D10 | D-INV10 |
 | E1 | G1–G10, E-INV1, E-INV7, R-INV1 |
 | E2 | G1–G10, E-INV2, E-INV7 |
 | E3 | G1–G10, E-INV3, E-INV7 |

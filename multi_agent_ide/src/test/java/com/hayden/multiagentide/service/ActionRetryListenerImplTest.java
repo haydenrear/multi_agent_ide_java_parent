@@ -136,6 +136,16 @@ class ActionRetryListenerImplTest {
         }
 
         @Test
+        void couldNotParseMessage_classifiesAsIncompleteJsonError() {
+            var history = emptyHistory();
+            var result = listener.classify(
+                    new RuntimeException("Could not parse the given text to the desired target type com.hayden.multiagentide.agent.AgentModels$OrchestratorRouting"),
+                    actionName, sessionKey, contextId, history);
+            assertThat(result).isInstanceOf(ErrorDescriptor.IncompleteJsonError.class);
+            assertThat(((ErrorDescriptor.IncompleteJsonError) result).sessionKey()).isEqualTo(sessionKey);
+        }
+
+        @Test
         void unknownException_fallsBackToParseError() {
             var history = emptyHistory();
             var result = listener.classify(
@@ -216,6 +226,54 @@ class ActionRetryListenerImplTest {
             var result = listener.findLastUnmatchedStart(history);
             assertThat(result).isNotNull();
             assertThat(result.requestContextId()).isEqualTo("req-2");
+        }
+
+        @Test
+        void unmatchedStart_withInterveningMatchedControllerCall_returnsOriginalStart() {
+            var history = new BlackboardHistory(new BlackboardHistory.History(), "test", null);
+            // Original LLM call start — this is the one being retried (unmatched)
+            history.addEntry("test", startEvent("coordinateWorkflow", "session", "node-1", "req-1"));
+            // Intervening controller call: start + complete pair (matched)
+            history.addEntry("test", startEvent("controllerExecution", "session", "node-2", "req-2"));
+            history.addEntry("test", completeEvent("controllerExecution", "session", "node-2", "req-2", "node-2"));
+
+            var result = listener.findLastUnmatchedStart(history);
+            assertThat(result).isNotNull();
+            assertThat(result.nodeId()).isEqualTo("node-1");
+            assertThat(result.requestContextId()).isEqualTo("req-1");
+        }
+
+        @Test
+        void unmatchedStart_withMultipleInterveningMatchedCalls_returnsOriginalStart() {
+            var history = new BlackboardHistory(new BlackboardHistory.History(), "test", null);
+            // Original LLM call start — this is the one being retried (unmatched)
+            history.addEntry("test", startEvent("coordinateWorkflow", "session", "node-1", "req-1"));
+            // First intervening call: controller start + complete pair (matched)
+            history.addEntry("test", startEvent("controllerExecution", "session", "node-2", "req-2"));
+            history.addEntry("test", completeEvent("controllerExecution", "session", "node-2", "req-2", "node-2"));
+            // Second intervening call: agent-to-agent start + complete pair (matched)
+            history.addEntry("test", startEvent("agentCallExecution", "session", "node-3", "req-3"));
+            history.addEntry("test", completeEvent("agentCallExecution", "session", "node-3", "req-3", "node-3"));
+            // Third intervening call: another controller call (matched)
+            history.addEntry("test", startEvent("controllerExecution", "session", "node-4", "req-4"));
+            history.addEntry("test", completeEvent("controllerExecution", "session", "node-4", "req-4", "node-4"));
+
+            var result = listener.findLastUnmatchedStart(history);
+            assertThat(result).isNotNull();
+            assertThat(result.nodeId()).isEqualTo("node-1");
+            assertThat(result.requestContextId()).isEqualTo("req-1");
+        }
+
+        @Test
+        void allStartsMatched_returnsNull() {
+            var history = new BlackboardHistory(new BlackboardHistory.History(), "test", null);
+            // All starts have matching completes
+            history.addEntry("test", startEvent("action1", "session", "node-1", "req-1"));
+            history.addEntry("test", completeEvent("action1", "session", "node-1", "req-1", "node-1"));
+            history.addEntry("test", startEvent("action2", "session", "node-2", "req-2"));
+            history.addEntry("test", completeEvent("action2", "session", "node-2", "req-2", "node-2"));
+
+            assertThat(listener.findLastUnmatchedStart(history)).isNull();
         }
 
         @Test

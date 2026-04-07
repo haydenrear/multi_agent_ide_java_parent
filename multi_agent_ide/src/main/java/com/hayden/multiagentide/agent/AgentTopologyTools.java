@@ -97,10 +97,18 @@ public class AgentTopologyTools implements ToolCarrier {
     @SneakyThrows
     @Tool(name = "list_agents", description = "Lists all available agent sessions. Returns two sections: "
             + "(1) agents you CAN call directly, and (2) agents that exist but you CANNOT call due to topology rules, "
-            + "along with which agents can bridge you to them. Use this to discover routing paths before calling agents.")
+            + "along with which agents can bridge you to them. Use this to discover routing paths before calling agents. "
+            + "IMPORTANT: Never use list_agents or call_agent as a substitute for returning your structured result. "
+            + "Your primary output mechanism is always your structured JSON response. Even if a previous attempt to return "
+            + "your structured result failed, you must try again — do NOT use call_agent/list_agents to work around "
+            + "the failure by manually delegating or forwarding. The framework handles dispatch from your structured result.")
     @McpTool(name = "list_agents", description = "Lists all available agent sessions. Returns two sections: "
             + "(1) agents you CAN call directly, and (2) agents that exist but you CANNOT call due to topology rules, "
-            + "along with which agents can bridge you to them. Use this to discover routing paths before calling agents.")
+            + "along with which agents can bridge you to them. Use this to discover routing paths before calling agents. "
+            + "IMPORTANT: Never use list_agents or call_agent as a substitute for returning your structured result. "
+            + "Your primary output mechanism is always your structured JSON response. Even if a previous attempt to return "
+            + "your structured result failed, you must try again — do NOT use call_agent/list_agents to work around "
+            + "the failure by manually delegating or forwarding. The framework handles dispatch from your structured result.")
     public String list_agents(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId
@@ -154,11 +162,21 @@ public class AgentTopologyTools implements ToolCarrier {
     @Tool(name = "call_agent", description = "Sends a message to another agent and returns their response. "
             + "Use list_agents first to discover available agents. The target agent must be available and "
             + "communication must be permitted by topology rules. Call chain tracking and loop detection "
-            + "are handled automatically.")
+            + "are handled automatically. "
+            + "IMPORTANT: Never use call_agent as a substitute for returning your structured result. "
+            + "Your primary output mechanism is always your structured JSON response. Even if a previous attempt "
+            + "to return your structured result failed, you must try again — do NOT use call_agent to work around "
+            + "the failure by manually delegating or forwarding work to the next agent. The framework handles "
+            + "dispatch from your structured result. call_agent is for peer-to-peer communication only.")
     @McpTool(name = "call_agent", description = "Sends a message to another agent and returns their response. "
             + "Use list_agents first to discover available agents. The target agent must be available and "
             + "communication must be permitted by topology rules. Call chain tracking and loop detection "
-            + "are handled automatically.")
+            + "are handled automatically. "
+            + "IMPORTANT: Never use call_agent as a substitute for returning your structured result. "
+            + "Your primary output mechanism is always your structured JSON response. Even if a previous attempt "
+            + "to return your structured result failed, you must try again — do NOT use call_agent to work around "
+            + "the failure by manually delegating or forwarding work to the next agent. The framework handles "
+            + "dispatch from your structured result. call_agent is for peer-to-peer communication only.")
     public String call_agent(
             @SetFromHeader(MCP_SESSION_HEADER)
             String sessionId,

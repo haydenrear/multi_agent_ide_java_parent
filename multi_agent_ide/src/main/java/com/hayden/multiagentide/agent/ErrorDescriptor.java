@@ -230,6 +230,7 @@ public sealed interface ErrorDescriptor extends HasContextId
     record UnparsedToolCallError(
             String actionName,
             String sessionKey,
+            int numRetries,
             String toolCallText,
             String errorDetail,
             Throwable lastException,

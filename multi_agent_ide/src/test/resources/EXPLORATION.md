@@ -409,7 +409,51 @@ Generated: 2026-04-01 (updated: 2026-04-04)
 
 ---
 
-## Future Exploration Candidates
+## E35. extractTrailingJsonObject Escape Handling Correctness
+
+**Where**: `AcpChatModel.kt` — `extractTrailingJsonObject()` method, used by `detectUnparsedToolCallInLastMessage()`
+**Question**: After fixing the backwards escape handling (counting consecutive backslashes instead of single-flag toggle), does `extractTrailingJsonObject()` correctly handle all edge cases? Specifically: deeply nested escaped quotes (`\\\"`), unicode escapes (`\u0022`), and JSON strings containing literal backslash sequences at string boundaries?
+**Why it matters**: The function scans right-to-left which is inherently tricky for escape handling. The fix counts consecutive backslashes before a quote (odd = escaped, even = unescaped), but unicode escapes and multi-byte sequences could still cause misidentification of string boundaries. If the function fails to find the correct JSON object boundary, `detectUnparsedToolCallInLastMessage()` could either miss a real unparsed tool call or false-positive on valid JSON.
+**What to look for**: Unit tests for `extractTrailingJsonObject` with edge cases: `{"key": "val\\\"ue"}`, `{"key": "val\\\\"}`, JSON with trailing whitespace after `}`, JSON with multiple top-level objects.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E36. isIncompleteJson Removal — Framework Parse Error Classification Coverage
+
+**Where**: `ActionRetryListenerImpl.classify()` — new "could not parse the given text to the desired target type" branch
+**Question**: After removing `isIncompleteJson()` from AcpChatModel, all JSON parse failures now propagate through the embabel framework's `OutputConverter`. Does the framework always produce error messages containing "could not parse the given text to the desired target type"? Or are there other error message patterns that would miss the `IncompleteJsonError` classification and fall through to `ParseError`?
+**Why it matters**: If the framework changes its error message format, truncated/incomplete JSON would be classified as `ParseError` instead of `IncompleteJsonError`. This matters because different `ErrorDescriptor` variants trigger different retry-aware prompt contributor filtering. `IncompleteJsonError` might need different recovery strategies (e.g., asking for shorter output) than `ParseError` (e.g., asking for valid JSON syntax).
+**What to look for**: Grep the embabel framework source for the exact throw site in `OutputConverter`. Check if there are other exception paths (e.g., Jackson `JsonProcessingException` wrapping) that bypass this message. Test with actual truncated JSON to verify classification.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E37. Tool Description Effectiveness Against LLM Structured Result Bypass
+
+**Where**: `AgentTopologyTools.java` — `call_agent` and `list_agents` `@Tool` descriptions, live deployed workflows
+**Question**: Do the updated tool descriptions actually prevent agents from using `call_agent`/`list_agents` as a substitute for structured results? The descriptions say "Never use call_agent as a substitute for returning your structured result" but LLMs may still ignore tool description instructions under pressure (e.g., after multiple failed structured result attempts).
+**Why it matters**: The planning orchestrator failure cascade showed that after `isIncompleteJson` false-positived and the session recycled, the agent fell back to using `call_agent`/`list_agents` instead of retrying the structured result. The tool description update is a soft guard — it relies on the LLM reading and following instructions. If agents still bypass structured results in production, a harder guard (e.g., rejecting `call_agent` when the calling agent type is an orchestrator or agent that should return a structured result) may be needed.
+**What to look for**: In live deployed workflows, monitor the runtime log for `call_agent` invocations by orchestrator or dispatched agent types. If these agents use `call_agent` to forward their output to the next phase agent, the description guard has failed.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+## E38. findLastUnmatchedStart with Multiple Interleaved Controller Calls
+
+**Where**: `ActionRetryListenerImpl.findLastUnmatchedStart()` — set-based scan of all start/complete events
+**Question**: The fix handles a single interleaved controller call (start B + complete B between unmatched LLM start A). But what about multiple interleaved calls? E.g., LLM start A → controller start B + complete B → agent-to-agent start C + complete C → retry fires. Does the set-based approach still correctly identify A as unmatched?
+**Why it matters**: In production, an agent might call `call_controller` multiple times and also `call_agent` between the LLM call start and the retry. Each of these emits its own start+complete pair. The set-based approach should handle arbitrary interleaving, but the test only covers a single intervening pair.
+**What to look for**: Add a unit test with 3+ interleaved start+complete pairs between the real unmatched start and verify `findLastUnmatchedStart()` still returns A. Also test with ALL starts matched (no unmatched start) to ensure the method returns null.
+
+**Status**: NOT YET INVESTIGATED
+
+---
+
+
 
 - **F-E1**: Data layer operation timing relative to agent completion — do DataLayerOperationNodes always complete before their parent agent completes?
 - **F-E2**: Blackboard entry types at each phase boundary — does findLastWorkflowRequest consistently return the right type?

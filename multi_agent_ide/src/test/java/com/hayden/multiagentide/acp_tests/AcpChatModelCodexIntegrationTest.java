@@ -36,6 +36,7 @@ import com.hayden.multiagentide.repository.EventStreamRepository;
 import com.hayden.multiagentide.gate.PermissionGateAdapter;
 import com.hayden.multiagentide.agent.AcpTooling;
 import com.hayden.multiagentide.agent.AgentTopologyTools;
+import com.hayden.multiagentide.service.AgentExecutor;
 import com.hayden.multiagentide.tool.ToolAbstraction;
 import com.hayden.multiagentide.service.GitWorktreeService;
 import com.hayden.multiagentide.tool.McpToolObjectRegistrar;
@@ -72,7 +73,7 @@ import java.util.stream.Stream;
 
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
-@ActiveProfiles({"claude", "testdocker"})
+@ActiveProfiles({"claudellama", "testdocker"})
 @ExtendWith(SpringExtension.class)
 @TestPropertySource(properties = {"spring.ai.mcp.server.stdio=false"})
 class AcpChatModelCodexIntegrationTest {
@@ -93,8 +94,10 @@ class AcpChatModelCodexIntegrationTest {
     private McpToolObjectRegistrar toolObjectRegistry;
     @Autowired
     private ArtifactRepository artifactRepository;
-
     @Autowired
+    private AgentExecutor agentExecutor;
+
+    @Autowired(required = false)
     private AgentTools guiEvent;
     @Autowired(required = false)
     private AcpTooling fileSystemTools;
@@ -132,9 +135,12 @@ class AcpChatModelCodexIntegrationTest {
 
         private final McpToolObjectRegistrar toolObjectRegistry;
 
-        private final AgentTools guiEvent;
 
         private final AgentTopologyTools agentTopologyTools;
+
+        @Autowired(required = false)
+        @Setter
+        private AgentTools guiEvent;
 
         @Autowired(required = false)
         @Setter
@@ -228,7 +234,8 @@ class AcpChatModelCodexIntegrationTest {
 
     @BeforeEach
     public void before() {
-        TestAgent agentInterface = new TestAgent(toolObjectRegistry, guiEvent, agentTopologyTools);
+        TestAgent agentInterface = new TestAgent(toolObjectRegistry, agentTopologyTools);
+        agentInterface.setGuiEvent(guiEvent);
         agentInterface.setFileSystemTools(fileSystemTools);
         Optional.ofNullable(agentMetadataReader.createAgentMetadata(agentInterface))
                 .ifPresentOrElse(agentPlatform::deploy, () -> log.error("Error deploying {} - could not create agent metadata.", agentInterface));
@@ -237,7 +244,8 @@ class AcpChatModelCodexIntegrationTest {
     @Test
     void testCreateGoal() throws GitAPIException, IOException {
 
-        Path tmpRepo = Path.of("/tmp/multi_agent_ide_parent");
+        String parentTmpRepo = "/tmp/multi_agent_ide_parent/multi_agent_ide_parent";
+        Path tmpRepo = Path.of(parentTmpRepo);
         if (!tmpRepo.toFile().exists()) {
             String projectRepo = envConfigProps.getProjectDir().getParent().getParent().toString();
             GitWorktreeService.performSubmoduleClone(
@@ -249,19 +257,24 @@ class AcpChatModelCodexIntegrationTest {
         }
 
         assertThat(tmpRepo.toFile()).exists();
-        Path readmePath = Path.of("/tmp/multi_agent_ide_parent/multi_agent_ide_java_parent/README.md");
+        Path readmePath = tmpRepo.resolve("multi_agent_ide_java_parent/README.md");
 
         if(readmePath.toFile().exists()) {
             readmePath.toFile().delete();
         }
 
         CompletableFuture.runAsync(() -> {
+            String string = tmpRepo.toString();
+            log.info("Running goal on {}.", string);
             var s = orchestrationController.startGoal(new OrchestrationController.StartGoalRequest(
                     "Please add a README.md with text HELLO to the path multi_agent_ide_java_parent/README.md. For discovery, " +
                             "just create one agent request that says code map does not have readme, for planner have one planner agent that says only to write readme, " +
                             "for ticket, have one agent that says to write readme.",
-                    "/tmp/multi_agent_ide_parent",
+                    string,
                     "main", "Artifact Centralization"));
+            log.info("Added - {}", s);
+        }).exceptionally(t -> {
+            throw new AssertionError("Failed - ", t);
         });
 
         startPermissionConsole();
@@ -491,11 +504,15 @@ class AcpChatModelCodexIntegrationTest {
                                         Thread.sleep(1000);
 
                                         if (input == null || input.isBlank()) {
-                                            permissionGateAdapter.resolveInterrupt(
-                                                    request.getInterruptId(),
-                                                    IPermissionGate.ResolutionType.RESOLVED,
-                                                    "",
-                                                    null
+                                            agentExecutor.controllerResponseExecution(
+                                                    AgentExecutor.ControllerResponseArgs.builder()
+                                                            .interruptId(request.getInterruptId())
+                                                            .originNodeId(request.getOriginNodeId())
+                                                            .message("Approved")
+                                                            .checklistAction("JUSTIFICATION_PASSED")
+                                                            .expectResponse(false)
+                                                            .targetAgentKey(request.getOriginNodeId())
+                                                            .build()
                                             );
                                             return;
                                         }

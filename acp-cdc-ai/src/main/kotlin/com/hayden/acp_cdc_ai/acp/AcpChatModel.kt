@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString
 import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties
 import com.hayden.acp_cdc_ai.acp.config.AcpProvider
-import com.hayden.acp_cdc_ai.acp.config.AcpProviderDefinition
 import com.hayden.acp_cdc_ai.acp.config.AcpResolvedCall
 import com.hayden.acp_cdc_ai.acp.config.AcpSessionRoutingKey
 import com.hayden.acp_cdc_ai.acp.config.McpProperties
@@ -36,7 +35,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.reactor.flux
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import kotlinx.io.asSink
 import kotlinx.io.asSource
 import kotlinx.io.buffered
@@ -241,56 +239,12 @@ class AcpChatModel(
             throw RuntimeException(err)
         }
 
-        // Incomplete JSON — throw so ActionRetryListenerImpl classifies as IncompleteJsonError
-        if (isIncompleteJson(generations)) {
-            throw RuntimeException(
-                "incomplete json: response was truncated for session ${sessionContext.chatModelKey.value}"
-            )
-        }
-
         // Strip markdown code fences (```json ... ```) and leading prose before JSON.
         sanitizeGenerationText(generations)
 
         toChatResponse(generations)
     }
 
-    /**
-     * Detects whether the generation text contains incomplete/truncated JSON.
-     * Returns true if text has a '{' but no valid complete JSON object.
-     */
-    private fun isIncompleteJson(generations: List<Generation>): Boolean {
-        val rawText = generations
-            .mapNotNull { runCatching { it.output.text }.getOrNull() }
-            .joinToString("")
-            .trim()
-
-        val combinedText = stripMarkdownCodeFences(rawText) ?: rawText
-
-        if (combinedText.isEmpty() || !combinedText.contains("{")) {
-            return false
-        }
-
-        val trailingJson = extractTrailingJsonObject(combinedText)
-        if (trailingJson != null) {
-            try {
-                objectMapper.readTree(trailingJson)
-                return false // Valid JSON — not incomplete
-            } catch (_: Exception) {
-                // Balanced braces but invalid JSON content
-            }
-        }
-
-        // Has a '{' but no complete JSON object — truncated
-        return true
-    }
-
-    /**
-     * Returns true when the last non-blank generation text is a compaction notice rather than
-     * the expected JSON response.  We expect a JSON object as output; we use a regex to strip
-     * any leading thinking tokens and find the first '{'.  If no '{' exists and the text contains
-     * a compaction marker ("Compacting..." or is just "...") it means the session compacted and
-     * ended the stream before producing actual output.
-     */
     /**
      * Returns true when the session is still compacting: the combined generation text
      * contains "compacting..." but does NOT have a "compaction completed" after the
@@ -456,7 +410,8 @@ class AcpChatModel(
             resolveSandboxTranslation(
                 resolvedCall.sessionArtifactKey(),
                 resolvedCall.providerName() ?: AcpProvider.CLAUDE_LLAMA,
-                provider.args
+                provider.args,
+                acpResolvedCall = resolvedCall
             )
         val process = command + sandboxTranslation.args.toTypedArray()
         val workingDirectory = provider.workingDirectory
@@ -638,20 +593,24 @@ class AcpChatModel(
     }
 
     fun resolveSandboxTranslation(sessionId: String?, providerName: AcpProvider, args: String?): SandboxTranslation {
+        return resolveSandboxTranslation(sessionId, providerName, args, null);
+    }
+
+    fun resolveSandboxTranslation(sessionId: String?, providerName: AcpProvider, args: String?, acpResolvedCall: AcpResolvedCall?): SandboxTranslation {
         sessionId ?: return SandboxTranslation.empty()
         val context =
             requestContextRepository.findBySessionId(sessionId).orElse(null) ?: return SandboxTranslation.empty()
         var direct = sandboxTranslationRegistry.find(providerName.providerKey()).orElse(null)
         if (direct != null) {
-            return direct.translate(context, parseArgs(args))
+            return direct.translateResolvedCall(context, parseArgs(args), acpResolvedCall)
         }
         direct = sandboxTranslationRegistry.find(providerName.wireValue()).orElse(null)
         if (direct != null) {
-            return direct.translate(context, parseArgs(args))
+            return direct.translateResolvedCall(context, parseArgs(args), acpResolvedCall)
         }
         val fallback = sandboxTranslationRegistry.find(AcpProvider.CLAUDE_OPENROUTER.wireValue())
             .orElse(null)
-        return fallback?.translate(context, parseArgs(args)) ?: SandboxTranslation.empty()
+        return fallback?.translateResolvedCall(context, parseArgs(args), acpResolvedCall) ?: SandboxTranslation.empty()
     }
 
     private fun resolveChatOptions(chatRequest: Prompt): AcpChatOptionsString {
@@ -740,18 +699,24 @@ class AcpChatModel(
 
         var depth = 0
         var inString = false
-        var escaping = false
         var start = -1
 
         for (i in trimmed.lastIndex downTo 0) {
             val c = trimmed[i]
             if (inString) {
-                if (escaping) {
-                    escaping = false
-                } else if (c == '\\') {
-                    escaping = true
-                } else if (c == '"') {
-                    inString = false
+                if (c == '"') {
+                    // Count consecutive backslashes BEFORE this quote (to the left = lower indices,
+                    // but we're already at index i so look at i-1, i-2, ...).
+                    var backslashes = 0
+                    var j = i - 1
+                    while (j >= 0 && trimmed[j] == '\\') {
+                        backslashes++
+                        j--
+                    }
+                    // Quote is escaped only if preceded by an odd number of backslashes
+                    if (backslashes % 2 == 0) {
+                        inString = false
+                    }
                 }
                 continue
             }

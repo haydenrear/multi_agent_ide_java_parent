@@ -1,11 +1,7 @@
 package com.hayden.acp_cdc_ai.acp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
-import com.hayden.acp_cdc_ai.acp.config.AcpModelProperties;
-import com.hayden.acp_cdc_ai.acp.config.AcpProvider;
-import com.hayden.acp_cdc_ai.acp.config.AcpProviderDefinition;
-import com.hayden.acp_cdc_ai.acp.config.McpProperties;
+import com.hayden.acp_cdc_ai.acp.config.*;
 import com.hayden.acp_cdc_ai.permission.IPermissionGate;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import com.hayden.acp_cdc_ai.repository.RequestContextRepository;
@@ -207,12 +203,34 @@ class AcpChatModelArgsParsingTest {
             when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.of(context));
             // AcpProvider.CLAUDE_OPENROUTER.wireValue() -> "claudeopenrouter"
             when(sandboxTranslationRegistry.find("claude-agent-acp")).thenReturn(Optional.of(directStrategy));
-            when(directStrategy.translate(eq(context), any())).thenReturn(expected);
+            when(directStrategy.translateResolvedCall(eq(context), any(), any())).thenReturn(expected);
 
             SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", AcpProvider.CLAUDE_OPENROUTER, "--model openrouter/free");
 
             assertThat(result).isEqualTo(expected);
-            verify(directStrategy).translate(eq(context), eq(List.of("--model", "openrouter/free")));
+            verify(directStrategy).translateResolvedCall(eq(context), eq(List.of("--model", "openrouter/free")), eq(null));
+        }
+
+        @Test
+        @DisplayName("uses direct strategy when provider strategy exists")
+        void usesAcpChatResolved() {
+            RequestContext context = RequestContext.builder()
+                    .sessionId("session-123")
+                    .sandboxContext(SandboxContext.builder().mainWorktreePath(Path.of("/project")).build())
+                    .build();
+            SandboxTranslationStrategy directStrategy = mock(SandboxTranslationStrategy.class);
+            SandboxTranslation expected = new SandboxTranslation(Map.of("ENV_VAR", "value"), List.of("--translated"), "/project");
+
+            when(requestContextRepository.findBySessionId("session-123")).thenReturn(Optional.of(context));
+            // AcpProvider.CLAUDE_OPENROUTER.wireValue() -> "claudeopenrouter"
+            when(sandboxTranslationRegistry.find("claude-agent-acp")).thenReturn(Optional.of(directStrategy));
+            when(directStrategy.translateResolvedCall(eq(context), any(), any())).thenReturn(expected);
+
+            SandboxTranslation result = acpChatModel.resolveSandboxTranslation("session-123", AcpProvider.CLAUDE_OPENROUTER, "--model openrouter/free",
+                    AcpResolvedCall.builder().effectiveModel("hello").build());
+
+            assertThat(result).isEqualTo(expected);
+            verify(directStrategy).translateResolvedCall(eq(context), eq(List.of("--model", "openrouter/free")), eq(AcpResolvedCall.builder().effectiveModel("hello").build()));
         }
 
     }

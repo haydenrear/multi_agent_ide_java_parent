@@ -2,14 +2,17 @@ package com.hayden.acp_cdc_ai.sandbox;
 
 
 import com.hayden.acp_cdc_ai.acp.config.AcpChatOptionsString;
+import com.hayden.acp_cdc_ai.acp.config.AcpResolvedCall;
 import com.hayden.acp_cdc_ai.repository.RequestContext;
 import jakarta.annotation.Nullable;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
 
 public interface SandboxTranslationStrategy {
@@ -69,13 +72,12 @@ public interface SandboxTranslationStrategy {
 
             if (Objects.equals(arg, "model")) {
                 sawModel = true;
-                model = value; // capture original
-
                 String effective = Objects.equals(modelOverride, AcpChatOptionsString.DEFAULT_MODEL_NAME)
                         ? value
                         : modelOverride;
 
                 args.addAll(argParser.apply("model", effective));
+                model = effective;
                 continue;
             }
 
@@ -95,6 +97,14 @@ public interface SandboxTranslationStrategy {
     SandboxTranslation translate(RequestContext context, List<String> args, String modelName);
 
     default SandboxTranslation translate(RequestContext context, List<String> args) {
-        return translate(context, args, AcpChatOptionsString.DEFAULT_MODEL_NAME);
+        return translateResolvedCall(context, args, null);
+    }
+
+    default SandboxTranslation translateResolvedCall(RequestContext context, List<String> args, @Nullable AcpResolvedCall acpResolvedCall) {
+        var model = Optional.ofNullable(acpResolvedCall)
+                .flatMap(a -> Optional.ofNullable(a.effectiveModel()))
+                .filter(StringUtils::isNotBlank)
+                .orElse(AcpChatOptionsString.DEFAULT_MODEL_NAME);
+        return translate(context, args, model);
     }
 }

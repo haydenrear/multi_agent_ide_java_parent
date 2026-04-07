@@ -320,7 +320,7 @@ class WorkflowAgentAcpChatModelTest extends AgentTestBase {
 
             // First ChatModel.call(): throw parse error
             queuedChatModel.enqueueError(
-                    new RuntimeException("Failed to parse JSON response from LLM"));
+                    new RuntimeException("Could not parse the given text to the desired target type ..."));
 
             // Retry + rest of happy path
             enqueueHappyPath("Implement auth");

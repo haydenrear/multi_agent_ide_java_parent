@@ -33,6 +33,7 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | D7 | — | GAP (P1) |
 | D8 | `listAgents_duringWorkflow_returnsCorrectTopology` | COVERED |
 | D9 | — | GAP (P2) |
+| D10 | — (static: tool description text verification) | COVERED (static) |
 | E1 | `fullWorkflow_realMerges_changesReachSource` | COVERED |
 | E2 | `discoveryPhase_twoAgents_bothMergeSuccessfully` | COVERED |
 | E3 | `discoveryPhase_twoAgents_lastWriteWins` | COVERED |
@@ -92,7 +93,7 @@ Organized by subsystem, then by priority (P0 = must-have, P1 = important, P2 = n
 | S13 | `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods.errorContext_accumulatesAcrossMultipleStartsAndErrors` | COVERED (unit) |
 | S14 | `ActionRetryListenerImplTest.BlackboardHistoryErrorMethods` (errorType_withSessionKey_* tests) | COVERED (unit) |
 | S15 | `retry_compactionFromChatModel_recoversOnRetry`, `retry_parseErrorFromChatModel_recoversOnRetry` (WorkflowAgentAcpChatModelTest) | COVERED |
-| S16 | T036 verification grep (zero `Thread.sleep`, `while` retry, `nullRetryCount`, `continueCount`, `pollCount` in AcpChatModel) | COVERED (static) |
+| S16 | T036 verification grep (zero `Thread.sleep`, `while` retry, `nullRetryCount`, `continueCount`, `pollCount`, `isIncompleteJson` in AcpChatModel) | COVERED (static) |
 
 ---
 
@@ -234,6 +235,11 @@ During active workflow with multiple sessions, list_agents returns only callable
 Only the calling agent's session exists. list_agents returns empty list.
 
 **Validates**: Graceful handling of empty result. No crash on empty topology.
+
+### D10. Tool Description Restrictions Prevent Structured Result Bypass (P0)
+`call_agent` and `list_agents` tool descriptions contain explicit warnings that agents must NEVER use these tools as a substitute for returning their structured JSON result. Even if a previous structured result attempt failed, the agent must retry the structured result rather than using `call_agent`/`list_agents` to manually delegate or forward work. Both `@Tool` and `@McpTool` annotations carry identical descriptions.
+
+**Validates**: Tool description text contains "Never use call_agent as a substitute for returning your structured result" and "Never use list_agents or call_agent as a substitute for returning your structured result". Framework handles dispatch from structured results — agents should not attempt manual dispatch via topology tools.
 
 ---
 
@@ -657,9 +663,9 @@ Every `AgentExecutorStartEvent` has a matching `AgentExecutorCompleteEvent` in t
 **Validates**: No orphaned start events. No phantom completions. Events paired by sessionKey + actionName.
 
 ### S3. ActionRetryListener Error Classification (P0)
-When the Embabel retry framework fires `onActionRetry`, the `ActionRetryListenerImpl` classifies the throwable into the correct `ErrorDescriptor` variant and records it on `BlackboardHistory`. Classification order: CompactionException → compacting/prompt-too-long message → TimeoutException → "tool call" → "null"+"result"/"empty response" → "incomplete json"/"truncated" → JsonParseException/"parse" → fallback ParseError.
+When the Embabel retry framework fires `onActionRetry`, the `ActionRetryListenerImpl` classifies the throwable into the correct `ErrorDescriptor` variant and records it on `BlackboardHistory`. Classification order: CompactionException → compacting/prompt-too-long message → TimeoutException → "tool call" → "null"+"result"/"empty response" → "incomplete json"/"truncated" → "could not parse the given text to the desired target type" → JsonParseException/"parse" → fallback ParseError.
 
-**Validates**: Unit-tested classification in `ActionRetryListenerImplTest`. Error recorded on BlackboardHistory. CompactionStatus progression (NONE→FIRST→MULTIPLE). NullResultError and IncompleteJsonError variants classified correctly.
+**Validates**: Unit-tested classification in `ActionRetryListenerImplTest`. Error recorded on BlackboardHistory. CompactionStatus progression (NONE→FIRST→MULTIPLE). NullResultError and IncompleteJsonError variants classified correctly. "could not parse" message from embabel framework's OutputConverter mapped to IncompleteJsonError.
 
 ### S4. ErrorDescriptor on BlackboardHistory After Retry (P1)
 After `ActionRetryListener` fires, `BlackboardHistory.errorType()` returns the classified error. `compactionStatus()` returns the compaction progression. These are queryable by downstream prompt contributors and AgentExecutor.
@@ -699,12 +705,12 @@ After `ActionRetryListener` fires, `BlackboardHistory.errorType()` returns the c
 ### S11. requestContextId vs nodeId Semantics (P0)
 `requestContextId` is the agentRequest's `contextId` — the same value across all retry attempts for the same request. `nodeId` on `AgentExecutorStartEvent` is `requestContextId.createChild()` — unique per execution attempt. `AgentExecutorCompleteEvent.startNodeId` records the start event's `nodeId` for matching.
 
-**Validates**: `requestContextId` stable across retries. `nodeId` unique per attempt. `startNodeId` on complete event matches corresponding start's `nodeId`. `findFirstUnmatchedStartIndex` and `findLastUnmatchedStart` use `nodeId`↔`startNodeId` matching (not `requestContextId`).
+**Validates**: `requestContextId` stable across retries. `nodeId` unique per attempt. `startNodeId` on complete event matches corresponding start's `nodeId`. `findFirstUnmatchedStartIndex` and `findLastUnmatchedStart` use `nodeId`↔`startNodeId` matching (not `requestContextId`). `findLastUnmatchedStart` scans ALL start events and builds a set of completed nodeIds, walking backwards to find the last start with no matching complete — this correctly handles interleaved controller call start+complete pairs that would mask the real unmatched start.
 
 ### S12. Retry Sequence Boundary Detection (P0)
-`BlackboardHistory.findFirstUnmatchedStartIndex(sessionKey)` walks backwards through start events for the given session, finding the earliest start whose `nodeId` has no matching `CompleteEvent.startNodeId`. A matched start (one that completed successfully) breaks the chain. `errorCountForRetrySequence` and `errorType(sessionKey)` scope to this boundary.
+`BlackboardHistory.findFirstUnmatchedStartIndex(sessionKey)` walks backwards through start events for the given session, finding the earliest start whose `nodeId` has no matching `CompleteEvent.startNodeId`. A matched start (one that completed successfully) breaks the chain. `errorCountForRetrySequence` and `errorType(sessionKey)` scope to this boundary. `ActionRetryListenerImpl.findLastUnmatchedStart()` scans ALL start events and builds a set of completed nodeIds, then walks backwards to find the last start with no matching complete — handling interleaved controller call start+complete pairs correctly.
 
-**Validates**: Completed executions excluded from retry chain. Multiple unmatched starts (from framework reruns) form a contiguous chain. Cross-session starts ignored.
+**Validates**: Completed executions excluded from retry chain. Multiple unmatched starts (from framework reruns) form a contiguous chain. Cross-session starts ignored. Interleaving controller calls (start B + complete B) between the real unmatched start (A) do not cause `findLastUnmatchedStart` to miss A.
 
 ### S13. Cumulative ErrorContext Across Retry Sequence (P0)
 Each `ErrorDescriptor` carries an `ErrorContext` with the ordered list of all previous errors in the retry sequence. Built by calling `history.errorType(sessionKey)` to get the last error, then `previousError.errorContext().withError(previousError)` to append it. The chain is flat (`ErrorEntry` records, no nested `ErrorContext`).
@@ -722,9 +728,9 @@ Exceptions thrown from `ChatModel.call()` (the AcpChatModel layer) propagate thr
 **Validates**: CompactionException from ChatModel classified as CompactionError. ParseError RuntimeException from ChatModel classified as ParseError. Retry succeeds on second attempt. Start/Complete event pairing shows extra start from failed attempt.
 
 ### S16. AcpChatModel Detect-and-Throw (No Internal Retry) (P0)
-`AcpChatModel` no longer contains internal retry loops. It detects error conditions (compaction, null result, unparsed tool call, incomplete JSON) and throws exceptions with messages that `ActionRetryListenerImpl.classify()` can match. The embabel framework retry mechanism handles all retries externally.
+`AcpChatModel` no longer contains internal retry loops. It detects error conditions (compaction, null result, unparsed tool call) and throws exceptions with messages that `ActionRetryListenerImpl.classify()` can match. The embabel framework retry mechanism handles all retries externally. Incomplete JSON detection was removed — the embabel framework's `OutputConverter` throws on parse failure, which propagates through the retry framework and is classified by `ActionRetryListenerImpl.classify()` (matching "could not parse the given text to the desired target type" as `IncompleteJsonError`).
 
-**Validates**: Static verification: zero `Thread.sleep`, `while` retry, `nullRetryCount`, `continueCount`, `pollCount` patterns in AcpChatModel.kt. `isIncompleteJson()` replaces `handleIncompleteJson()`. `isSessionCompacting()` throws `CompactionException` instead of polling.
+**Validates**: Static verification: zero `Thread.sleep`, `while` retry, `nullRetryCount`, `continueCount`, `pollCount` patterns in AcpChatModel.kt. `isSessionCompacting()` throws `CompactionException` instead of polling. `detectUnparsedToolCallInLastMessage()` throws on unparsed tool calls. No `isIncompleteJson()` — parse errors caught by framework.
 
 ---
 
