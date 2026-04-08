@@ -249,6 +249,8 @@ class PermissionGate(
         val existing = pendingInterrupts[interruptId]
 
         if (existing != null) {
+            log.warn("publishInterrupt: interrupt {} already pending (origin={}, type={}) — returning existing deferred",
+                interruptId, existing.originNodeId, existing.type)
             return existing
         }
 
@@ -263,6 +265,10 @@ class PermissionGate(
             if (type == Events.InterruptType.HUMAN_REVIEW) {
                 val node = graphRepository.findById(interruptId).orElse(null)
                 val reviewNode = node as? ReviewNode
+                if (reviewNode == null) {
+                    log.warn("publishInterrupt: HUMAN_REVIEW interrupt {} has no ReviewNode in graph (node={}) — review event will emit without node status update",
+                        interruptId, node?.javaClass?.simpleName ?: "null")
+                }
                 val reviewContent = reason ?: reviewNode?.reviewContent ?: ""
                 if (reviewNode != null && reviewNode.status() != Events.NodeStatus.WAITING_INPUT) {
                     val updated = GraphNodeBuilderHelper.withStatus(reviewNode, Events.NodeStatus.WAITING_INPUT)
@@ -302,7 +308,11 @@ class PermissionGate(
     }
 
     override suspend fun awaitInterrupt(interruptId: String): IPermissionGate.InterruptResolution {
-        val pending = pendingInterrupts[interruptId] ?: return invalidInterrupt(interruptId)
+        val pending = pendingInterrupts[interruptId]
+        if (pending == null) {
+            log.error("awaitInterrupt: no pending interrupt for {} — returning CANCELLED (agent will unblock with no resolution)", interruptId)
+            return invalidInterrupt(interruptId)
+        }
         return pending.deferred.await()
     }
 
@@ -347,7 +357,11 @@ class PermissionGate(
         resolutionNotes: String?,
         reviewResult: AgentModels.ReviewAgentResult? = null
     ): Boolean {
-        val pending = pendingInterrupts.remove(interruptId) ?: return false
+        val pending = pendingInterrupts.remove(interruptId)
+        if (pending == null) {
+            log.warn("resolveInterrupt: no pending interrupt found for {} — already resolved or never published", interruptId)
+            return false
+        }
 
         val resolution = IPermissionGate.InterruptResolution(
             interruptId = interruptId,
@@ -410,12 +424,25 @@ class PermissionGate(
             }
 
             else -> {
+                log.warn("resolveInterrupt: interrupt node {} is {} (not ReviewNode or InterruptNode) — skipping node-level resolution",
+                    interruptId, interruptNode?.javaClass?.simpleName ?: "null")
             }
         }
 
         val originNode = graphRepository.findById(pending.originNodeId).orElse(null)
+        if (originNode == null) {
+            log.warn("resolveInterrupt: origin node {} not found in graph — skipping origin context update for interrupt {}",
+                pending.originNodeId, interruptId)
+        } else if (originNode !is Interruptible) {
+            log.warn("resolveInterrupt: origin node {} is {} (not Interruptible) — skipping origin context update for interrupt {}",
+                pending.originNodeId, originNode.javaClass.simpleName, interruptId)
+        }
         if (originNode is Interruptible) {
             val context = originNode.interruptibleContext()
+            if (context == null) {
+                log.warn("resolveInterrupt: origin node {} has null interruptibleContext — cannot emit InterruptStatusEvent for interrupt {}",
+                    pending.originNodeId, interruptId)
+            }
             if (context != null) {
                 val updatedContext = context
                     .withStatus(InterruptContext.InterruptStatus.RESOLVED)

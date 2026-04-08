@@ -165,30 +165,59 @@ public class InterruptService {
             String reason
     ) {
         GraphNode originNode = graphRepository.findById(originNodeId).orElse(null);
-        if (originNode instanceof Interruptible interruptible
-                && interruptible.interruptibleContext() == null) {
-            var interruptContext = new InterruptContext(
-                    interruptType,
-                    InterruptContext.InterruptStatus.REQUESTED,
-                    reason,
-                    originNodeId,
-                    originNodeId,
-                    interruptId,
-                    null
-            );
-            GraphNode updated = interruptible.withInterruptibleContext(interruptContext);
-            graphRepository.save(updated);
-        } else if (originNode instanceof Interruptible interruptible
-                && interruptible.interruptibleContext().status() != InterruptContext.InterruptStatus.REQUESTED) {
-            String truncatedContext = interruptible.interruptibleContext().toString();
-            if (truncatedContext.length() > 200) {
-                truncatedContext = truncatedContext.substring(0, 200) + "...";
-            }
-            log.error("publishInterruptWithContext called on node {} with unexpected interruptibleContext "
-                    + "status {} (expected null or REQUESTED): {}",
-                    originNodeId, interruptible.interruptibleContext().status(), truncatedContext);
+        if (originNode == null) {
+            log.warn("publishInterruptWithContext: origin node {} not found in graph — interrupt {} will publish without context",
+                    originNodeId, interruptId);
+        } else if (originNode instanceof Interruptible interruptible) {
+            updateInterruptibleContext(interruptible, interruptId, originNodeId, interruptType, reason);
+        } else {
+            log.warn("publishInterruptWithContext: origin node {} is {} (not Interruptible) — interrupt {} will publish without context",
+                    originNodeId, originNode.getClass().getSimpleName(), interruptId);
         }
         permissionGate.publishInterrupt(interruptId, originNodeId, interruptType, reason);
+    }
+
+    private void updateInterruptibleContext(
+            Interruptible interruptible,
+            String interruptId,
+            String originNodeId,
+            Events.InterruptType interruptType,
+            String reason
+    ) {
+        InterruptContext existing = interruptible.interruptibleContext();
+        boolean needsNewContext = existing == null
+                || existing.status() == InterruptContext.InterruptStatus.RESOLVED;
+        boolean isDuplicateWithNewId = existing != null
+                && existing.status() == InterruptContext.InterruptStatus.REQUESTED
+                && !interruptId.equals(existing.interruptNodeId());
+
+        if (!needsNewContext && !isDuplicateWithNewId) {
+            // Either same interruptId already REQUESTED (no-op), or mid-lifecycle state (error).
+            if (existing != null && existing.status() != InterruptContext.InterruptStatus.REQUESTED) {
+                log.error("publishInterruptWithContext on node {} with in-progress status {} (expected null, REQUESTED, or RESOLVED)",
+                        originNodeId, existing.status());
+            }
+            return;
+        }
+
+        if (existing != null && existing.status() == InterruptContext.InterruptStatus.RESOLVED) {
+            log.info("Resetting RESOLVED interruptibleContext on node {} for new interrupt {}", originNodeId, interruptId);
+        } else if (isDuplicateWithNewId) {
+            log.warn("Replacing REQUESTED interruptibleContext on node {} (existing={}, new={})",
+                    originNodeId, existing.interruptNodeId(), interruptId);
+        }
+
+        var interruptContext = new InterruptContext(
+                interruptType,
+                InterruptContext.InterruptStatus.REQUESTED,
+                reason,
+                originNodeId,
+                originNodeId,
+                interruptId,
+                null
+        );
+        GraphNode updated = interruptible.withInterruptibleContext(interruptContext);
+        graphRepository.save(updated);
     }
 
     /**

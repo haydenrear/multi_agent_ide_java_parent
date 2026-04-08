@@ -61,7 +61,11 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
 
     @Override
     public void onActionRetry(RetryContext context, Throwable throwable, AgentProcess agentProcess) {
+        log.info("ActionRetryListener: running action retry listener: {}",
+                agentProcess.getId());
+
         BlackboardHistory history = agentProcess.last(BlackboardHistory.class);
+
         if (history == null) {
             log.warn("ActionRetryListener: no BlackboardHistory on AgentProcess {} — cannot record error",
                     agentProcess.getId());
@@ -201,6 +205,11 @@ public class ActionRetryListenerImpl implements ActionRetryListener {
         if (lowerMessage.contains("compacting") || lowerMessage.contains("prompt is too long")) {
             ErrorDescriptor.CompactionStatus status = history.compactionStatusForRetrySequence(sessionKey).next();
             return new ErrorDescriptor.CompactionError(actionName, sessionKey, status, false, message, throwable, contextId, errCtx);
+        }
+
+        if (lowerMessage.contains("unparsed tool call".toLowerCase())) {
+            int retryCount = (int) history.errorCountForRetrySequence(ErrorDescriptor.UnparsedToolCallError.class, sessionKey) + 1;
+            return new ErrorDescriptor.UnparsedToolCallError(actionName, sessionKey, retryCount, message, message, throwable, contextId, errCtx);
         }
 
         if (throwable instanceof TimeoutException || lowerMessage.contains("timeout")) {
